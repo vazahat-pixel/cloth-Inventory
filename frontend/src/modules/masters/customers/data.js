@@ -1,0 +1,42 @@
+const customersData = [
+  {
+    id: 'cus-1',
+    customerName: 'Neel Fashion Point',
+    mobileNumber: '9898011122',
+    email: 'owner@neelfashion.com',
+    address: 'C.G. Road, Ahmedabad',
+    gstNumber: '24AAACN4455H1Z2',
+    loyaltyPoints: 320,
+    creditLimit: 150000,
+    status: 'Active',
+    groupId: 'ag-1',
+    saleNature: 'Retail',
+  },
+  {
+    id: 'cus-2',
+    customerName: 'Urban Wardrobe',
+    mobileNumber: '9810099911',
+    email: 'contact@urbanwardrobe.in',
+    address: 'Karol Bagh, New Delhi',
+    gstNumber: '',
+    loyaltyPoints: 180,
+    creditLimit: 100000,
+    status: 'Active',
+    groupId: 'ag-2',
+    saleNature: 'Wholesale',
+  },
+  {
+    id: 'cus-3',
+    customerName: 'Trendset Garments',
+    mobileNumber: '9845012345',
+    email: 'info@trendsetgarments.in',
+    address: 'Commercial Street, Bengaluru',
+    gstNumber: '29AABCT7788P1ZX',
+    loyaltyPoints: 95,
+    creditLimit: 50000,
+    status: 'Inactive',
+    saleNature: 'Retail',
+  },
+];
+
+export default customersData;

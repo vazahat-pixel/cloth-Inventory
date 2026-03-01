@@ -1,0 +1,1323 @@
+import { useMemo, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { useParams } from 'react-router-dom';
+import { useAppNavigate } from '../../hooks/useAppNavigate';
+import {
+  Alert,
+  Autocomplete,
+  Box,
+  Button,
+  Divider,
+  Grid,
+  IconButton,
+  InputAdornment,
+  MenuItem,
+  Paper,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
+} from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
+import KeyboardReturnOutlinedIcon from '@mui/icons-material/KeyboardReturnOutlined';
+import PaymentIcon from '@mui/icons-material/Payment';
+import { addSale } from './salesSlice';
+import { applySaleDispatch } from '../inventory/inventorySlice';
+import { redeemVoucher, addLoyaltyTransaction } from '../customers/customersSlice';
+import { updateCoupon } from '../pricing/pricingSlice';
+import { updateMasterRecord } from '../masters/mastersSlice';
+import { updateDeliveryOrder } from '../orders/ordersSlice';
+import { updateCreditNote } from '../customers/customersSlice';
+import PaymentDialog from './PaymentDialog';
+import LoyaltyRedeemDialog from './LoyaltyRedeemDialog';
+import { evaluateSchemes, getTotalSchemeDiscount } from '../pricing/schemeService';
+import { getVariantRateFromPriceLists } from '../pricing/priceListService';
+
+const DEFAULT_TAX_PERCENT = 5;
+
+const getTaxBySlab = (rate, config) => {
+  if (!config?.gstSlabEnabled) return config?.defaultTaxPercent ?? DEFAULT_TAX_PERCENT;
+  const threshold = Number(config.gstSlabThreshold) || 1000;
+  const below = Number(config.belowThresholdTax) ?? 5;
+  const above = Number(config.aboveThresholdTax) ?? 12;
+  return Number(rate) < threshold ? below : above;
+};
+const DEFAULT_WALK_IN_NAME = 'Walk-in Customer';
+const EMPTY_ARR = [];
+
+const getTodayDate = () => new Date().toISOString().slice(0, 10);
+
+const generateInvoiceNumber = () => `INV-${Date.now().toString().slice(-6)}`;
+
+const toNumber = (value, fallback = 0) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+};
+
+const calculateLine = (line) => {
+  const quantity = toNumber(line.quantity);
+  const rate = toNumber(line.rate);
+  const discountPercent = toNumber(line.discount);
+  const taxPercent = toNumber(line.tax);
+
+  const gross = quantity * rate;
+  const discountAmount = (gross * discountPercent) / 100;
+  const taxableAmount = gross - discountAmount;
+  const taxAmount = (taxableAmount * taxPercent) / 100;
+  const amount = taxableAmount + taxAmount;
+
+  return {
+    gross,
+    discountAmount,
+    taxAmount,
+    amount,
+  };
+};
+
+const calculateTotals = (lines, billDiscount, loyaltyRedeemed, couponDiscount = 0, schemeDiscount = 0) => {
+  const summary = lines.reduce(
+    (accumulator, line) => {
+      const lineTotals = calculateLine(line);
+      accumulator.totalItems += 1;
+      accumulator.totalQuantity += toNumber(line.quantity);
+      accumulator.grossAmount += lineTotals.gross;
+      accumulator.lineDiscount += lineTotals.discountAmount;
+      accumulator.taxAmount += lineTotals.taxAmount;
+      return accumulator;
+    },
+    {
+      totalItems: 0,
+      totalQuantity: 0,
+      grossAmount: 0,
+      lineDiscount: 0,
+      taxAmount: 0,
+    },
+  );
+
+  const netPayable =
+    summary.grossAmount -
+    summary.lineDiscount -
+    toNumber(billDiscount) -
+    toNumber(couponDiscount) -
+    toNumber(schemeDiscount) +
+    summary.taxAmount -
+    toNumber(loyaltyRedeemed);
+
+  return {
+    ...summary,
+    billDiscount: toNumber(billDiscount),
+    couponDiscount: toNumber(couponDiscount),
+    schemeDiscount: toNumber(schemeDiscount),
+    loyaltyRedeemed: toNumber(loyaltyRedeemed),
+    netPayable: netPayable > 0 ? netPayable : 0,
+  };
+};
+
+function BillingPage() {
+  const { id } = useParams();
+  const isDetailMode = Boolean(id);
+
+  const dispatch = useDispatch();
+  const navigate = useAppNavigate();
+
+  const sales = useSelector((state) => state.sales.records);
+  const customers = useSelector((state) => state.masters.customers);
+  const salesmen = useSelector((state) => state.masters.salesmen);
+  const warehouses = useSelector((state) => state.inventory.warehouses);
+  const stockRows = useSelector((state) => state.inventory.stock);
+  const items = useSelector((state) => state.items.records);
+  const schemes = useSelector((state) => state.pricing.schemes);
+  const coupons = useSelector((state) => state.pricing.coupons);
+  const priceLists = useSelector((state) => state.pricing.priceLists);
+  const loyaltyConfig = useSelector((state) => state.customerRewards?.loyaltyConfig) ?? {};
+  const vouchers = useSelector((state) => state.customerRewards?.vouchers) ?? [];
+  const purchaseConfig = useSelector((state) => state.settings.purchaseVoucherConfig) ?? {};
+  const deliveryOrders = useSelector((state) => state.orders?.deliveryOrders) ?? [];
+  const creditNotes = useSelector((state) => state.customerRewards?.creditNotes) ?? [];
+
+  const existingSale = useMemo(
+    () => (isDetailMode ? sales.find((entry) => entry.id === id) : null),
+    [id, isDetailMode, sales],
+  );
+
+  const [billDate, setBillDate] = useState(getTodayDate());
+  const [warehouseId, setWarehouseId] = useState(warehouses[0]?.id || '');
+  const [salesmanId, setSalesmanId] = useState('');
+  const [mobileInput, setMobileInput] = useState('');
+  const [customerId, setCustomerId] = useState('');
+  const [billDiscount, setBillDiscount] = useState('');
+  const [loyaltyRedeemed, setLoyaltyRedeemed] = useState('');
+  const [barcodeInput, setBarcodeInput] = useState('');
+  const [selectedOption, setSelectedOption] = useState(null);
+  const [lines, setLines] = useState([]);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponError, setCouponError] = useState('');
+  const [loyaltyRedeemOpen, setLoyaltyRedeemOpen] = useState(false);
+  const [billingMode, setBillingMode] = useState('manual');
+  const [deliveryOrderId, setDeliveryOrderId] = useState('');
+  const [creditNoteId, setCreditNoteId] = useState('');
+
+  const pendingDOsForCustomer = useMemo(() => {
+    if (!customerId || billingMode !== 'fromDO') return [];
+    return deliveryOrders.filter(
+      (do_) =>
+        do_.customerId === customerId &&
+        String(do_.status || '').toLowerCase() === 'pending',
+    );
+  }, [customerId, billingMode, deliveryOrders]);
+
+  const loadLinesFromDO = (doId) => {
+    const do_ = deliveryOrders.find((d) => d.id === doId);
+    if (!do_?.items?.length) return;
+    const loaded = do_.items.map((item, idx) => ({
+      id: `${item.variantId}-${idx}-${Date.now()}`,
+      variantId: item.variantId,
+      itemName: item.itemName,
+      styleCode: item.styleCode,
+      size: item.size,
+      color: item.color,
+      sku: item.sku,
+      quantity: toNumber(item.quantity),
+      rate: toNumber(item.rate),
+      discount: toNumber(item.discount),
+      tax: toNumber(item.tax),
+      available: toNumber(item.quantity),
+    }));
+    setLines(loaded);
+    setSelectedOption(null);
+    setBarcodeInput('');
+  };
+
+  const activeCustomers = useMemo(
+    () => customers.filter((customer) => String(customer.status).toLowerCase() === 'active'),
+    [customers],
+  );
+  const activeSalesmen = useMemo(
+    () => salesmen.filter((entry) => String(entry.status).toLowerCase() === 'active'),
+    [salesmen],
+  );
+
+  const customerMap = useMemo(
+    () =>
+      customers.reduce((accumulator, customer) => {
+        accumulator[customer.id] = customer;
+        return accumulator;
+      }, {}),
+    [customers],
+  );
+
+  const selectedCustomer = customerId ? customerMap[customerId] : null;
+  const availableLoyalty = toNumber(selectedCustomer?.loyaltyPoints);
+
+  const availableCreditNotes = useMemo(() => {
+    if (!customerId) return [];
+    return (creditNotes || []).filter(
+      (n) =>
+        n.customerId === customerId &&
+        String(n.status || '').toLowerCase() === 'available',
+    );
+  }, [customerId, creditNotes]);
+
+  const selectedCreditNote = useMemo(
+    () => creditNotes.find((n) => n.id === creditNoteId),
+    [creditNotes, creditNoteId],
+  );
+  const creditNoteAmount = toNumber(selectedCreditNote?.amount);
+
+  const variantSellingPriceMap = useMemo(() => {
+    const map = {};
+    items.forEach((item) => {
+      item.variants?.forEach((variant) => {
+        map[variant.id] = {
+          rate: toNumber(variant.sellingPrice || variant.mrp || 0),
+          itemName: item.name,
+          styleCode: item.code,
+          itemId: item.id,
+          brand: item.brand,
+          category: item.category,
+        };
+      });
+    });
+    return map;
+  }, [items]);
+
+  const itemGroups = useSelector((state) => state.masters.itemGroups) || EMPTY_ARR;
+  const brands = useSelector((state) => state.masters.brands) || EMPTY_ARR;
+
+  const itemsMapForSchemes = useMemo(() => {
+    const groupByName = itemGroups.reduce((acc, g) => {
+      acc[g.groupName] = g.id;
+      return acc;
+    }, {});
+    const brandByName = brands.reduce((acc, b) => {
+      acc[b.brandName] = b.id;
+      return acc;
+    }, {});
+    const map = {};
+    items.forEach((item) => {
+      const itemGroupId = groupByName[item.category] || item.category;
+      const brandId = brandByName[item.brand] || item.brand;
+      item.variants?.forEach((variant) => {
+        map[variant.id] = {
+          itemId: item.id,
+          brand: item.brand,
+          category: item.category,
+          brandId,
+          itemGroupId,
+        };
+      });
+    });
+    return map;
+  }, [items, itemGroups, brands]);
+
+  const warehouseStock = useMemo(
+    () => stockRows.filter((row) => row.warehouseId === warehouseId),
+    [stockRows, warehouseId],
+  );
+
+  const variantOptions = useMemo(() => {
+    return warehouseStock
+      .map((stock) => {
+        const available = toNumber(stock.quantity) - toNumber(stock.reserved);
+        const pricing = variantSellingPriceMap[stock.variantId] || {};
+        let rate = toNumber(pricing.rate);
+
+        if (selectedCustomer && priceLists?.length) {
+          const variant = items
+            .flatMap((i) => (i.variants || []).map((v) => ({ ...v, itemId: i.id, itemCategory: i.category })))
+            .find((v) => v.id === stock.variantId);
+          const plResult = getVariantRateFromPriceLists({
+            priceLists,
+            customerId: selectedCustomer.id,
+            customerGroupId: selectedCustomer.groupId || '',
+            variantId: stock.variantId,
+            itemId: pricing.itemId || variant?.itemId,
+            itemCategory: pricing.category || variant?.itemCategory,
+            variant,
+            billDate,
+          });
+          if (plResult) rate = plResult.rate;
+        }
+
+        return {
+          variantId: stock.variantId,
+          itemName: stock.itemName || pricing.itemName || 'Unknown Item',
+          styleCode: stock.styleCode || pricing.styleCode || '',
+          size: stock.size,
+          color: stock.color,
+          sku: stock.sku,
+          available: available > 0 ? available : 0,
+          rate,
+          tax: getTaxBySlab(rate, purchaseConfig),
+        };
+      })
+      .filter((option) => option.available > 0);
+  }, [variantSellingPriceMap, warehouseStock, selectedCustomer, priceLists, items, billDate, purchaseConfig]);
+
+  const handleMobileChange = (value) => {
+    setMobileInput(value);
+    if (!isDetailMode && value?.trim()) {
+      const matched = activeCustomers.find((customer) => customer.mobileNumber === value.trim());
+      if (matched) {
+        setCustomerId(matched.id);
+        setLoyaltyRedeemed('');
+      }
+    }
+  };
+
+  const schemeResult = useMemo(
+    () => evaluateSchemes(schemes, lines, itemsMapForSchemes, billDate),
+    [schemes, lines, itemsMapForSchemes, billDate],
+  );
+
+  const schemeDiscount = useMemo(
+    () => getTotalSchemeDiscount(schemeResult.lineAdjustments),
+    [schemeResult.lineAdjustments],
+  );
+
+  const baseAmountForCoupon = useMemo(() => {
+    const s = lines.reduce(
+      (acc, l) => {
+        const lt = calculateLine(l);
+        acc.gross += lt.gross;
+        acc.lineDisc += lt.discountAmount;
+        acc.tax += lt.taxAmount;
+        return acc;
+      },
+      { gross: 0, lineDisc: 0, tax: 0 },
+    );
+    return s.gross - s.lineDisc - toNumber(billDiscount) - schemeDiscount + s.tax;
+  }, [lines, billDiscount, schemeDiscount]);
+
+  const couponDiscountAmount = useMemo(() => {
+    if (!appliedCoupon) return 0;
+    if (baseAmountForCoupon < toNumber(appliedCoupon.minAmount)) return 0;
+    if (appliedCoupon.discountType === 'percentage') {
+      return (baseAmountForCoupon * toNumber(appliedCoupon.value)) / 100;
+    }
+    return Math.min(toNumber(appliedCoupon.value), baseAmountForCoupon);
+  }, [appliedCoupon, baseAmountForCoupon]);
+
+  const totals = useMemo(
+    () =>
+      calculateTotals(
+        lines,
+        billDiscount,
+        loyaltyRedeemed,
+        couponDiscountAmount,
+        schemeDiscount,
+      ),
+    [billDiscount, lines, loyaltyRedeemed, couponDiscountAmount, schemeDiscount],
+  );
+
+  const handleApplyCoupon = () => {
+    setCouponError('');
+    const code = couponCode.trim().toUpperCase();
+    if (!code) {
+      setCouponError('Enter coupon code.');
+      return;
+    }
+    const coupon = coupons.find((c) => c.code.toUpperCase() === code);
+    if (!coupon) {
+      setCouponError('Invalid coupon code.');
+      return;
+    }
+    if (String(coupon.status).toLowerCase() !== 'active') {
+      setCouponError('Coupon is expired or inactive.');
+      return;
+    }
+    if (coupon.expiry && new Date(coupon.expiry) < new Date()) {
+      setCouponError('Coupon has expired.');
+      return;
+    }
+    const usageLimit = toNumber(coupon.usageLimit, Infinity);
+    if (usageLimit !== Infinity && toNumber(coupon.usageCount) >= usageLimit) {
+      setCouponError('Coupon usage limit reached.');
+      return;
+    }
+    setAppliedCoupon(coupon);
+    setCouponError('');
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCode('');
+    setCouponError('');
+  };
+
+  const upsertLine = (option) => {
+    setLines((previous) => {
+      const existing = previous.find((line) => line.variantId === option.variantId);
+      if (existing) {
+        return previous.map((line) => {
+          if (line.variantId !== option.variantId) {
+            return line;
+          }
+
+          const nextQty = Math.min(toNumber(line.quantity) + 1, toNumber(line.available));
+          return { ...line, quantity: nextQty };
+        });
+      }
+
+      return [
+        ...previous,
+        {
+          id: `${option.variantId}-${Date.now()}`,
+          variantId: option.variantId,
+          itemName: option.itemName,
+          styleCode: option.styleCode,
+          size: option.size,
+          color: option.color,
+          sku: option.sku,
+          quantity: 1,
+          rate: option.rate,
+          discount: 0,
+          tax: option.tax,
+          available: option.available,
+        },
+      ];
+    });
+  };
+
+  const handleAddSelected = () => {
+    if (!selectedOption) {
+      return;
+    }
+
+    upsertLine(selectedOption);
+    setSelectedOption(null);
+    setErrorMessage('');
+  };
+
+  const handleBarcodeAdd = () => {
+    const scannedCode = barcodeInput.trim().toLowerCase();
+    if (!scannedCode) {
+      return;
+    }
+
+    const matched = variantOptions.find((option) => option.sku.toLowerCase() === scannedCode);
+    if (!matched) {
+      setErrorMessage('No SKU found in the selected warehouse stock.');
+      return;
+    }
+
+    upsertLine(matched);
+    setBarcodeInput('');
+    setErrorMessage('');
+  };
+
+  const updateLineField = (lineId, field, value) => {
+    setLines((previous) =>
+      previous.map((line) => {
+        if (line.id !== lineId) {
+          return line;
+        }
+
+        if (field === 'quantity') {
+          const quantity = Math.max(1, toNumber(value));
+          return {
+            ...line,
+            quantity: Math.min(quantity, toNumber(line.available)),
+          };
+        }
+
+        if (field === 'discount') {
+          const discount = Math.max(0, Math.min(toNumber(value), 100));
+          return { ...line, discount };
+        }
+
+        if (field === 'rate') {
+          const rate = Math.max(0, toNumber(value));
+          const tax = purchaseConfig?.gstSlabEnabled ? getTaxBySlab(rate, purchaseConfig) : line.tax;
+          return { ...line, rate, tax };
+        }
+
+        return line;
+      }),
+    );
+  };
+
+  const removeLine = (lineId) => {
+    setLines((previous) => previous.filter((line) => line.id !== lineId));
+  };
+
+  const handleProceedPayment = () => {
+    setErrorMessage('');
+
+    if (!warehouseId) {
+      setErrorMessage('Select warehouse before billing.');
+      return;
+    }
+
+    if (!lines.length) {
+      setErrorMessage('Add at least one item to continue.');
+      return;
+    }
+
+    const invalidQty = lines.find(
+      (line) => toNumber(line.quantity) <= 0 || toNumber(line.quantity) > toNumber(line.available),
+    );
+    if (invalidQty) {
+      setErrorMessage(`Quantity exceeds stock for ${invalidQty.sku}.`);
+      return;
+    }
+
+    if (toNumber(loyaltyRedeemed) > availableLoyalty) {
+      setErrorMessage('Loyalty redeemed cannot exceed available customer points.');
+      return;
+    }
+
+    setPaymentOpen(true);
+  };
+
+  const handlePaymentConfirm = (payment) => {
+    const invoiceNumber = generateInvoiceNumber();
+    const selectedSalesman = salesmen.find((entry) => entry.id === salesmanId);
+
+    const preparedItems = lines.map((line) => {
+      const lineTotals = calculateLine(line);
+      return {
+        variantId: line.variantId,
+        itemName: line.itemName,
+        styleCode: line.styleCode,
+        size: line.size,
+        color: line.color,
+        sku: line.sku,
+        quantity: toNumber(line.quantity),
+        rate: toNumber(line.rate),
+        discount: toNumber(line.discount),
+        tax: toNumber(line.tax),
+        amount: lineTotals.amount,
+      };
+    });
+
+    if (payment.voucherUsed) {
+      dispatch(
+        redeemVoucher({
+          id: payment.voucherUsed.id,
+          redeemedDate: billDate,
+          redeemedInvoice: invoiceNumber,
+          customerId: selectedCustomer?.id || null,
+        }),
+      );
+    }
+
+    if (appliedCoupon) {
+      dispatch(
+        updateCoupon({
+          id: appliedCoupon.id,
+          coupon: { ...appliedCoupon, usageCount: toNumber(appliedCoupon.usageCount) + 1 },
+        }),
+      );
+    }
+
+    const loyaltyRedeemedAmount = toNumber(totals.loyaltyRedeemed);
+    const earnRate = toNumber(loyaltyConfig?.earnRate, 1);
+    const earnPerAmount = toNumber(loyaltyConfig?.earnPerAmount, 100);
+    const pointsEarned = Math.floor((totals.netPayable / earnPerAmount) * earnRate);
+    const currentPoints = toNumber(selectedCustomer?.loyaltyPoints);
+    const newPoints = Math.max(0, currentPoints - loyaltyRedeemedAmount + pointsEarned);
+
+    if (selectedCustomer) {
+      dispatch(
+        updateMasterRecord('customers', selectedCustomer.id, { loyaltyPoints: newPoints }),
+      );
+      if (loyaltyRedeemedAmount > 0) {
+        dispatch(
+          addLoyaltyTransaction({
+            customerId: selectedCustomer.id,
+            date: billDate,
+            type: 'redeemed',
+            points: -loyaltyRedeemedAmount,
+            reference: invoiceNumber,
+          }),
+        );
+      }
+      if (pointsEarned > 0) {
+        dispatch(
+          addLoyaltyTransaction({
+            customerId: selectedCustomer.id,
+            date: billDate,
+            type: 'earned',
+            points: pointsEarned,
+            reference: invoiceNumber,
+          }),
+        );
+      }
+    }
+
+    const netAfterCredit = Math.max(0, totals.netPayable - creditNoteAmount);
+    const payload = {
+      invoiceNumber,
+      date: billDate,
+      warehouseId,
+      customerId: selectedCustomer?.id || null,
+      customerName: selectedCustomer?.customerName || DEFAULT_WALK_IN_NAME,
+      customerMobile: selectedCustomer?.mobileNumber || '',
+      salesmanId: selectedSalesman?.id || '',
+      salesmanName: selectedSalesman?.name || '',
+      items: preparedItems,
+      totals: {
+        ...totals,
+        couponDiscount: couponDiscountAmount,
+        schemeDiscount,
+        creditNoteApplied: creditNoteAmount,
+        netPayable: netAfterCredit,
+      },
+      payment,
+      status: 'Completed',
+    };
+
+    dispatch(addSale(payload));
+    dispatch(
+      applySaleDispatch({
+        date: billDate,
+        warehouseId,
+        reference: invoiceNumber,
+        items: preparedItems,
+        user: 'Admin',
+      }),
+    );
+
+    if (billingMode === 'fromDO' && deliveryOrderId) {
+      dispatch(updateDeliveryOrder({ id: deliveryOrderId, order: { status: 'Completed' } }));
+    }
+
+    if (creditNoteId) {
+      dispatch(
+        updateCreditNote({
+          id: creditNoteId,
+          creditNote: {
+            status: 'Used',
+            usedDate: billDate,
+            usedInvoice: invoiceNumber,
+          },
+        }),
+      );
+    }
+
+    setPaymentOpen(false);
+    navigate('/sales');
+  };
+
+  if (isDetailMode) {
+    if (!existingSale) {
+      return (
+        <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3 }}>
+          <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a', mb: 1 }}>
+            Sales invoice not found
+          </Typography>
+          <Button variant="contained" onClick={() => navigate('/sales')}>
+            Back to Sales List
+          </Button>
+        </Paper>
+      );
+    }
+
+    return (
+      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3 }}>
+        <Stack
+          direction={{ xs: 'column', md: 'row' }}
+          spacing={2}
+          sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, mb: 2 }}
+        >
+          <Box>
+            <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
+              Invoice {existingSale.invoiceNumber}
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#64748b' }}>
+              Read-only invoice view
+            </Typography>
+          </Box>
+          <Stack direction="row" spacing={1.5}>
+            <Button
+              variant="outlined"
+              startIcon={<ArrowBackIcon />}
+              onClick={() => navigate('/sales')}
+            >
+              Back
+            </Button>
+            <Button
+              variant="contained"
+              color="warning"
+              startIcon={<KeyboardReturnOutlinedIcon />}
+              onClick={() => navigate(`/sales/${existingSale.id}/return`)}
+            >
+              Create Return
+            </Button>
+          </Stack>
+        </Stack>
+
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 2 }}>
+          <InfoCell label="Date" value={existingSale.date} />
+          <InfoCell label="Customer" value={existingSale.customerName || DEFAULT_WALK_IN_NAME} />
+          <InfoCell label="Mobile" value={existingSale.customerMobile || '-'} />
+          <InfoCell label="Payment" value={existingSale.payment?.status || 'Pending'} />
+        </Stack>
+
+        <TableContainer sx={{ border: '1px solid #e2e8f0', borderRadius: 1.5 }}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 700 }}>Item</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Variant</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">
+                  Qty
+                </TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">
+                  Rate
+                </TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">
+                  Discount %
+                </TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">
+                  Amount
+                </TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {existingSale.items.map((item, index) => (
+                <TableRow key={`${item.variantId}-${index}`}>
+                  <TableCell>{item.itemName}</TableCell>
+                  <TableCell>{`${item.size}/${item.color}`}</TableCell>
+                  <TableCell>{item.sku}</TableCell>
+                  <TableCell align="right">{item.quantity}</TableCell>
+                  <TableCell align="right">{Number(item.rate).toFixed(2)}</TableCell>
+                  <TableCell align="right">{Number(item.discount).toFixed(2)}</TableCell>
+                  <TableCell align="right">{Number(item.amount).toFixed(2)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="flex-end" sx={{ mt: 2 }}>
+          <SummaryCard label="Gross" value={existingSale.totals.grossAmount} />
+          <SummaryCard
+            label="Discount"
+            value={existingSale.totals.lineDiscount + existingSale.totals.billDiscount}
+          />
+          <SummaryCard label="Tax" value={existingSale.totals.taxAmount} />
+          <SummaryCard label="Net" value={existingSale.totals.netPayable} strong />
+        </Stack>
+      </Paper>
+    );
+  }
+
+  return (
+    <>
+      <Stack
+        direction={{ xs: 'column', md: 'row' }}
+        spacing={2}
+        sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, mb: 2 }}
+      >
+        <Box>
+          <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
+            New Sale Billing
+          </Typography>
+          <Typography variant="body2" sx={{ color: '#64748b' }}>
+            Fast POS billing for variant-level sales.
+          </Typography>
+        </Box>
+
+        <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate('/sales')}>
+          Back to Sales
+        </Button>
+      </Stack>
+
+      <Grid container spacing={2.5}>
+        <Grid item xs={12} lg={8}>
+          <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3, mb: 2 }}>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a', mb: 2 }}>
+              Customer & Bill Info
+            </Typography>
+
+            <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+              <Button
+                variant={billingMode === 'manual' ? 'contained' : 'outlined'}
+                size="small"
+                onClick={() => {
+                  setBillingMode('manual');
+                  setDeliveryOrderId('');
+                  setLines([]);
+                }}
+              >
+                Manual Entry
+              </Button>
+              <Button
+                variant={billingMode === 'fromDO' ? 'contained' : 'outlined'}
+                size="small"
+                onClick={() => {
+                  setBillingMode('fromDO');
+                  setLines([]);
+                  setDeliveryOrderId('');
+                }}
+              >
+                From Delivery Order
+              </Button>
+            </Stack>
+
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Bill Date"
+                  type="date"
+                  InputLabelProps={{ shrink: true }}
+                  value={billDate}
+                  onChange={(event) => setBillDate(event.target.value)}
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  select
+                  fullWidth
+                  size="small"
+                  label="Warehouse"
+                  value={warehouseId}
+                  onChange={(event) => {
+                    setWarehouseId(event.target.value);
+                    setLines([]);
+                    setSelectedOption(null);
+                    setBarcodeInput('');
+                  }}
+                >
+                  {warehouses.map((warehouse) => (
+                    <MenuItem key={warehouse.id} value={warehouse.id}>
+                      {warehouse.name}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  select
+                  fullWidth
+                  size="small"
+                  label="Salesman"
+                  value={salesmanId}
+                  onChange={(event) => setSalesmanId(event.target.value)}
+                >
+                  <MenuItem value="">Not Assigned</MenuItem>
+                  {activeSalesmen.map((salesman) => (
+                    <MenuItem key={salesman.id} value={salesman.id}>
+                      {salesman.name}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Customer Mobile"
+                  value={mobileInput}
+                  onChange={(event) => handleMobileChange(event.target.value)}
+                />
+              </Grid>
+              <Grid item xs={12} md={5}>
+                <TextField
+                  select
+                  fullWidth
+                  size="small"
+                  label="Customer"
+                  value={customerId}
+                  onChange={(event) => {
+                    const selectedId = event.target.value;
+                    setCustomerId(selectedId);
+                    const selected = customerMap[selectedId];
+                    setMobileInput(selected?.mobileNumber || '');
+                    setLoyaltyRedeemed('');
+                    setCreditNoteId('');
+                    if (billingMode === 'fromDO') {
+                      setDeliveryOrderId('');
+                      setLines([]);
+                    }
+                  }}
+                >
+                  <MenuItem value="">Walk-in Customer</MenuItem>
+                  {activeCustomers.map((customer) => (
+                    <MenuItem key={customer.id} value={customer.id}>
+                      {`${customer.customerName} (${customer.mobileNumber})`}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  onClick={() => {
+                    setCustomerId('');
+                    setMobileInput('');
+                    setLoyaltyRedeemed('');
+                    setCreditNoteId('');
+                  }}
+                  sx={{ height: 40 }}
+                >
+                  Walk-in
+                </Button>
+              </Grid>
+              {billingMode === 'fromDO' && customerId && (
+                <Grid item xs={12}>
+                  <TextField
+                    select
+                    fullWidth
+                    size="small"
+                    label="Delivery Order"
+                    value={deliveryOrderId}
+                    onChange={(e) => {
+                      const doId = e.target.value;
+                      const do_ = deliveryOrders.find((d) => d.id === doId);
+                      if (do_?.warehouseId) setWarehouseId(do_.warehouseId);
+                      setDeliveryOrderId(doId);
+                      loadLinesFromDO(doId);
+                    }}
+                    sx={{ maxWidth: 400 }}
+                  >
+                    <MenuItem value="">Select delivery order</MenuItem>
+                    {pendingDOsForCustomer.map((do_) => (
+                      <MenuItem key={do_.id} value={do_.id}>
+                        {do_.doNumber} - {do_.date} - ₹{Number(do_.totals?.netAmount ?? 0).toFixed(2)}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                </Grid>
+              )}
+            </Grid>
+
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={1.5}
+              sx={{ mt: 2, alignItems: { sm: 'center' } }}
+            >
+              <InfoCell label="Customer" value={selectedCustomer?.customerName || DEFAULT_WALK_IN_NAME} />
+              <InfoCell label="Loyalty Points" value={availableLoyalty} />
+            </Stack>
+          </Paper>
+
+          <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3 }}>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a', mb: 1.5 }}>
+              Item Entry
+            </Typography>
+
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mb: 1.5 }}>
+              <Autocomplete
+                fullWidth
+                size="small"
+                options={variantOptions}
+                value={selectedOption}
+                onChange={(_, value) => setSelectedOption(value)}
+                getOptionLabel={(option) =>
+                  `${option.itemName} (${option.size}/${option.color}) - ${option.sku} [Stock: ${option.available}]`
+                }
+                renderInput={(params) => (
+                  <TextField {...params} label="Search item or SKU" placeholder="Type item or sku" />
+                )}
+              />
+              <Button
+                variant="outlined"
+                startIcon={<AddCircleOutlineIcon />}
+                onClick={handleAddSelected}
+                disabled={!selectedOption}
+              >
+                Add
+              </Button>
+            </Stack>
+
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mb: 2 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Barcode / SKU"
+                value={barcodeInput}
+                onChange={(event) => setBarcodeInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    handleBarcodeAdd();
+                  }
+                }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <QrCodeScannerIcon fontSize="small" />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+              <Button variant="outlined" onClick={handleBarcodeAdd}>
+                Scan Add
+              </Button>
+            </Stack>
+
+            {lines.length ? (
+              <TableContainer sx={{ border: '1px solid #e2e8f0', borderRadius: 1.5 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 700 }}>Item Name</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Variant</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }} align="right">
+                        Qty
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 700 }} align="right">
+                        Rate
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 700 }} align="right">
+                        Discount %
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 700 }} align="right">
+                        Amount
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Remove</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {lines.map((line) => {
+                      const lineTotals = calculateLine(line);
+                      return (
+                        <TableRow key={line.id}>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                              {line.itemName}
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: '#64748b' }}>
+                              Avl: {line.available}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>{`${line.size}/${line.color}`}</TableCell>
+                          <TableCell>{line.sku}</TableCell>
+                          <TableCell align="right">
+                            <TextField
+                              size="small"
+                              type="number"
+                              value={line.quantity}
+                              onChange={(event) =>
+                                updateLineField(line.id, 'quantity', event.target.value)
+                              }
+                              inputProps={{ min: 1, max: line.available }}
+                              sx={{ width: 90 }}
+                            />
+                          </TableCell>
+                          <TableCell align="right">
+                            <TextField
+                              size="small"
+                              type="number"
+                              value={line.rate}
+                              onChange={(event) => updateLineField(line.id, 'rate', event.target.value)}
+                              sx={{ width: 110 }}
+                            />
+                          </TableCell>
+                          <TableCell align="right">
+                            <TextField
+                              size="small"
+                              type="number"
+                              value={line.discount}
+                              onChange={(event) =>
+                                updateLineField(line.id, 'discount', event.target.value)
+                              }
+                              sx={{ width: 90 }}
+                            />
+                          </TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 700 }}>
+                            {lineTotals.amount.toFixed(2)}
+                          </TableCell>
+                          <TableCell>
+                            <IconButton color="error" size="small" onClick={() => removeLine(line.id)}>
+                              <DeleteOutlineIcon fontSize="small" />
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : (
+              <Box sx={{ py: 5, textAlign: 'center' }}>
+                <Typography variant="body2" sx={{ color: '#64748b' }}>
+                  No items in bill yet. Add via search or barcode.
+                </Typography>
+              </Box>
+            )}
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} lg={4}>
+          <Paper
+            elevation={0}
+            sx={{
+              border: '1px solid #e2e8f0',
+              borderRadius: 2,
+              p: 2.5,
+              position: { lg: 'sticky' },
+              top: { lg: 16 },
+            }}
+          >
+            <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a', mb: 1.5 }}>
+              Bill Summary
+            </Typography>
+
+            <Stack spacing={1.2}>
+              <SummaryRow label="Total Items" value={totals.totalItems} />
+              <SummaryRow label="Total Quantity" value={totals.totalQuantity} />
+              <SummaryRow label="Gross Amount" value={totals.grossAmount.toFixed(2)} />
+              <SummaryRow label="Line Discount" value={totals.lineDiscount.toFixed(2)} />
+              <SummaryRow label="Tax Amount" value={totals.taxAmount.toFixed(2)} />
+
+              <TextField
+                fullWidth
+                size="small"
+                label="Bill Discount"
+                type="number"
+                value={billDiscount}
+                onChange={(event) => setBillDiscount(event.target.value)}
+              />
+
+              {schemeDiscount > 0 && (
+                <SummaryRow label="Scheme Discount" value={schemeDiscount.toFixed(2)} />
+              )}
+
+              <Stack direction="row" spacing={1} alignItems="flex-start">
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Coupon Code"
+                  value={couponCode}
+                  onChange={(event) => setCouponCode(event.target.value.toUpperCase())}
+                  error={Boolean(couponError)}
+                  helperText={couponError || (appliedCoupon ? `Applied: ${appliedCoupon.code} (-₹${couponDiscountAmount.toFixed(2)})` : '')}
+                />
+                {appliedCoupon ? (
+                  <Button size="small" color="error" onClick={handleRemoveCoupon} sx={{ mt: 0.5 }}>
+                    Remove
+                  </Button>
+                ) : (
+                  <Button size="small" variant="outlined" onClick={handleApplyCoupon} sx={{ mt: 0.5 }}>
+                    Apply
+                  </Button>
+                )}
+              </Stack>
+
+              <Stack direction="row" spacing={1} alignItems="center">
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Loyalty Redeemed"
+                  type="number"
+                  value={loyaltyRedeemed}
+                  onChange={(event) => setLoyaltyRedeemed(event.target.value)}
+                  helperText={selectedCustomer ? `Available: ${availableLoyalty}` : 'Select customer to redeem points'}
+                />
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => setLoyaltyRedeemOpen(true)}
+                  disabled={!selectedCustomer || availableLoyalty < 1}
+                  sx={{ mt: 0.5, whiteSpace: 'nowrap' }}
+                >
+                  Redeem
+                </Button>
+              </Stack>
+
+              {selectedCustomer && availableCreditNotes.length > 0 && (
+                <Stack spacing={0.5} sx={{ mt: 1 }}>
+                  <TextField
+                    size="small"
+                    select
+                    fullWidth
+                    label="Apply Credit Note"
+                    value={creditNoteId}
+                    onChange={(e) => setCreditNoteId(e.target.value)}
+                  >
+                    <MenuItem value="">None</MenuItem>
+                    {availableCreditNotes.map((cn) => (
+                      <MenuItem key={cn.id} value={cn.id}>
+                        ₹{toNumber(cn.amount).toFixed(2)} - {cn.reason || 'Credit'}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                  {creditNoteAmount > 0 && (
+                    <Typography variant="caption" sx={{ color: '#64748b' }}>
+                      Credit applied: ₹{creditNoteAmount.toFixed(2)}
+                    </Typography>
+                  )}
+                </Stack>
+              )}
+
+              <Divider />
+
+              <SummaryRow
+                label="Net Payable"
+                value={Math.max(0, totals.netPayable - creditNoteAmount).toFixed(2)}
+                strong
+              />
+            </Stack>
+
+            {errorMessage && (
+              <Alert severity="error" sx={{ mt: 2 }}>
+                {errorMessage}
+              </Alert>
+            )}
+
+            <Button
+              fullWidth
+              variant="contained"
+              size="large"
+              startIcon={<PaymentIcon />}
+              sx={{ mt: 2 }}
+              onClick={handleProceedPayment}
+            >
+              Proceed to Payment
+            </Button>
+          </Paper>
+        </Grid>
+      </Grid>
+
+      <PaymentDialog
+        open={paymentOpen}
+        onClose={() => setPaymentOpen(false)}
+        netAmount={Math.max(0, totals.netPayable - creditNoteAmount)}
+        onConfirm={handlePaymentConfirm}
+        vouchers={vouchers}
+      />
+
+      <LoyaltyRedeemDialog
+        open={loyaltyRedeemOpen}
+        onClose={() => setLoyaltyRedeemOpen(false)}
+        customer={selectedCustomer}
+        loyaltyConfig={loyaltyConfig}
+        onRedeem={(pts) => setLoyaltyRedeemed(String(pts))}
+      />
+    </>
+  );
+}
+
+function InfoCell({ label, value }) {
+  return (
+    <Box sx={{ minWidth: 160 }}>
+      <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 700 }}>
+        {label}
+      </Typography>
+      <Typography variant="body2" sx={{ color: '#0f172a', fontWeight: 700 }}>
+        {value}
+      </Typography>
+    </Box>
+  );
+}
+
+function SummaryRow({ label, value, strong }) {
+  return (
+    <Stack direction="row" justifyContent="space-between">
+      <Typography variant="body2" sx={{ color: '#475569', fontWeight: 600 }}>
+        {label}
+      </Typography>
+      <Typography
+        variant="body2"
+        sx={{ color: '#0f172a', fontWeight: strong ? 800 : 700 }}
+      >
+        {value}
+      </Typography>
+    </Stack>
+  );
+}
+
+function SummaryCard({ label, value, strong }) {
+  return (
+    <Box
+      sx={{
+        border: '1px solid #e2e8f0',
+        borderRadius: 1.5,
+        px: 1.5,
+        py: 1,
+        minWidth: 120,
+        textAlign: 'right',
+      }}
+    >
+      <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 700 }}>
+        {label}
+      </Typography>
+      <Typography variant="body2" sx={{ color: '#0f172a', fontWeight: strong ? 800 : 700 }}>
+        {Number(value || 0).toFixed(2)}
+      </Typography>
+    </Box>
+  );
+}
+
+export default BillingPage;
