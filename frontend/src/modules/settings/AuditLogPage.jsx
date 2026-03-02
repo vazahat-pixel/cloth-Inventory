@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
-import { useSelector } from 'react-redux';
+import { useEffect, useMemo, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchAuditLog } from './settingsSlice';
 import {
   Box,
   Paper,
@@ -29,6 +30,11 @@ function AuditLogPage() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(15);
   const [search, setSearch] = useState('');
+  const dispatch = useDispatch();
+
+  useEffect(() => {
+    dispatch(fetchAuditLog());
+  }, [dispatch]);
 
   const filteredRows = useMemo(() => {
     if (!search?.trim()) return auditLog;

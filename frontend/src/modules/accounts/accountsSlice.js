@@ -1,54 +1,74 @@
-import { createSlice, nanoid } from '@reduxjs/toolkit';
-import { bankPaymentsData, bankReceiptsData } from './data';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import api from '../../services/api';
+
+// Async Thunks
+export const fetchBankPayments = createAsyncThunk('accounts/fetchPayments', async (_, { rejectWithValue }) => {
+  try {
+    const response = await api.get('/accounts/bank-payment');
+    return response.data.payments || response.data.data || [];
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
+export const fetchBankReceipts = createAsyncThunk('accounts/fetchReceipts', async (_, { rejectWithValue }) => {
+  try {
+    const response = await api.get('/accounts/bank-receipt');
+    return response.data.receipts || response.data.data || [];
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
+export const addBankPayment = createAsyncThunk('accounts/addPayment', async (paymentData, { rejectWithValue }) => {
+  try {
+    const response = await api.post('/accounts/bank-payment', paymentData);
+    return response.data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
+export const addBankReceipt = createAsyncThunk('accounts/addReceipt', async (receiptData, { rejectWithValue }) => {
+  try {
+    const response = await api.post('/accounts/bank-receipt', receiptData);
+    return response.data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
 
 const initialState = {
-  bankPayments: bankPaymentsData,
-  bankReceipts: bankReceiptsData,
+  bankPayments: [],
+  bankReceipts: [],
+  loading: false,
+  error: null,
 };
 
 const accountsSlice = createSlice({
   name: 'accounts',
   initialState,
   reducers: {
-    addBankPayment: {
-      reducer: (state, action) => {
+    clearAccountsError: (state) => {
+      state.error = null;
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchBankPayments.fulfilled, (state, action) => {
+        state.bankPayments = action.payload;
+      })
+      .addCase(fetchBankReceipts.fulfilled, (state, action) => {
+        state.bankReceipts = action.payload;
+      })
+      .addCase(addBankPayment.fulfilled, (state, action) => {
         state.bankPayments.unshift(action.payload);
-      },
-      prepare: (payment) => ({
-        payload: {
-          id: payment.id || nanoid(10),
-          bankId: payment.bankId,
-          supplierId: payment.supplierId,
-          date: payment.date,
-          chequeNo: payment.chequeNo,
-          amount: payment.amount,
-          narration: payment.narration || '',
-          allocatedBills: payment.allocatedBills || [],
-          ...payment,
-        },
-      }),
-    },
-    addBankReceipt: {
-      reducer: (state, action) => {
+      })
+      .addCase(addBankReceipt.fulfilled, (state, action) => {
         state.bankReceipts.unshift(action.payload);
-      },
-      prepare: (receipt) => ({
-        payload: {
-          id: receipt.id || nanoid(10),
-          bankId: receipt.bankId,
-          customerId: receipt.customerId,
-          date: receipt.date,
-          chequeNo: receipt.chequeNo,
-          amount: receipt.amount,
-          narration: receipt.narration || '',
-          allocatedBills: receipt.allocatedBills || [],
-          ...receipt,
-        },
-      }),
-    },
+      });
   },
 });
 
-export const { addBankPayment, addBankReceipt } = accountsSlice.actions;
-
+export const { clearAccountsError } = accountsSlice.actions;
 export default accountsSlice.reducer;

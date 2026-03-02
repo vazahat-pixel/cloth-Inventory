@@ -1,74 +1,90 @@
-import { createSlice, nanoid } from '@reduxjs/toolkit';
-import { saleOrdersData, packingSlipsData, deliveryOrdersData } from './data';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import api from '../../services/api';
+
+// Async Thunks
+export const fetchSaleOrders = createAsyncThunk('orders/fetchSaleOrders', async (_, { rejectWithValue }) => {
+  try {
+    const response = await api.get('/orders/sales');
+    return response.data.orders || response.data.data || [];
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
+export const addSaleOrder = createAsyncThunk('orders/addSaleOrder', async (orderData, { rejectWithValue }) => {
+  try {
+    const response = await api.post('/orders/sales', orderData);
+    return response.data.order || response.data.data || response.data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
+export const updateSaleOrder = createAsyncThunk('orders/updateSaleOrder', async ({ id, order }, { rejectWithValue }) => {
+  try {
+    const response = await api.patch(`/orders/sales/${id}`, order);
+    return response.data.order || response.data.data || response.data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
+export const addPackingSlip = createAsyncThunk('orders/addPackingSlip', async (slipData, { rejectWithValue }) => {
+  try {
+    const response = await api.post('/orders/packing-slips', slipData);
+    return response.data.slip || response.data.data || response.data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
+export const addDeliveryOrder = createAsyncThunk('orders/addDeliveryOrder', async (doData, { rejectWithValue }) => {
+  try {
+    const response = await api.post('/orders/delivery', doData);
+    return response.data.deliveryOrder || response.data.data || response.data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
 
 const initialState = {
-  saleOrders: saleOrdersData,
-  packingSlips: packingSlipsData,
-  deliveryOrders: deliveryOrdersData,
+  saleOrders: [],
+  packingSlips: [],
+  deliveryOrders: [],
+  loading: false,
+  error: null,
 };
 
 const ordersSlice = createSlice({
   name: 'orders',
   initialState,
   reducers: {
-    addSaleOrder: {
-      reducer: (state, action) => {
+    clearOrdersError: (state) => {
+      state.error = null;
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchSaleOrders.fulfilled, (state, action) => {
+        state.saleOrders = action.payload || [];
+      })
+      .addCase(addSaleOrder.fulfilled, (state, action) => {
         state.saleOrders.unshift(action.payload);
-      },
-      prepare: (order) => ({
-        payload: {
-          id: order.id || nanoid(10),
-          orderNumber: order.orderNumber || `SO-${Date.now().toString().slice(-6)}`,
-          status: order.status || 'Pending',
-          ...order,
-        },
-      }),
-    },
-    updateSaleOrder: (state, action) => {
-      const { id, order } = action.payload;
-      const idx = state.saleOrders.findIndex((o) => o.id === id);
-      if (idx >= 0) state.saleOrders[idx] = { ...state.saleOrders[idx], ...order };
-    },
-    addPackingSlip: {
-      reducer: (state, action) => {
+      })
+      .addCase(updateSaleOrder.fulfilled, (state, action) => {
+        const index = state.saleOrders.findIndex((o) => o.id === action.payload.id || o._id === action.payload._id);
+        if (index !== -1) {
+          state.saleOrders[index] = action.payload;
+        }
+      })
+      .addCase(addPackingSlip.fulfilled, (state, action) => {
         state.packingSlips.unshift(action.payload);
-      },
-      prepare: (slip) => ({
-        payload: {
-          id: slip.id || nanoid(10),
-          slipNumber: slip.slipNumber || `PS-${Date.now().toString().slice(-6)}`,
-          status: slip.status || 'Completed',
-          ...slip,
-        },
-      }),
-    },
-    addDeliveryOrder: {
-      reducer: (state, action) => {
+      })
+      .addCase(addDeliveryOrder.fulfilled, (state, action) => {
         state.deliveryOrders.unshift(action.payload);
-      },
-      prepare: (doOrder) => ({
-        payload: {
-          id: doOrder.id || nanoid(10),
-          doNumber: doOrder.doNumber || `DO-${Date.now().toString().slice(-6)}`,
-          status: doOrder.status || 'Pending',
-          ...doOrder,
-        },
-      }),
-    },
-    updateDeliveryOrder: (state, action) => {
-      const { id, order } = action.payload;
-      const idx = state.deliveryOrders.findIndex((o) => o.id === id);
-      if (idx >= 0) state.deliveryOrders[idx] = { ...state.deliveryOrders[idx], ...order };
-    },
+      });
   },
 });
 
-export const {
-  addSaleOrder,
-  updateSaleOrder,
-  addPackingSlip,
-  addDeliveryOrder,
-  updateDeliveryOrder,
-} = ordersSlice.actions;
-
+export const { clearOrdersError } = ordersSlice.actions;
 export default ordersSlice.reducer;

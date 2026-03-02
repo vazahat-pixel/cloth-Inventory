@@ -1,109 +1,194 @@
-import { createSlice, nanoid } from '@reduxjs/toolkit';
-import { priceListsData, schemesData, couponsData } from './data';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import api from '../../services/api';
+
+// Async Thunks
+export const fetchPriceLists = createAsyncThunk('pricing/fetchLists', async (_, { rejectWithValue }) => {
+  try {
+    const response = await api.get('/pricing');
+    return response.data.pricingRules || response.data.data || [];
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
+export const fetchPricingRules = fetchPriceLists;
+
+export const addPriceList = createAsyncThunk('pricing/addList', async (data, { rejectWithValue }) => {
+  try {
+    const response = await api.post('/pricing', data);
+    return response.data.pricingRule || response.data.data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
+export const updatePriceList = createAsyncThunk('pricing/updateList', async ({ id, priceList }, { rejectWithValue }) => {
+  try {
+    const response = await api.patch(`/pricing/${id}`, priceList);
+    return response.data.pricingRule || response.data.data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
+export const fetchSchemes = createAsyncThunk('pricing/fetchSchemes', async (_, { rejectWithValue }) => {
+  try {
+    const response = await api.get('/pricing/schemes');
+    return response.data.schemes || response.data.data || [];
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
+export const addScheme = createAsyncThunk('pricing/addScheme', async (data, { rejectWithValue }) => {
+  try {
+    const response = await api.post('/pricing/schemes', data);
+    return response.data.scheme || response.data.data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
+export const updateScheme = createAsyncThunk('pricing/updateScheme', async ({ id, scheme }, { rejectWithValue }) => {
+  try {
+    const response = await api.patch(`/pricing/schemes/${id}`, scheme);
+    return response.data.scheme || response.data.data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
+export const fetchCoupons = createAsyncThunk('pricing/fetchCoupons', async (_, { rejectWithValue }) => {
+  try {
+    const response = await api.get('/pricing/coupons');
+    return response.data.coupons || response.data.data || [];
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
+export const addCoupon = createAsyncThunk('pricing/addCoupon', async (data, { rejectWithValue }) => {
+  try {
+    const response = await api.post('/pricing/coupons', data);
+    return response.data.coupon || response.data.data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
+export const addCouponsBulk = createAsyncThunk('pricing/addCouponsBulk', async (coupons, { dispatch, rejectWithValue }) => {
+  try {
+    const created = [];
+    // Sequentially create coupons using existing addCoupon thunk
+    for (const coupon of coupons) {
+      const result = await dispatch(addCoupon(coupon)).unwrap();
+      created.push(result);
+    }
+    return created;
+  } catch (error) {
+    return rejectWithValue(error.message || 'Failed to create coupons in bulk');
+  }
+});
+
+export const updateCoupon = createAsyncThunk('pricing/updateCoupon', async ({ id, coupon }, { rejectWithValue }) => {
+  try {
+    const response = await api.patch(`/pricing/coupons/${id}`, coupon);
+    return response.data.coupon || response.data.data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
+export const setPriceListStatus = createAsyncThunk('pricing/setStatus', async ({ id, status }, { rejectWithValue }) => {
+  try {
+    const response = await api.patch(`/pricing/${id}`, { status });
+    return response.data.pricingRule || response.data.data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
+export const setSchemeStatus = createAsyncThunk('pricing/setSchemeStatus', async ({ id, status }, { rejectWithValue }) => {
+  try {
+    const response = await api.patch(`/pricing/schemes/${id}`, { status });
+    return response.data.scheme || response.data.data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
 
 const initialState = {
-  priceLists: priceListsData,
-  schemes: schemesData,
-  coupons: couponsData,
+  priceLists: [],
+  schemes: [],
+  coupons: [],
+  loading: false,
+  error: null,
 };
 
 const pricingSlice = createSlice({
   name: 'pricing',
   initialState,
   reducers: {
-    addPriceList: {
-      reducer: (state, action) => {
+    clearPricingError: (state) => {
+      state.error = null;
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchPriceLists.fulfilled, (state, action) => {
+        state.priceLists = action.payload || [];
+      })
+      .addCase(addPriceList.fulfilled, (state, action) => {
         state.priceLists.unshift(action.payload);
-      },
-      prepare: (priceList) => ({
-        payload: {
-          id: priceList.id || nanoid(10),
-          status: priceList.status || 'Active',
-          ...priceList,
-        },
-      }),
-    },
-    updatePriceList: (state, action) => {
-      const { id, priceList } = action.payload;
-      const index = state.priceLists.findIndex((p) => p.id === id);
-      if (index === -1) return;
-      state.priceLists[index] = { ...state.priceLists[index], ...priceList };
-    },
-    setPriceListStatus: (state, action) => {
-      const { id, status } = action.payload;
-      const priceList = state.priceLists.find((p) => p.id === id);
-      if (priceList) priceList.status = status;
-    },
-
-    addScheme: {
-      reducer: (state, action) => {
+      })
+      .addCase(updatePriceList.fulfilled, (state, action) => {
+        const index = state.priceLists.findIndex((r) => r.id === action.payload.id || r._id === action.payload._id);
+        if (index !== -1) {
+          state.priceLists[index] = action.payload;
+        }
+      })
+      .addCase(fetchSchemes.fulfilled, (state, action) => {
+        state.schemes = action.payload || [];
+      })
+      .addCase(addScheme.fulfilled, (state, action) => {
         state.schemes.unshift(action.payload);
-      },
-      prepare: (scheme) => ({
-        payload: {
-          id: scheme.id || nanoid(10),
-          status: scheme.status || 'Active',
-          ...scheme,
-        },
-      }),
-    },
-    updateScheme: (state, action) => {
-      const { id, scheme } = action.payload;
-      const index = state.schemes.findIndex((s) => s.id === id);
-      if (index === -1) return;
-      state.schemes[index] = { ...state.schemes[index], ...scheme };
-    },
-    setSchemeStatus: (state, action) => {
-      const { id, status } = action.payload;
-      const scheme = state.schemes.find((s) => s.id === id);
-      if (scheme) scheme.status = status;
-    },
-
-    addCoupon: {
-      reducer: (state, action) => {
+      })
+      .addCase(updateScheme.fulfilled, (state, action) => {
+        const index = state.schemes.findIndex((r) => r.id === action.payload.id || r._id === action.payload._id);
+        if (index !== -1) {
+          state.schemes[index] = action.payload;
+        }
+      })
+      .addCase(fetchCoupons.fulfilled, (state, action) => {
+        state.coupons = action.payload || [];
+      })
+      .addCase(addCoupon.fulfilled, (state, action) => {
         state.coupons.unshift(action.payload);
-      },
-      prepare: (coupon) => ({
-        payload: {
-          id: coupon.id || nanoid(10),
-          usageCount: coupon.usageCount || 0,
-          status: coupon.status || 'Active',
-          ...coupon,
-        },
-      }),
-    },
-    addCouponsBulk: {
-      reducer: (state, action) => {
-        state.coupons.unshift(...action.payload);
-      },
-      prepare: (coupons) => ({
-        payload: coupons.map((c) => ({
-          id: c.id || nanoid(10),
-          usageCount: c.usageCount || 0,
-          status: c.status || 'Active',
-          ...c,
-        })),
-      }),
-    },
-    updateCoupon: (state, action) => {
-      const { id, coupon } = action.payload;
-      const index = state.coupons.findIndex((c) => c.id === id);
-      if (index === -1) return;
-      state.coupons[index] = { ...state.coupons[index], ...coupon };
-    },
+      })
+      .addCase(addCouponsBulk.fulfilled, (state, action) => {
+        // Prepend newly created coupons to the list
+        state.coupons = [...action.payload, ...state.coupons];
+      })
+      .addCase(updateCoupon.fulfilled, (state, action) => {
+        const index = state.coupons.findIndex((c) => c.id === action.payload.id || c._id === action.payload._id);
+        if (index !== -1) {
+          state.coupons[index] = action.payload;
+        }
+      })
+      .addCase(setPriceListStatus.fulfilled, (state, action) => {
+        const index = state.priceLists.findIndex((r) => r.id === action.payload.id || r._id === action.payload._id);
+        if (index !== -1) {
+          state.priceLists[index] = action.payload;
+        }
+      })
+      .addCase(setSchemeStatus.fulfilled, (state, action) => {
+        const index = state.schemes.findIndex((r) => r.id === action.payload.id || r._id === action.payload._id);
+        if (index !== -1) {
+          state.schemes[index] = action.payload;
+        }
+      });
   },
 });
 
-export const {
-  addPriceList,
-  updatePriceList,
-  setPriceListStatus,
-  addScheme,
-  updateScheme,
-  setSchemeStatus,
-  addCoupon,
-  addCouponsBulk,
-  updateCoupon,
-} = pricingSlice.actions;
-
+export const { clearPricingError } = pricingSlice.actions;
 export default pricingSlice.reducer;

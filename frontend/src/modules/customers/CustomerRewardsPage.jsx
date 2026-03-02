@@ -27,7 +27,7 @@ const TRANSACTION_TYPE_LABELS = {
 };
 
 function CustomerRewardsPage() {
-  const customers = useSelector((state) => state.masters.customers);
+  const customers = useSelector((state) => state.masters.customers || []);
   const loyaltyTransactions = useSelector((state) => state.customerRewards.loyaltyTransactions);
 
   const [searchText, setSearchText] = useState('');

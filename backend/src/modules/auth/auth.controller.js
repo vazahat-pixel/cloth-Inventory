@@ -101,4 +101,54 @@ const getMe = async (req, res, next) => {
 // ── LOGOUT ───────────────────────────────────────────────────────
 const logout = (req, res) => sendSuccess(res, {}, 'Logged out successfully.');
 
-module.exports = { adminRegister, adminLogin, storeRegister, storeLogin, getMe, logout };
+// ── GET ALL USERS (ADMIN ONLY) ────────────────────────────────────
+const getAllUsers = async (req, res, next) => {
+    try {
+        const users = await User.find({}).sort({ createdAt: -1 });
+        return sendSuccess(res, { users }, 'Users retrieved successfully.');
+    } catch (error) { next(error); }
+};
+
+// ── UPDATE USER (ADMIN ONLY) ──────────────────────────────────────
+const updateUser = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { name, email, role, status, mobile } = req.body;
+
+        const user = await User.findById(id);
+        if (!user) return sendError(res, 'User not found.', 404);
+
+        if (name) user.name = name;
+        if (email) user.email = email.toLowerCase();
+        if (role) user.role = role;
+        if (status) user.isActive = status === 'Active';
+        if (mobile) user.mobile = mobile;
+
+        await user.save();
+
+        return sendSuccess(res, { user }, 'User updated successfully.');
+    } catch (error) { next(error); }
+};
+
+const createUser = async (req, res, next) => {
+    try {
+        const { name, email, password, role, mobile, shopName } = req.body;
+        const existingUser = await User.findOne({ email: email.toLowerCase() });
+        if (existingUser) return sendError(res, 'Email already registered.', 400);
+
+        const user = await User.create({
+            name,
+            email: email.toLowerCase(),
+            passwordHash: password || 'Temporary@123',
+            role: role || 'store_staff',
+            mobile,
+            shopName: shopName || null
+        });
+
+        return sendCreated(res, {
+            user: { id: user._id, name: user.name, email: user.email, role: user.role }
+        }, 'User created successfully.');
+    } catch (error) { next(error); }
+};
+
+module.exports = { adminRegister, adminLogin, storeRegister, storeLogin, getMe, logout, getAllUsers, updateUser, createUser };

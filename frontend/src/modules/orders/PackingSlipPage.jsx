@@ -29,7 +29,7 @@ function PackingSlipPage() {
 
   const saleOrders = useSelector((state) => state.orders.saleOrders);
   const packingSlips = useSelector((state) => state.orders.packingSlips);
-  const warehouses = useSelector((state) => state.inventory.warehouses);
+  const warehouses = useSelector((state) => state.inventory.warehouses || []);
   const stock = useSelector((state) => state.inventory.stock);
 
   const [saleOrderId, setSaleOrderId] = useState('');

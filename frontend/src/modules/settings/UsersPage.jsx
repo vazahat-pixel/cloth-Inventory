@@ -26,10 +26,13 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import { useForm } from 'react-hook-form';
-import { addUser, updateUser } from './settingsSlice';
+import { addUser, updateUser, fetchUsers } from './settingsSlice';
 
 function UsersPage() {
   const dispatch = useDispatch();
+  useEffect(() => {
+    dispatch(fetchUsers());
+  }, [dispatch]);
   const users = useSelector((state) => state.settings.users);
   const roles = useSelector((state) => state.settings.roles);
 

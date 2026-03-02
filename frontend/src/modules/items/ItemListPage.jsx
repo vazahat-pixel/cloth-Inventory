@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import {
@@ -29,10 +29,11 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import StatusChip from '../masters/components/StatusChip';
-import { deleteItem } from './itemsSlice';
+import { deleteItem, fetchItems } from './itemsSlice';
+import { fetchMasters } from '../masters/mastersSlice';
 
 const getTotalStock = (item) =>
-  item.variants.reduce((sum, variant) => sum + Number(variant.stock || 0), 0);
+  (item.variants || []).reduce((sum, variant) => sum + Number(variant.stock || 0), 0);
 
 function ItemListPage() {
   const navigate = useAppNavigate();
@@ -50,10 +51,16 @@ function ItemListPage() {
   const [itemToDelete, setItemToDelete] = useState(null);
   const [viewItem, setViewItem] = useState(null);
 
+  useEffect(() => {
+    dispatch(fetchItems());
+    dispatch(fetchMasters('brands'));
+    dispatch(fetchMasters('itemGroups'));
+  }, [dispatch]);
+
   const filteredItems = useMemo(() => {
     const query = searchText.trim().toLowerCase();
 
-    return items.filter((item) => {
+    return (items || []).filter((item) => {
       const matchesSearch = query
         ? item.name.toLowerCase().includes(query) || item.code.toLowerCase().includes(query)
         : true;
@@ -192,7 +199,7 @@ function ItemListPage() {
                       <TableCell>{item.code}</TableCell>
                       <TableCell>{item.brand}</TableCell>
                       <TableCell>{item.category}</TableCell>
-                      <TableCell align="right">{item.variants.length}</TableCell>
+                      <TableCell align="right">{(item.variants || []).length}</TableCell>
                       <TableCell align="right">{getTotalStock(item)}</TableCell>
                       <TableCell>
                         <StatusChip value={item.status} />

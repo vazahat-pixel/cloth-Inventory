@@ -34,7 +34,7 @@ function VoucherListPage() {
   const navigate = useAppNavigate();
   const dispatch = useDispatch();
   const vouchers = useSelector((state) => state.customerRewards.vouchers);
-  const customers = useSelector((state) => state.masters.customers);
+  const customers = useSelector((state) => state.masters.customers || []);
 
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');

@@ -30,7 +30,7 @@ import ToggleOnIcon from '@mui/icons-material/ToggleOn';
 import ToggleOffIcon from '@mui/icons-material/ToggleOff';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import { useForm } from 'react-hook-form';
-import { addTaxRate, updateTaxRate, setTaxRateStatus } from './gstSlice';
+import { addTaxRate, updateTaxRate, setTaxRateStatus, fetchGstSlabs } from './gstSlice';
 
 const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
@@ -38,6 +38,10 @@ function TaxRatesPage() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const taxRates = useSelector((state) => state.gst.taxRates);
+
+  useEffect(() => {
+    dispatch(fetchGstSlabs());
+  }, [dispatch]);
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);

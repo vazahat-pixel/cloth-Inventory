@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
@@ -21,7 +21,7 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import SearchIcon from '@mui/icons-material/Search';
-import { addMasterRecord, deleteMasterRecord, updateMasterRecord } from '../mastersSlice';
+import { addMasterRecord, deleteMasterRecord, updateMasterRecord, fetchMasters } from '../mastersSlice';
 import DeleteConfirmDialog from './DeleteConfirmDialog';
 
 function MasterListPage({
@@ -61,6 +61,10 @@ function MasterListPage({
     );
   }, [activeSearchKeys, records, searchText]);
 
+  useEffect(() => {
+    dispatch(fetchMasters(entityKey));
+  }, [dispatch, entityKey]);
+
   const closeDialog = () => {
     setIsDialogOpen(false);
     setEditingRow(null);
@@ -81,12 +85,12 @@ function MasterListPage({
       dispatch(
         updateMasterRecord({
           entityKey,
-          id: editingRow.id,
+          id: editingRow.id || editingRow._id,
           updates: payload,
         }),
       );
     } else {
-      dispatch(addMasterRecord(entityKey, payload));
+      dispatch(addMasterRecord({ entityKey, record: payload }));
     }
 
     closeDialog();
@@ -105,7 +109,7 @@ function MasterListPage({
       dispatch(
         deleteMasterRecord({
           entityKey,
-          id: deleteCandidate.id,
+          id: deleteCandidate.id || deleteCandidate._id,
         }),
       );
     }

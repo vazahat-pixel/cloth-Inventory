@@ -26,9 +26,10 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import { useForm } from 'react-hook-form';
-import { addPurchase, updatePurchase } from './purchaseSlice';
+import { addPurchase, updatePurchase, fetchPurchases } from './purchaseSlice';
 import { parsePurchaseExcel } from './purchaseImportService';
-import { applyPurchaseReceipt, reconcilePurchaseReceipt } from '../inventory/inventorySlice';
+import { fetchMasters } from '../masters/mastersSlice';
+import { fetchItems } from '../items/itemsSlice';
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
 
@@ -37,54 +38,19 @@ const toNumber = (value, fallback = 0) => {
   return Number.isFinite(numeric) ? numeric : fallback;
 };
 
-const calculateLine = (line) => {
-  const quantity = toNumber(line.quantity);
-  const rate = toNumber(line.rate);
-  const discountPercent = toNumber(line.discount);
-  const taxPercent = toNumber(line.tax);
-
-  const gross = quantity * rate;
-  const discountAmount = (gross * discountPercent) / 100;
-  const taxableAmount = gross - discountAmount;
-  const taxAmount = (taxableAmount * taxPercent) / 100;
-  const amount = taxableAmount + taxAmount;
-
-  return {
-    gross,
-    discountAmount,
-    taxAmount,
-    amount,
-  };
-};
-
 const calculateTotals = (items, otherCharges) => {
-  const summary = items.reduce(
-    (accumulator, item) => {
-      const line = calculateLine(item);
-
-      accumulator.totalQuantity += toNumber(item.quantity);
-      accumulator.grossAmount += line.gross;
-      accumulator.totalDiscount += line.discountAmount;
-      accumulator.totalTax += line.taxAmount;
-
-      return accumulator;
-    },
-    {
-      totalQuantity: 0,
-      grossAmount: 0,
-      totalDiscount: 0,
-      totalTax: 0,
-    },
-  );
-
-  const netAmount =
-    summary.grossAmount - summary.totalDiscount + summary.totalTax + toNumber(otherCharges);
-
-  return {
-    ...summary,
-    otherCharges: toNumber(otherCharges),
-    netAmount,
-  };
+  // Simple UX display total; backend is final authority
+  return items.reduce((acc, item) => {
+    const gross = toNumber(item.quantity) * toNumber(item.rate);
+    const disc = (gross * toNumber(item.discount)) / 100;
+    const tax = ((gross - disc) * toNumber(item.tax)) / 100;
+    acc.totalQuantity += toNumber(item.quantity);
+    acc.grossAmount += gross;
+    acc.totalDiscount += disc;
+    acc.totalTax += tax;
+    acc.netAmount = acc.grossAmount - acc.totalDiscount + acc.totalTax + toNumber(otherCharges);
+    return acc;
+  }, { totalQuantity: 0, grossAmount: 0, totalDiscount: 0, totalTax: 0, otherCharges: toNumber(otherCharges), netAmount: 0 });
 };
 
 function PurchaseFormPage() {
@@ -94,11 +60,10 @@ function PurchaseFormPage() {
   const dispatch = useDispatch();
   const navigate = useAppNavigate();
 
-  const purchases = useSelector((state) => state.purchase.records);
-  const suppliers = useSelector((state) => state.masters.suppliers);
-  const warehouses = useSelector((state) => state.inventory.warehouses);
-  const items = useSelector((state) => state.items.records);
-  const purchaseConfig = useSelector((state) => state.settings.purchaseVoucherConfig) || {};
+  const purchases = useSelector((state) => state.purchase.records || []);
+  const suppliers = useSelector((state) => state.masters.suppliers || []);
+  const warehouses = useSelector((state) => state.inventory.warehouses || []);
+  const items = useSelector((state) => state.items.records || []);
 
   const existingPurchase = useMemo(
     () => (isEditMode ? purchases.find((entry) => entry.id === id) : null),
@@ -151,10 +116,10 @@ function PurchaseFormPage() {
       warehouseId: existingPurchase.warehouseId,
       purchaseType: existingPurchase.purchaseType || '',
       remarks: existingPurchase.remarks || '',
-      otherCharges: existingPurchase.totals.otherCharges || 0,
+      otherCharges: existingPurchase.totals?.otherCharges || 0,
     });
     setLines(
-      existingPurchase.items.map((item, index) => ({
+      (existingPurchase.items || []).map((item, index) => ({
         id: `${item.variantId}-${index}`,
         ...item,
       })),
@@ -165,8 +130,8 @@ function PurchaseFormPage() {
 
   const variantOptions = useMemo(
     () =>
-      items.flatMap((item) =>
-        item.variants.map((variant) => ({
+      (items || []).flatMap((item) =>
+        (item.variants || []).map((variant) => ({
           variantId: variant.id,
           itemName: item.name,
           styleCode: item.code,
@@ -182,62 +147,29 @@ function PurchaseFormPage() {
     [items],
   );
 
+  useEffect(() => {
+    dispatch(fetchMasters('suppliers'));
+    dispatch(fetchMasters('warehouses'));
+    dispatch(fetchItems());
+    dispatch(fetchPurchases());
+  }, [dispatch]);
+
   const filteredOptions = useMemo(() => {
     const selectedVariantIds = new Set(lines.map((line) => line.variantId));
     return variantOptions.filter((option) => !selectedVariantIds.has(option.variantId));
   }, [lines, variantOptions]);
 
-  const lotOptionsForVariant = useMemo(() => {
-    const set = new Set();
-    purchases.forEach((p) => {
-      p.items?.forEach((item) => {
-        if (item.variantId && item.lotNumber) {
-          set.add(item.lotNumber);
-        }
-      });
-    });
-    return Array.from(set).sort();
-  }, [purchases]);
-
-  const getTaxBySlab = (rate) => {
-    const threshold = Number(purchaseConfig.gstSlabThreshold) || 1000;
-    const below = Number(purchaseConfig.belowThresholdTax) ?? 5;
-    const above = Number(purchaseConfig.aboveThresholdTax) ?? 12;
-    if (purchaseConfig.gstSlabEnabled && Number(rate) < threshold) return below;
-    if (purchaseConfig.gstSlabEnabled && Number(rate) >= threshold) return above;
-    return Number(purchaseConfig.defaultTaxPercent) ?? 12;
-  };
-
-  const getDefaultLot = (variantId) => {
-    const variantLots = purchases.flatMap((p) =>
-      (p.items || [])
-        .filter((i) => i.variantId === variantId && i.lotNumber)
-        .map((i) => i.lotNumber),
-    );
-    if (variantLots.length) {
-      return variantLots[0];
-    }
-    const nextNum = purchases.flatMap((p) => p.items || []).filter((i) => i.lotNumber).length + 1;
-    return `LOT-${String(nextNum).padStart(3, '0')}`;
-  };
-
   const totals = useMemo(() => calculateTotals(lines, otherCharges), [lines, otherCharges]);
 
   const addLine = () => {
-    if (!variantPickerValue) {
-      return;
-    }
+    if (!variantPickerValue) return;
 
-    const defaultLot = getDefaultLot(variantPickerValue.variantId);
-
-    const rate = variantPickerValue.defaultRate;
-    const tax = getTaxBySlab(rate);
     setLines((previous) => [
       ...previous,
       {
         id: `${variantPickerValue.variantId}-${Date.now()}`,
         variantId: variantPickerValue.variantId,
-        lotNumber: defaultLot,
+        lotNumber: '',
         itemName: variantPickerValue.itemName,
         styleCode: variantPickerValue.styleCode,
         size: variantPickerValue.size,
@@ -247,9 +179,9 @@ function PurchaseFormPage() {
         category: variantPickerValue.category,
         status: variantPickerValue.status,
         quantity: 1,
-        rate,
+        rate: variantPickerValue.defaultRate,
         discount: 0,
-        tax,
+        tax: 0,
       },
     ]);
 
@@ -261,17 +193,12 @@ function PurchaseFormPage() {
     setLines((previous) =>
       previous.map((line) => {
         if (line.id !== lineId) return line;
-        const updates = { [field]: value };
-        if (field === 'rate' && purchaseConfig.gstSlabEnabled) {
-          updates.tax = getTaxBySlab(value);
-        }
-        return { ...line, ...updates };
+        return { ...line, [field]: value };
       }),
     );
   };
 
   const addNextSizeOfSameItem = (currentLine) => {
-    if (!purchaseConfig.carryForwardPackSize) return;
     const selectedIds = new Set(lines.map((l) => l.variantId));
     const nextVariant = variantOptions.find(
       (opt) =>
@@ -279,15 +206,13 @@ function PurchaseFormPage() {
         !selectedIds.has(opt.variantId),
     );
     if (!nextVariant) return;
-    const defaultLot = getDefaultLot(nextVariant.variantId);
     const rate = toNumber(currentLine.rate);
-    const tax = getTaxBySlab(rate);
     setLines((prev) => [
       ...prev,
       {
         id: `${nextVariant.variantId}-${Date.now()}`,
         variantId: nextVariant.variantId,
-        lotNumber: defaultLot,
+        lotNumber: '',
         itemName: nextVariant.itemName,
         styleCode: nextVariant.styleCode,
         size: nextVariant.size,
@@ -299,7 +224,7 @@ function PurchaseFormPage() {
         quantity: 1,
         rate,
         discount: toNumber(currentLine.discount),
-        tax,
+        tax: 0,
       },
     ]);
   };
@@ -333,12 +258,11 @@ function PurchaseFormPage() {
         .map((r) => {
           const opt = skuToVariant[r.sku];
           const rate = toNumber(r.rate);
-          const tax = r.tax > 0 ? r.tax : getTaxBySlab(rate);
-          const defaultLot = r.lotNumber || getDefaultLot(opt.variantId);
+          const tax = r.tax;
           return {
             id: `${opt.variantId}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
             variantId: opt.variantId,
-            lotNumber: defaultLot,
+            lotNumber: r.lotNumber || '',
             itemName: opt.itemName,
             styleCode: opt.styleCode,
             size: opt.size,
@@ -374,7 +298,7 @@ function PurchaseFormPage() {
       const rate = toNumber(line.rate);
       const discount = toNumber(line.discount);
       const tax = toNumber(line.tax);
-      const amount = calculateLine({ ...line, quantity, rate, discount, tax }).amount;
+      const amount = 0; // Handled by backend
 
       return {
         variantId: line.variantId,
@@ -414,33 +338,14 @@ function PurchaseFormPage() {
       totals: computedTotals,
     };
 
-    if (isEditMode && existingPurchase) {
-      dispatch(updatePurchase({ id, purchase: payload }));
-      dispatch(
-        reconcilePurchaseReceipt({
-          date: values.billDate,
-          reference: values.billNumber,
-          previousWarehouseId: existingPurchase.warehouseId,
-          newWarehouseId: values.warehouseId,
-          previousItems: existingPurchase.items,
-          newItems: preparedItems,
-          user: 'Admin',
-        }),
-      );
-    } else {
-      dispatch(addPurchase(payload));
-      dispatch(
-        applyPurchaseReceipt({
-          date: values.billDate,
-          reference: values.billNumber,
-          warehouseId: values.warehouseId,
-          items: preparedItems,
-          user: 'Admin',
-        }),
-      );
-    }
-
-    navigate('/purchase');
+    dispatch(isEditMode ? updatePurchase({ id, purchaseData: payload }) : addPurchase(payload))
+      .unwrap()
+      .then(() => {
+        navigate('/purchase');
+      })
+      .catch((err) => {
+        setFormError(err || 'Failed to save purchase');
+      });
   };
 
   if (isEditMode && !existingPurchase) {
@@ -643,8 +548,6 @@ function PurchaseFormPage() {
               </TableHead>
               <TableBody>
                 {lines.map((line) => {
-                  const lineTotals = calculateLine(line);
-
                   return (
                     <TableRow key={line.id}>
                       <TableCell>{line.itemName}</TableCell>
@@ -703,7 +606,7 @@ function PurchaseFormPage() {
                             updateLineField(line.id, 'tax', Math.max(0, toNumber(event.target.value)))
                           }
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter' && purchaseConfig.carryForwardPackSize) {
+                            if (e.key === 'Enter' && purchaseConfig?.carryForwardPackSize) {
                               e.preventDefault();
                               addNextSizeOfSameItem(line);
                             }
@@ -712,7 +615,7 @@ function PurchaseFormPage() {
                         />
                       </TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700 }}>
-                        {lineTotals.amount.toFixed(2)}
+                        {(toNumber(line.quantity) * toNumber(line.rate) * (1 - toNumber(line.discount) / 100) * (1 + toNumber(line.tax) / 100)).toFixed(2)}
                       </TableCell>
                       <TableCell>
                         <IconButton color="error" size="small" onClick={() => removeLine(line.id)}>

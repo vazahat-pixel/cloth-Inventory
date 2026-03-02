@@ -1,6 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import { useSelector, useDispatch } from 'react-redux';
+import { fetchPriceLists } from './pricingSlice';
+import { fetchItems } from '../items/itemsSlice';
+import { fetchMasters } from '../masters/mastersSlice';
 import {
   Box,
   Button,
@@ -49,7 +52,7 @@ function PriceListPage() {
   const navigate = useAppNavigate();
   const dispatch = useDispatch();
   const priceLists = useSelector((state) => state.pricing.priceLists);
-  const customers = useSelector((state) => state.masters.customers);
+  const customers = useSelector((state) => state.masters.customers || []);
   const itemGroups = useSelector((state) => state.masters.itemGroups);
 
   const [searchText, setSearchText] = useState('');
@@ -57,6 +60,13 @@ function PriceListPage() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [viewDetails, setViewDetails] = useState(null);
+
+  useEffect(() => {
+    dispatch(fetchPriceLists());
+    dispatch(fetchItems());
+    dispatch(fetchMasters('customers'));
+    dispatch(fetchMasters('itemGroups'));
+  }, [dispatch]);
 
   const customerMap = useMemo(
     () => customers.reduce((acc, c) => ({ ...acc, [c.id]: c.customerName }), [customers]),

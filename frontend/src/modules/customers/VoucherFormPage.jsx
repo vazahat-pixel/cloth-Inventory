@@ -38,7 +38,7 @@ function VoucherFormPage() {
   const dispatch = useDispatch();
   const navigate = useAppNavigate();
   const vouchers = useSelector((state) => state.customerRewards.vouchers);
-  const customers = useSelector((state) => state.masters.customers);
+  const customers = useSelector((state) => state.masters.customers || []);
 
   const [formError, setFormError] = useState('');
   const [bulkMode, setBulkMode] = useState('count'); // 'count' | 'range'

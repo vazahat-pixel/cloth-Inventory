@@ -58,7 +58,7 @@ function PriceListFormPage() {
   const navigate = useAppNavigate();
 
   const priceLists = useSelector((state) => state.pricing.priceLists);
-  const customers = useSelector((state) => state.masters.customers);
+  const customers = useSelector((state) => state.masters.customers || []);
   const itemGroups = useSelector((state) => state.masters.itemGroups);
   const items = useSelector((state) => state.items.records);
 

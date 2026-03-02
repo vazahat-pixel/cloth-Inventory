@@ -13,10 +13,13 @@ import {
 } from '@mui/material';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import { useForm } from 'react-hook-form';
-import { updatePreferences } from './settingsSlice';
+import { updatePreferences, fetchPreferences } from './settingsSlice';
 
 function PreferencesPage() {
   const dispatch = useDispatch();
+  useEffect(() => {
+    dispatch(fetchPreferences());
+  }, [dispatch]);
   const prefs = useSelector((state) => state.settings.preferences);
 
   const {

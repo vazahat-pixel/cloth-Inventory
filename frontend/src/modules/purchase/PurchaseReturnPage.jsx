@@ -32,10 +32,10 @@ function PurchaseReturnPage() {
   const dispatch = useDispatch();
   const navigate = useAppNavigate();
 
-  const purchases = useSelector((state) => state.purchase.records);
-  const purchaseReturns = useSelector((state) => state.purchase.returns);
-  const suppliers = useSelector((state) => state.masters.suppliers);
-  const warehouses = useSelector((state) => state.inventory.warehouses);
+  const purchases = useSelector((state) => state.purchase.records || []);
+  const purchaseReturns = useSelector((state) => state.purchase.returns || []);
+  const suppliers = useSelector((state) => state.masters.suppliers || []);
+  const warehouses = useSelector((state) => state.inventory.warehouses || []);
 
   const purchase = purchases.find((entry) => entry.id === id);
   const supplierName = suppliers.find((entry) => entry.id === purchase?.supplierId)?.supplierName;

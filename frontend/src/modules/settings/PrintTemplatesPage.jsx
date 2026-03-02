@@ -26,10 +26,13 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import { useForm } from 'react-hook-form';
-import { addPrintTemplate, updatePrintTemplate } from './settingsSlice';
+import { addPrintTemplate, updatePrintTemplate, fetchPrintTemplates } from './settingsSlice';
 
 function PrintTemplatesPage() {
   const dispatch = useDispatch();
+  useEffect(() => {
+    dispatch(fetchPrintTemplates());
+  }, [dispatch]);
   const templates = useSelector((state) => state.settings.printTemplates);
 
   const [page, setPage] = useState(0);

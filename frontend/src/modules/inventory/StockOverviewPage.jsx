@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react';
-import { useSelector } from 'react-redux';
+import { useEffect, useMemo, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchStockOverview } from './inventorySlice';
+import { fetchMasters } from '../masters/mastersSlice';
 import {
   Box,
   Chip,
@@ -24,7 +26,7 @@ const LOW_STOCK_THRESHOLD = 10;
 
 function StockOverviewPage() {
   const stockRows = useSelector((state) => state.inventory.stock);
-  const warehouses = useSelector((state) => state.inventory.warehouses);
+  const warehouses = useSelector((state) => state.inventory.warehouses || []);
 
   const [searchText, setSearchText] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState('all');
@@ -32,6 +34,12 @@ function StockOverviewPage() {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const dispatch = useDispatch();
+
+  useEffect(() => {
+    dispatch(fetchStockOverview());
+    dispatch(fetchMasters('warehouses'));
+  }, [dispatch]);
 
   const brands = useMemo(
     () => Array.from(new Set(stockRows.map((row) => row.brand))).filter(Boolean),
@@ -57,9 +65,9 @@ function StockOverviewPage() {
     return stockRows.filter((row) => {
       const matchesSearch = query
         ? row.itemName?.toLowerCase().includes(query) ||
-          row.sku?.toLowerCase().includes(query) ||
-          row.styleCode?.toLowerCase().includes(query) ||
-          (row.lotNumber && String(row.lotNumber).toLowerCase().includes(query))
+        row.sku?.toLowerCase().includes(query) ||
+        row.styleCode?.toLowerCase().includes(query) ||
+        (row.lotNumber && String(row.lotNumber).toLowerCase().includes(query))
         : true;
 
       const matchesWarehouse = warehouseFilter === 'all' ? true : row.warehouseId === warehouseFilter;

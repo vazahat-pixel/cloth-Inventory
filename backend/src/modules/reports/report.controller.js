@@ -103,7 +103,7 @@ const getGstSummary = async (req, res, next) => {
     try {
         const { startDate, endDate } = req.query;
         const report = await reportService.getGstSummary(startDate, endDate);
-        return sendSuccess(res, { report: report[0] || { totalCGST: 0, totalSGST: 0, totalIGST: 0, totalTax: 0 } }, 'GST summary report retrieved successfully');
+        return sendSuccess(res, { report }, 'GST summary report retrieved successfully');
     } catch (err) {
         next(err);
     }

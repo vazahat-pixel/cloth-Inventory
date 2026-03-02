@@ -51,7 +51,7 @@ function DeliveryOrderPage() {
 
   const saleOrders = useSelector((state) => state.orders.saleOrders);
   const packingSlips = useSelector((state) => state.orders.packingSlips);
-  const warehouses = useSelector((state) => state.inventory.warehouses);
+  const warehouses = useSelector((state) => state.inventory.warehouses || []);
 
   const [packingSlipId, setPackingSlipId] = useState('');
   const [doDate, setDoDate] = useState(getTodayDate());

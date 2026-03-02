@@ -1,83 +1,96 @@
-import { createSlice, nanoid } from '@reduxjs/toolkit';
-import { salesData, salesReturnsData } from './data';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import api from '../../services/api';
 
-const getSoldQty = (sale) =>
-  sale.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-
-const getReturnedQty = (returns, saleId) =>
-  returns
-    .filter((entry) => entry.saleId === saleId)
-    .reduce(
-      (sum, entry) =>
-        sum + entry.items.reduce((lineSum, line) => lineSum + Number(line.returnQty || 0), 0),
-      0,
-    );
-
-const deriveSaleStatus = (soldQty, returnedQty) => {
-  if (!returnedQty) {
-    return 'Completed';
+// Async Thunks
+export const fetchSales = createAsyncThunk('sales/fetchAll', async (_, { rejectWithValue }) => {
+  try {
+    const response = await api.get('/sales');
+    return response.data.sales || response.data.data || [];
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
   }
+});
 
-  if (returnedQty >= soldQty) {
-    return 'Returned';
+export const addSale = createAsyncThunk('sales/add', async (saleData, { rejectWithValue }) => {
+  try {
+    const response = await api.post('/sales', saleData);
+    return response.data.sale || response.data.data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
   }
+});
 
-  return 'Partially Returned';
-};
-
-const refreshSaleStatus = (state, saleId) => {
-  const sale = state.records.find((entry) => entry.id === saleId);
-  if (!sale) {
-    return;
+export const fetchSalesReturns = createAsyncThunk('sales/fetchReturns', async (_, { rejectWithValue }) => {
+  try {
+    const response = await api.get('/returns?type=CUSTOMER_RETURN');
+    return response.data.returns || response.data.data || [];
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
   }
+});
 
-  const soldQty = getSoldQty(sale);
-  const returnedQty = getReturnedQty(state.returns, saleId);
-  sale.status = deriveSaleStatus(soldQty, returnedQty);
-};
+export const addSalesReturn = createAsyncThunk('sales/addReturn', async (returnData, { rejectWithValue }) => {
+  try {
+    const response = await api.post('/returns', { ...returnData, type: 'CUSTOMER_RETURN' });
+    return response.data.returnEntry || response.data.data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
 
 const initialState = {
-  records: salesData,
-  returns: salesReturnsData,
+  records: [],
+  returns: [],
+  loading: false,
+  error: null,
 };
 
 const salesSlice = createSlice({
   name: 'sales',
   initialState,
   reducers: {
-    addSale: {
-      reducer: (state, action) => {
+    clearSalesError: (state) => {
+      state.error = null;
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      // Fetch Sales
+      .addCase(fetchSales.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchSales.fulfilled, (state, action) => {
+        state.loading = false;
+        state.records = action.payload || [];
+      })
+      .addCase(fetchSales.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // Add Sale
+      .addCase(addSale.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(addSale.fulfilled, (state, action) => {
+        state.loading = false;
         state.records.unshift(action.payload);
-      },
-      prepare: (sale) => ({
-        payload: {
-          id: sale.id || nanoid(10),
-          invoiceNumber:
-            sale.invoiceNumber || `INV-${Date.now().toString().slice(-6)}`,
-          status: sale.status || 'Completed',
-          ...sale,
-        },
-      }),
-    },
-
-    addSalesReturn: {
-      reducer: (state, action) => {
-        const entry = action.payload;
-        state.returns.unshift(entry);
-        refreshSaleStatus(state, entry.saleId);
-      },
-      prepare: (returnEntry) => ({
-        payload: {
-          id: returnEntry.id || nanoid(10),
-          returnNumber:
-            returnEntry.returnNumber || `SRET-${Date.now().toString().slice(-6)}`,
-          ...returnEntry,
-        },
-      }),
-    },
+      })
+      .addCase(addSale.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // Fetch Returns
+      .addCase(fetchSalesReturns.fulfilled, (state, action) => {
+        state.returns = action.payload || [];
+      })
+      // Add Return
+      .addCase(addSalesReturn.fulfilled, (state, action) => {
+        state.returns.unshift(action.payload);
+      });
   },
 });
 
-export const { addSale, addSalesReturn } = salesSlice.actions;
-
+export const { clearSalesError } = salesSlice.actions;
 export default salesSlice.reducer;

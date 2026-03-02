@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams } from 'react-router-dom';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
@@ -29,95 +29,47 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
 import KeyboardReturnOutlinedIcon from '@mui/icons-material/KeyboardReturnOutlined';
 import PaymentIcon from '@mui/icons-material/Payment';
-import { addSale } from './salesSlice';
-import { applySaleDispatch } from '../inventory/inventorySlice';
-import { redeemVoucher, addLoyaltyTransaction } from '../customers/customersSlice';
-import { updateCoupon } from '../pricing/pricingSlice';
-import { updateMasterRecord } from '../masters/mastersSlice';
-import { updateDeliveryOrder } from '../orders/ordersSlice';
-import { updateCreditNote } from '../customers/customersSlice';
+import { addSale, fetchSales } from './salesSlice';
+import { fetchStockOverview } from '../inventory/inventorySlice';
+import { fetchMasters } from '../masters/mastersSlice';
+import { fetchPricingRules, fetchSchemes, fetchCoupons } from '../pricing/pricingSlice';
+import { fetchLoyaltyConfig, fetchCreditNotes } from '../customers/customersSlice';
 import PaymentDialog from './PaymentDialog';
 import LoyaltyRedeemDialog from './LoyaltyRedeemDialog';
-import { evaluateSchemes, getTotalSchemeDiscount } from '../pricing/schemeService';
-import { getVariantRateFromPriceLists } from '../pricing/priceListService';
 
-const DEFAULT_TAX_PERCENT = 5;
-
-const getTaxBySlab = (rate, config) => {
-  if (!config?.gstSlabEnabled) return config?.defaultTaxPercent ?? DEFAULT_TAX_PERCENT;
-  const threshold = Number(config.gstSlabThreshold) || 1000;
-  const below = Number(config.belowThresholdTax) ?? 5;
-  const above = Number(config.aboveThresholdTax) ?? 12;
-  return Number(rate) < threshold ? below : above;
-};
 const DEFAULT_WALK_IN_NAME = 'Walk-in Customer';
 const EMPTY_ARR = [];
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
-
-const generateInvoiceNumber = () => `INV-${Date.now().toString().slice(-6)}`;
 
 const toNumber = (value, fallback = 0) => {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : fallback;
 };
 
-const calculateLine = (line) => {
-  const quantity = toNumber(line.quantity);
-  const rate = toNumber(line.rate);
-  const discountPercent = toNumber(line.discount);
-  const taxPercent = toNumber(line.tax);
-
-  const gross = quantity * rate;
-  const discountAmount = (gross * discountPercent) / 100;
-  const taxableAmount = gross - discountAmount;
-  const taxAmount = (taxableAmount * taxPercent) / 100;
-  const amount = taxableAmount + taxAmount;
-
-  return {
-    gross,
-    discountAmount,
-    taxAmount,
-    amount,
-  };
-};
-
 const calculateTotals = (lines, billDiscount, loyaltyRedeemed, couponDiscount = 0, schemeDiscount = 0) => {
-  const summary = lines.reduce(
-    (accumulator, line) => {
-      const lineTotals = calculateLine(line);
-      accumulator.totalItems += 1;
-      accumulator.totalQuantity += toNumber(line.quantity);
-      accumulator.grossAmount += lineTotals.gross;
-      accumulator.lineDiscount += lineTotals.discountAmount;
-      accumulator.taxAmount += lineTotals.taxAmount;
-      return accumulator;
-    },
-    {
-      totalItems: 0,
-      totalQuantity: 0,
-      grossAmount: 0,
-      lineDiscount: 0,
-      taxAmount: 0,
-    },
-  );
+  // Keeping basic UX total calculation for display, but backend performs final authority check
+  const totals = lines.reduce((acc, l) => {
+    const gross = toNumber(l.quantity) * toNumber(l.rate);
+    const disc = (gross * toNumber(l.discount)) / 100;
+    const tax = ((gross - disc) * toNumber(l.tax)) / 100;
+    acc.gross += gross;
+    acc.lineDiscount += disc;
+    acc.taxAmount += tax;
+    acc.totalQuantity += toNumber(l.quantity);
+    return acc;
+  }, { gross: 0, lineDiscount: 0, taxAmount: 0, totalQuantity: 0 });
 
-  const netPayable =
-    summary.grossAmount -
-    summary.lineDiscount -
-    toNumber(billDiscount) -
-    toNumber(couponDiscount) -
-    toNumber(schemeDiscount) +
-    summary.taxAmount -
-    toNumber(loyaltyRedeemed);
+  const net = totals.gross - totals.lineDiscount - toNumber(billDiscount) - toNumber(couponDiscount) - toNumber(schemeDiscount) + totals.taxAmount - toNumber(loyaltyRedeemed);
 
   return {
-    ...summary,
+    ...totals,
+    grossAmount: totals.gross,
     billDiscount: toNumber(billDiscount),
-    couponDiscount: toNumber(couponDiscount),
-    schemeDiscount: toNumber(schemeDiscount),
-    loyaltyRedeemed: toNumber(loyaltyRedeemed),
-    netPayable: netPayable > 0 ? netPayable : 0,
+    couponDiscount,
+    schemeDiscount,
+    loyaltyRedeemed,
+    netPayable: net > 0 ? net : 0,
   };
 };
 
@@ -128,15 +80,15 @@ function BillingPage() {
   const dispatch = useDispatch();
   const navigate = useAppNavigate();
 
-  const sales = useSelector((state) => state.sales.records);
-  const customers = useSelector((state) => state.masters.customers);
-  const salesmen = useSelector((state) => state.masters.salesmen);
-  const warehouses = useSelector((state) => state.inventory.warehouses);
-  const stockRows = useSelector((state) => state.inventory.stock);
-  const items = useSelector((state) => state.items.records);
-  const schemes = useSelector((state) => state.pricing.schemes);
-  const coupons = useSelector((state) => state.pricing.coupons);
-  const priceLists = useSelector((state) => state.pricing.priceLists);
+  const sales = useSelector((state) => state.sales.records || []);
+  const customers = useSelector((state) => state.masters.customers || []);
+  const salesmen = useSelector((state) => state.masters.salesmen || []);
+  const warehouses = useSelector((state) => state.inventory.warehouses || []);
+  const stockRows = useSelector((state) => state.inventory.stock || []);
+  const items = useSelector((state) => state.items.records || []);
+  const schemes = useSelector((state) => state.pricing.schemes || []);
+  const coupons = useSelector((state) => state.pricing.coupons || []);
+  const priceLists = useSelector((state) => state.pricing.priceLists || []);
   const loyaltyConfig = useSelector((state) => state.customerRewards?.loyaltyConfig) ?? {};
   const vouchers = useSelector((state) => state.customerRewards?.vouchers) ?? [];
   const purchaseConfig = useSelector((state) => state.settings.purchaseVoucherConfig) ?? {};
@@ -176,6 +128,21 @@ function BillingPage() {
         String(do_.status || '').toLowerCase() === 'pending',
     );
   }, [customerId, billingMode, deliveryOrders]);
+
+  useEffect(() => {
+    dispatch(fetchMasters('customers'));
+    dispatch(fetchMasters('salesmen'));
+    dispatch(fetchMasters('warehouses'));
+    dispatch(fetchMasters('brands'));
+    dispatch(fetchMasters('itemGroups'));
+    dispatch(fetchStockOverview());
+    dispatch(fetchPricingRules());
+    dispatch(fetchSchemes());
+    dispatch(fetchCoupons());
+    dispatch(fetchLoyaltyConfig());
+    dispatch(fetchCreditNotes());
+    dispatch(fetchSales());
+  }, [dispatch]);
 
   const loadLinesFromDO = (doId) => {
     const do_ = deliveryOrders.find((d) => d.id === doId);
@@ -255,32 +222,6 @@ function BillingPage() {
   const itemGroups = useSelector((state) => state.masters.itemGroups) || EMPTY_ARR;
   const brands = useSelector((state) => state.masters.brands) || EMPTY_ARR;
 
-  const itemsMapForSchemes = useMemo(() => {
-    const groupByName = itemGroups.reduce((acc, g) => {
-      acc[g.groupName] = g.id;
-      return acc;
-    }, {});
-    const brandByName = brands.reduce((acc, b) => {
-      acc[b.brandName] = b.id;
-      return acc;
-    }, {});
-    const map = {};
-    items.forEach((item) => {
-      const itemGroupId = groupByName[item.category] || item.category;
-      const brandId = brandByName[item.brand] || item.brand;
-      item.variants?.forEach((variant) => {
-        map[variant.id] = {
-          itemId: item.id,
-          brand: item.brand,
-          category: item.category,
-          brandId,
-          itemGroupId,
-        };
-      });
-    });
-    return map;
-  }, [items, itemGroups, brands]);
-
   const warehouseStock = useMemo(
     () => stockRows.filter((row) => row.warehouseId === warehouseId),
     [stockRows, warehouseId],
@@ -291,25 +232,7 @@ function BillingPage() {
       .map((stock) => {
         const available = toNumber(stock.quantity) - toNumber(stock.reserved);
         const pricing = variantSellingPriceMap[stock.variantId] || {};
-        let rate = toNumber(pricing.rate);
-
-        if (selectedCustomer && priceLists?.length) {
-          const variant = items
-            .flatMap((i) => (i.variants || []).map((v) => ({ ...v, itemId: i.id, itemCategory: i.category })))
-            .find((v) => v.id === stock.variantId);
-          const plResult = getVariantRateFromPriceLists({
-            priceLists,
-            customerId: selectedCustomer.id,
-            customerGroupId: selectedCustomer.groupId || '',
-            variantId: stock.variantId,
-            itemId: pricing.itemId || variant?.itemId,
-            itemCategory: pricing.category || variant?.itemCategory,
-            variant,
-            billDate,
-          });
-          if (plResult) rate = plResult.rate;
-        }
-
+        const rate = toNumber(pricing.rate);
         return {
           variantId: stock.variantId,
           itemName: stock.itemName || pricing.itemName || 'Unknown Item',
@@ -319,11 +242,11 @@ function BillingPage() {
           sku: stock.sku,
           available: available > 0 ? available : 0,
           rate,
-          tax: getTaxBySlab(rate, purchaseConfig),
+          tax: 0,
         };
       })
       .filter((option) => option.available > 0);
-  }, [variantSellingPriceMap, warehouseStock, selectedCustomer, priceLists, items, billDate, purchaseConfig]);
+  }, [variantSellingPriceMap, warehouseStock]);
 
   const handleMobileChange = (value) => {
     setMobileInput(value);
@@ -336,38 +259,8 @@ function BillingPage() {
     }
   };
 
-  const schemeResult = useMemo(
-    () => evaluateSchemes(schemes, lines, itemsMapForSchemes, billDate),
-    [schemes, lines, itemsMapForSchemes, billDate],
-  );
-
-  const schemeDiscount = useMemo(
-    () => getTotalSchemeDiscount(schemeResult.lineAdjustments),
-    [schemeResult.lineAdjustments],
-  );
-
-  const baseAmountForCoupon = useMemo(() => {
-    const s = lines.reduce(
-      (acc, l) => {
-        const lt = calculateLine(l);
-        acc.gross += lt.gross;
-        acc.lineDisc += lt.discountAmount;
-        acc.tax += lt.taxAmount;
-        return acc;
-      },
-      { gross: 0, lineDisc: 0, tax: 0 },
-    );
-    return s.gross - s.lineDisc - toNumber(billDiscount) - schemeDiscount + s.tax;
-  }, [lines, billDiscount, schemeDiscount]);
-
-  const couponDiscountAmount = useMemo(() => {
-    if (!appliedCoupon) return 0;
-    if (baseAmountForCoupon < toNumber(appliedCoupon.minAmount)) return 0;
-    if (appliedCoupon.discountType === 'percentage') {
-      return (baseAmountForCoupon * toNumber(appliedCoupon.value)) / 100;
-    }
-    return Math.min(toNumber(appliedCoupon.value), baseAmountForCoupon);
-  }, [appliedCoupon, baseAmountForCoupon]);
+  const schemeDiscount = 0; // Handled by backend
+  const couponDiscountAmount = 0; // Handled by backend
 
   const totals = useMemo(
     () =>
@@ -499,8 +392,7 @@ function BillingPage() {
 
         if (field === 'rate') {
           const rate = Math.max(0, toNumber(value));
-          const tax = purchaseConfig?.gstSlabEnabled ? getTaxBySlab(rate, purchaseConfig) : line.tax;
-          return { ...line, rate, tax };
+          return { ...line, rate };
         }
 
         return line;
@@ -542,133 +434,38 @@ function BillingPage() {
   };
 
   const handlePaymentConfirm = (payment) => {
-    const invoiceNumber = generateInvoiceNumber();
-    const selectedSalesman = salesmen.find((entry) => entry.id === salesmanId);
+    const preparedItems = lines.map((line) => ({
+      variantId: line.variantId,
+      lotNumber: String(line.lotNumber || '').trim(),
+      quantity: toNumber(line.quantity),
+      rate: toNumber(line.rate),
+      discount: toNumber(line.discount),
+      tax: toNumber(line.tax),
+    }));
 
-    const preparedItems = lines.map((line) => {
-      const lineTotals = calculateLine(line);
-      return {
-        variantId: line.variantId,
-        itemName: line.itemName,
-        styleCode: line.styleCode,
-        size: line.size,
-        color: line.color,
-        sku: line.sku,
-        quantity: toNumber(line.quantity),
-        rate: toNumber(line.rate),
-        discount: toNumber(line.discount),
-        tax: toNumber(line.tax),
-        amount: lineTotals.amount,
-      };
-    });
-
-    if (payment.voucherUsed) {
-      dispatch(
-        redeemVoucher({
-          id: payment.voucherUsed.id,
-          redeemedDate: billDate,
-          redeemedInvoice: invoiceNumber,
-          customerId: selectedCustomer?.id || null,
-        }),
-      );
-    }
-
-    if (appliedCoupon) {
-      dispatch(
-        updateCoupon({
-          id: appliedCoupon.id,
-          coupon: { ...appliedCoupon, usageCount: toNumber(appliedCoupon.usageCount) + 1 },
-        }),
-      );
-    }
-
-    const loyaltyRedeemedAmount = toNumber(totals.loyaltyRedeemed);
-    const earnRate = toNumber(loyaltyConfig?.earnRate, 1);
-    const earnPerAmount = toNumber(loyaltyConfig?.earnPerAmount, 100);
-    const pointsEarned = Math.floor((totals.netPayable / earnPerAmount) * earnRate);
-    const currentPoints = toNumber(selectedCustomer?.loyaltyPoints);
-    const newPoints = Math.max(0, currentPoints - loyaltyRedeemedAmount + pointsEarned);
-
-    if (selectedCustomer) {
-      dispatch(
-        updateMasterRecord('customers', selectedCustomer.id, { loyaltyPoints: newPoints }),
-      );
-      if (loyaltyRedeemedAmount > 0) {
-        dispatch(
-          addLoyaltyTransaction({
-            customerId: selectedCustomer.id,
-            date: billDate,
-            type: 'redeemed',
-            points: -loyaltyRedeemedAmount,
-            reference: invoiceNumber,
-          }),
-        );
-      }
-      if (pointsEarned > 0) {
-        dispatch(
-          addLoyaltyTransaction({
-            customerId: selectedCustomer.id,
-            date: billDate,
-            type: 'earned',
-            points: pointsEarned,
-            reference: invoiceNumber,
-          }),
-        );
-      }
-    }
-
-    const netAfterCredit = Math.max(0, totals.netPayable - creditNoteAmount);
     const payload = {
-      invoiceNumber,
       date: billDate,
       warehouseId,
       customerId: selectedCustomer?.id || null,
-      customerName: selectedCustomer?.customerName || DEFAULT_WALK_IN_NAME,
-      customerMobile: selectedCustomer?.mobileNumber || '',
-      salesmanId: selectedSalesman?.id || '',
-      salesmanName: selectedSalesman?.name || '',
+      salesmanId: salesmanId || '',
       items: preparedItems,
-      totals: {
-        ...totals,
-        couponDiscount: couponDiscountAmount,
-        schemeDiscount,
-        creditNoteApplied: creditNoteAmount,
-        netPayable: netAfterCredit,
-      },
-      payment,
+      discount: toNumber(billDiscount) + schemeDiscount + couponDiscountAmount,
+      loyaltyRedeemed: toNumber(totals.loyaltyRedeemed),
+      creditNoteId: creditNoteId || null,
+      paymentMode: payment.method || 'Cash',
       status: 'Completed',
     };
 
-    dispatch(addSale(payload));
-    dispatch(
-      applySaleDispatch({
-        date: billDate,
-        warehouseId,
-        reference: invoiceNumber,
-        items: preparedItems,
-        user: 'Admin',
-      }),
-    );
-
-    if (billingMode === 'fromDO' && deliveryOrderId) {
-      dispatch(updateDeliveryOrder({ id: deliveryOrderId, order: { status: 'Completed' } }));
-    }
-
-    if (creditNoteId) {
-      dispatch(
-        updateCreditNote({
-          id: creditNoteId,
-          creditNote: {
-            status: 'Used',
-            usedDate: billDate,
-            usedInvoice: invoiceNumber,
-          },
-        }),
-      );
-    }
+    dispatch(addSale(payload))
+      .unwrap()
+      .then(() => {
+        navigate('/sales');
+      })
+      .catch((err) => {
+        setErrorMessage(err || 'Failed to save sale');
+      });
 
     setPaymentOpen(false);
-    navigate('/sales');
   };
 
   if (isDetailMode) {
@@ -748,7 +545,7 @@ function BillingPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {existingSale.items.map((item, index) => (
+              {(existingSale.items || []).map((item, index) => (
                 <TableRow key={`${item.variantId}-${index}`}>
                   <TableCell>{item.itemName}</TableCell>
                   <TableCell>{`${item.size}/${item.color}`}</TableCell>
@@ -764,13 +561,13 @@ function BillingPage() {
         </TableContainer>
 
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="flex-end" sx={{ mt: 2 }}>
-          <SummaryCard label="Gross" value={existingSale.totals.grossAmount} />
+          <SummaryCard label="Gross" value={existingSale.totals?.grossAmount ?? 0} />
           <SummaryCard
             label="Discount"
-            value={existingSale.totals.lineDiscount + existingSale.totals.billDiscount}
+            value={(existingSale.totals?.lineDiscount ?? 0) + (existingSale.totals?.billDiscount ?? 0)}
           />
-          <SummaryCard label="Tax" value={existingSale.totals.taxAmount} />
-          <SummaryCard label="Net" value={existingSale.totals.netPayable} strong />
+          <SummaryCard label="Tax" value={existingSale.totals?.taxAmount ?? 0} />
+          <SummaryCard label="Net" value={existingSale.totals?.netPayable ?? 0} strong />
         </Stack>
       </Paper>
     );

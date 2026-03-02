@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import {
@@ -20,7 +20,9 @@ import {
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
-import { addBankReceipt } from './accountsSlice';
+import { addBankReceipt, fetchBankReceipts } from './accountsSlice';
+import { fetchMasters } from '../masters/mastersSlice';
+import { fetchSales } from '../sales/salesSlice';
 import { getPendingSaleBills } from './pendingBillsService';
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
@@ -47,6 +49,13 @@ function BankReceiptPage() {
   const [narration, setNarration] = useState('');
   const [allocations, setAllocations] = useState({});
   const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    dispatch(fetchMasters('banks'));
+    dispatch(fetchMasters('customers'));
+    dispatch(fetchSales());
+    dispatch(fetchBankReceipts());
+  }, [dispatch]);
 
   const pendingBills = useMemo(
     () => getPendingSaleBills(sales, bankReceipts, customerId),

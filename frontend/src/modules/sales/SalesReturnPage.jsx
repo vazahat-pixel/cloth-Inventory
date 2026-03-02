@@ -37,10 +37,10 @@ function SalesReturnPage() {
   const dispatch = useDispatch();
   const navigate = useAppNavigate();
 
-  const sales = useSelector((state) => state.sales.records);
-  const salesReturns = useSelector((state) => state.sales.returns);
-  const customers = useSelector((state) => state.masters.customers);
-  const warehouses = useSelector((state) => state.inventory.warehouses);
+  const sales = useSelector((state) => state.sales.records || []);
+  const salesReturns = useSelector((state) => state.sales.returns || []);
+  const customers = useSelector((state) => state.masters.customers || []);
+  const warehouses = useSelector((state) => state.inventory.warehouses || []);
 
   const sale = sales.find((entry) => entry.id === id);
   const customerName =

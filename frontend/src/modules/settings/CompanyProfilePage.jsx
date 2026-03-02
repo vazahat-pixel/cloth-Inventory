@@ -11,10 +11,13 @@ import {
 } from '@mui/material';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import { useForm } from 'react-hook-form';
-import { updateCompanyProfile } from './settingsSlice';
+import { updateCompanyProfile, fetchCompanyProfile } from './settingsSlice';
 
 function CompanyProfilePage() {
   const dispatch = useDispatch();
+  useEffect(() => {
+    dispatch(fetchCompanyProfile());
+  }, [dispatch]);
   const company = useSelector((state) => state.settings.companyProfile);
 
   const {

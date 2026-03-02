@@ -13,10 +13,13 @@ import {
 } from '@mui/material';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import { useForm } from 'react-hook-form';
-import { updatePurchaseVoucherConfig } from './settingsSlice';
+import { updatePurchaseVoucherConfig, fetchPurchaseVoucherConfig } from './settingsSlice';
 
 function PurchaseVoucherConfigPage() {
   const dispatch = useDispatch();
+  useEffect(() => {
+    dispatch(fetchPurchaseVoucherConfig());
+  }, [dispatch]);
   const config = useSelector((state) => state.settings.purchaseVoucherConfig);
 
   const {

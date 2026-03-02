@@ -74,7 +74,7 @@ function SaleOrderFormPage() {
   const navigate = useAppNavigate();
 
   const saleOrders = useSelector((state) => state.orders.saleOrders);
-  const customers = useSelector((state) => state.masters.customers);
+  const customers = useSelector((state) => state.masters.customers || []);
   const salesmen = useSelector((state) => state.masters.salesmen);
   const priceLists = useSelector((state) => state.pricing.priceLists);
   const items = useSelector((state) => state.items.records);
@@ -136,15 +136,15 @@ function SaleOrderFormPage() {
     const plResult =
       customer && priceLists?.length
         ? getVariantRateFromPriceLists({
-            priceLists,
-            customerId: customer.id,
-            customerGroupId: customer.groupId || '',
-            variantId: option.variantId,
-            itemId: option.itemId,
-            itemCategory: option.category,
-            variant,
-            billDate: date,
-          })
+          priceLists,
+          customerId: customer.id,
+          customerGroupId: customer.groupId || '',
+          variantId: option.variantId,
+          itemId: option.itemId,
+          itemCategory: option.category,
+          variant,
+          billDate: date,
+        })
         : null;
     const base = variant?.sellingPrice ?? variant?.mrp ?? 0;
     return plResult ? plResult.rate : toNumber(base);

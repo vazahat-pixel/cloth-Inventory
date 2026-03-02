@@ -26,10 +26,13 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import { useForm } from 'react-hook-form';
-import { addNumberSeries, updateNumberSeries } from './settingsSlice';
+import { addNumberSeries, updateNumberSeries, fetchNumberSeries } from './settingsSlice';
 
 function NumberSeriesPage() {
   const dispatch = useDispatch();
+  useEffect(() => {
+    dispatch(fetchNumberSeries());
+  }, [dispatch]);
   const numberSeries = useSelector((state) => state.settings.numberSeries);
 
   const [page, setPage] = useState(0);

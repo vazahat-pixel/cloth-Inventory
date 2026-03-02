@@ -32,7 +32,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import CasinoIcon from '@mui/icons-material/Casino';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import { useForm } from 'react-hook-form';
-import { addCoupon, addCouponsBulk, updateCoupon } from './pricingSlice';
+import { addCoupon, addCouponsBulk, updateCoupon, fetchCoupons } from './pricingSlice';
 
 const toNum = (v, def = 0) => {
   const n = Number(v);
@@ -50,6 +50,9 @@ const generateRandomCode = (len = 8) => {
 
 function CouponPage() {
   const dispatch = useDispatch();
+  useEffect(() => {
+    dispatch(fetchCoupons());
+  }, [dispatch]);
   const coupons = useSelector((state) => state.pricing.coupons);
 
   const [searchText, setSearchText] = useState('');

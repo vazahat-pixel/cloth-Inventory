@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import { useSelector, useDispatch } from 'react-redux';
 import {
@@ -24,7 +24,9 @@ import SearchIcon from '@mui/icons-material/Search';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import ToggleOnIcon from '@mui/icons-material/ToggleOn';
 import ToggleOffIcon from '@mui/icons-material/ToggleOff';
-import { setSchemeStatus } from './pricingSlice';
+import { setSchemeStatus, fetchSchemes } from './pricingSlice';
+import { fetchMasters } from '../masters/mastersSlice';
+import { fetchItems } from '../items/itemsSlice';
 
 const SCHEME_TYPE_LABELS = {
   percentage_discount: 'Percentage Discount',
@@ -43,6 +45,14 @@ const APPLICABILITY_LABELS = {
 function SchemeListPage() {
   const navigate = useAppNavigate();
   const dispatch = useDispatch();
+
+  useEffect(() => {
+    dispatch(fetchSchemes());
+    dispatch(fetchMasters('itemGroups'));
+    dispatch(fetchMasters('brands'));
+    dispatch(fetchItems());
+  }, [dispatch]);
+
   const schemes = useSelector((state) => state.pricing.schemes);
   const items = useSelector((state) => state.items.records);
   const itemGroups = useSelector((state) => state.masters.itemGroups);

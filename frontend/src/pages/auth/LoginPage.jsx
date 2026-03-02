@@ -34,11 +34,11 @@ function LoginPage() {
     dispatch(loginStart());
 
     try {
-      const response = await authService.login(formValues);
+      const response = await authService.login({ ...formValues, role: urlRole });
       dispatch(loginSuccess(response));
 
-      const role = response.user?.role;
-      const basePath = role ? getRoleBasePath(role) : '/admin';
+      const responseRole = response.user?.role;
+      const basePath = responseRole ? getRoleBasePath(responseRole) : '/admin';
       const intendedPath = location.state?.from?.pathname;
 
       if (intendedPath && intendedPath.startsWith(basePath)) {
@@ -51,7 +51,8 @@ function LoginPage() {
     }
   };
 
-  const panelLabel = urlRole ? ROLE_LABELS[urlRole] || 'Sign In' : 'Sign In';
+  // Plain /login route (no urlRole) defaults to Admin Portal since it uses the admin endpoint
+  const panelLabel = urlRole ? ROLE_LABELS[urlRole] || 'Admin Portal' : 'Admin Portal';
 
   return (
     <Paper
@@ -82,8 +83,7 @@ function LoginPage() {
             )}
           </Stack>
           <Typography variant="body2" sx={{ color: '#64748b' }}>
-            Use admin@clotherp.com, manager@clotherp.com, or staff@clotherp.com with password
-            password123.
+            Please enter your credentials to access the system.
           </Typography>
         </Box>
 

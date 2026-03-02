@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchSaleOrders } from './ordersSlice';
+import { fetchMasters } from '../masters/mastersSlice';
 import {
   Box,
   Button,
@@ -26,8 +28,14 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 
 function SaleOrderListPage() {
   const navigate = useAppNavigate();
-  const saleOrders = useSelector((state) => state.orders.saleOrders);
-  const customers = useSelector((state) => state.masters.customers);
+  const saleOrders = useSelector((state) => state.orders.saleOrders || []);
+  const customers = useSelector((state) => state.masters.customers || []);
+  const dispatch = useDispatch();
+
+  useEffect(() => {
+    dispatch(fetchSaleOrders());
+    dispatch(fetchMasters('customers'));
+  }, [dispatch]);
 
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');

@@ -29,7 +29,7 @@ const getTodayDate = () => new Date().toISOString().slice(0, 10);
 
 function StockAuditPage() {
   const dispatch = useDispatch();
-  const warehouses = useSelector((state) => state.inventory.warehouses);
+  const warehouses = useSelector((state) => state.inventory.warehouses || []);
   const stockRows = useSelector((state) => state.inventory.stock);
   const audits = useSelector((state) => state.inventory.audits || []);
 

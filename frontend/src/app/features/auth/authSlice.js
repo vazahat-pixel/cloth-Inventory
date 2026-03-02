@@ -1,4 +1,14 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import api from '../../../services/api';
+
+export const getMe = createAsyncThunk('auth/getMe', async (_, { rejectWithValue }) => {
+  try {
+    const response = await api.get('/auth/me');
+    return response.data.user;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || 'Session expired');
+  }
+});
 
 const AUTH_STORAGE_KEY = 'cloth_erp_auth';
 
@@ -39,6 +49,12 @@ const initialState = {
   error: null,
 };
 
+const mapRole = (backendRole) => {
+  if (backendRole === 'admin') return 'Admin';
+  if (backendRole === 'store_staff') return 'Staff';
+  return backendRole; // fallback
+};
+
 const authSlice = createSlice({
   name: 'auth',
   initialState,
@@ -50,14 +66,17 @@ const authSlice = createSlice({
     loginSuccess: (state, action) => {
       const { user, token } = action.payload;
 
-      state.user = user;
+      const mappedRole = mapRole(user?.role);
+      const mappedUser = { ...user, role: mappedRole };
+
+      state.user = mappedUser;
       state.token = token;
-      state.role = user?.role ?? '';
+      state.role = mappedRole;
       state.isAuthenticated = true;
       state.loading = false;
       state.error = null;
 
-      saveStoredAuth(token, user);
+      saveStoredAuth(token, mappedUser);
     },
     loginFailure: (state, action) => {
       state.loading = false;
@@ -82,6 +101,23 @@ const authSlice = createSlice({
     clearAuthError: (state) => {
       state.error = null;
     },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(getMe.fulfilled, (state, action) => {
+        const user = action.payload;
+        const mappedRole = mapRole(user?.role);
+        const mappedUser = { ...user, role: mappedRole };
+        state.user = mappedUser;
+        state.role = mappedRole;
+      })
+      .addCase(getMe.rejected, (state) => {
+        state.user = null;
+        state.token = null;
+        state.role = '';
+        state.isAuthenticated = false;
+        clearStoredAuth();
+      });
   },
 });
 

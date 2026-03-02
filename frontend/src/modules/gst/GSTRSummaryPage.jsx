@@ -21,6 +21,7 @@ import {
 import PreviewIcon from '@mui/icons-material/Preview';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
+import { fetchGstSummary } from './gstSlice';
 import { generateGSTR1JSON, generateGSTR3BJSON, parseGSTR2AJSON, reconcileGSTR2A } from './gstService';
 
 const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
@@ -35,6 +36,8 @@ const getDefaultDateRange = () => {
 };
 
 function GSTRSummaryPage() {
+  const dispatch = useDispatch();
+  const summary = useSelector((state) => state.gst.summary);
   const sales = useSelector((state) => state.sales?.records || []);
   const salesReturns = useSelector((state) => state.sales?.returns || []);
   const purchases = useSelector((state) => state.purchase?.records || []);
@@ -47,54 +50,15 @@ function GSTRSummaryPage() {
   const [gstr2aData, setGstr2aData] = useState(null);
   const fileInputRef = useRef(null);
 
-  const filteredSales = useMemo(
-    () =>
-      sales.filter((s) => {
-        const d = s.date || '';
-        return (!dateFrom || d >= dateFrom) && (!dateTo || d <= dateTo);
-      }),
-    [sales, dateFrom, dateTo],
-  );
-  const filteredPurchases = useMemo(
-    () =>
-      purchases.filter((p) => {
-        const d = p.billDate || p.date || '';
-        return (!dateFrom || d >= dateFrom) && (!dateTo || d <= dateTo);
-      }),
-    [purchases, dateFrom, dateTo],
-  );
+  useEffect(() => {
+    dispatch(fetchGstSummary({ startDate: dateFrom, endDate: dateTo }));
+  }, [dispatch, dateFrom, dateTo]);
 
-  const outwardSupplies = useMemo(
-    () => ({
-      taxableValue: filteredSales.reduce(
-        (sum, s) =>
-          sum + toNum(s.totals?.grossAmount) - toNum(s.totals?.lineDiscount) - toNum(s.totals?.billDiscount),
-        0,
-      ),
-      cgst: filteredSales.reduce((sum, s) => sum + toNum(s.totals?.taxAmount) / 2, 0),
-      sgst: filteredSales.reduce((sum, s) => sum + toNum(s.totals?.taxAmount) / 2, 0),
-      igst: 0,
-      totalTax: filteredSales.reduce((sum, s) => sum + toNum(s.totals?.taxAmount), 0),
-    }),
-    [filteredSales],
-  );
+  const outwardSupplies = useMemo(() => summary.sales || {}, [summary.sales]);
+  const inwardSupplies = useMemo(() => summary.purchases || {}, [summary.purchases]);
 
-  const inwardSupplies = useMemo(
-    () => ({
-      taxableValue: filteredPurchases.reduce(
-        (sum, p) => sum + toNum(p.totals?.grossAmount) - toNum(p.totals?.totalDiscount),
-        0,
-      ),
-      cgst: filteredPurchases.reduce((sum, p) => sum + toNum(p.totals?.totalTax) / 2, 0),
-      sgst: filteredPurchases.reduce((sum, p) => sum + toNum(p.totals?.totalTax) / 2, 0),
-      igst: 0,
-      totalTax: filteredPurchases.reduce((sum, p) => sum + toNum(p.totals?.totalTax), 0),
-    }),
-    [filteredPurchases],
-  );
-
-  const taxLiability = outwardSupplies.totalTax;
-  const inputTaxCredit = inwardSupplies.totalTax;
+  const taxLiability = toNum(outwardSupplies.totalTax);
+  const inputTaxCredit = toNum(inwardSupplies.totalTax);
   const netPayable = taxLiability - inputTaxCredit;
 
   const gstr1JSON = useMemo(

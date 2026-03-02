@@ -1,96 +1,113 @@
-import { createSlice, nanoid } from '@reduxjs/toolkit';
-import { purchasesData, purchaseReturnsData } from './data';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import api from '../../services/api';
 
-const getPurchasedQty = (purchase) =>
-  purchase.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-
-const getReturnedQty = (returns, purchaseId) =>
-  returns
-    .filter((entry) => entry.purchaseId === purchaseId)
-    .reduce(
-      (sum, entry) =>
-        sum + entry.items.reduce((lineSum, line) => lineSum + Number(line.returnQty || 0), 0),
-      0,
-    );
-
-const derivePurchaseStatus = (purchasedQty, returnedQty) => {
-  if (!returnedQty) {
-    return 'Received';
+// Async Thunks
+export const fetchPurchases = createAsyncThunk('purchase/fetchAll', async (_, { rejectWithValue }) => {
+  try {
+    const response = await api.get('/purchase');
+    return response.data.purchases || response.data.data || [];
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
   }
+});
 
-  if (returnedQty >= purchasedQty) {
-    return 'Returned';
+export const addPurchase = createAsyncThunk('purchase/add', async (purchaseData, { rejectWithValue }) => {
+  try {
+    const response = await api.post('/purchase', purchaseData);
+    return response.data.purchase || response.data.data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
   }
+});
 
-  return 'Partially Returned';
-};
-
-const refreshPurchaseStatus = (state, purchaseId) => {
-  const purchase = state.records.find((entry) => entry.id === purchaseId);
-  if (!purchase) {
-    return;
+export const updatePurchase = createAsyncThunk('purchase/update', async ({ id, purchaseData }, { rejectWithValue }) => {
+  try {
+    const response = await api.patch(`/purchase/${id}`, purchaseData);
+    return response.data.purchase || response.data.data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
   }
+});
 
-  const purchasedQty = getPurchasedQty(purchase);
-  const returnedQty = getReturnedQty(state.returns, purchaseId);
-  purchase.status = derivePurchaseStatus(purchasedQty, returnedQty);
-};
+export const fetchPurchaseReturns = createAsyncThunk('purchase/fetchReturns', async (_, { rejectWithValue }) => {
+  try {
+    const response = await api.get('/returns?type=STORE_TO_FACTORY');
+    return response.data.returns || response.data.data || [];
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
+export const addPurchaseReturn = createAsyncThunk('purchase/addReturn', async (returnData, { rejectWithValue }) => {
+  try {
+    // Note: Backend might use a single returns endpoint with different types
+    const response = await api.post('/returns', { ...returnData, type: 'STORE_TO_FACTORY' });
+    return response.data.returnEntry || response.data.data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
 
 const initialState = {
-  records: purchasesData,
-  returns: purchaseReturnsData,
+  records: [],
+  returns: [],
+  loading: false,
+  error: null,
 };
 
 const purchaseSlice = createSlice({
   name: 'purchase',
   initialState,
   reducers: {
-    addPurchase: {
-      reducer: (state, action) => {
+    clearPurchaseError: (state) => {
+      state.error = null;
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      // Fetch Purchases
+      .addCase(fetchPurchases.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchPurchases.fulfilled, (state, action) => {
+        state.loading = false;
+        state.records = action.payload || [];
+      })
+      .addCase(fetchPurchases.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // Add Purchase
+      .addCase(addPurchase.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(addPurchase.fulfilled, (state, action) => {
+        state.loading = false;
         state.records.unshift(action.payload);
-      },
-      prepare: (purchase) => ({
-        payload: {
-          id: purchase.id || nanoid(10),
-          status: purchase.status || 'Received',
-          ...purchase,
-        },
-      }),
-    },
-
-    updatePurchase: (state, action) => {
-      const { id, purchase } = action.payload;
-      const targetIndex = state.records.findIndex((entry) => entry.id === id);
-      if (targetIndex === -1) {
-        return;
-      }
-
-      state.records[targetIndex] = {
-        ...state.records[targetIndex],
-        ...purchase,
-      };
-
-      refreshPurchaseStatus(state, id);
-    },
-
-    addPurchaseReturn: {
-      reducer: (state, action) => {
-        const entry = action.payload;
-        state.returns.unshift(entry);
-        refreshPurchaseStatus(state, entry.purchaseId);
-      },
-      prepare: (returnEntry) => ({
-        payload: {
-          id: returnEntry.id || nanoid(10),
-          returnNumber:
-            returnEntry.returnNumber || `RET-${Date.now().toString().slice(-6)}`,
-          ...returnEntry,
-        },
-      }),
-    },
+      })
+      .addCase(addPurchase.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // Update Purchase
+      .addCase(updatePurchase.fulfilled, (state, action) => {
+        const index = state.records.findIndex((r) => r.id === action.payload.id || r._id === action.payload._id);
+        if (index !== -1) {
+          state.records[index] = action.payload;
+        }
+      })
+      // Fetch Returns
+      .addCase(fetchPurchaseReturns.fulfilled, (state, action) => {
+        state.returns = action.payload || [];
+      })
+      // Add Return
+      .addCase(addPurchaseReturn.fulfilled, (state, action) => {
+        state.returns.unshift(action.payload);
+      });
   },
 });
 
-export const { addPurchase, updatePurchase, addPurchaseReturn } = purchaseSlice.actions;
-
+export const { clearPurchaseError } = purchaseSlice.actions;
 export default purchaseSlice.reducer;

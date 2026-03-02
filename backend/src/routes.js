@@ -23,6 +23,7 @@ const registerRoutes = (app) => {
     app.use('/api/gst', require('./modules/gst/gst.routes'));
     app.use('/api/purchase', require('./modules/purchase/purchase.routes'));
     app.use('/api/pricing', require('./modules/pricing/pricing.routes'));
+    app.use('/api/settings', require('./modules/settings/settings.routes'));
 };
 
 module.exports = registerRoutes;

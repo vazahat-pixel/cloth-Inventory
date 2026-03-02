@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchSales } from './salesSlice';
+import { fetchMasters } from '../masters/mastersSlice';
 import {
   Box,
   Button,
@@ -30,9 +32,10 @@ const PAYMENT_STATUS_OPTIONS = ['Paid', 'Partial'];
 
 function SalesListPage() {
   const navigate = useAppNavigate();
-  const sales = useSelector((state) => state.sales.records);
-  const customers = useSelector((state) => state.masters.customers);
-  const warehouses = useSelector((state) => state.inventory.warehouses);
+  const dispatch = useDispatch();
+  const sales = useSelector((state) => state.sales.records || []);
+  const customers = useSelector((state) => state.masters.customers || []);
+  const warehouses = useSelector((state) => state.inventory.warehouses || []);
 
   const [searchText, setSearchText] = useState('');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('all');
@@ -40,6 +43,12 @@ function SalesListPage() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selectedSale, setSelectedSale] = useState(null);
+
+  useEffect(() => {
+    dispatch(fetchSales());
+    dispatch(fetchMasters('customers'));
+    dispatch(fetchMasters('warehouses'));
+  }, [dispatch]);
 
   const customerMap = useMemo(
     () =>
@@ -72,8 +81,8 @@ function SalesListPage() {
 
         const matchesSearch = query
           ? row.invoiceNumber.toLowerCase().includes(query) ||
-            customerName.toLowerCase().includes(query) ||
-            customerMobile.toLowerCase().includes(query)
+          customerName.toLowerCase().includes(query) ||
+          customerMobile.toLowerCase().includes(query)
           : true;
 
         const matchesStatus =
@@ -210,8 +219,8 @@ function SalesListPage() {
                             {customerMobile}
                           </Typography>
                         </TableCell>
-                        <TableCell align="right">{row.totals.totalQuantity}</TableCell>
-                        <TableCell align="right">{row.totals.netPayable.toFixed(2)}</TableCell>
+                        <TableCell align="right">{row.totals?.totalQuantity ?? '-'}</TableCell>
+                        <TableCell align="right">{row.totals?.netPayable != null ? Number(row.totals.netPayable).toFixed(2) : '-'}</TableCell>
                         <TableCell>
                           <PaymentStatusChip status={row.payment?.status || 'Pending'} />
                         </TableCell>

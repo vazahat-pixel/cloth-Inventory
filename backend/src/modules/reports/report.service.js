@@ -462,29 +462,56 @@ const getPurchaseRegister = async (supplierId, startDate, endDate) => {
  * GST Summary Report
  */
 const getGstSummary = async (startDate, endDate) => {
-    const query = { isDeleted: false, status: 'COMPLETED' };
+    const saleQuery = { isDeleted: false, status: 'COMPLETED' };
+    const purchaseQuery = { status: 'COMPLETED' };
+
     if (startDate || endDate) {
-        query.saleDate = {};
-        if (startDate) query.saleDate.$gte = new Date(startDate);
+        saleQuery.saleDate = {};
+        purchaseQuery.billDate = {};
+        if (startDate) {
+            saleQuery.saleDate.$gte = new Date(startDate);
+            purchaseQuery.billDate.$gte = new Date(startDate);
+        }
         if (endDate) {
             const end = new Date(endDate);
             end.setHours(23, 59, 59, 999);
-            query.saleDate.$lte = end;
+            saleQuery.saleDate.$lte = end;
+            purchaseQuery.billDate.$lte = end;
         }
     }
 
-    return await Sale.aggregate([
-        { $match: query },
+    const salesGst = await Sale.aggregate([
+        { $match: saleQuery },
         {
             $group: {
                 _id: null,
-                totalCGST: { $sum: "$taxBreakup.cgst" },
-                totalSGST: { $sum: "$taxBreakup.sgst" },
-                totalIGST: { $sum: "$taxBreakup.igst" },
+                taxableValue: { $sum: { $subtract: ["$grandTotal", "$totalTax"] } }, // Approximate if grandTotal is tax inclusive
+                cgst: { $sum: "$taxBreakup.cgst" },
+                sgst: { $sum: "$taxBreakup.sgst" },
+                igst: { $sum: "$taxBreakup.igst" },
                 totalTax: { $sum: "$totalTax" }
             }
         }
     ]);
+
+    const purchaseGst = await Purchase.aggregate([
+        { $match: purchaseQuery },
+        {
+            $group: {
+                _id: null,
+                taxableValue: { $sum: "$subTotal" },
+                cgst: { $sum: { $divide: ["$totalTax", 2] } }, // Assuming 50/50 split if igst not tracked separately in purchase model
+                sgst: { $sum: { $divide: ["$totalTax", 2] } },
+                igst: { $sum: 0 },
+                totalTax: { $sum: "$totalTax" }
+            }
+        }
+    ]);
+
+    return {
+        sales: salesGst[0] || { taxableValue: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0 },
+        purchases: purchaseGst[0] || { taxableValue: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0 }
+    };
 };
 
 module.exports = {

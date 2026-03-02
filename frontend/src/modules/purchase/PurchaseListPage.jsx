@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchPurchases } from './purchaseSlice';
+import { fetchMasters } from '../masters/mastersSlice';
 import {
   Box,
   Button,
@@ -31,9 +33,10 @@ import BarcodePrintDialog from './BarcodePrintDialog';
 
 function PurchaseListPage() {
   const navigate = useAppNavigate();
-  const purchases = useSelector((state) => state.purchase.records);
-  const suppliers = useSelector((state) => state.masters.suppliers);
-  const warehouses = useSelector((state) => state.inventory.warehouses);
+  const dispatch = useDispatch();
+  const purchases = useSelector((state) => state.purchase.records || []);
+  const suppliers = useSelector((state) => state.masters.suppliers || []);
+  const warehouses = useSelector((state) => state.inventory.warehouses || []);
 
   const [searchText, setSearchText] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState('all');
@@ -43,6 +46,12 @@ function PurchaseListPage() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selectedPurchase, setSelectedPurchase] = useState(null);
   const [barcodePrintPurchase, setBarcodePrintPurchase] = useState(null);
+
+  useEffect(() => {
+    dispatch(fetchPurchases());
+    dispatch(fetchMasters('suppliers'));
+    dispatch(fetchMasters('warehouses'));
+  }, [dispatch]);
 
   const supplierMap = useMemo(
     () =>
@@ -69,7 +78,7 @@ function PurchaseListPage() {
       const supplierName = supplierMap[row.supplierId] || '';
       const matchesSearch = query
         ? row.billNumber.toLowerCase().includes(query) ||
-          supplierName.toLowerCase().includes(query)
+        supplierName.toLowerCase().includes(query)
         : true;
 
       const matchesWarehouse =
@@ -204,8 +213,8 @@ function PurchaseListPage() {
                       <TableCell>{supplierMap[row.supplierId] || row.supplierId}</TableCell>
                       <TableCell>{row.billDate}</TableCell>
                       <TableCell>{warehouseMap[row.warehouseId] || row.warehouseId}</TableCell>
-                      <TableCell align="right">{row.totals.totalQuantity}</TableCell>
-                      <TableCell align="right">{row.totals.netAmount.toFixed(2)}</TableCell>
+                      <TableCell align="right">{row.totals?.totalQuantity ?? '-'}</TableCell>
+                      <TableCell align="right">{row.totals?.netAmount != null ? Number(row.totals.netAmount).toFixed(2) : '-'}</TableCell>
                       <TableCell>
                         <PurchaseStatusChip status={row.status} />
                       </TableCell>

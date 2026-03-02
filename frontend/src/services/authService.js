@@ -1,52 +1,29 @@
-const MOCK_USERS = [
-  {
-    id: 1,
-    name: 'ERP Admin',
-    email: 'admin@clotherp.com',
-    password: 'password123',
-    role: 'Admin',
-  },
-  {
-    id: 2,
-    name: 'Store Manager',
-    email: 'manager@clotherp.com',
-    password: 'password123',
-    role: 'Manager',
-  },
-  {
-    id: 3,
-    name: 'Store Staff',
-    email: 'staff@clotherp.com',
-    password: 'password123',
-    role: 'Staff',
-  },
-];
+import api from './api';
 
-export const login = ({ email, password }) =>
-  new Promise((resolve, reject) => {
-    setTimeout(() => {
-      const normalizedEmail = email.trim().toLowerCase();
+const login = async ({ email, password, role }) => {
+  // 'admin' role (or no role at all = plain /login page) → admin endpoint
+  // 'staff' or 'store_staff' → store endpoint
+  const isStaff = role === 'staff' || role === 'store_staff';
+  const endpoint = isStaff ? '/auth/store/login' : '/auth/admin/login';
 
-      const matchedUser = MOCK_USERS.find(
-        (user) => user.email === normalizedEmail && user.password === password,
-      );
+  try {
+    const response = await api.post(endpoint, { email, password });
 
-      if (!matchedUser) {
-        reject(new Error('Invalid credentials. Use one of the mock users.'));
-        return;
-      }
+    // Backend spreads data at top-level: { success, message, token, user }
+    const { token, user } = response.data;
 
-      const user = {
-        id: matchedUser.id,
-        name: matchedUser.name,
-        email: matchedUser.email,
-        role: matchedUser.role,
-      };
-      const token = `mock-jwt-${matchedUser.role.toLowerCase()}-${Date.now()}`;
+    // Map backend roles to frontend roles
+    const rawRole = user?.role ?? '';
+    const mappedRole = rawRole === 'admin' ? 'Admin' : rawRole === 'store_staff' ? 'Staff' : rawRole;
+    const mappedUser = { ...user, role: mappedRole };
 
-      resolve({ token, user });
-    }, 800);
-  });
+    return { token, user: mappedUser };
+  } catch (error) {
+    // Throw the error message for the frontend to display
+    const message = error.response?.data?.message || error.message || 'Login failed. Please try again.';
+    throw new Error(message);
+  }
+};
 
 const authService = { login };
 

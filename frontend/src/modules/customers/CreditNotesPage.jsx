@@ -39,7 +39,7 @@ const toNum = (v, def = 0) => {
 function CreditNotesPage() {
   const dispatch = useDispatch();
   const creditNotes = useSelector((state) => state.customerRewards.creditNotes);
-  const customers = useSelector((state) => state.masters.customers);
+  const customers = useSelector((state) => state.masters.customers || []);
 
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
