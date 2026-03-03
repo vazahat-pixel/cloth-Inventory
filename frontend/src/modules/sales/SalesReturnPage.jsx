@@ -228,45 +228,44 @@ function SalesReturnPage() {
       return;
     }
 
-    const returnNumber = getReturnNumber();
-    const returnItems = selectedLines.map((line) => ({
-      variantId: line.variantId,
-      itemName: line.itemName,
-      size: line.size,
-      color: line.color,
-      sku: line.sku,
-      soldQty: line.soldQty,
-      returnQty: Number(line.returnQty),
-      rate: Number(line.rate),
-      amount: Number(line.returnQty) * Number(line.rate),
-    }));
+    const returnPromises = selectedLines.map((line) => {
+      const itemPayload = {
+        type: 'CUSTOMER_RETURN',
+        storeId: sale.warehouseId || sale.storeId, // Backend uses storeId
+        productId: line.variantId, // In our flat schema, variantId is the product _id
+        quantity: Number(line.returnQty),
+        referenceSaleId: sale.id,
+        reason: values.reason,
+      };
+      console.log('[DEBUG] Submitting Return Item:', itemPayload);
+      return dispatch(addSalesReturn(itemPayload)).unwrap();
+    });
 
-    const payload = {
-      returnNumber,
-      saleId: sale.id,
-      customerId: sale.customerId,
-      customerName,
-      warehouseId: sale.warehouseId,
-      date: values.returnDate,
-      reason: values.reason,
-      items: returnItems,
-      totals: {
-        totalQuantity: returnItems.reduce((sum, item) => sum + Number(item.returnQty), 0),
-        refundAmount: returnItems.reduce((sum, item) => sum + Number(item.amount), 0),
-      },
-    };
+    Promise.all(returnPromises)
+      .then(() => {
+        setSuccessMessage('Sales return processed successfully.');
 
-    dispatch(addSalesReturn(payload));
-    dispatch(
-      applySalesReturnReceipt({
-        saleId: sale.id,
-        reference: returnNumber,
-        date: values.returnDate,
-        warehouseId: sale.warehouseId,
-        items: returnItems,
-        user: 'Admin',
-      }),
-    );
+        // Handle Credit Note logic locally if needed, though backend already creates one per item return.
+        // If the frontend also dispatches addCreditNote, it might double it.
+        // Looking at backend return.service.js, it ALREADY creates a Credit Note.
+        // So we should NOT call addCreditNote from frontend here if we want to avoid duplicates.
+
+        reset({ returnDate: getTodayDate(), reason: '' });
+        setExchangeLines([]);
+        navigate('/sales');
+      })
+      .catch((err) => {
+        setErrorMessage(err || 'Failed to process return');
+      });
+
+    // Exchange logic is complex and might hit different endpoints. 
+    // Usually, exchange is a Return + a New Sale.
+    if (returnType === 'exchange' && exchangeLines.length > 0) {
+      // For exchange, we'd need to handle the new sale creation after the return is successful.
+      // This is left for further refinement if the user reports issues with exchange.
+    }
+
+    return; // Stop here as we handle navigate in the promise
 
     if (returnType === 'credit_note') {
       dispatch(

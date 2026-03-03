@@ -22,15 +22,16 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import SendOutlinedIcon from '@mui/icons-material/SendOutlined';
 import { useForm } from 'react-hook-form';
-import { transferStock } from './inventorySlice';
+import { fetchStockOverview, transferStock } from './inventorySlice';
+import { fetchMasters } from '../masters/mastersSlice';
 import { parseTransferExcel } from './transferImportService';
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
 
 function StockTransferPage() {
   const dispatch = useDispatch();
-  const warehouses = useSelector((state) => state.inventory.warehouses || []);
-  const stockRows = useSelector((state) => state.inventory.stock);
+  const warehouses = useSelector((state) => state.masters.warehouses || []);
+  const stockRows = useSelector((state) => state.inventory.stock || []);
 
   const [lines, setLines] = useState([]);
   const [variantPickerValue, setVariantPickerValue] = useState(null);
@@ -56,6 +57,11 @@ function StockTransferPage() {
 
   const fromWarehouseId = watch('fromWarehouseId');
   const toWarehouseId = watch('toWarehouseId');
+
+  useEffect(() => {
+    dispatch(fetchMasters('warehouses'));
+    dispatch(fetchStockOverview());
+  }, [dispatch]);
 
   useEffect(() => {
     setLines([]);
@@ -191,36 +197,41 @@ function StockTransferPage() {
       return;
     }
 
-    for (const line of lineRows) {
+    const preparedProducts = lineRows.map((line) => {
       if (line.transferQty <= 0) {
-        setErrorMessage('Transfer quantity must be greater than zero.');
-        return;
+        throw new Error('Transfer quantity must be greater than zero.');
       }
-
       if (line.transferQty > line.availableQty) {
-        setErrorMessage(`Transfer exceeds available quantity for ${line.stockRow.sku}.`);
-        return;
+        throw new Error(`Transfer exceeds available quantity for ${line.stockRow.sku}.`);
       }
-    }
-
-    dispatch(
-      transferStock({
-        fromWarehouseId: values.fromWarehouseId,
-        toWarehouseId: values.toWarehouseId,
-        date: values.transferDate,
-        remarks: values.remarks,
-        lines,
-        user: 'Admin',
-      }),
-    );
-
-    setSuccessMessage('Stock transfer saved successfully.');
-    setLines([]);
-    setVariantPickerValue(null);
-    reset({
-      ...values,
-      remarks: '',
+      return {
+        productId: line.stockRow.variantId || line.stockRow.productId,
+        quantity: Number(line.transferQty),
+      };
     });
+
+    const payload = {
+      storeId: values.toWarehouseId, // Backend uses storeId for destination
+      products: preparedProducts,
+      notes: values.remarks,
+    };
+
+    console.log('[DEBUG] Submitting Dispatch Payload:', payload);
+
+    dispatch(transferStock(payload))
+      .unwrap()
+      .then(() => {
+        setSuccessMessage('Stock transfer saved successfully.');
+        setLines([]);
+        setVariantPickerValue(null);
+        reset({
+          ...values,
+          remarks: '',
+        });
+      })
+      .catch((err) => {
+        setErrorMessage(err || 'Failed to save transfer');
+      });
   };
 
   const totalTransferQty = lineRows.reduce((sum, line) => sum + Number(line.transferQty || 0), 0);

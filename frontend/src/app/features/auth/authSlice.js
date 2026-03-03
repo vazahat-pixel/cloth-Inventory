@@ -10,6 +10,20 @@ export const getMe = createAsyncThunk('auth/getMe', async (_, { rejectWithValue 
   }
 });
 
+export const registerUser = createAsyncThunk(
+  'auth/register',
+  async ({ role, data }, { rejectWithValue }) => {
+    try {
+      // Backend map: 'Admin' -> '/admin/register', 'Staff' -> '/store/register'
+      const endpoint = role === 'Admin' ? '/auth/admin/register' : '/auth/store/register';
+      const response = await api.post(endpoint, data);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Registration failed');
+    }
+  },
+);
+
 const AUTH_STORAGE_KEY = 'cloth_erp_auth';
 
 const loadStoredAuth = () => {
@@ -117,6 +131,28 @@ const authSlice = createSlice({
         state.role = '';
         state.isAuthenticated = false;
         clearStoredAuth();
+      })
+      .addCase(registerUser.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(registerUser.fulfilled, (state, action) => {
+        const { user, token } = action.payload;
+        const mappedRole = mapRole(user?.role);
+        const mappedUser = { ...user, role: mappedRole };
+
+        state.user = mappedUser;
+        state.token = token;
+        state.role = mappedRole;
+        state.isAuthenticated = true;
+        state.loading = false;
+        state.error = null;
+
+        saveStoredAuth(token, mappedUser);
+      })
+      .addCase(registerUser.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
       });
   },
 });

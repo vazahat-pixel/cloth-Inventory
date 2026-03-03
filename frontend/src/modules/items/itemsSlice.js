@@ -1,12 +1,13 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
+import { normalizeResponse } from '../../services/normalization';
 
 // Async Thunks
 export const fetchItems = createAsyncThunk('items/fetchAll', async (_, { rejectWithValue }) => {
   try {
     const response = await api.get('/products');
-    // Backend returns { success: true, message: '...', products: [...] }
-    return response.data.products || response.data.data || [];
+    const raw = response.data.products || response.data.data || [];
+    return normalizeResponse(raw, 'product');
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }

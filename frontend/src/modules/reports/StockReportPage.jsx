@@ -27,7 +27,7 @@ const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 function StockReportPage() {
   const stock = useSelector((state) => state.inventory?.stock || []);
-  const warehouses = useSelector((state) => state.inventory?.warehouses || []);
+  const warehouses = useSelector((state) => state.masters?.warehouses || []);
   const items = useSelector((state) => state.items?.records || []);
   const brands = useSelector((state) => state.masters?.brands || []);
   const itemGroups = useSelector((state) => state.masters?.itemGroups || []);

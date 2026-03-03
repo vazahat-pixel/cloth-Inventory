@@ -1,11 +1,13 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
+import { normalizeResponse } from '../../services/normalization';
 
 // Async Thunks
 export const fetchPurchases = createAsyncThunk('purchase/fetchAll', async (_, { rejectWithValue }) => {
   try {
     const response = await api.get('/purchase');
-    return response.data.purchases || response.data.data || [];
+    const raw = response.data.purchases || response.data.data || [];
+    return normalizeResponse(raw, 'purchase');
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -14,7 +16,8 @@ export const fetchPurchases = createAsyncThunk('purchase/fetchAll', async (_, { 
 export const addPurchase = createAsyncThunk('purchase/add', async (purchaseData, { rejectWithValue }) => {
   try {
     const response = await api.post('/purchase', purchaseData);
-    return response.data.purchase || response.data.data;
+    const raw = response.data.purchase || response.data.data;
+    return normalizeResponse(raw, 'purchase');
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -23,7 +26,8 @@ export const addPurchase = createAsyncThunk('purchase/add', async (purchaseData,
 export const updatePurchase = createAsyncThunk('purchase/update', async ({ id, purchaseData }, { rejectWithValue }) => {
   try {
     const response = await api.patch(`/purchase/${id}`, purchaseData);
-    return response.data.purchase || response.data.data;
+    const raw = response.data.purchase || response.data.data;
+    return normalizeResponse(raw, 'purchase');
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -32,7 +36,8 @@ export const updatePurchase = createAsyncThunk('purchase/update', async ({ id, p
 export const fetchPurchaseReturns = createAsyncThunk('purchase/fetchReturns', async (_, { rejectWithValue }) => {
   try {
     const response = await api.get('/returns?type=STORE_TO_FACTORY');
-    return response.data.returns || response.data.data || [];
+    const raw = response.data.returns || response.data.data || [];
+    return normalizeResponse(raw, 'return');
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -42,7 +47,8 @@ export const addPurchaseReturn = createAsyncThunk('purchase/addReturn', async (r
   try {
     // Note: Backend might use a single returns endpoint with different types
     const response = await api.post('/returns', { ...returnData, type: 'STORE_TO_FACTORY' });
-    return response.data.returnEntry || response.data.data;
+    const raw = response.data.returnEntry || response.data.data;
+    return normalizeResponse(raw, 'return');
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }

@@ -83,7 +83,7 @@ function BillingPage() {
   const sales = useSelector((state) => state.sales.records || []);
   const customers = useSelector((state) => state.masters.customers || []);
   const salesmen = useSelector((state) => state.masters.salesmen || []);
-  const warehouses = useSelector((state) => state.inventory.warehouses || []);
+  const warehouses = useSelector((state) => state.masters.warehouses || []);
   const stockRows = useSelector((state) => state.inventory.stock || []);
   const items = useSelector((state) => state.items.records || []);
   const schemes = useSelector((state) => state.pricing.schemes || []);
@@ -204,17 +204,15 @@ function BillingPage() {
 
   const variantSellingPriceMap = useMemo(() => {
     const map = {};
-    items.forEach((item) => {
-      item.variants?.forEach((variant) => {
-        map[variant.id] = {
-          rate: toNumber(variant.sellingPrice || variant.mrp || 0),
-          itemName: item.name,
-          styleCode: item.code,
-          itemId: item.id,
-          brand: item.brand,
-          category: item.category,
-        };
-      });
+    (items || []).forEach((item) => {
+      map[item.id] = {
+        rate: toNumber(item.salePrice || item.sellingPrice || item.mrp || 0),
+        itemName: item.name,
+        styleCode: item.sku || '',
+        itemId: item.id,
+        brand: item.brand,
+        category: item.category,
+      };
     });
     return map;
   }, [items]);
@@ -434,27 +432,30 @@ function BillingPage() {
   };
 
   const handlePaymentConfirm = (payment) => {
-    const preparedItems = lines.map((line) => ({
-      variantId: line.variantId,
-      lotNumber: String(line.lotNumber || '').trim(),
+    // 1. Align with backend products array: [{ productId, quantity }]
+    const preparedProducts = lines.map((line) => ({
+      productId: line.variantId, // In our flat schema, variantId is the product _id
       quantity: toNumber(line.quantity),
-      rate: toNumber(line.rate),
-      discount: toNumber(line.discount),
-      tax: toNumber(line.tax),
+      price: toNumber(line.rate),
+      total: toNumber(line.quantity) * toNumber(line.rate),
     }));
 
+    // 2. Build backend-compliant payload
     const payload = {
-      date: billDate,
-      warehouseId,
+      storeId: warehouseId, // Backend uses storeId
       customerId: selectedCustomer?.id || null,
-      salesmanId: salesmanId || '',
-      items: preparedItems,
-      discount: toNumber(billDiscount) + schemeDiscount + couponDiscountAmount,
-      loyaltyRedeemed: toNumber(totals.loyaltyRedeemed),
-      creditNoteId: creditNoteId || null,
+      products: preparedProducts, // Backend expects 'products'
+      subTotal: totals.grossAmount,
+      discount: toNumber(billDiscount),
+      tax: totals.taxAmount,
+      grandTotal: totals.netPayable,
       paymentMode: payment.method || 'Cash',
+      redeemPoints: toNumber(loyaltyRedeemed), // Backend uses points count
+      creditNoteId: creditNoteId || null,
       status: 'Completed',
     };
+
+    console.log('[DEBUG] Submitting Sale Payload:', payload);
 
     dispatch(addSale(payload))
       .unwrap()

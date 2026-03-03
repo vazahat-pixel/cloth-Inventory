@@ -62,7 +62,7 @@ function PurchaseFormPage() {
 
   const purchases = useSelector((state) => state.purchase.records || []);
   const suppliers = useSelector((state) => state.masters.suppliers || []);
-  const warehouses = useSelector((state) => state.inventory.warehouses || []);
+  const warehouses = useSelector((state) => state.masters.warehouses || []);
   const items = useSelector((state) => state.items.records || []);
 
   const existingPurchase = useMemo(
@@ -93,6 +93,12 @@ function PurchaseFormPage() {
       otherCharges: 0,
     },
   });
+
+  useEffect(() => {
+    dispatch(fetchMasters('suppliers'));
+    dispatch(fetchMasters('warehouses'));
+    dispatch(fetchItems());
+  }, [dispatch]);
 
   useEffect(() => {
     if (!existingPurchase) {
@@ -128,22 +134,22 @@ function PurchaseFormPage() {
 
   const otherCharges = watch('otherCharges');
 
+  // Each product in the backend IS a variant (has size, color, sku, salePrice directly)
   const variantOptions = useMemo(
     () =>
-      (items || []).flatMap((item) =>
-        (item.variants || []).map((variant) => ({
-          variantId: variant.id,
-          itemName: item.name,
-          styleCode: item.code,
-          size: variant.size,
-          color: variant.color,
-          sku: variant.sku,
-          brand: item.brand,
-          category: item.category,
-          status: variant.status || 'Active',
-          defaultRate: toNumber(variant.costPrice || variant.sellingPrice || 0),
-        })),
-      ),
+      (items || []).map((product) => ({
+        variantId: product._id || product.id,
+        itemName: product.name || '',
+        styleCode: product.sku || '',
+        size: product.size || '',
+        color: product.color || '',
+        sku: product.barcode || product.sku || '',
+        brand: product.brand || '',
+        category: product.category || '',
+        mrp: product.salePrice || 0,
+        status: product.isActive === false ? 'Inactive' : 'Active',
+        defaultRate: product.salePrice || product.costPrice || 0,
+      })),
     [items],
   );
 
@@ -296,26 +302,11 @@ function PurchaseFormPage() {
     const preparedItems = lines.map((line) => {
       const quantity = toNumber(line.quantity);
       const rate = toNumber(line.rate);
-      const discount = toNumber(line.discount);
-      const tax = toNumber(line.tax);
-      const amount = 0; // Handled by backend
 
       return {
-        variantId: line.variantId,
-        lotNumber: String(line.lotNumber || '').trim() || '',
-        itemName: line.itemName,
-        styleCode: line.styleCode,
-        size: line.size,
-        color: line.color,
-        sku: line.sku,
-        brand: line.brand,
-        category: line.category,
+        productId: line.variantId,   // variantId holds the product _id
         quantity,
         rate,
-        discount,
-        tax,
-        amount,
-        status: line.status || 'Active',
       };
     });
 
@@ -325,17 +316,13 @@ function PurchaseFormPage() {
       return;
     }
 
-    const computedTotals = calculateTotals(preparedItems, values.otherCharges);
 
     const payload = {
       supplierId: values.supplierId,
-      billNumber: values.billNumber.trim(),
-      billDate: values.billDate,
-      warehouseId: values.warehouseId,
-      purchaseType: values.purchaseType,
-      remarks: values.remarks,
+      invoiceNumber: values.billNumber.trim(),   // backend expects invoiceNumber
+      invoiceDate: values.billDate,              // backend expects invoiceDate
+      notes: values.remarks,                    // backend expects notes
       items: preparedItems,
-      totals: computedTotals,
     };
 
     dispatch(isEditMode ? updatePurchase({ id, purchaseData: payload }) : addPurchase(payload))
@@ -406,8 +393,8 @@ function PurchaseFormPage() {
               helperText={errors.supplierId?.message || ' '}
             >
               {suppliers.map((supplier) => (
-                <MenuItem key={supplier.id} value={supplier.id}>
-                  {supplier.supplierName}
+                <MenuItem key={supplier._id || supplier.id} value={supplier._id || supplier.id}>
+                  {supplier.name || supplier.supplierName || ''}
                 </MenuItem>
               ))}
             </TextField>
@@ -446,7 +433,7 @@ function PurchaseFormPage() {
               helperText={errors.warehouseId?.message || ' '}
             >
               {warehouses.map((warehouse) => (
-                <MenuItem key={warehouse.id} value={warehouse.id}>
+                <MenuItem key={warehouse._id || warehouse.id} value={warehouse._id || warehouse.id}>
                   {warehouse.name}
                 </MenuItem>
               ))}

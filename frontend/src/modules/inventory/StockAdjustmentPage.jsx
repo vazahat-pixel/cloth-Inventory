@@ -28,8 +28,8 @@ const getTodayDate = () => new Date().toISOString().slice(0, 10);
 
 function StockAdjustmentPage() {
   const dispatch = useDispatch();
-  const warehouses = useSelector((state) => state.inventory.warehouses || []);
-  const stockRows = useSelector((state) => state.inventory.stock);
+  const warehouses = useSelector((state) => state.masters.warehouses || []);
+  const stockRows = useSelector((state) => state.inventory.stock || []);
 
   const [lines, setLines] = useState([]);
   const [pickerValue, setPickerValue] = useState(null);
@@ -53,6 +53,11 @@ function StockAdjustmentPage() {
 
   const warehouseId = watch('warehouseId');
   const adjustmentType = watch('adjustmentType');
+
+  useEffect(() => {
+    dispatch(fetchMasters('warehouses'));
+    dispatch(fetchStockOverview());
+  }, [dispatch]);
 
   useEffect(() => {
     setLines([]);

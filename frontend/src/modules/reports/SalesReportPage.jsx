@@ -26,7 +26,7 @@ const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 function SalesReportPage() {
   const sales = useSelector((state) => state.sales?.records || []);
   const salesReturns = useSelector((state) => state.sales?.returns || []);
-  const warehouses = useSelector((state) => state.inventory?.warehouses || []);
+  const warehouses = useSelector((state) => state.masters?.warehouses || []);
   const itemGroups = useSelector((state) => state.masters?.itemGroups || []);
   const items = useSelector((state) => state.items?.records || []);
   const warehouseMap = useMemo(
@@ -532,10 +532,10 @@ function SalesReportPage() {
           component="div"
           count={
             viewMode === 'summary' ? filteredRows.length
-            : viewMode === 'detail' ? detailRows.length
-            : viewMode === 'accountWise' ? accountWiseRows.length
-            : viewMode === 'sizeWise' ? sizeWiseRows.length
-            : viewMode === 'groupWise' ? groupWiseRows.length : 0
+              : viewMode === 'detail' ? detailRows.length
+                : viewMode === 'accountWise' ? accountWiseRows.length
+                  : viewMode === 'sizeWise' ? sizeWiseRows.length
+                    : viewMode === 'groupWise' ? groupWiseRows.length : 0
           }
           page={page}
           onPageChange={(_, p) => setPage(p)}

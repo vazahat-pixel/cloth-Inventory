@@ -1,11 +1,13 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
+import { normalizeResponse } from '../../services/normalization';
 
 // Async Thunks
 export const fetchSales = createAsyncThunk('sales/fetchAll', async (_, { rejectWithValue }) => {
   try {
     const response = await api.get('/sales');
-    return response.data.sales || response.data.data || [];
+    const raw = response.data.sales || response.data.data || [];
+    return normalizeResponse(raw, 'sale');
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -14,7 +16,8 @@ export const fetchSales = createAsyncThunk('sales/fetchAll', async (_, { rejectW
 export const addSale = createAsyncThunk('sales/add', async (saleData, { rejectWithValue }) => {
   try {
     const response = await api.post('/sales', saleData);
-    return response.data.sale || response.data.data;
+    const raw = response.data.sale || response.data.data;
+    return normalizeResponse(raw, 'sale');
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -32,7 +35,8 @@ export const fetchSalesReturns = createAsyncThunk('sales/fetchReturns', async (_
 export const addSalesReturn = createAsyncThunk('sales/addReturn', async (returnData, { rejectWithValue }) => {
   try {
     const response = await api.post('/returns', { ...returnData, type: 'CUSTOMER_RETURN' });
-    return response.data.returnEntry || response.data.data;
+    const raw = response.data.returnEntry || response.data.data;
+    return normalizeResponse(raw, 'return');
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }

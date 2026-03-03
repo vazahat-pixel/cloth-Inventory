@@ -75,9 +75,9 @@ function SaleOrderFormPage() {
 
   const saleOrders = useSelector((state) => state.orders.saleOrders);
   const customers = useSelector((state) => state.masters.customers || []);
-  const salesmen = useSelector((state) => state.masters.salesmen);
-  const priceLists = useSelector((state) => state.pricing.priceLists);
-  const items = useSelector((state) => state.items.records);
+  const salesmen = useSelector((state) => state.masters.salesmen || []);
+  const priceLists = useSelector((state) => state.pricing.priceLists || []);
+  const items = useSelector((state) => state.items.records || []);
   const purchaseConfig = useSelector((state) => state.settings.purchaseVoucherConfig) || {};
 
   const existing = useMemo(
@@ -108,18 +108,16 @@ function SaleOrderFormPage() {
   );
 
   const variantOptions = useMemo(() => {
-    return (items || []).flatMap((item) =>
-      (item.variants || []).map((v) => ({
-        variantId: v.id,
-        itemName: item.name,
-        styleCode: item.code,
-        size: v.size,
-        color: v.color,
-        sku: v.sku,
-        itemId: item.id,
-        category: item.category,
-      })),
-    );
+    return (items || []).map((v) => ({
+      variantId: v.id,
+      itemName: v.name,
+      styleCode: v.sku || '',
+      size: v.size || '',
+      color: v.color || '',
+      sku: v.barcode || v.sku || '',
+      itemId: v.id,
+      category: v.category,
+    }));
   }, [items]);
 
   const filteredOptions = useMemo(() => {
@@ -128,11 +126,7 @@ function SaleOrderFormPage() {
   }, [lines, variantOptions]);
 
   const getVariantRate = (option) => {
-    const variant = items
-      .flatMap((i) =>
-        (i.variants || []).map((v) => ({ ...v, itemId: i.id, itemCategory: i.category })),
-      )
-      .find((v) => v.id === option.variantId);
+    const variant = (items || []).find((v) => v.id === option.variantId);
     const plResult =
       customer && priceLists?.length
         ? getVariantRateFromPriceLists({
@@ -140,17 +134,23 @@ function SaleOrderFormPage() {
           customerId: customer.id,
           customerGroupId: customer.groupId || '',
           variantId: option.variantId,
-          itemId: option.itemId,
+          itemId: option.variantId,
           itemCategory: option.category,
           variant,
           billDate: date,
         })
         : null;
-    const base = variant?.sellingPrice ?? variant?.mrp ?? 0;
+    const base = variant?.salePrice ?? variant?.sellingPrice ?? variant?.mrp ?? 0;
     return plResult ? plResult.rate : toNumber(base);
   };
 
   const totals = useMemo(() => calculateTotals(lines), [lines]);
+
+  useEffect(() => {
+    dispatch(fetchMasters('customers'));
+    dispatch(fetchMasters('salesmen'));
+    dispatch(fetchItems());
+  }, [dispatch]);
 
   useEffect(() => {
     if (!existing) {

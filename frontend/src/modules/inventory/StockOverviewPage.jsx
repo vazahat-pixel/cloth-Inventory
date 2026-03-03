@@ -26,7 +26,7 @@ const LOW_STOCK_THRESHOLD = 10;
 
 function StockOverviewPage() {
   const stockRows = useSelector((state) => state.inventory.stock);
-  const warehouses = useSelector((state) => state.inventory.warehouses || []);
+  const warehouses = useSelector((state) => state.masters.warehouses || []);
 
   const [searchText, setSearchText] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState('all');

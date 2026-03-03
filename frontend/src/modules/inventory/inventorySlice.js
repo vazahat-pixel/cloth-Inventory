@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
+import { normalizeResponse } from '../../services/normalization';
 
 // Async Thunks
 export const fetchStockOverview = createAsyncThunk(
@@ -10,7 +11,7 @@ export const fetchStockOverview = createAsyncThunk(
       const response = await api.get('/store-inventory', { params });
       const raw = response.data.inventory || response.data.data || [];
 
-      // Normalize populated sub-documents into flat shape the UI expects
+      // Use centralized normalization
       return raw.map((doc) => {
         const product = doc.productId || {};
         const store = doc.storeId || {};
@@ -64,7 +65,8 @@ export const transferStock = createAsyncThunk(
     try {
       // Backend: POST /api/dispatch
       const response = await api.post('/dispatch', transferData);
-      return response.data.dispatch || response.data.data;
+      const raw = response.data.dispatch || response.data.data;
+      return normalizeResponse(raw, 'dispatch');
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || error.message);
     }

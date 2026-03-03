@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { useSelector } from 'react-redux';
+import { useMemo, useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
   Button,
@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import { useState } from 'react';
+import { fetchMasters } from '../masters/mastersSlice';
 
 function ReportFilterPanel({
   filters,
@@ -27,13 +28,23 @@ function ReportFilterPanel({
   compact = false,
 }) {
   const [expanded, setExpanded] = useState(!compact);
+  const dispatch = useDispatch();
 
-  const warehouses = useSelector((state) => state.inventory?.warehouses || []);
+  const warehouses = useSelector((state) => state.masters?.warehouses || []);
   const brands = useSelector((state) => state.masters?.brands || []);
   const itemGroups = useSelector((state) => state.masters?.itemGroups || []);
   const customers = useSelector((state) => state.masters?.customers || []);
   const suppliers = useSelector((state) => state.masters?.suppliers || []);
   const salesmen = useSelector((state) => state.masters?.salesmen || []);
+
+  useEffect(() => {
+    if (showWarehouse) dispatch(fetchMasters('warehouses'));
+    if (showBrand) dispatch(fetchMasters('brands'));
+    if (showCategory) dispatch(fetchMasters('itemGroups'));
+    if (showCustomer) dispatch(fetchMasters('customers'));
+    if (showSupplier) dispatch(fetchMasters('suppliers'));
+    if (showSalesman) dispatch(fetchMasters('salesmen'));
+  }, [dispatch, showWarehouse, showBrand, showCategory, showCustomer, showSupplier, showSalesman]);
 
   const update = (key, value) => {
     onFiltersChange?.({ ...filters, [key]: value });
@@ -204,7 +215,7 @@ function ReportFilterPanel({
             onChange={(e) => update('salesmanId', e.target.value)}
           >
             <MenuItem value="all">All</MenuItem>
-                {salesmen.map((s) => (
+            {salesmen.map((s) => (
               <MenuItem key={s.id} value={s.id}>
                 {s.name || s.salesmanName}
               </MenuItem>

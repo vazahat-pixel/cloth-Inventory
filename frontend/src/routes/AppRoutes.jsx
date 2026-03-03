@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import AuthLayout from '../layouts/AuthLayout';
 import RoleDashboardLayout from '../layouts/RoleDashboardLayout';
 import LoginPage from '../pages/auth/LoginPage';
+import RegisterPage from '../pages/auth/RegisterPage';
 import DashboardHome from '../pages/dashboard/DashboardHome';
 import SettingsLayout from '../modules/settings/SettingsLayout';
 import CompanyProfilePage from '../modules/settings/CompanyProfilePage';
@@ -258,6 +259,8 @@ function AppRoutes() {
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/login/:role" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/register/:role" element={<RegisterPage />} />
         </Route>
       </Route>
 

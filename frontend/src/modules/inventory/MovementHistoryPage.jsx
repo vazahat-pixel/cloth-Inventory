@@ -22,7 +22,7 @@ const MOVEMENT_TYPES = ['Purchase', 'Sale', 'Sale Return', 'Transfer', 'Adjustme
 
 function MovementHistoryPage() {
   const movements = useSelector((state) => state.inventory.movements);
-  const warehouses = useSelector((state) => state.inventory.warehouses || []);
+  const warehouses = useSelector((state) => state.masters.warehouses || []);
 
   const [searchText, setSearchText] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState('all');

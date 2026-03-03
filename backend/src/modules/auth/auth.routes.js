@@ -20,8 +20,8 @@ const router = express.Router();
 router.post('/admin/register', adminRegisterValidation, adminRegister);
 router.post('/admin/login', loginValidation, adminLogin);
 
-// Store Staff (Only Admin can create store staff accounts)
-router.post('/store/register', protect, requireAdmin, storeRegisterValidation, storeRegister);
+// Store Staff (Public registration)
+router.post('/store/register', storeRegisterValidation, storeRegister);
 router.post('/store/login', loginValidation, storeLogin);
 
 // Shared protected

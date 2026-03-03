@@ -36,7 +36,7 @@ function PurchaseListPage() {
   const dispatch = useDispatch();
   const purchases = useSelector((state) => state.purchase.records || []);
   const suppliers = useSelector((state) => state.masters.suppliers || []);
-  const warehouses = useSelector((state) => state.inventory.warehouses || []);
+  const warehouses = useSelector((state) => state.masters.warehouses || []);
 
   const [searchText, setSearchText] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState('all');
@@ -210,9 +210,9 @@ function PurchaseListPage() {
                   {paginatedRows.map((row) => (
                     <TableRow key={row.id} hover>
                       <TableCell sx={{ fontWeight: 700 }}>{row.billNumber}</TableCell>
-                      <TableCell>{supplierMap[row.supplierId] || row.supplierId}</TableCell>
+                      <TableCell>{supplierMap[row.supplierId] || (typeof row.supplierId === 'object' ? row.supplierId.name : row.supplierName) || ''}</TableCell>
                       <TableCell>{row.billDate}</TableCell>
-                      <TableCell>{warehouseMap[row.warehouseId] || row.warehouseId}</TableCell>
+                      <TableCell>{warehouseMap[row.warehouseId] || (typeof row.warehouseId === 'object' ? row.warehouseId.name : row.warehouseName) || ''}</TableCell>
                       <TableCell align="right">{row.totals?.totalQuantity ?? '-'}</TableCell>
                       <TableCell align="right">{row.totals?.netAmount != null ? Number(row.totals.netAmount).toFixed(2) : '-'}</TableCell>
                       <TableCell>
@@ -287,7 +287,20 @@ function PurchaseListPage() {
         open={Boolean(barcodePrintPurchase)}
         onClose={() => setBarcodePrintPurchase(null)}
         purchase={barcodePrintPurchase}
-        lines={barcodePrintPurchase?.items || []}
+        lines={(barcodePrintPurchase?.products || []).map((item) => {
+          const prod = item.productId && typeof item.productId === 'object' ? item.productId : {};
+          return {
+            sku: prod.sku || item.productId,
+            itemName: prod.name || '',
+            size: prod.size || '',
+            color: prod.color || '',
+            category: prod.category || '',
+            mrp: prod.salePrice || item.rate || '',
+            quantity: item.quantity || 1,
+            rate: item.rate || 0,
+            variantId: prod._id || item.productId,
+          };
+        })}
         warehouseMap={warehouseMap}
       />
 

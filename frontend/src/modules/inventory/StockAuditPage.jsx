@@ -23,14 +23,15 @@ import {
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import HistoryIcon from '@mui/icons-material/History';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
-import { applyStockAudit } from './inventorySlice';
+import { fetchStockOverview, applyStockAudit } from './inventorySlice';
+import { fetchMasters } from '../masters/mastersSlice';
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
 
 function StockAuditPage() {
   const dispatch = useDispatch();
-  const warehouses = useSelector((state) => state.inventory.warehouses || []);
-  const stockRows = useSelector((state) => state.inventory.stock);
+  const warehouses = useSelector((state) => state.masters.warehouses || []);
+  const stockRows = useSelector((state) => state.inventory.stock || []);
   const audits = useSelector((state) => state.inventory.audits || []);
 
   const [warehouseId, setWarehouseId] = useState('');
@@ -40,6 +41,11 @@ function StockAuditPage() {
   const [auditDate, setAuditDate] = useState(getTodayDate());
   const [physicalMap, setPhysicalMap] = useState({});
   const [resultMessage, setResultMessage] = useState('');
+
+  useEffect(() => {
+    dispatch(fetchMasters('warehouses'));
+    dispatch(fetchStockOverview());
+  }, [dispatch]);
 
   const brands = useMemo(
     () => Array.from(new Set(stockRows.map((row) => row.brand))).filter(Boolean),

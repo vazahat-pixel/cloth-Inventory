@@ -32,8 +32,7 @@ import StatusChip from '../masters/components/StatusChip';
 import { deleteItem, fetchItems } from './itemsSlice';
 import { fetchMasters } from '../masters/mastersSlice';
 
-const getTotalStock = (item) =>
-  (item.variants || []).reduce((sum, variant) => sum + Number(variant.stock || 0), 0);
+const getTotalStock = (item) => Number(item.factoryStock || 0);
 
 function ItemListPage() {
   const navigate = useAppNavigate();
@@ -199,7 +198,7 @@ function ItemListPage() {
                       <TableCell>{item.code}</TableCell>
                       <TableCell>{item.brand}</TableCell>
                       <TableCell>{item.category}</TableCell>
-                      <TableCell align="right">{(item.variants || []).length}</TableCell>
+                      <TableCell align="right">1</TableCell>
                       <TableCell align="right">{getTotalStock(item)}</TableCell>
                       <TableCell>
                         <StatusChip value={item.status} />

@@ -145,45 +145,27 @@ function PurchaseReturnPage() {
       return;
     }
 
-    const returnNumber = getReturnNumber();
-    const returnItems = selectedLines.map((line) => ({
-      variantId: line.variantId,
-      lotNumber: line.lotNumber || '',
-      itemName: line.itemName,
-      size: line.size,
-      color: line.color,
-      sku: line.sku,
-      purchasedQty: line.purchasedQty,
-      returnQty: Number(line.returnQty),
-      rate: Number(line.rate),
-      amount: Number(line.returnQty) * Number(line.rate),
-    }));
+    const returnPromises = selectedLines.map((line) => {
+      const itemPayload = {
+        type: 'STORE_TO_FACTORY',
+        storeId: purchase.warehouseId || purchase.storeId, // Backend uses storeId
+        productId: line.variantId, // In our flat schema, variantId is the product _id
+        quantity: Number(line.returnQty),
+        reason: values.remarks,
+      };
+      console.log('[DEBUG] Submitting Purchase Return Item:', itemPayload);
+      return dispatch(addPurchaseReturn(itemPayload)).unwrap();
+    });
 
-    const payload = {
-      returnNumber,
-      purchaseId: purchase.id,
-      supplierId: purchase.supplierId,
-      warehouseId: purchase.warehouseId,
-      date: values.returnDate,
-      remarks: values.remarks,
-      items: returnItems,
-      totals: {
-        totalQuantity: returnItems.reduce((sum, item) => sum + Number(item.returnQty), 0),
-        totalAmount: returnItems.reduce((sum, item) => sum + Number(item.amount), 0),
-      },
-    };
-
-    dispatch(addPurchaseReturn(payload));
-    dispatch(
-      applyPurchaseReturn({
-        purchaseId: purchase.id,
-        reference: returnNumber,
-        date: values.returnDate,
-        warehouseId: purchase.warehouseId,
-        items: returnItems,
-        user: 'Admin',
-      }),
-    );
+    Promise.all(returnPromises)
+      .then(() => {
+        setSuccessMessage('Purchase return processed successfully.');
+        reset({ returnDate: getTodayDate(), remarks: '' });
+        navigate('/purchase');
+      })
+      .catch((err) => {
+        setErrorMessage(err || 'Failed to process return');
+      });
 
     setSuccessMessage('Purchase return saved successfully.');
     reset({
