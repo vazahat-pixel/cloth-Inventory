@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: cloth-inventory-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node src/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5001
+      # Set these in the Render dashboard (sensitive):
+      # MONGODB_URI
+      # JWT_SECRET
+      # JWT_EXPIRES_IN

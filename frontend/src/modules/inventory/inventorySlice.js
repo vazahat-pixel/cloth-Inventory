@@ -6,9 +6,40 @@ export const fetchStockOverview = createAsyncThunk(
   'inventory/fetchStock',
   async (params, { rejectWithValue }) => {
     try {
-      // Backend: GET /api/store-inventory?storeId=...
+      // Backend: GET /api/store-inventory
       const response = await api.get('/store-inventory', { params });
-      return response.data.inventory || response.data.data || [];
+      const raw = response.data.inventory || response.data.data || [];
+
+      // Normalize populated sub-documents into flat shape the UI expects
+      return raw.map((doc) => {
+        const product = doc.productId || {};
+        const store = doc.storeId || {};
+        return {
+          id: doc._id,
+          // Product fields
+          itemName: product.name || '',
+          styleCode: product.sku || '',
+          sku: product.barcode || product.sku || '',
+          size: product.size || '',
+          color: product.color || '',
+          brand: product.brand || '',
+          category: product.category || '',
+          // Store / warehouse info
+          warehouseId: store._id || doc.storeId,
+          warehouseName: store.name || '',
+          // Quantities
+          quantity: doc.quantityAvailable ?? 0,
+          reserved: doc.quantityReserved ?? 0,
+          // Low-stock status
+          status:
+            (doc.quantityAvailable ?? 0) <= (doc.minStockLevel ?? 0)
+              ? 'LOW_STOCK'
+              : 'OK',
+          // Keep raw fields for fallback
+          lotNumber: doc.lotNumber || null,
+          minStockLevel: doc.minStockLevel ?? 0,
+        };
+      });
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || error.message);
     }

@@ -209,7 +209,7 @@ function StockOverviewPage() {
                       <TableCell>{`${row.size} / ${row.color}`}</TableCell>
                       <TableCell>{row.lotNumber || '-'}</TableCell>
                       <TableCell>{row.sku}</TableCell>
-                      <TableCell>{warehouseMap[row.warehouseId] || row.warehouseId}</TableCell>
+                      <TableCell>{row.warehouseName || warehouseMap[row.warehouseId] || row.warehouseId || '-'}</TableCell>
                       <TableCell align="right">{row.quantity}</TableCell>
                       <TableCell align="right">{row.reserved}</TableCell>
                       <TableCell align="right">
