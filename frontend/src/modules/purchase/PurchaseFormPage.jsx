@@ -85,11 +85,10 @@ function PurchaseFormPage() {
   } = useForm({
     defaultValues: {
       supplierId: '',
-      billNumber: '',
-      billDate: getTodayDate(),
+      invoiceNumber: '',
+      invoiceDate: getTodayDate(),
       warehouseId: '',
-      purchaseType: '',
-      remarks: '',
+      notes: '',
       otherCharges: 0,
     },
   });
@@ -104,11 +103,10 @@ function PurchaseFormPage() {
     if (!existingPurchase) {
       reset({
         supplierId: '',
-        billNumber: '',
-        billDate: getTodayDate(),
+        invoiceNumber: '',
+        invoiceDate: getTodayDate(),
         warehouseId: '',
-        purchaseType: '',
-        remarks: '',
+        notes: '',
         otherCharges: 0,
       });
       setLines([]);
@@ -117,12 +115,11 @@ function PurchaseFormPage() {
 
     reset({
       supplierId: existingPurchase.supplierId,
-      billNumber: existingPurchase.billNumber,
-      billDate: existingPurchase.billDate,
-      warehouseId: existingPurchase.warehouseId,
-      purchaseType: existingPurchase.purchaseType || '',
-      remarks: existingPurchase.remarks || '',
-      otherCharges: existingPurchase.totals?.otherCharges || 0,
+      invoiceNumber: existingPurchase.invoiceNumber || existingPurchase.billNumber,
+      invoiceDate: existingPurchase.invoiceDate || (existingPurchase.billDate ? new Date(existingPurchase.billDate).toISOString().split('T')[0] : getTodayDate()),
+      warehouseId: existingPurchase.warehouseId || existingPurchase.storeId,
+      notes: existingPurchase.notes || '',
+      otherCharges: existingPurchase.otherCharges || 0,
     });
     setLines(
       (existingPurchase.items || []).map((item, index) => ({
@@ -319,10 +316,12 @@ function PurchaseFormPage() {
 
     const payload = {
       supplierId: values.supplierId,
-      invoiceNumber: values.billNumber.trim(),   // backend expects invoiceNumber
-      invoiceDate: values.billDate,              // backend expects invoiceDate
-      notes: values.remarks,                    // backend expects notes
-      items: preparedItems,
+      warehouseId: values.warehouseId,
+      invoiceNumber: values.invoiceNumber.trim(),
+      invoiceDate: values.invoiceDate,
+      notes: values.notes,
+      otherCharges: toNumber(values.otherCharges),
+      products: preparedItems,
     };
 
     dispatch(isEditMode ? updatePurchase({ id, purchaseData: payload }) : addPurchase(payload))
@@ -382,7 +381,7 @@ function PurchaseFormPage() {
         </Typography>
 
         <Grid container spacing={2}>
-          <Grid item xs={12} md={4}>
+          <Grid item xs={12} md={3}>
             <TextField
               select
               fullWidth
@@ -400,29 +399,7 @@ function PurchaseFormPage() {
             </TextField>
           </Grid>
 
-          <Grid item xs={12} md={4}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Bill Number"
-              {...register('billNumber', { required: 'Bill number is required.' })}
-              error={Boolean(errors.billNumber)}
-              helperText={errors.billNumber?.message || ' '}
-            />
-          </Grid>
-
-          <Grid item xs={12} md={4}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Bill Date"
-              type="date"
-              InputLabelProps={{ shrink: true }}
-              {...register('billDate', { required: true })}
-            />
-          </Grid>
-
-          <Grid item xs={12} md={4}>
+          <Grid item xs={12} md={3}>
             <TextField
               select
               fullWidth
@@ -433,19 +410,41 @@ function PurchaseFormPage() {
               helperText={errors.warehouseId?.message || ' '}
             >
               {warehouses.map((warehouse) => (
-                <MenuItem key={warehouse._id || warehouse.id} value={warehouse._id || warehouse.id}>
-                  {warehouse.name}
+                <MenuItem key={warehouse.id} value={warehouse.id}>
+                  {warehouse.name || warehouse.storeName || ''}
                 </MenuItem>
               ))}
             </TextField>
           </Grid>
 
-          <Grid item xs={12} md={4}>
+          <Grid item xs={12} md={3}>
             <TextField
               fullWidth
               size="small"
-              label="Purchase Type"
-              {...register('purchaseType')}
+              label="Invoice Number"
+              {...register('invoiceNumber', { required: 'Invoice number is required.' })}
+              error={Boolean(errors.invoiceNumber)}
+              helperText={errors.invoiceNumber?.message || ' '}
+            />
+          </Grid>
+
+          <Grid item xs={12} md={3}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Invoice Date"
+              type="date"
+              InputLabelProps={{ shrink: true }}
+              {...register('invoiceDate', { required: true })}
+            />
+          </Grid>
+
+          <Grid item xs={12} md={8}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Notes / Remarks"
+              {...register('notes')}
             />
           </Grid>
 
@@ -453,18 +452,9 @@ function PurchaseFormPage() {
             <TextField
               fullWidth
               size="small"
-              label="Other Charges"
               type="number"
+              label="Other Charges"
               {...register('otherCharges')}
-            />
-          </Grid>
-
-          <Grid item xs={12}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Remarks"
-              {...register('remarks')}
             />
           </Grid>
         </Grid>

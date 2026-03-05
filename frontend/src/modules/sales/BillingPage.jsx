@@ -47,28 +47,40 @@ const toNumber = (value, fallback = 0) => {
   return Number.isFinite(numeric) ? numeric : fallback;
 };
 
-const calculateTotals = (lines, billDiscount, loyaltyRedeemed, couponDiscount = 0, schemeDiscount = 0) => {
+const calculateLine = (line) => {
+  const gross = toNumber(line.quantity) * toNumber(line.rate);
+  const disc = (gross * toNumber(line.discount)) / 100;
+  return {
+    gross,
+    discount: disc,
+    amount: gross - disc,
+  };
+};
+
+const calculateTotals = (lines, billDiscount, loyaltyRedeemed, couponDiscount = 0, schemeDiscount = 0, creditNoteAmount = 0) => {
   // Keeping basic UX total calculation for display, but backend performs final authority check
   const totals = lines.reduce((acc, l) => {
-    const gross = toNumber(l.quantity) * toNumber(l.rate);
-    const disc = (gross * toNumber(l.discount)) / 100;
-    const tax = ((gross - disc) * toNumber(l.tax)) / 100;
-    acc.gross += gross;
-    acc.lineDiscount += disc;
+    const lineRes = calculateLine(l);
+    const tax = ((lineRes.amount) * toNumber(l.tax)) / 100;
+
+    acc.gross += lineRes.gross;
+    acc.lineDiscount += lineRes.discount;
     acc.taxAmount += tax;
     acc.totalQuantity += toNumber(l.quantity);
     return acc;
   }, { gross: 0, lineDiscount: 0, taxAmount: 0, totalQuantity: 0 });
 
-  const net = totals.gross - totals.lineDiscount - toNumber(billDiscount) - toNumber(couponDiscount) - toNumber(schemeDiscount) + totals.taxAmount - toNumber(loyaltyRedeemed);
+  const net = totals.gross - totals.lineDiscount - toNumber(billDiscount) - toNumber(couponDiscount) - toNumber(schemeDiscount) + totals.taxAmount - toNumber(loyaltyRedeemed) - toNumber(creditNoteAmount);
 
   return {
     ...totals,
+    totalItems: lines.length,
     grossAmount: totals.gross,
     billDiscount: toNumber(billDiscount),
     couponDiscount,
     schemeDiscount,
     loyaltyRedeemed,
+    creditNoteAmount,
     netPayable: net > 0 ? net : 0,
   };
 };
@@ -101,7 +113,7 @@ function BillingPage() {
   );
 
   const [billDate, setBillDate] = useState(getTodayDate());
-  const [warehouseId, setWarehouseId] = useState(warehouses[0]?.id || '');
+  const [storeId, setStoreId] = useState(warehouses[0]?.id || '');
   const [salesmanId, setSalesmanId] = useState('');
   const [mobileInput, setMobileInput] = useState('');
   const [customerId, setCustomerId] = useState('');
@@ -112,13 +124,13 @@ function BillingPage() {
   const [lines, setLines] = useState([]);
   const [errorMessage, setErrorMessage] = useState('');
   const [paymentOpen, setPaymentOpen] = useState(false);
-  const [couponCode, setCouponCode] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState(null);
-  const [couponError, setCouponError] = useState('');
   const [loyaltyRedeemOpen, setLoyaltyRedeemOpen] = useState(false);
   const [billingMode, setBillingMode] = useState('manual');
   const [deliveryOrderId, setDeliveryOrderId] = useState('');
   const [creditNoteId, setCreditNoteId] = useState('');
+  const [couponCode, setCouponCode] = useState('');
+  const [couponError, setCouponError] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
 
   const pendingDOsForCustomer = useMemo(() => {
     if (!customerId || billingMode !== 'fromDO') return [];
@@ -131,16 +143,11 @@ function BillingPage() {
 
   useEffect(() => {
     dispatch(fetchMasters('customers'));
-    dispatch(fetchMasters('salesmen'));
     dispatch(fetchMasters('warehouses'));
-    dispatch(fetchMasters('brands'));
-    dispatch(fetchMasters('itemGroups'));
     dispatch(fetchStockOverview());
     dispatch(fetchPricingRules());
     dispatch(fetchSchemes());
     dispatch(fetchCoupons());
-    dispatch(fetchLoyaltyConfig());
-    dispatch(fetchCreditNotes());
     dispatch(fetchSales());
   }, [dispatch]);
 
@@ -221,18 +228,19 @@ function BillingPage() {
   const brands = useSelector((state) => state.masters.brands) || EMPTY_ARR;
 
   const warehouseStock = useMemo(
-    () => stockRows.filter((row) => row.warehouseId === warehouseId),
-    [stockRows, warehouseId],
+    () => stockRows.filter((row) => row.storeId === storeId || row.warehouseId === storeId),
+    [stockRows, storeId],
   );
 
   const variantOptions = useMemo(() => {
     return warehouseStock
       .map((stock) => {
         const available = toNumber(stock.quantity) - toNumber(stock.reserved);
-        const pricing = variantSellingPriceMap[stock.variantId] || {};
+        const pricing = variantSellingPriceMap[stock.productId || stock.variantId] || {};
         const rate = toNumber(pricing.rate);
         return {
-          variantId: stock.variantId,
+          productId: stock.productId || stock.variantId,
+          variantId: stock.productId || stock.variantId,
           itemName: stock.itemName || pricing.itemName || 'Unknown Item',
           styleCode: stock.styleCode || pricing.styleCode || '',
           size: stock.size,
@@ -257,8 +265,17 @@ function BillingPage() {
     }
   };
 
-  const schemeDiscount = 0; // Handled by backend
-  const couponDiscountAmount = 0; // Handled by backend
+  const calculatedGross = lines.reduce((acc, l) => acc + (toNumber(l.quantity) * toNumber(l.rate)), 0);
+
+  const couponDiscountAmount = useMemo(() => {
+    if (!appliedCoupon) return 0;
+    if (appliedCoupon.type === 'PERCENTAGE') {
+      return (calculatedGross * toNumber(appliedCoupon.value)) / 100;
+    }
+    return toNumber(appliedCoupon.value);
+  }, [appliedCoupon, calculatedGross]);
+
+  const schemeDiscountAmount = 0; // Handled by backend
 
   const totals = useMemo(
     () =>
@@ -267,9 +284,10 @@ function BillingPage() {
         billDiscount,
         loyaltyRedeemed,
         couponDiscountAmount,
-        schemeDiscount,
+        schemeDiscountAmount,
+        creditNoteAmount,
       ),
-    [billDiscount, lines, loyaltyRedeemed, couponDiscountAmount, schemeDiscount],
+    [billDiscount, lines, loyaltyRedeemed, couponDiscountAmount, schemeDiscountAmount, creditNoteAmount],
   );
 
   const handleApplyCoupon = () => {
@@ -309,10 +327,10 @@ function BillingPage() {
 
   const upsertLine = (option) => {
     setLines((previous) => {
-      const existing = previous.find((line) => line.variantId === option.variantId);
+      const existing = previous.find((line) => line.productId === option.productId);
       if (existing) {
         return previous.map((line) => {
-          if (line.variantId !== option.variantId) {
+          if (line.productId !== option.productId) {
             return line;
           }
 
@@ -324,8 +342,9 @@ function BillingPage() {
       return [
         ...previous,
         {
-          id: `${option.variantId}-${Date.now()}`,
-          variantId: option.variantId,
+          id: `${option.productId}-${Date.now()}`,
+          productId: option.productId,
+          variantId: option.productId, // Fallback
           itemName: option.itemName,
           styleCode: option.styleCode,
           size: option.size,
@@ -405,8 +424,8 @@ function BillingPage() {
   const handleProceedPayment = () => {
     setErrorMessage('');
 
-    if (!warehouseId) {
-      setErrorMessage('Select warehouse before billing.');
+    if (!storeId) {
+      setErrorMessage('Select store before billing.');
       return;
     }
 
@@ -432,9 +451,9 @@ function BillingPage() {
   };
 
   const handlePaymentConfirm = (payment) => {
-    // 1. Align with backend products array: [{ productId, quantity }]
+    // 1. Align with backend products array: [{ productId, quantity, price, total }]
     const preparedProducts = lines.map((line) => ({
-      productId: line.variantId, // In our flat schema, variantId is the product _id
+      productId: line.productId || line.variantId,
       quantity: toNumber(line.quantity),
       price: toNumber(line.rate),
       total: toNumber(line.quantity) * toNumber(line.rate),
@@ -442,20 +461,17 @@ function BillingPage() {
 
     // 2. Build backend-compliant payload
     const payload = {
-      storeId: warehouseId, // Backend uses storeId
+      storeId,
       customerId: selectedCustomer?.id || null,
-      products: preparedProducts, // Backend expects 'products'
+      products: preparedProducts,
       subTotal: totals.grossAmount,
-      discount: toNumber(billDiscount),
+      discount: toNumber(billDiscount) + toNumber(couponDiscountAmount) + toNumber(schemeDiscountAmount),
       tax: totals.taxAmount,
       grandTotal: totals.netPayable,
-      paymentMode: payment.method || 'Cash',
-      redeemPoints: toNumber(loyaltyRedeemed), // Backend uses points count
+      paymentMode: payment.method || 'CASH', // Uppercase enum from PaymentDialog
+      redeemPoints: Math.max(0, toNumber(loyaltyRedeemed)), // Backend uses points count
       creditNoteId: creditNoteId || null,
-      status: 'Completed',
     };
-
-    console.log('[DEBUG] Submitting Sale Payload:', payload);
 
     dispatch(addSale(payload))
       .unwrap()
@@ -644,10 +660,10 @@ function BillingPage() {
                   select
                   fullWidth
                   size="small"
-                  label="Warehouse"
-                  value={warehouseId}
+                  label="Store"
+                  value={storeId}
                   onChange={(event) => {
-                    setWarehouseId(event.target.value);
+                    setStoreId(event.target.value);
                     setLines([]);
                     setSelectedOption(null);
                     setBarcodeInput('');
@@ -741,7 +757,7 @@ function BillingPage() {
                     onChange={(e) => {
                       const doId = e.target.value;
                       const do_ = deliveryOrders.find((d) => d.id === doId);
-                      if (do_?.warehouseId) setWarehouseId(do_.warehouseId);
+                      if (do_?.storeId || do_?.warehouseId) setStoreId(do_.storeId || do_.warehouseId);
                       setDeliveryOrderId(doId);
                       loadLinesFromDO(doId);
                     }}
@@ -948,8 +964,8 @@ function BillingPage() {
                 onChange={(event) => setBillDiscount(event.target.value)}
               />
 
-              {schemeDiscount > 0 && (
-                <SummaryRow label="Scheme Discount" value={schemeDiscount.toFixed(2)} />
+              {totals.schemeDiscount > 0 && (
+                <SummaryRow label="Scheme Discount" value={totals.schemeDiscount.toFixed(2)} />
               )}
 
               <Stack direction="row" spacing={1} alignItems="flex-start">

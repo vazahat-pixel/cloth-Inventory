@@ -7,42 +7,11 @@ export const fetchStockOverview = createAsyncThunk(
   'inventory/fetchStock',
   async (params, { rejectWithValue }) => {
     try {
-      // Backend: GET /api/store-inventory
       const response = await api.get('/store-inventory', { params });
       const raw = response.data.inventory || response.data.data || [];
-
-      // Use centralized normalization
-      return raw.map((doc) => {
-        const product = doc.productId || {};
-        const store = doc.storeId || {};
-        return {
-          id: doc._id,
-          // Product fields
-          itemName: product.name || '',
-          styleCode: product.sku || '',
-          sku: product.barcode || product.sku || '',
-          size: product.size || '',
-          color: product.color || '',
-          brand: product.brand || '',
-          category: product.category || '',
-          // Store / warehouse info
-          warehouseId: store._id || doc.storeId,
-          warehouseName: store.name || '',
-          // Quantities
-          quantity: doc.quantityAvailable ?? 0,
-          reserved: doc.quantityReserved ?? 0,
-          // Low-stock status
-          status:
-            (doc.quantityAvailable ?? 0) <= (doc.minStockLevel ?? 0)
-              ? 'LOW_STOCK'
-              : 'OK',
-          // Keep raw fields for fallback
-          lotNumber: doc.lotNumber || null,
-          minStockLevel: doc.minStockLevel ?? 0,
-        };
-      });
+      return normalizeResponse(raw, 'inventory');
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || error.message);
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch stock');
     }
   }
 );
@@ -63,12 +32,31 @@ export const transferStock = createAsyncThunk(
   'inventory/transfer',
   async (transferData, { rejectWithValue }) => {
     try {
-      // Backend: POST /api/dispatch
-      const response = await api.post('/dispatch', transferData);
-      const raw = response.data.dispatch || response.data.data;
-      return normalizeResponse(raw, 'dispatch');
+      // 1. Create Dispatch
+      const payload = {
+        storeId: transferData.storeId || transferData.warehouseId,
+        products: (transferData.products || transferData.items || []).map(p => ({
+          productId: p.productId || p.variantId || p.id,
+          quantity: p.quantity,
+          price: p.price // optional but safe
+        }))
+      };
+
+      const response = await api.post('/dispatch', payload);
+      const dispatch = response.data.dispatch || response.data.data;
+
+      if (!dispatch || (!dispatch._id && !dispatch.id)) {
+        throw new Error('Failed to create dispatch');
+      }
+
+      const dispatchId = dispatch._id || dispatch.id;
+
+      // 2. Mark as RECEIVED to update store stock immediately (Factory -> Store flow)
+      await api.patch(`/dispatch/${dispatchId}/status`, { status: 'RECEIVED' });
+
+      return normalizeResponse(dispatch, 'dispatch');
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || error.message);
+      return rejectWithValue(error.response?.data?.message || 'Failed to transfer stock');
     }
   }
 );

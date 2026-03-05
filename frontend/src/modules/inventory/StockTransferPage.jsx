@@ -48,15 +48,15 @@ function StockTransferPage() {
     formState: { errors },
   } = useForm({
     defaultValues: {
-      fromWarehouseId: '',
-      toWarehouseId: '',
+      fromStoreId: '',
+      toStoreId: '',
       transferDate: getTodayDate(),
       remarks: '',
     },
   });
 
-  const fromWarehouseId = watch('fromWarehouseId');
-  const toWarehouseId = watch('toWarehouseId');
+  const fromStoreId = watch('fromStoreId');
+  const toStoreId = watch('toStoreId');
 
   useEffect(() => {
     dispatch(fetchMasters('warehouses'));
@@ -66,20 +66,20 @@ function StockTransferPage() {
   useEffect(() => {
     setLines([]);
     setVariantPickerValue(null);
-  }, [fromWarehouseId]);
+  }, [fromStoreId]);
 
   const availableRows = useMemo(() => {
-    if (!fromWarehouseId) {
+    if (!fromStoreId) {
       return [];
     }
 
     const selectedIds = new Set(lines.map((line) => line.stockId));
 
     return stockRows
-      .filter((row) => row.warehouseId === fromWarehouseId)
+      .filter((row) => row.storeId === fromStoreId || row.warehouseId === fromStoreId)
       .filter((row) => Number(row.quantity) - Number(row.reserved || 0) > 0)
       .filter((row) => !selectedIds.has(row.id));
-  }, [fromWarehouseId, lines, stockRows]);
+  }, [fromStoreId, lines, stockRows]);
 
   const warehouseMap = useMemo(
     () =>
@@ -134,7 +134,7 @@ function StockTransferPage() {
 
   const handleImportExcel = async (e) => {
     const file = e.target.files?.[0];
-    if (!file || !fromWarehouseId) return;
+    if (!file || !fromStoreId) return;
     setImportError('');
     setErrorMessage('');
     try {
@@ -144,7 +144,7 @@ function StockTransferPage() {
         return;
       }
       const sourceStock = stockRows.filter(
-        (r) => r.warehouseId === fromWarehouseId && Number(r.quantity) - Number(r.reserved || 0) > 0,
+        (r) => (r.storeId === fromStoreId || r.warehouseId === fromStoreId) && Number(r.quantity) - Number(r.reserved || 0) > 0,
       );
       const skuToStock = sourceStock.reduce((acc, row) => {
         if (!acc[row.sku]) acc[row.sku] = row;
@@ -171,7 +171,7 @@ function StockTransferPage() {
   };
 
   const handleTransferAll = () => {
-    if (!fromWarehouseId) return;
+    if (!fromStoreId) return;
     const selectedIds = new Set(lines.map((l) => l.stockId));
     const toAdd = availableRows
       .filter((row) => !selectedIds.has(row.id))
@@ -187,7 +187,7 @@ function StockTransferPage() {
     setErrorMessage('');
     setSuccessMessage('');
 
-    if (values.fromWarehouseId === values.toWarehouseId) {
+    if (values.fromStoreId === values.toStoreId) {
       setErrorMessage('From and To warehouse must be different.');
       return;
     }
@@ -211,7 +211,7 @@ function StockTransferPage() {
     });
 
     const payload = {
-      storeId: values.toWarehouseId, // Backend uses storeId for destination
+      storeId: values.toStoreId, // Backend uses storeId for destination
       products: preparedProducts,
       notes: values.remarks,
     };
@@ -248,13 +248,13 @@ function StockTransferPage() {
 
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
           <TextField
-            label="From Warehouse"
+            label="From Store"
             size="small"
             select
             fullWidth
-            {...register('fromWarehouseId', { required: 'From warehouse is required.' })}
-            error={Boolean(errors.fromWarehouseId)}
-            helperText={errors.fromWarehouseId?.message || ' '}
+            {...register('fromStoreId', { required: 'From store is required.' })}
+            error={Boolean(errors.fromStoreId)}
+            helperText={errors.fromStoreId?.message || ' '}
           >
             {warehouses.map((warehouse) => (
               <MenuItem key={warehouse.id} value={warehouse.id}>
@@ -264,13 +264,13 @@ function StockTransferPage() {
           </TextField>
 
           <TextField
-            label="To Warehouse"
+            label="To Store"
             size="small"
             select
             fullWidth
-            {...register('toWarehouseId', { required: 'To warehouse is required.' })}
-            error={Boolean(errors.toWarehouseId)}
-            helperText={errors.toWarehouseId?.message || ' '}
+            {...register('toStoreId', { required: 'To store is required.' })}
+            error={Boolean(errors.toStoreId)}
+            helperText={errors.toStoreId?.message || ' '}
           >
             {warehouses.map((warehouse) => (
               <MenuItem key={warehouse.id} value={warehouse.id}>
@@ -332,7 +332,7 @@ function StockTransferPage() {
             variant="outlined"
             size="small"
             onClick={() => importInputRef.current?.click()}
-            disabled={!fromWarehouseId}
+            disabled={!fromStoreId}
           >
             Import from Excel
           </Button>
@@ -340,7 +340,7 @@ function StockTransferPage() {
             variant="outlined"
             size="small"
             onClick={handleTransferAll}
-            disabled={!fromWarehouseId || availableRows.length === 0}
+            disabled={!fromStoreId || availableRows.length === 0}
           >
             Transfer All Stock
           </Button>
@@ -357,7 +357,7 @@ function StockTransferPage() {
               <TextField
                 {...params}
                 label="Select Variant"
-                placeholder={fromWarehouseId ? 'Search variant...' : 'Select source warehouse first'}
+                placeholder={fromStoreId ? 'Search variant...' : 'Select source warehouse first'}
               />
             )}
           />
@@ -425,8 +425,8 @@ function StockTransferPage() {
         )}
 
         <Typography variant="caption" sx={{ display: 'block', color: '#64748b', mt: 1.5 }}>
-          Transfer from: {warehouseMap[fromWarehouseId] || '-'} | Transfer to:{' '}
-          {warehouseMap[toWarehouseId] || '-'}
+          Transfer from: {warehouseMap[fromStoreId] || '-'} | Transfer to:{' '}
+          {warehouseMap[toStoreId] || '-'}
         </Typography>
       </Paper>
 

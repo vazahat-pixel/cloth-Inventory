@@ -18,7 +18,7 @@ const adminRegister = async (req, res, next) => {
         if (existingUser) return sendError(res, 'Email already registered.', 400);
 
         const user = await User.create({ name, email: email.toLowerCase(), passwordHash: password, role: 'admin' });
-        const token = generateToken({ id: user._id, email: user.email, role: user.role, name: user.name });
+        const token = generateToken({ id: user._id.toString(), email: user.email, role: user.role, name: user.name });
 
         return sendCreated(res, {
             token,
@@ -40,7 +40,7 @@ const adminLogin = async (req, res, next) => {
         const isMatch = await user.comparePassword(password);
         if (!isMatch) return sendUnauthorized(res, 'Invalid email or password.');
 
-        const token = generateToken({ id: user._id, email: user.email, role: user.role, name: user.name });
+        const token = generateToken({ id: user._id.toString(), email: user.email, role: user.role, name: user.name });
         return sendSuccess(res, {
             token,
             user: { id: user._id, name: user.name, email: user.email, role: user.role },
@@ -59,7 +59,7 @@ const storeRegister = async (req, res, next) => {
         if (existingUser) return sendError(res, 'Email already registered.', 400);
 
         const user = await User.create({ name, email: email.toLowerCase(), passwordHash: password, role: 'store_staff', shopName: shopName || null });
-        const token = generateToken({ id: user._id, email: user.email, role: user.role, name: user.name, shopName: user.shopName, shopId: user.shopId });
+        const token = generateToken({ id: user._id.toString(), email: user.email, role: user.role, name: user.name, shopName: user.shopName, shopId: user.shopId });
 
         return sendCreated(res, {
             token,
@@ -81,7 +81,7 @@ const storeLogin = async (req, res, next) => {
         const isMatch = await user.comparePassword(password);
         if (!isMatch) return sendUnauthorized(res, 'Invalid email or password.');
 
-        const token = generateToken({ id: user._id, email: user.email, role: user.role, name: user.name, shopName: user.shopName, shopId: user.shopId });
+        const token = generateToken({ id: user._id.toString(), email: user.email, role: user.role, name: user.name, shopName: user.shopName, shopId: user.shopId });
         return sendSuccess(res, {
             token,
             user: { id: user._id, name: user.name, email: user.email, role: user.role, shopName: user.shopName, shopId: user.shopId },

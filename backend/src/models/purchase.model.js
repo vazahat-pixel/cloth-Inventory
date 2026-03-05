@@ -13,6 +13,11 @@ const purchaseSchema = new mongoose.Schema(
             ref: 'Supplier',
             required: true
         },
+        storeId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Store',
+            required: false // Optional for backward compatibility with existing data
+        },
         invoiceNumber: {
             type: String,
             required: true

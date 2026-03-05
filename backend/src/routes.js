@@ -23,7 +23,14 @@ const registerRoutes = (app) => {
     app.use('/api/gst', require('./modules/gst/gst.routes'));
     app.use('/api/purchase', require('./modules/purchase/purchase.routes'));
     app.use('/api/pricing', require('./modules/pricing/pricing.routes'));
+    app.use('/api/schemes', require('./modules/schemes/scheme.routes'));
+    app.use('/api/coupons', require('./modules/coupons/coupon.routes'));
+    app.use('/api/vouchers', require('./modules/vouchers/voucher.routes'));
+    app.use('/api/accounts', require('./modules/accounts/accounts.routes'));
     app.use('/api/settings', require('./modules/settings/settings.routes'));
+    app.use('/api/brands', require('./modules/brands/brand.routes'));
+    app.use('/api/banks', require('./modules/banks/bank.routes'));
+    app.use('/api/account-groups', require('./modules/accountGroups/accountGroup.routes'));
 };
 
 module.exports = registerRoutes;

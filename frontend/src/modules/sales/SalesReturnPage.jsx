@@ -231,13 +231,12 @@ function SalesReturnPage() {
     const returnPromises = selectedLines.map((line) => {
       const itemPayload = {
         type: 'CUSTOMER_RETURN',
-        storeId: sale.warehouseId || sale.storeId, // Backend uses storeId
-        productId: line.variantId, // In our flat schema, variantId is the product _id
+        storeId: sale.storeId || sale.warehouseId,
+        productId: line.productId || line.variantId,
         quantity: Number(line.returnQty),
         referenceSaleId: sale.id,
         reason: values.reason,
       };
-      console.log('[DEBUG] Submitting Return Item:', itemPayload);
       return dispatch(addSalesReturn(itemPayload)).unwrap();
     });
 
@@ -454,13 +453,11 @@ function SalesReturnPage() {
             value={returnType}
             onChange={(e) => {
               setReturnType(e.target.value);
-              if (e.target.value !== 'exchange') setExchangeLines([]);
             }}
             sx={{ minWidth: 180 }}
           >
-            <MenuItem value="refund">Return (Refund)</MenuItem>
-            <MenuItem value="credit_note">Return for Credit Note</MenuItem>
-            <MenuItem value="exchange">Exchange</MenuItem>
+            <MenuItem value="refund">Refund</MenuItem>
+            <MenuItem value="credit_note">Credit Note</MenuItem>
           </TextField>
           <TextField
             size="small"
@@ -528,96 +525,6 @@ function SalesReturnPage() {
           <SummaryField label="Refund Amount" value={totals.refundAmount.toFixed(2)} />
         </Stack>
 
-        {returnType === 'exchange' && (
-          <>
-            <Typography variant="subtitle1" sx={{ fontWeight: 700, mt: 3, mb: 1 }}>
-              Exchange Items (new items)
-            </Typography>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 2 }}>
-              <Autocomplete
-                size="small"
-                options={exchangeOptions}
-                value={exchangePickerValue}
-                onChange={(_, v) => setExchangePickerValue(v)}
-                getOptionLabel={(o) =>
-                  `${o.sku} | ${o.itemName} (${o.size}/${o.color}) [Avl: ${o.available}]`
-                }
-                sx={{ minWidth: 360 }}
-                renderInput={(params) => (
-                  <TextField {...params} label="Add exchange item" placeholder="Search by SKU" />
-                )}
-              />
-              <Button
-                variant="outlined"
-                startIcon={<AddCircleOutlineIcon />}
-                onClick={addExchangeLine}
-                disabled={!exchangePickerValue}
-              >
-                Add
-              </Button>
-            </Stack>
-            {exchangeLines.length > 0 && (
-              <TableContainer sx={{ border: '1px solid #e2e8f0', borderRadius: 1.5, mb: 2 }}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 700 }}>Item</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }} align="right">Qty</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }} align="right">Rate</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }} align="right">Amount</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }} width={56} />
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {exchangeLines.map((l) => {
-                      const g = Number(l.quantity) * Number(l.rate) * (1 - Number(l.discount || 0) / 100);
-                      const amt = g * (1 + Number(l.tax || 5) / 100);
-                      return (
-                        <TableRow key={l.id}>
-                          <TableCell>{l.itemName}</TableCell>
-                          <TableCell>{l.sku}</TableCell>
-                          <TableCell>
-                            <TextField
-                              size="small"
-                              type="number"
-                              value={l.quantity}
-                              onChange={(e) => updateExchangeLine(l.id, 'quantity', e.target.value)}
-                              inputProps={{ min: 1, max: l.available, style: { width: 60, textAlign: 'right' } }}
-                            />
-                          </TableCell>
-                          <TableCell align="right">{Number(l.rate).toFixed(2)}</TableCell>
-                          <TableCell align="right">{amt.toFixed(2)}</TableCell>
-                          <TableCell>
-                            <Button size="small" color="error" onClick={() => removeExchangeLine(l.id)}>
-                              <DeleteOutlineIcon fontSize="small" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
-            {exchangeLines.length > 0 && (
-              <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
-                <SummaryField label="Exchange Total" value={exchangeTotals.netExchange.toFixed(2)} />
-                <SummaryField label="Return Refund" value={`-${totals.refundAmount.toFixed(2)}`} />
-                <SummaryField
-                  label="Balance (pay / credit)"
-                  value={
-                    exchangeBalance > 0
-                      ? `₹${exchangeBalance.toFixed(2)} to pay`
-                      : exchangeBalance < 0
-                        ? `₹${Math.abs(exchangeBalance).toFixed(2)} credit`
-                        : '0'
-                  }
-                />
-              </Stack>
-            )}
-          </>
-        )}
       </Paper>
 
       {errorMessage && (

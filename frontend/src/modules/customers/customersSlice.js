@@ -49,9 +49,9 @@ export const addCreditNote = createAsyncThunk('customerRewards/addCreditNote', a
 
 export const redeemVoucher = createAsyncThunk('customerRewards/redeemVoucher', async ({ id, redeemedDate, redeemedInvoice, customerId }, { rejectWithValue }) => {
   try {
-    const payload = { redeemedDate, redeemedInvoice, customerId };
-    const response = await api.patch(`/customers/vouchers/${id}/redeem`, payload);
-    return response.data.voucher || response.data.data || { id, ...payload, status: 'Redeemed' };
+    const payload = { redeemedDate, redeemedInvoice, customerId, status: 'USED' };
+    const response = await api.patch(`/vouchers/${id}`, payload);
+    return response.data.voucher || response.data.data;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -59,8 +59,8 @@ export const redeemVoucher = createAsyncThunk('customerRewards/redeemVoucher', a
 
 export const addVoucher = createAsyncThunk('customerRewards/addVoucher', async (voucher, { rejectWithValue }) => {
   try {
-    const response = await api.post('/customers/vouchers', voucher);
-    return response.data.voucher || response.data.data || response.data;
+    const response = await api.post('/vouchers', voucher);
+    return response.data.voucher || response.data.data;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }

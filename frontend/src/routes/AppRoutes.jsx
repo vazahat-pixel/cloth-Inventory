@@ -103,10 +103,6 @@ function AdminRoutes() {
       <Route path="purchase/:id" element={<PurchaseFormPage />} />
       <Route path="purchase/:id/return" element={<PurchaseReturnPage />} />
       <Route path="orders" element={<SaleOrderListPage />} />
-      <Route path="orders/new" element={<SaleOrderFormPage />} />
-      <Route path="orders/:id/edit" element={<SaleOrderFormPage />} />
-      <Route path="orders/packing" element={<PackingSlipPage />} />
-      <Route path="orders/delivery" element={<DeliveryOrderPage />} />
       <Route path="sales" element={<SalesListPage />} />
       <Route path="sales/new" element={<BillingPage />} />
       <Route path="sales/:id" element={<BillingPage />} />
@@ -119,32 +115,27 @@ function AdminRoutes() {
       <Route path="pricing/schemes/new" element={<SchemeFormPage />} />
       <Route path="pricing/schemes/:id/edit" element={<SchemeFormPage />} />
       <Route path="pricing/coupons" element={<CouponPage />} />
-      <Route path="accounts" element={<AccountsDashboard />} />
-      <Route path="accounts/bank-payment" element={<BankPaymentPage />} />
-      <Route path="accounts/bank-receipt" element={<BankReceiptPage />} />
       <Route path="customers" element={<Navigate to="rewards" replace />} />
+      <Route path="customers/rewards" element={<CustomerRewardsPage />} />
       <Route path="customers/loyalty-config" element={<LoyaltyConfigPage />} />
       <Route path="customers/vouchers" element={<VoucherListPage />} />
       <Route path="customers/vouchers/new" element={<VoucherFormPage />} />
       <Route path="customers/credit-notes" element={<CreditNotesPage />} />
-      <Route path="customers/rewards" element={<CustomerRewardsPage />} />
       <Route path="reports" element={<ReportsDashboard />} />
       <Route path="reports/sales" element={<SalesReportPage />} />
       <Route path="reports/purchase" element={<PurchaseReportPage />} />
       <Route path="reports/ledger" element={<LedgerReportPage />} />
-      <Route path="reports/bank-book" element={<BankBookPage />} />
-      <Route path="reports/collection" element={<CollectionReportPage />} />
       <Route path="reports/stock" element={<StockReportPage />} />
       <Route path="reports/profit" element={<ProfitReportPage />} />
-      <Route path="reports/customers" element={<CustomerReportPage />} />
-      <Route path="reports/vendors" element={<VendorReportPage />} />
-      <Route path="reports/movement" element={<MovementReportPage />} />
-      <Route path="reports/age-analysis" element={<AgeAnalysisPage />} />
+      <Route path="reports/collection" element={<CollectionReportPage />} />
       <Route path="gst" element={<Navigate to="tax-rates" replace />} />
       <Route path="gst/tax-rates" element={<TaxRatesPage />} />
       <Route path="gst/tax-groups" element={<TaxGroupPage />} />
       <Route path="gst/invoice-report" element={<InvoiceTaxReportPage />} />
       <Route path="gst/gstr-summary" element={<GSTRSummaryPage />} />
+      <Route path="accounts" element={<AccountsDashboard />} />
+      <Route path="accounts/bank-payment" element={<BankPaymentPage />} />
+      <Route path="accounts/bank-receipt" element={<BankReceiptPage />} />
       <Route path="settings" element={<SettingsLayout />}>
         <Route index element={<Navigate to="company" replace />} />
         <Route path="company" element={<CompanyProfilePage />} />
@@ -152,86 +143,10 @@ function AdminRoutes() {
         <Route path="roles" element={<RolesPage />} />
         <Route path="number-series" element={<NumberSeriesPage />} />
         <Route path="preferences" element={<PreferencesPage />} />
-        <Route path="purchase-config" element={<PurchaseVoucherConfigPage />} />
+        <Route path="purchase-voucher" element={<PurchaseVoucherConfigPage />} />
         <Route path="print-templates" element={<PrintTemplatesPage />} />
-        <Route path="audit-log" element={<AuditLogPage />} />
+        <Route path="audit-logs" element={<AuditLogPage />} />
       </Route>
-      <Route path="*" element={<NotFoundPage />} />
-    </>
-  );
-}
-
-function ManagerRoutes() {
-  return (
-    <>
-      <Route index element={<DashboardHome />} />
-      <Route path="masters" element={<MastersLayout />}>
-        <Route index element={<Navigate to="suppliers" replace />} />
-        <Route path="suppliers" element={<SuppliersListPage />} />
-        <Route path="customers" element={<CustomersListPage />} />
-        <Route path="account-groups" element={<AccountGroupsListPage />} />
-        <Route path="warehouses" element={<WarehousesListPage />} />
-        <Route path="brands" element={<BrandsListPage />} />
-        <Route path="item-groups" element={<ItemGroupsListPage />} />
-        <Route path="salesmen" element={<SalesmenListPage />} />
-        <Route path="banks" element={<BanksListPage />} />
-      </Route>
-      <Route path="items" element={<ItemListPage />} />
-      <Route path="items/new" element={<ItemFormPage />} />
-      <Route path="items/:id/edit" element={<ItemFormPage />} />
-      <Route path="inventory" element={<Navigate to="stock-overview" replace />} />
-      <Route path="inventory/stock-overview" element={<StockOverviewPage />} />
-      <Route path="inventory/transfer" element={<StockTransferPage />} />
-      <Route path="inventory/audit" element={<StockAuditPage />} />
-      <Route path="inventory/adjustment" element={<StockAdjustmentPage />} />
-      <Route path="inventory/movements" element={<MovementHistoryPage />} />
-      <Route path="purchase" element={<PurchaseListPage />} />
-      <Route path="purchase/new" element={<PurchaseFormPage />} />
-      <Route path="purchase/:id" element={<PurchaseFormPage />} />
-      <Route path="purchase/:id/return" element={<PurchaseReturnPage />} />
-      <Route path="orders" element={<SaleOrderListPage />} />
-      <Route path="orders/new" element={<SaleOrderFormPage />} />
-      <Route path="orders/:id/edit" element={<SaleOrderFormPage />} />
-      <Route path="orders/packing" element={<PackingSlipPage />} />
-      <Route path="orders/delivery" element={<DeliveryOrderPage />} />
-      <Route path="sales" element={<SalesListPage />} />
-      <Route path="sales/new" element={<BillingPage />} />
-      <Route path="sales/:id" element={<BillingPage />} />
-      <Route path="sales/:id/return" element={<SalesReturnPage />} />
-      <Route path="pricing" element={<Navigate to="price-lists" replace />} />
-      <Route path="pricing/price-lists" element={<PriceListPage />} />
-      <Route path="pricing/price-lists/new" element={<PriceListFormPage />} />
-      <Route path="pricing/price-lists/:id/edit" element={<PriceListFormPage />} />
-      <Route path="pricing/schemes" element={<SchemeListPage />} />
-      <Route path="pricing/schemes/new" element={<SchemeFormPage />} />
-      <Route path="pricing/schemes/:id/edit" element={<SchemeFormPage />} />
-      <Route path="pricing/coupons" element={<CouponPage />} />
-      <Route path="accounts" element={<AccountsDashboard />} />
-      <Route path="accounts/bank-payment" element={<BankPaymentPage />} />
-      <Route path="accounts/bank-receipt" element={<BankReceiptPage />} />
-      <Route path="customers" element={<Navigate to="rewards" replace />} />
-      <Route path="customers/loyalty-config" element={<LoyaltyConfigPage />} />
-      <Route path="customers/vouchers" element={<VoucherListPage />} />
-      <Route path="customers/vouchers/new" element={<VoucherFormPage />} />
-      <Route path="customers/credit-notes" element={<CreditNotesPage />} />
-      <Route path="customers/rewards" element={<CustomerRewardsPage />} />
-      <Route path="reports" element={<ReportsDashboard />} />
-      <Route path="reports/sales" element={<SalesReportPage />} />
-      <Route path="reports/purchase" element={<PurchaseReportPage />} />
-      <Route path="reports/ledger" element={<LedgerReportPage />} />
-      <Route path="reports/bank-book" element={<BankBookPage />} />
-      <Route path="reports/collection" element={<CollectionReportPage />} />
-      <Route path="reports/stock" element={<StockReportPage />} />
-      <Route path="reports/profit" element={<ProfitReportPage />} />
-      <Route path="reports/customers" element={<CustomerReportPage />} />
-      <Route path="reports/vendors" element={<VendorReportPage />} />
-      <Route path="reports/movement" element={<MovementReportPage />} />
-      <Route path="reports/age-analysis" element={<AgeAnalysisPage />} />
-      <Route path="gst" element={<Navigate to="tax-rates" replace />} />
-      <Route path="gst/tax-rates" element={<TaxRatesPage />} />
-      <Route path="gst/tax-groups" element={<TaxGroupPage />} />
-      <Route path="gst/invoice-report" element={<InvoiceTaxReportPage />} />
-      <Route path="gst/gstr-summary" element={<GSTRSummaryPage />} />
       <Route path="*" element={<NotFoundPage />} />
     </>
   );
@@ -244,9 +159,11 @@ function StaffRoutes() {
       <Route path="items" element={<ItemListPage />} />
       <Route path="inventory" element={<Navigate to="stock-overview" replace />} />
       <Route path="inventory/stock-overview" element={<StockOverviewPage />} />
+      <Route path="inventory/transfer" element={<StockTransferPage />} />
       <Route path="sales" element={<SalesListPage />} />
       <Route path="sales/new" element={<BillingPage />} />
       <Route path="sales/:id" element={<BillingPage />} />
+      <Route path="sales/:id/return" element={<SalesReturnPage />} />
       <Route path="*" element={<NotFoundPage />} />
     </>
   );
@@ -266,23 +183,20 @@ function AppRoutes() {
 
       <Route path="/" element={<RoleRedirect />} />
 
-      <Route element={<RoleProtectedRoute allowedRoles={['Admin']} />}>
+      <Route element={<RoleProtectedRoute allowedRoles={['admin', 'Admin']} />}>
         <Route path="/admin" element={<RoleDashboardLayout />}>
           {AdminRoutes()}
         </Route>
       </Route>
 
-      <Route element={<RoleProtectedRoute allowedRoles={['Manager']} />}>
-        <Route path="/manager" element={<RoleDashboardLayout />}>
-          {ManagerRoutes()}
-        </Route>
-      </Route>
-
-      <Route element={<RoleProtectedRoute allowedRoles={['Staff']} />}>
+      <Route element={<RoleProtectedRoute allowedRoles={['store_staff', 'Staff', 'Manager', 'admin', 'Admin']} />}>
         <Route path="/staff" element={<RoleDashboardLayout />}>
           {StaffRoutes()}
         </Route>
       </Route>
+
+      {/* Redirect legacy manager/staff paths to consolidated staff path */}
+      <Route path="/manager/*" element={<Navigate to="/staff" replace />} />
 
       <Route path="*" element={<RoleRedirect />} />
     </Routes>

@@ -12,13 +12,21 @@ const { PurchaseStatus, StockHistoryType } = require('../../core/enums');
 
 const createPurchase = async (purchaseData, userId) => {
     return await withTransaction(async (session) => {
-        const { supplierId, invoiceNumber, invoiceDate, items, notes } = purchaseData;
+        const { supplierId, storeId, invoiceNumber, invoiceDate, items, notes } = purchaseData;
 
         // 1. Validate Supplier
         const supplier = await Supplier.findOne({ _id: supplierId, isDeleted: false, isActive: true }).session(session);
         if (!supplier) throw new Error('Supplier not found or inactive');
 
-        // 2. Generate Purchase Number
+        // 2. Validate Store/Warehouse (if provided)
+        let store;
+        if (storeId) {
+            const Store = require('../../models/store.model');
+            store = await Store.findOne({ _id: storeId, isDeleted: false, isActive: true }).session(session);
+            if (!store) throw new Error('Warehouse not found or inactive');
+        }
+
+        // 3. Generate Purchase Number
         const year = new Date().getFullYear();
         const seq = await getNextSequence(`PURCHASE_${year}`, session);
         const purchaseNumber = `PUR-${year}-${seq.toString().padStart(6, '0')}`;
@@ -61,17 +69,33 @@ const createPurchase = async (purchaseData, userId) => {
             subTotal += taxableAmount;
             totalTax += gstAmount;
 
-            // 5. Update Stock (Factory Inventory)
-            await adjustStock({
-                productId: item.productId,
-                quantityChange: item.quantity,
-                type: StockHistoryType.IN,
-                referenceId: null, // Update after purchase save
-                referenceModel: 'Purchase',
-                performedBy: userId,
-                notes: `Purchase ${purchaseNumber}`,
-                session
-            });
+            // 5. Update Stock (Store or Factory level)
+            if (storeId) {
+                const { adjustStoreStock } = require('../../services/stock.service');
+                await adjustStoreStock({
+                    productId: item.productId,
+                    storeId,
+                    quantityChange: item.quantity,
+                    type: StockHistoryType.IN,
+                    referenceId: null, // Update after purchase save
+                    referenceModel: 'Purchase',
+                    performedBy: userId,
+                    notes: `Purchase ${purchaseNumber}`,
+                    session
+                });
+            } else {
+                const { adjustStock } = require('../../services/stock.service');
+                await adjustStock({
+                    productId: item.productId,
+                    quantityChange: item.quantity,
+                    type: StockHistoryType.IN,
+                    referenceId: null,
+                    referenceModel: 'Purchase',
+                    performedBy: userId,
+                    notes: `Purchase ${purchaseNumber}`,
+                    session
+                });
+            }
         }
 
         const grandTotal = subTotal + totalTax;
@@ -80,6 +104,7 @@ const createPurchase = async (purchaseData, userId) => {
         const purchase = new Purchase({
             purchaseNumber,
             supplierId,
+            storeId,
             invoiceNumber,
             invoiceDate,
             products: processedProducts,
@@ -200,10 +225,11 @@ const cancelPurchase = async (purchaseId, userId) => {
 };
 
 const getAllPurchases = async (query) => {
-    const { page = 1, limit = 10, supplierId, startDate, endDate, status } = query;
+    const { page = 1, limit = 10, supplierId, storeId, startDate, endDate, status } = query;
     const filter = {};
 
     if (supplierId) filter.supplierId = supplierId;
+    if (storeId) filter.storeId = storeId;
     if (status) filter.status = status;
 
     if (startDate || endDate) {
@@ -224,6 +250,7 @@ const getAllPurchases = async (query) => {
             .skip(skip)
             .limit(parseInt(limit))
             .populate('supplierId', 'name contactPerson')
+            .populate('storeId', 'name')
             .populate('createdBy', 'name'),
         Purchase.countDocuments(filter)
     ]);
@@ -234,6 +261,7 @@ const getAllPurchases = async (query) => {
 const getPurchaseById = async (id) => {
     const purchase = await Purchase.findById(id)
         .populate('supplierId')
+        .populate('storeId')
         .populate('products.productId')
         .populate('createdBy', 'name');
     if (!purchase) throw new Error('Purchase record not found');

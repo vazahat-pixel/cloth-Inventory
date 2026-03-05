@@ -35,7 +35,13 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 
 app.use(cors({
     origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin)) {
+        // Allow requests with no origin (like mobile apps or curl)
+        if (!origin) return callback(null, true);
+
+        const isDevelopment = process.env.NODE_ENV === 'development';
+        const isAllowed = allowedOrigins.includes(origin);
+
+        if (isAllowed || isDevelopment) {
             callback(null, true);
         } else {
             console.error(`CORS blocked for origin: ${origin}`);

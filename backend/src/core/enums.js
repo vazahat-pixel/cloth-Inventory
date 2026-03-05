@@ -45,6 +45,8 @@ const PaymentMethod = {
     CASH: 'CASH',
     CARD: 'CARD',
     UPI: 'UPI',
+    GIFT_VOUCHER: 'GIFT_VOUCHER',
+    SPLIT: 'SPLIT',
 };
 
 const ReturnType = {

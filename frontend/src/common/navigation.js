@@ -4,11 +4,9 @@ export const navigationItems = [
   { label: "Items", path: "/items" },
   { label: "Inventory", path: "/inventory" },
   { label: "Purchase", path: "/purchase" },
-  { label: "Orders", path: "/orders" },
   { label: "Sales", path: "/sales" },
   { label: "Pricing", path: "/pricing" },
   { label: "Customer Rewards", path: "/customers" },
-  { label: "Accounts", path: "/accounts" },
   { label: "Reports", path: "/reports" },
   { label: "GST", path: "/gst" },
   { label: "Settings", path: "/settings" },
@@ -26,14 +24,10 @@ export const settingsNavigationItems = [
   { label: "Roles", path: "/settings/roles" },
   { label: "Number Series", path: "/settings/number-series" },
   { label: "Preferences", path: "/settings/preferences" },
-  { label: "Purchase Config", path: "/settings/purchase-config" },
-  { label: "Print Templates", path: "/settings/print-templates" },
-  { label: "Audit Log", path: "/settings/audit-log" },
 ];
 
 export const gstNavigationItems = [
   { label: "Tax Rates", path: "/gst/tax-rates" },
-  { label: "Tax Groups", path: "/gst/tax-groups" },
   { label: "Invoice Tax Report", path: "/gst/invoice-report" },
   { label: "GSTR Summary", path: "/gst/gstr-summary" },
 ];
@@ -42,50 +36,36 @@ export const reportsNavigationItems = [
   { label: "Sales", path: "/reports/sales" },
   { label: "Purchase", path: "/reports/purchase" },
   { label: "Ledger", path: "/reports/ledger" },
-  { label: "Bank Book", path: "/reports/bank-book" },
-  { label: "Collection", path: "/reports/collection" },
   { label: "Stock", path: "/reports/stock" },
-  { label: "Profit", path: "/reports/profit" },
-  { label: "Customers", path: "/reports/customers" },
-  { label: "Vendors", path: "/reports/vendors" },
-  { label: "Movement & Alerts", path: "/reports/movement" },
-  { label: "Age Analysis", path: "/reports/age-analysis" },
   { label: "Overview", path: "/reports" },
+  { label: "Profit Analysis", path: "/reports/profit" },
+  { label: "Collection Report", path: "/reports/collection" },
 ];
 
 export const customersNavigationItems = [
   { label: "Rewards", path: "/customers/rewards" },
   { label: "Loyalty Config", path: "/customers/loyalty-config" },
-  { label: "Vouchers", path: "/customers/vouchers" },
-  { label: "New Voucher", path: "/customers/vouchers/new" },
-  { label: "Credit Notes", path: "/customers/credit-notes" },
+  { label: "Gift Vouchers", path: "/customers/vouchers" },
 ];
 
 export const pricingNavigationItems = [
   { label: "Price Lists", path: "/pricing/price-lists" },
-  { label: "New Price List", path: "/pricing/price-lists/new" },
   { label: "Schemes", path: "/pricing/schemes" },
-  { label: "New Scheme", path: "/pricing/schemes/new" },
-  { label: "Coupons", path: "/pricing/coupons" },
 ];
 
 export const mastersNavigationItems = [
   { label: "Suppliers", path: "/masters/suppliers" },
   { label: "Customers", path: "/masters/customers" },
-  { label: "Account Groups", path: "/masters/account-groups" },
-  { label: "Warehouses", path: "/masters/warehouses" },
+  { label: "Stores", path: "/masters/warehouses" },
+  { label: "Categories", path: "/masters/item-groups" },
   { label: "Brands", path: "/masters/brands" },
-  { label: "Item Groups", path: "/masters/item-groups" },
   { label: "Salesmen", path: "/masters/salesmen" },
-  { label: "Bank Accounts", path: "/masters/banks" },
+  { label: "Banks", path: "/masters/banks" },
 ];
 
 export const inventoryNavigationItems = [
   { label: "Stock Overview", path: "/inventory/stock-overview" },
   { label: "Transfer", path: "/inventory/transfer" },
-  { label: "Audit", path: "/inventory/audit" },
-  { label: "Adjustment", path: "/inventory/adjustment" },
-  { label: "Movements", path: "/inventory/movements" },
 ];
 
 export const purchaseNavigationItems = [
@@ -98,12 +78,7 @@ export const salesNavigationItems = [
   { label: "New Sale", path: "/sales/new" },
 ];
 
-export const ordersNavigationItems = [
-  { label: "Sale Orders", path: "/orders" },
-  { label: "New Sale Order", path: "/orders/new" },
-  { label: "Packing Slips", path: "/orders/packing" },
-  { label: "Delivery Orders", path: "/orders/delivery" },
-];
+export const ordersNavigationItems = [];
 
 export const getPageTitle = (pathname) => {
   const p = pathname.replace(/^\/(admin|manager|staff)/, "") || "/";

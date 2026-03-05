@@ -14,25 +14,34 @@ import {
 } from './navigation';
 
 export const ROLES = {
-  Admin: 'Admin',
-  Manager: 'Manager',
-  Staff: 'Staff',
+  admin: 'admin',
+  store_staff: 'store_staff',
+};
+
+// Map legacy roles for compatibility during transition if needed, 
+// but backend will return admin or store_staff
+const roleAliasMap = {
+  Admin: 'admin',
+  Manager: 'store_staff',
+  Staff: 'store_staff',
+  admin: 'admin',
+  store_staff: 'store_staff'
 };
 
 export const getRoleBasePath = (role) => {
-  const map = { Admin: '/admin', Manager: '/manager', Staff: '/staff' };
-  return map[role] || '/admin';
+  const normalizedRole = roleAliasMap[role] || 'admin';
+  const map = { admin: '/admin', store_staff: '/staff' };
+  return map[normalizedRole] || '/admin';
 };
 
 export const getRoleFromPath = (pathname) => {
-  if (pathname.startsWith('/admin')) return 'Admin';
-  if (pathname.startsWith('/manager')) return 'Manager';
-  if (pathname.startsWith('/staff')) return 'Staff';
+  if (pathname.startsWith('/admin')) return 'admin';
+  if (pathname.startsWith('/staff')) return 'store_staff';
   return null;
 };
 
 export const adminNavConfig = {
-  role: ROLES.Admin,
+  role: ROLES.admin,
   basePath: '/admin',
   label: 'Admin Panel',
   mainNav: navigationItems,
@@ -51,49 +60,23 @@ export const adminNavConfig = {
   },
 };
 
-export const managerNavConfig = {
-  role: ROLES.Manager,
-  basePath: '/manager',
-  label: 'Manager Panel',
-  mainNav: navigationItems.filter((i) => i.path !== '/settings'),
-  children: {
-    masters: mastersNavigationItems,
-    inventory: inventoryNavigationItems,
-    purchase: purchaseNavigationItems,
-    orders: ordersNavigationItems,
-    sales: salesNavigationItems,
-    pricing: pricingNavigationItems,
-    customers: customersNavigationItems,
-    accounts: accountsNavigationItems,
-    reports: reportsNavigationItems,
-    gst: gstNavigationItems,
-  },
-};
-
 export const staffNavConfig = {
-  role: ROLES.Staff,
+  role: ROLES.store_staff,
   basePath: '/staff',
   label: 'Staff Panel',
-  mainNav: [
-    { label: 'Dashboard', path: '/' },
-    { label: 'Items', path: '/items' },
-    { label: 'Inventory', path: '/inventory' },
-    { label: 'Sales', path: '/sales' },
-  ],
+  mainNav: navigationItems.filter((i) => !['/settings', '/masters'].includes(i.path)),
   children: {
-    inventory: [{ label: 'Stock Overview', path: '/inventory/stock-overview' }],
-    sales: [
-      { label: 'Sales Invoices', path: '/sales' },
-      { label: 'New Sale', path: '/sales/new' },
-    ],
+    inventory: inventoryNavigationItems.filter(i => ['Stock Overview', 'Stock Transfer'].includes(i.label)),
+    sales: salesNavigationItems,
+    customers: customersNavigationItems,
   },
 };
 
 export const getNavConfigForRole = (role) => {
+  const normalizedRole = roleAliasMap[role] || 'admin';
   const map = {
-    [ROLES.Admin]: adminNavConfig,
-    [ROLES.Manager]: managerNavConfig,
-    [ROLES.Staff]: staffNavConfig,
+    [ROLES.admin]: adminNavConfig,
+    [ROLES.store_staff]: staffNavConfig,
   };
-  return map[role] || adminNavConfig;
+  return map[normalizedRole] || adminNavConfig;
 };

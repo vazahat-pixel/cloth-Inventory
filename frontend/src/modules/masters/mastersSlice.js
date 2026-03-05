@@ -10,21 +10,20 @@ export const fetchMasters = createAsyncThunk('masters/fetchAll', async (entityKe
       customers: '/customers',
       warehouses: '/stores',
       itemGroups: '/categories',
-      brands: '/brands',
       salesmen: '/auth/users',
-      accountGroups: '/accounts/groups',
-      banks: '/accounts/banks',
+      brands: '/brands',
+      accountGroups: '/account-groups',
+      banks: '/banks',
     };
 
-    // Which key to read from the API response per entity
     const responseKeyMap = {
       suppliers: 'suppliers',
       customers: 'customers',
-      warehouses: 'stores',      // backend returns { stores: [...] }
+      warehouses: 'stores',
       itemGroups: 'categories',
+      salesmen: 'users',
       brands: 'brands',
-      salesmen: 'users',         // /auth/users returns { users: [...] }
-      accountGroups: 'accounts',
+      accountGroups: 'accountGroups',
       banks: 'banks',
     };
 
@@ -35,22 +34,14 @@ export const fetchMasters = createAsyncThunk('masters/fetchAll', async (entityKe
     const key = responseKeyMap[entityKey];
     const raw = response.data[key] || response.data.data || [];
 
-    console.log(`[DEBUG] fetchMasters(${entityKey}) raw:`, raw);
-
-    // Use centralized normalization
     const entityTypeMapping = {
       itemGroups: 'category',
       warehouses: 'store',
       salesmen: 'user',
     };
     const entityType = entityTypeMapping[entityKey] || entityKey.slice(0, -1);
-    const data = normalizeResponse(raw, entityType);
-
-    console.log(`[DEBUG] fetchMasters(${entityKey}) normalized:`, data);
-
-    return { entityKey, data };
+    return { entityKey, data: normalizeResponse(raw, entityType) };
   } catch (error) {
-    console.error(`[DEBUG] fetchMasters(${entityKey}) error:`, error);
     return rejectWithValue(error.response?.data?.message || error.message);
   }
 });
@@ -62,10 +53,10 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
       customers: '/customers',
       warehouses: '/stores',
       itemGroups: '/categories',
-      brands: '/brands',
       salesmen: '/auth/users',
-      accountGroups: '/accounts/groups',
-      banks: '/accounts/banks',
+      brands: '/brands',
+      accountGroups: '/account-groups',
+      banks: '/banks',
     };
     const endpoint = endpointMap[entityKey];
     const response = await api.post(endpoint, record);
@@ -78,8 +69,7 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
       salesmen: 'user',
     };
     const entityType = entityTypeMapping[entityKey] || entityKey.slice(0, -1);
-    const data = normalizeResponse(raw, entityType);
-    return { entityKey, data };
+    return { entityKey, data: normalizeResponse(raw, entityType) };
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -92,10 +82,10 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
       customers: '/customers',
       warehouses: '/stores',
       itemGroups: '/categories',
-      brands: '/brands',
       salesmen: '/auth/users',
-      accountGroups: '/accounts/groups',
-      banks: '/accounts/banks',
+      brands: '/brands',
+      accountGroups: '/account-groups',
+      banks: '/banks',
     };
     const endpoint = `${endpointMap[entityKey]}/${id}`;
     const response = await api.patch(endpoint, updates);
@@ -108,8 +98,7 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
       salesmen: 'user',
     };
     const entityType = entityTypeMapping[entityKey] || entityKey.slice(0, -1);
-    const data = normalizeResponse(raw, entityType);
-    return { entityKey, data };
+    return { entityKey, data: normalizeResponse(raw, entityType) };
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -122,10 +111,10 @@ export const deleteMasterRecord = createAsyncThunk('masters/delete', async ({ en
       customers: '/customers',
       warehouses: '/stores',
       itemGroups: '/categories',
-      brands: '/brands',
       salesmen: '/auth/users',
-      accountGroups: '/accounts/groups',
-      banks: '/accounts/banks',
+      brands: '/brands',
+      accountGroups: '/account-groups',
+      banks: '/banks',
     };
     const endpoint = `${endpointMap[entityKey]}/${id}`;
     await api.delete(endpoint);
@@ -138,11 +127,11 @@ export const deleteMasterRecord = createAsyncThunk('masters/delete', async ({ en
 const initialState = {
   suppliers: [],
   customers: [],
-  accountGroups: [],
   warehouses: [],
-  brands: [],
   itemGroups: [],
   salesmen: [],
+  brands: [],
+  accountGroups: [],
   banks: [],
   loading: false,
   error: null,

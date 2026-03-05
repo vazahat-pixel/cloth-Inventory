@@ -9,17 +9,31 @@ export const fetchPurchases = createAsyncThunk('purchase/fetchAll', async (_, { 
     const raw = response.data.purchases || response.data.data || [];
     return normalizeResponse(raw, 'purchase');
   } catch (error) {
-    return rejectWithValue(error.response?.data?.message || error.message);
+    return rejectWithValue(error.response?.data?.message || 'Failed to fetch purchases');
   }
 });
 
 export const addPurchase = createAsyncThunk('purchase/add', async (purchaseData, { rejectWithValue }) => {
   try {
-    const response = await api.post('/purchase', purchaseData);
+    // Map fields for backend
+    const payload = {
+      supplierId: purchaseData.supplierId,
+      storeId: purchaseData.storeId || purchaseData.warehouseId,
+      invoiceNumber: purchaseData.invoiceNumber || purchaseData.billNumber,
+      invoiceDate: purchaseData.invoiceDate || purchaseData.billDate,
+      notes: purchaseData.notes || purchaseData.remarks,
+      products: (purchaseData.products || purchaseData.items || []).map(p => ({
+        productId: p.productId || p.id || p.variantId,
+        quantity: p.quantity,
+        rate: p.rate || p.price
+      }))
+    };
+
+    const response = await api.post('/purchase', payload);
     const raw = response.data.purchase || response.data.data;
     return normalizeResponse(raw, 'purchase');
   } catch (error) {
-    return rejectWithValue(error.response?.data?.message || error.message);
+    return rejectWithValue(error.response?.data?.message || 'Failed to add purchase');
   }
 });
 
@@ -29,7 +43,7 @@ export const updatePurchase = createAsyncThunk('purchase/update', async ({ id, p
     const raw = response.data.purchase || response.data.data;
     return normalizeResponse(raw, 'purchase');
   } catch (error) {
-    return rejectWithValue(error.response?.data?.message || error.message);
+    return rejectWithValue(error.response?.data?.message || 'Failed to update purchase');
   }
 });
 

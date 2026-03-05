@@ -33,7 +33,7 @@ export const updatePriceList = createAsyncThunk('pricing/updateList', async ({ i
 
 export const fetchSchemes = createAsyncThunk('pricing/fetchSchemes', async (_, { rejectWithValue }) => {
   try {
-    const response = await api.get('/pricing/schemes');
+    const response = await api.get('/schemes');
     return response.data.schemes || response.data.data || [];
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
@@ -42,7 +42,7 @@ export const fetchSchemes = createAsyncThunk('pricing/fetchSchemes', async (_, {
 
 export const addScheme = createAsyncThunk('pricing/addScheme', async (data, { rejectWithValue }) => {
   try {
-    const response = await api.post('/pricing/schemes', data);
+    const response = await api.post('/schemes', data);
     return response.data.scheme || response.data.data;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
@@ -51,7 +51,7 @@ export const addScheme = createAsyncThunk('pricing/addScheme', async (data, { re
 
 export const updateScheme = createAsyncThunk('pricing/updateScheme', async ({ id, scheme }, { rejectWithValue }) => {
   try {
-    const response = await api.patch(`/pricing/schemes/${id}`, scheme);
+    const response = await api.patch(`/schemes/${id}`, scheme);
     return response.data.scheme || response.data.data;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
@@ -60,7 +60,7 @@ export const updateScheme = createAsyncThunk('pricing/updateScheme', async ({ id
 
 export const fetchCoupons = createAsyncThunk('pricing/fetchCoupons', async (_, { rejectWithValue }) => {
   try {
-    const response = await api.get('/pricing/coupons');
+    const response = await api.get('/coupons');
     return response.data.coupons || response.data.data || [];
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
@@ -69,7 +69,7 @@ export const fetchCoupons = createAsyncThunk('pricing/fetchCoupons', async (_, {
 
 export const addCoupon = createAsyncThunk('pricing/addCoupon', async (data, { rejectWithValue }) => {
   try {
-    const response = await api.post('/pricing/coupons', data);
+    const response = await api.post('/coupons', data);
     return response.data.coupon || response.data.data;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
@@ -92,7 +92,7 @@ export const addCouponsBulk = createAsyncThunk('pricing/addCouponsBulk', async (
 
 export const updateCoupon = createAsyncThunk('pricing/updateCoupon', async ({ id, coupon }, { rejectWithValue }) => {
   try {
-    const response = await api.patch(`/pricing/coupons/${id}`, coupon);
+    const response = await api.patch(`/coupons/${id}`, coupon);
     return response.data.coupon || response.data.data;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
@@ -110,7 +110,7 @@ export const setPriceListStatus = createAsyncThunk('pricing/setStatus', async ({
 
 export const setSchemeStatus = createAsyncThunk('pricing/setSchemeStatus', async ({ id, status }, { rejectWithValue }) => {
   try {
-    const response = await api.patch(`/pricing/schemes/${id}`, { status });
+    const response = await api.patch(`/schemes/${id}`, { status });
     return response.data.scheme || response.data.data;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);

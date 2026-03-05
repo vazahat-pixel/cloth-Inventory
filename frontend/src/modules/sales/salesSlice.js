@@ -9,36 +9,48 @@ export const fetchSales = createAsyncThunk('sales/fetchAll', async (_, { rejectW
     const raw = response.data.sales || response.data.data || [];
     return normalizeResponse(raw, 'sale');
   } catch (error) {
-    return rejectWithValue(error.response?.data?.message || error.message);
+    return rejectWithValue(error.response?.data?.message || 'Failed to fetch sales');
   }
 });
 
 export const addSale = createAsyncThunk('sales/add', async (saleData, { rejectWithValue }) => {
   try {
-    const response = await api.post('/sales', saleData);
+    // Basic mapping: warehouseId -> storeId if needed, though BillingPage should handle it
+    const payload = {
+      ...saleData,
+      storeId: saleData.storeId || saleData.warehouseId,
+      paymentMode: saleData.paymentMode?.toUpperCase() || 'CASH',
+    };
+    const response = await api.post('/sales', payload);
     const raw = response.data.sale || response.data.data;
     return normalizeResponse(raw, 'sale');
   } catch (error) {
-    return rejectWithValue(error.response?.data?.message || error.message);
+    return rejectWithValue(error.response?.data?.message || 'Failed to add sale');
   }
 });
 
 export const fetchSalesReturns = createAsyncThunk('sales/fetchReturns', async (_, { rejectWithValue }) => {
   try {
     const response = await api.get('/returns?type=CUSTOMER_RETURN');
-    return response.data.returns || response.data.data || [];
+    const raw = response.data.returns || response.data.data || [];
+    return normalizeResponse(raw, 'return');
   } catch (error) {
-    return rejectWithValue(error.response?.data?.message || error.message);
+    return rejectWithValue(error.response?.data?.message || 'Failed to fetch returns');
   }
 });
 
 export const addSalesReturn = createAsyncThunk('sales/addReturn', async (returnData, { rejectWithValue }) => {
   try {
-    const response = await api.post('/returns', { ...returnData, type: 'CUSTOMER_RETURN' });
+    const payload = {
+      ...returnData,
+      type: returnData.type || 'CUSTOMER_RETURN',
+      paymentMode: returnData.paymentMode?.toUpperCase() || 'CASH',
+    };
+    const response = await api.post('/returns', payload);
     const raw = response.data.returnEntry || response.data.data;
     return normalizeResponse(raw, 'return');
   } catch (error) {
-    return rejectWithValue(error.response?.data?.message || error.message);
+    return rejectWithValue(error.response?.data?.message || 'Failed to add return');
   }
 });
 

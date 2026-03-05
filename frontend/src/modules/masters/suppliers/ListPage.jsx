@@ -27,8 +27,32 @@ function SuppliersListPage() {
       { field: 'gstNumber', headerName: 'GST Number', minWidth: 165 },
       { field: 'phone', headerName: 'Phone', minWidth: 125 },
       { field: 'email', headerName: 'Email', minWidth: 190 },
-      { field: 'address', headerName: 'Address', minWidth: 220 },
-      { field: 'bankDetails', headerName: 'Bank Details', minWidth: 190 },
+      {
+        field: 'address',
+        headerName: 'Address',
+        minWidth: 220,
+        render: (value) => {
+          if (!value) return '—';
+          if (typeof value === 'object') {
+            const parts = [value.street, value.city, value.state, value.pincode].filter(Boolean);
+            return parts.length > 0 ? parts.join(', ') : '—';
+          }
+          return value;
+        },
+      },
+      {
+        field: 'bankDetails',
+        headerName: 'Bank Details',
+        minWidth: 190,
+        render: (value) => {
+          if (!value) return '—';
+          if (typeof value === 'object') {
+            const parts = [value.bankName, value.accountNumber, value.ifsc].filter(Boolean);
+            return parts.length > 0 ? parts.join(' | ') : '—';
+          }
+          return value;
+        },
+      },
       {
         field: 'status',
         headerName: 'Status',

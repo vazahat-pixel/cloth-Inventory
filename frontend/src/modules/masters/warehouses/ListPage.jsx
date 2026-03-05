@@ -11,7 +11,18 @@ const warehousesColumns = [
     render: (value) => <Typography sx={{ fontWeight: 700 }}>{value}</Typography>,
   },
   { field: 'code', headerName: 'Code', minWidth: 120 },
-  { field: 'location', headerName: 'Location', minWidth: 210 },
+  {
+    field: 'location',
+    headerName: 'Location',
+    minWidth: 210,
+    render: (value) => {
+      if (!value) return '—';
+      if (typeof value === 'object') {
+        return [value.address, value.city, value.state, value.pincode].filter(Boolean).join(', ') || '—';
+      }
+      return value;
+    },
+  },
   { field: 'managerName', headerName: 'Manager Name', minWidth: 150 },
   { field: 'contactNumber', headerName: 'Contact Number', minWidth: 140 },
   {

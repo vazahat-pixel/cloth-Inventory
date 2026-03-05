@@ -33,7 +33,18 @@ function CustomersListPage() {
         minWidth: 110,
         render: (value) => value || '—',
       },
-      { field: 'address', headerName: 'Address', minWidth: 210 },
+      {
+        field: 'address',
+        headerName: 'Address',
+        minWidth: 210,
+        render: (value) => {
+          if (!value) return '—';
+          if (typeof value === 'object') {
+            return [value.street, value.city, value.state, value.pincode].filter(Boolean).join(', ') || '—';
+          }
+          return value;
+        },
+      },
       { field: 'gstNumber', headerName: 'GST Number', minWidth: 160 },
       { field: 'loyaltyPoints', headerName: 'Loyalty Points', minWidth: 120, align: 'right' },
       { field: 'creditLimit', headerName: 'Credit Limit', minWidth: 130, align: 'right' },

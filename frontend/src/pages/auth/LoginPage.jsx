@@ -8,8 +8,7 @@ import { getRoleBasePath } from '../../common/roleConfig';
 
 const ROLE_LABELS = {
   admin: 'Admin Portal',
-  manager: 'Manager Portal',
-  staff: 'Staff Portal',
+  store_staff: 'Store Staff Portal',
 };
 
 function LoginPage() {
