@@ -64,11 +64,11 @@ export const staffNavConfig = {
   role: ROLES.store_staff,
   basePath: '/staff',
   label: 'Staff Panel',
-  mainNav: navigationItems.filter((i) => !['/settings', '/masters'].includes(i.path)),
+  mainNav: navigationItems.filter((i) => !['/settings', '/masters', '/pricing', '/customers', '/reports', '/gst'].includes(i.path)),
   children: {
     inventory: inventoryNavigationItems.filter(i => ['Stock Overview', 'Stock Transfer'].includes(i.label)),
     sales: salesNavigationItems,
-    customers: customersNavigationItems,
+    purchase: purchaseNavigationItems.filter(i => i.label === 'Purchase Bills'), // Just in case, allow viewing purchase bills or return
   },
 };
 

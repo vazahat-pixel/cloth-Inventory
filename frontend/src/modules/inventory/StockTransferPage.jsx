@@ -351,7 +351,7 @@ function StockTransferPage() {
             onChange={(_, value) => setVariantPickerValue(value)}
             options={availableRows}
             getOptionLabel={(option) =>
-              `${option.itemName} (${option.size}/${option.color}) - ${option.sku}`
+              `${option.itemName} (${option.size}/${option.color}) - SKU: ${option.sku || ''} - BC: ${option.barcode || ''}`
             }
             renderInput={(params) => (
               <TextField

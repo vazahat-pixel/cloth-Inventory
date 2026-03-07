@@ -38,7 +38,7 @@ export const transferStock = createAsyncThunk(
         products: (transferData.products || transferData.items || []).map(p => ({
           productId: p.productId || p.variantId || p.id,
           quantity: p.quantity,
-          price: p.price // optional but safe
+          price: p.price || 0
         }))
       };
 

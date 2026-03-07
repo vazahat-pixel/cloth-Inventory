@@ -246,6 +246,7 @@ function BillingPage() {
           size: stock.size,
           color: stock.color,
           sku: stock.sku,
+          barcode: stock.barcode,
           available: available > 0 ? available : 0,
           rate,
           tax: 0,
@@ -370,15 +371,16 @@ function BillingPage() {
     setErrorMessage('');
   };
 
-  const handleBarcodeAdd = () => {
-    const scannedCode = barcodeInput.trim().toLowerCase();
+  const handleBarcodeAdd = (scannedValue) => {
+    const rawCode = typeof scannedValue === 'string' ? scannedValue : barcodeInput;
+    const scannedCode = rawCode.trim().toLowerCase();
     if (!scannedCode) {
       return;
     }
 
-    const matched = variantOptions.find((option) => option.sku.toLowerCase() === scannedCode);
+    const matched = variantOptions.find((option) => (option.sku || '').toLowerCase() === scannedCode || (option.styleCode || '').toLowerCase() === scannedCode || (option.barcode || '').toLowerCase() === scannedCode);
     if (!matched) {
-      setErrorMessage('No SKU found in the selected warehouse stock.');
+      setErrorMessage('No SKU/Barcode found in the selected warehouse stock.');
       return;
     }
 
@@ -797,7 +799,7 @@ function BillingPage() {
                 value={selectedOption}
                 onChange={(_, value) => setSelectedOption(value)}
                 getOptionLabel={(option) =>
-                  `${option.itemName} (${option.size}/${option.color}) - ${option.sku} [Stock: ${option.available}]`
+                  `${option.itemName} (${option.size}/${option.color}) - SKU: ${option.sku || ''} - BC: ${option.barcode || ''} [Stock: ${option.available}]`
                 }
                 renderInput={(params) => (
                   <TextField {...params} label="Search item or SKU" placeholder="Type item or sku" />
@@ -823,7 +825,7 @@ function BillingPage() {
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') {
                     event.preventDefault();
-                    handleBarcodeAdd();
+                    handleBarcodeAdd(event.target.value);
                   }
                 }}
                 InputProps={{

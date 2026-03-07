@@ -18,6 +18,7 @@ const updateSetting = async (key, value, userId) => {
     } else {
         settings.value = value;
         settings.updatedBy = userId;
+        settings.markModified('value');
     }
     await settings.save();
     return settings.value;

@@ -163,6 +163,7 @@ const normalizeItem = (item, entityType) => {
                 normalized.productId = item.productId._id || item.productId.id;
                 normalized.itemName = item.productId.name;
                 normalized.sku = item.productId.sku || item.productId.barcode;
+                normalized.barcode = item.productId.barcode;
                 normalized.styleCode = item.productId.sku;
                 normalized.size = item.productId.size;
                 normalized.color = item.productId.color;
@@ -208,7 +209,7 @@ const normalizeItem = (item, entityType) => {
             normalized.status = item.isActive ? 'Active' : 'Inactive';
             break;
 
-        case 'voucher':
+        case 'voucher': {
             normalized.code = item.voucherNumber;
             // status enum ['ACTIVE', 'EXPIRED', 'USED', 'CANCELLED'] -> ['Active', 'Expired', 'Redeemed', 'Cancelled']
             const statusMap = {
@@ -220,6 +221,7 @@ const normalizeItem = (item, entityType) => {
             normalized.status = statusMap[item.status] || item.status;
             normalized.amount = item.remainingValue;
             break;
+        }
 
         case 'supplier':
             normalized.supplierName = item.name;
