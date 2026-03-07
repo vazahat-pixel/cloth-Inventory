@@ -45,92 +45,92 @@ function PurchaseDetailDialog({
 
   return (
     <>
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg">
-      <DialogTitle>Purchase Bill Details</DialogTitle>
-      <DialogContent dividers>
-        <Stack spacing={2}>
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-            <DetailField label="Bill Number" value={purchase.billNumber} />
-            <DetailField label="Supplier" value={supplierName || purchase.supplierId} />
-            <DetailField label="Bill Date" value={purchase.billDate} />
-            <DetailField label="Warehouse" value={warehouseName || purchase.warehouseId} />
-          </Stack>
+      <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg">
+        <DialogTitle>Purchase Bill Details</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+              <DetailField label="Bill Number" value={purchase.billNumber} />
+              <DetailField label="Supplier" value={supplierName || purchase.supplierId} />
+              <DetailField label="Bill Date" value={purchase.billDate} />
+              <DetailField label="Warehouse" value={warehouseName || purchase.warehouseId} />
+            </Stack>
 
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-            <DetailField label="Purchase Type" value={purchase.purchaseType || '-'} />
-            <DetailField label="Status" value={<Chip size="small" label={purchase.status} />} />
-            <DetailField label="Remarks" value={purchase.remarks || '-'} />
-          </Stack>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+              <DetailField label="Purchase Type" value={purchase.purchaseType || '-'} />
+              <DetailField label="Status" value={<Chip size="small" label={purchase.status} />} />
+              <DetailField label="Remarks" value={purchase.remarks || '-'} />
+            </Stack>
 
-          <Divider />
+            <Divider />
 
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 700 }}>Item</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Variant</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }} align="right">
-                    Qty
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 700 }} align="right">
-                    Rate
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 700 }} align="right">
-                    Discount %
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 700 }} align="right">
-                    GST %
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 700 }} align="right">
-                    Amount
-                  </TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {purchase.items.map((item, index) => (
-                  <TableRow key={`${item.variantId}-${index}`}>
-                    <TableCell>{item.itemName}</TableCell>
-                    <TableCell>{`${item.size} / ${item.color}`}</TableCell>
-                    <TableCell>{item.sku}</TableCell>
-                    <TableCell align="right">{item.quantity}</TableCell>
-                    <TableCell align="right">{item.rate}</TableCell>
-                    <TableCell align="right">{item.discount}</TableCell>
-                    <TableCell align="right">{item.tax}</TableCell>
-                    <TableCell align="right">{item.amount.toFixed(2)}</TableCell>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 700 }}>Item</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Variant</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">
+                      Qty
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">
+                      Rate
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">
+                      Discount %
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">
+                      GST %
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">
+                      Amount
+                    </TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                </TableHead>
+                <TableBody>
+                  {(purchase.items || []).map((item, index) => (
+                    <TableRow key={`${item.variantId || item.productId || index}-${index}`}>
+                      <TableCell>{item.itemName || item.name || '-'}</TableCell>
+                      <TableCell>{`${item.size || '-'} / ${item.color || '-'}`}</TableCell>
+                      <TableCell>{item.sku || '-'}</TableCell>
+                      <TableCell align="right">{Number(item.quantity || 0)}</TableCell>
+                      <TableCell align="right">{Number(item.rate || item.price || 0).toFixed(2)}</TableCell>
+                      <TableCell align="right">{Number(item.discount || 0)}</TableCell>
+                      <TableCell align="right">{Number(item.tax || item.gstPercent || 0)}</TableCell>
+                      <TableCell align="right">{Number(item.amount || item.total || 0).toFixed(2)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
 
-          <Divider />
+            <Divider />
 
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="flex-end">
-            <SummaryField label="Gross" value={purchase.totals.grossAmount} />
-            <SummaryField label="Discount" value={purchase.totals.totalDiscount} />
-            <SummaryField label="Tax" value={purchase.totals.totalTax} />
-            <SummaryField label="Other" value={purchase.totals.otherCharges} />
-            <SummaryField label="Net" value={purchase.totals.netAmount} strong />
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="flex-end">
+              <SummaryField label="Gross" value={purchase.totals.grossAmount} />
+              <SummaryField label="Discount" value={purchase.totals.totalDiscount} />
+              <SummaryField label="Tax" value={purchase.totals.totalTax} />
+              <SummaryField label="Other" value={purchase.totals.otherCharges} />
+              <SummaryField label="Net" value={purchase.totals.netAmount} strong />
+            </Stack>
           </Stack>
-        </Stack>
-      </DialogContent>
-      <DialogActions sx={{ p: 2 }}>
-        <Button variant="outlined" onClick={() => setAccountEntryOpen(true)}>
-          Ledger (F2)
-        </Button>
-        <Button onClick={onClose}>Close</Button>
-      </DialogActions>
-    </Dialog>
-    <AccountEntryDialog
-      open={accountEntryOpen}
-      onClose={() => setAccountEntryOpen(false)}
-      billType="purchase"
-      bill={purchase}
-      supplierName={supplierName}
-    />
-  </>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button variant="outlined" onClick={() => setAccountEntryOpen(true)}>
+            Ledger (F2)
+          </Button>
+          <Button onClick={onClose}>Close</Button>
+        </DialogActions>
+      </Dialog>
+      <AccountEntryDialog
+        open={accountEntryOpen}
+        onClose={() => setAccountEntryOpen(false)}
+        billType="purchase"
+        bill={purchase}
+        supplierName={supplierName}
+      />
+    </>
   );
 }
 

@@ -12,7 +12,13 @@ const { PurchaseStatus, StockHistoryType } = require('../../core/enums');
 
 const createPurchase = async (purchaseData, userId) => {
     return await withTransaction(async (session) => {
-        const { supplierId, storeId, invoiceNumber, invoiceDate, items, notes } = purchaseData;
+        // Handle field name variations between frontend and backend
+        const items = purchaseData.items || purchaseData.products || [];
+        const storeId = purchaseData.storeId || purchaseData.warehouseId;
+        const invoiceNumber = (purchaseData.invoiceNumber || purchaseData.billNumber || '').trim();
+        const invoiceDate = purchaseData.invoiceDate || purchaseData.billDate;
+        const notes = purchaseData.notes || purchaseData.remarks;
+        const { supplierId } = purchaseData;
 
         // 1. Validate Supplier
         const supplier = await Supplier.findOne({ _id: supplierId, isDeleted: false, isActive: true }).session(session);
@@ -153,6 +159,8 @@ const createPurchase = async (purchaseData, userId) => {
                     createdBy: userId
                 }
             ], session);
+        } else {
+            console.error(`Missing accounting accounts for Purchase ${purchaseNumber}. Inventory: ${!!inventoryAccount}, GST: ${!!gstReceivableAccount}, Payable: ${!!payableAccount}`);
         }
 
         return purchase;

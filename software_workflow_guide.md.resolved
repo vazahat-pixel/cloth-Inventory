@@ -1,0 +1,388 @@
+# 📦 Cloth Inventory ERP — Full Workflow Guide
+
+> **Audience:** New users, admins, and store staff who want to understand how to use the complete system from start to finish.
+
+---
+
+## 🗂️ Table of Contents
+
+1. [System Overview & User Roles](#1-system-overview--user-roles)
+2. [Step 1 — Initial Setup (Settings)](#2-step-1--initial-setup-settings)
+3. [Step 2 — Master Data](#3-step-2--master-data)
+4. [Step 3 — Item / Product Management](#4-step-3--item--product-management)
+5. [Step 4 — Purchase (Stock Inward)](#5-step-4--purchase-stock-inward)
+6. [Step 5 — Dispatch (Factory → Store)](#6-step-5--dispatch-factory--store)
+7. [Step 6 — Inventory Management](#7-step-6--inventory-management)
+8. [Step 7 — Pricing & Schemes](#8-step-7--pricing--schemes)
+9. [Step 8 — Sales (POS Billing)](#9-step-8--sales-pos-billing)
+10. [Step 9 — Customer Rewards](#10-step-9--customer-rewards)
+11. [Step 10 — Returns](#11-step-10--returns)
+12. [Step 11 — Accounts & Finance](#12-step-11--accounts--finance)
+13. [Step 12 — GST](#13-step-12--gst)
+14. [Step 13 — Reports](#14-step-13--reports)
+15. [Quick Reference: Daily Workflow](#15-quick-reference-daily-workflow)
+
+---
+
+## 1. System Overview & User Roles
+
+This is a **multi-store Cloth ERP system** with two main roles:
+
+| Role | Access | Portal URL |
+|------|--------|------------|
+| **Admin** | Everything — Masters, Purchase, Dispatch, Reports, Settings | `/admin/...` |
+| **Store Staff** | Sales, Inventory view, Returns | `/staff/...` |
+
+**Login URLs:**
+- Admin: `https://your-app.vercel.app/login/admin`
+- Staff: `https://your-app.vercel.app/login/staff`
+
+---
+
+## 2. Step 1 — Initial Setup (Settings)
+
+> **Complete this before using any other module.**
+
+### 📍 Go to: Settings
+
+### 2.1 Company Profile
+- Fill in your **company name**, address, GSTIN, logo.
+- This appears on all printed invoices.
+
+### 2.2 Create Users
+- Go to **Settings → Users**.
+- Click **Add User** to create store staff accounts.
+- Assign each user a **role** (Admin/Staff) and a **store**.
+
+### 2.3 Configure Number Series
+- Go to **Settings → Number Series**.
+- Define prefix/format for: Purchase Bills, Sale Invoices, Dispatch Notes, etc.
+- Example: `INV-2026-0001`
+
+### 2.4 Set Preferences
+- Go to **Settings → Preferences**.
+- Enable/disable features: Loyalty Points, GST, Barcode printing, etc.
+
+### 2.5 Configure GST
+- Go to **GST → Tax Rates**.
+- Add GST slabs: 0%, 5%, 12%, 18%, 28%.
+- These are linked to items during product creation.
+
+---
+
+## 3. Step 2 — Master Data
+
+> **Masters are reference data. Set them up before creating items or transactions.**
+
+### 📍 Go to: Masters
+
+| Master | What it does |
+|--------|-------------|
+| **Suppliers** | Companies from which you buy cloth/products |
+| **Customers** | Retail customers (can earn loyalty points) |
+| **Stores (Warehouses)** | Your physical store locations |
+| **Categories** | Product categories (e.g., Shirts, Trousers, Sarees) |
+| **Brands** | Product brands |
+| **Salesmen** | Staff who assist in sales |
+| **Banks** | Your bank accounts (for financial entries) |
+
+### How to add a Supplier:
+1. Go to **Masters → Suppliers** → Click **Add Supplier**.
+2. Fill in: Name, Contact Person, Phone, Address, GSTIN.
+3. Click **Save**.
+
+---
+
+## 4. Step 3 — Item / Product Management
+
+> **Items = the individual products (with variants like size & color).**
+
+### 📍 Go to: Items
+
+### 4.1 Add a New Item
+1. Click **New Item**.
+2. Fill in:
+   - **Item Name** (e.g., "Men's Formal Shirt")
+   - **SKU / Barcode**
+   - **Category** (select from Masters)
+   - **Brand** (select from Masters)
+   - **GST Slab** (select %)
+   - **Sale Price / Cost Price**
+   - **Size, Color**
+3. Click **Save**.
+
+### 4.2 Barcode
+- After saving, the system generates a barcode.
+- You can **print barcodes** from Items or after a Purchase.
+
+> 💡 **Tip:** Each size-color combination is a separate product (variant) in the system.
+
+---
+
+## 5. Step 4 — Purchase (Stock Inward)
+
+> **When you receive goods from a supplier, create a Purchase Bill.**
+
+### 📍 Go to: Purchase → Purchase Bills
+
+### 5.1 Create a Purchase Bill
+1. Click **Add Purchase**.
+2. Select:
+   - **Supplier** (from Masters)
+   - **Warehouse** (which store/godown receives the stock)
+   - **Invoice Number** & **Invoice Date** (from supplier's bill)
+3. **Add Items**: Search for product variants, set quantity & rate.
+4. Optionally add **Other Charges**.
+5. Click **Save Bill**.
+
+### What happens automatically:
+- ✅ Stock increases for the selected warehouse.
+- ✅ GST is calculated per item's tax slab.
+- ✅ A Ledger entry (Accounts Payable) is created.
+- ✅ A purchase number is auto-generated (e.g., `PUR-2026-000001`).
+
+### 5.2 Print Barcodes After Purchase
+- From the Purchase Bills list, click the **🖨️ Barcode** icon.
+- Select items and quantities, then print barcode labels.
+
+### 5.3 View / Cancel Purchase
+- Click **👁️ View** to see full bill details.
+- Click **✎ Edit** to modify (if not completed).
+- To reverse: contact admin (cancel purchase reverses stock and ledger).
+
+---
+
+## 6. Step 5 — Dispatch (Factory → Store)
+
+> **Transfer stock from the central factory/godown to a store branch.**
+
+### 📍 Go to: Inventory → Transfer
+
+### 6.1 Create a Dispatch
+1. Click **New Transfer**.
+2. Select **Source Store** (factory/godown) and **Destination Store**.
+3. Search and add products with quantities.
+4. Click **Dispatch**.
+
+### What happens automatically:
+- ✅ Stock decreases from source store.
+- ✅ Stock increases at destination store.
+- ✅ A Dispatch Note is created (with date and number).
+
+---
+
+## 7. Step 6 — Inventory Management
+
+### 📍 Go to: Inventory
+
+| Feature | Description |
+|---------|-------------|
+| **Stock Overview** | View current stock levels across all stores |
+| **Stock Transfer** | Move stock between stores |
+| **Stock Adjustment** | Correct stock manually (for count differences) |
+| **Stock Audit** | Run an audit and reconcile stock |
+| **Movement History** | View all stock in/out movements for any product |
+
+### How to check stock:
+1. Go to **Inventory → Stock Overview**.
+2. Filter by **Store** or **Category**.
+3. Items with low stock are highlighted in red.
+
+---
+
+## 8. Step 7 — Pricing & Schemes
+
+### 📍 Go to: Pricing
+
+#### 8.1 Price Lists
+- Create custom **price lists** for specific stores or periods.
+- Useful when one store has different pricing than others.
+- Go to **Pricing → Price Lists** → **New Price List**.
+- Add item-specific prices and assign the list to a store.
+
+#### 8.2 Discount Schemes
+- Go to **Pricing → Schemes** → **New Scheme**.
+- Types of schemes:
+  - **Flat discount** (e.g., 10% off all items)
+  - **Buy X Get Y** (e.g., Buy 2 get 1 free)
+  - **Amount threshold** (e.g., 15% off on bills above ₹2,000)
+- Set **validity dates** and assign to specific stores.
+
+#### 8.3 Coupons
+- Go to **Pricing → Coupons**.
+- Create coupon codes customers can use at billing.
+- Set discount amount/%, usage limit, and expiry.
+
+---
+
+## 9. Step 8 — Sales (POS Billing)
+
+> **Core daily activity — creating invoices when a customer buys products.**
+
+### 📍 Go to: Sales → New Sale
+
+### 9.1 Create a Sale Invoice
+1. Click **New Sale**.
+2. **Select Store** (the billing store).
+3. **Search Customer** (or leave as Walk-in Customer).
+4. **Add Items**: Scan barcode or search by name/SKU.
+   - Each item shows price, quantity, and applied price.
+5. **Apply Discounts**:
+   - Select an active **Scheme** (auto-applied if eligible).
+   - Enter a **Coupon Code**.
+   - Redeem **Loyalty Points** (if customer has points).
+6. Select **Payment Mode**: Cash / Card / UPI.
+7. Click **Complete Sale**.
+
+### What happens automatically:
+- ✅ Store inventory decreases for sold items.
+- ✅ Invoice is generated with a sale number.
+- ✅ Customer earns loyalty points (if configured).
+- ✅ Ledger entry is posted (Sales + Cash/Bank).
+- ✅ GST is calculated on the sale.
+
+### 9.2 View Sales History
+- Go to **Sales → Sales Invoices**.
+- Filter by date, customer, or payment status.
+- Click **👁️ View** to see full invoice details.
+
+---
+
+## 10. Step 9 — Customer Rewards
+
+### 📍 Go to: Customer Rewards
+
+#### 10.1 Loyalty Points
+- Go to **Customer Rewards → Loyalty Config**.
+- Set how many points a customer earns per ₹ spent.
+- Set how much 1 point is worth in discount (e.g., 100 points = ₹10 off).
+- Points are earned automatically on every sale.
+- Points are redeemed at the time of billing.
+
+#### 10.2 Customer View
+- Go to **Customer Rewards → Rewards**.
+- Search a customer to view their full **loyalty transaction history**.
+- See total earned, redeemed, and balance points.
+
+#### 10.3 Gift Vouchers
+- Go to **Customer Rewards → Gift Vouchers**.
+- Click **Issue Voucher** to create a voucher with a fixed value.
+- The customer can redeem it on a future purchase.
+
+#### 10.4 Credit Notes
+- Issued when a customer returns goods and wants store credit instead of a refund.
+- Applied to their next purchase automatically.
+- View at **Customer Rewards → Credit Notes**.
+
+---
+
+## 11. Step 10 — Returns
+
+### 📍 Returns are handled from the Purchase and Sales sections
+
+#### 11.1 Purchase Return (Supplier Return)
+1. Go to **Purchase → Purchase Bills**.
+2. Click the **↩ Return** icon on the relevant bill.
+3. Select items and quantities to return.
+4. Click **Submit Return**.
+5. Stock decreases, and payable is reduced.
+
+#### 11.2 Sales Return (Customer Return)
+1. Go to **Sales → Sales Invoices**.
+2. Click the **↩ Return** icon on the relevant invoice.
+3. Select items and quantities being returned.
+4. Choose if refund goes as **cash** or **credit note**.
+5. Click **Submit Return**.
+6. Stock increases back into the store.
+
+---
+
+## 12. Step 11 — Accounts & Finance
+
+### 📍 Go to: Accounts (Sidebar under Reports/Settings)
+
+| Feature | Description |
+|---------|-------------|
+| **Overview** | View all account balances |
+| **Bank Payment** | Record a payment made from bank |
+| **Bank Receipt** | Record a payment received into bank |
+| **Ledger** | View full debit/credit history for any account |
+
+> **Note:** Most entries are created automatically from Purchase, Sales, and Returns. Manual entries are for bank transfers, expenses, etc.
+
+---
+
+## 13. Step 12 — GST
+
+### 📍 Go to: GST
+
+| Feature | Description |
+|---------|-------------|
+| **Tax Rates** | Manage GST slabs (0%, 5%, 12%, 18%, 28%) |
+| **Invoice Tax Report** | View tax collected on all sales invoices |
+| **GSTR Summary** | Monthly GST summary for filing returns |
+
+### GST Workflow:
+1. ✅ Create GST slabs in **GST → Tax Rates**.
+2. ✅ Assign slabs to products when creating items.
+3. ✅ System auto-calculates CGST/SGST/IGST on each sale.
+4. ✅ View summary in **GST → GSTR Summary** for filing.
+
+---
+
+## 14. Step 13 — Reports
+
+### 📍 Go to: Reports
+
+| Report | What it shows |
+|--------|--------------|
+| **Sales Report** | All sales with filters by date, store, product, salesman |
+| **Purchase Report** | All purchases with supplier and item breakdown |
+| **Stock Report** | Current stock across all stores with value |
+| **Ledger Report** | Account-wise transaction history |
+| **Profit Analysis** | Revenue vs Cost, gross margin per product |
+| **Collection Report** | Daily/weekly cash and bank collections |
+| **Customer Report** | Customer-wise purchase history and loyalty stats |
+| **Vendor Report** | Supplier-wise purchase history |
+| **Movement Report** | Product stock movement in/out over time |
+| **Age Analysis** | How long stock has been sitting (identify dead stock) |
+| **Bank Book** | Bank account transaction register |
+
+### Exporting Reports:
+- Each report has an **Export** button (📥).
+- Reports can be exported as **Excel/CSV**.
+
+---
+
+## 15. Quick Reference: Daily Workflow
+
+```
+MORNING
+  ✅ Login as Admin/Staff
+  ✅ Check Stock Overview (Inventory)
+  ✅ Check low-stock alerts
+
+DURING THE DAY
+  ✅ Create Sales (POS Billing)
+  ✅ Apply coupons/schemes at billing
+  ✅ Handle returns (if any)
+
+WHEN STOCK ARRIVES
+  ✅ Create Purchase Bill (with supplier invoice)
+  ✅ Print barcodes for new stock
+  ✅ Transfer stock to stores via Dispatch
+
+END OF DAY
+  ✅ View Collection Report (daily cash)
+  ✅ Verify Sales Report totals
+  ✅ Check Accounts for any pending entries
+
+MONTHLY
+  ✅ Generate GSTR Summary for GST filing
+  ✅ Review Profit Analysis Report
+  ✅ Run Stock Audit for accuracy
+```
+
+---
+
+> 📞 **Need Help?** Contact your system admin or refer to the detailed module sections above.

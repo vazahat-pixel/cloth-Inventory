@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useSelector } from 'react-redux';
+import { useEffect, useMemo, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
   InputAdornment,
@@ -19,6 +19,8 @@ import SearchIcon from '@mui/icons-material/Search';
 import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
 import { SummaryChip } from './SalesReportPage';
+import { fetchPurchases } from '../purchase/purchaseSlice';
+import { fetchStockOverview } from '../inventory/inventorySlice';
 
 const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
@@ -31,9 +33,15 @@ const AGE_BUCKETS = [
 ];
 
 function AgeAnalysisPage() {
+  const dispatch = useDispatch();
   const purchases = useSelector((state) => state.purchase?.records || []);
   const stock = useSelector((state) => state.inventory?.stock || []);
   const items = useSelector((state) => state.items?.records || []);
+
+  useEffect(() => {
+    dispatch(fetchPurchases());
+    dispatch(fetchStockOverview());
+  }, [dispatch]);
 
   const [filters, setFilters] = useState({});
   const [searchText, setSearchText] = useState('');

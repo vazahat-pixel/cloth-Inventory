@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useSelector } from 'react-redux';
+import { useEffect, useMemo, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
   Paper,
@@ -16,12 +16,18 @@ import {
 import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
 import { SummaryChip } from './SalesReportPage';
+import { fetchSales } from '../sales/salesSlice';
 
 const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 function ProfitReportPage() {
+  const dispatch = useDispatch();
   const sales = useSelector((state) => state.sales?.records || []);
   const items = useSelector((state) => state.items?.records || []);
+
+  useEffect(() => {
+    dispatch(fetchSales());
+  }, [dispatch]);
 
   const [filters, setFilters] = useState({});
   const [page, setPage] = useState(0);
@@ -90,7 +96,7 @@ function ProfitReportPage() {
     filteredRows.forEach((r) => {
       totalQty += r.quantity;
       totalRevenue += r.revenue;
-      totalCost += r.cost;
+      totalCost += r.quantity * r.costPrice;
       totalProfit += r.profit;
     });
     const profitPct = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;

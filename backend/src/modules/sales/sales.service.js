@@ -66,10 +66,10 @@ const getProductForSale = async (barcode, storeId) => {
  * Create a new Sale
  */
 const createSale = async (saleData, cashierId) => {
-    return await withTransaction(async (session) => {
+    const result = await withTransaction(async (session) => {
+        const storeId = saleData.storeId || saleData.warehouseId;
+        const products = saleData.products || saleData.items || [];
         const {
-            storeId,
-            products,
             subTotal,
             discount,
             tax,
@@ -91,23 +91,24 @@ const createSale = async (saleData, cashierId) => {
         let calculatedSubTotal = 0;
 
         for (const item of products) {
+            const productId = item.productId || item.variantId;
             const inventory = await StoreInventory.findOne({
                 storeId,
-                productId: item.productId
+                productId
             }).session(session);
 
             if (!inventory || inventory.quantityAvailable < item.quantity) {
-                const pName = await Product.findById(item.productId).session(session);
+                const pName = await Product.findById(productId).session(session);
                 throw new Error(`Insufficient stock for ${pName ? pName.name : 'product'}`);
             }
 
-            const product = await Product.findById(item.productId).session(session);
+            const product = await Product.findById(productId).session(session);
             if (!product) throw new Error('Product not found');
 
             // --- PRICING ENGINE INJECTION ---
             const storePriceRule = await StorePricing.findOne({
                 storeId,
-                productId: item.productId,
+                productId,
                 isActive: true
             }).session(session);
 
@@ -140,7 +141,7 @@ const createSale = async (saleData, cashierId) => {
 
             // Reduce stock
             await adjustStoreStock({
-                productId: item.productId,
+                productId,
                 storeId,
                 quantityChange: -item.quantity,
                 type: StockHistoryType.SALE,
@@ -258,8 +259,6 @@ const createSale = async (saleData, cashierId) => {
             }
         }
 
-        // Update referenceId in stock history (simplified for now as withTransaction ensures consistency)
-
         // 4. Audit Log
         await createAuditLog({
             performedBy: cashierId,
@@ -369,24 +368,28 @@ const createSale = async (saleData, cashierId) => {
             }
 
             await ledgerService.createJournalEntries(entries, session);
+        } else {
+            console.error(`Missing accounting accounts for Sale ${sale.saleNumber}. Sales Account: ${!!salesAccount}, Receivable: ${!!receivableAccount}`);
         }
 
         return sale;
     });
 
     // 5. Real-time update (OUTSIDE transaction - only if commit succeeds)
-    try {
-        getIO().emit('new-sale', {
-            saleNumber: sale.saleNumber,
-            storeId: sale.storeId,
-            grandTotal: sale.grandTotal,
-            timestamp: sale.saleDate
-        });
-    } catch (err) {
-        console.error('Socket emit failed:', err.message);
+    if (result) {
+        try {
+            getIO().emit('new-sale', {
+                saleNumber: result.saleNumber,
+                storeId: result.storeId,
+                grandTotal: result.grandTotal,
+                timestamp: result.saleDate
+            });
+        } catch (err) {
+            console.error('Socket emit failed:', err.message);
+        }
     }
 
-    return sale;
+    return result;
 };
 
 /**

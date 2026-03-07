@@ -39,7 +39,20 @@ export const addPurchase = createAsyncThunk('purchase/add', async (purchaseData,
 
 export const updatePurchase = createAsyncThunk('purchase/update', async ({ id, purchaseData }, { rejectWithValue }) => {
   try {
-    const response = await api.patch(`/purchase/${id}`, purchaseData);
+    // Map fields for backend consistency (same as addPurchase)
+    const payload = {
+      supplierId: purchaseData.supplierId,
+      storeId: purchaseData.storeId || purchaseData.warehouseId,
+      invoiceNumber: purchaseData.invoiceNumber || purchaseData.billNumber,
+      invoiceDate: purchaseData.invoiceDate || purchaseData.billDate,
+      notes: purchaseData.notes || purchaseData.remarks,
+      products: (purchaseData.products || purchaseData.items || []).map(p => ({
+        productId: p.productId || p.id || p.variantId,
+        quantity: p.quantity,
+        rate: p.rate || p.price
+      }))
+    };
+    const response = await api.patch(`/purchase/${id}`, payload);
     const raw = response.data.purchase || response.data.data;
     return normalizeResponse(raw, 'purchase');
   } catch (error) {

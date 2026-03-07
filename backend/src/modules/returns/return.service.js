@@ -1,5 +1,6 @@
 const Return = require('../../models/return.model');
 const Sale = require('../../models/sale.model');
+const Product = require('../../models/product.model');
 const StoreInventory = require('../../models/storeInventory.model');
 const { ReturnType, StockHistoryType, CreditNoteStatus } = require('../../core/enums');
 const { withTransaction } = require('../../services/transaction.service');
@@ -42,7 +43,9 @@ const generateCreditNoteNumber = async (session = null) => {
  */
 const processReturn = async (returnData, userId) => {
     return await withTransaction(async (session) => {
-        const { type, storeId, productId, quantity, referenceSaleId } = returnData;
+        const { type, referenceSaleId, quantity, notes } = returnData;
+        const productId = returnData.productId || returnData.variantId;
+        const storeId = returnData.storeId || returnData.warehouseId;
 
         // 1. Logic for Customer Return
         if (type === ReturnType.CUSTOMER_RETURN) {

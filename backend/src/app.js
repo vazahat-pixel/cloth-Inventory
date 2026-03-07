@@ -30,7 +30,8 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
         'http://127.0.0.1:5173',
         'http://127.0.0.1:5174',
         'http://127.0.0.1:5175',
-        'http://localhost:3000'
+        'http://localhost:3000',
+        'https://cloth-inventory-theta.vercel.app'
     ];
 
 app.use(cors({
@@ -50,13 +51,16 @@ app.use(cors({
     },
     credentials: true,
 }));
-
 // ── Body Parsers ──────────────────────────────────────────────────
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // ── Health Check ──────────────────────────────────────────────────
+app.get('/', (req, res) => {
+    res.json({ success: true, message: 'Cloth Inventory API is live!', documentation: '/api/health' });
+}); 
+
 app.get('/api/health', (req, res) => {
     res.json({ success: true, status: 'OK', message: 'Cloth Inventory API is running', timestamp: new Date() });
 });

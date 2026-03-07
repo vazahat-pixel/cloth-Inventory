@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+ const mongoose = require('mongoose');
 const { PurchaseStatus } = require('../core/enums');
 
 const purchaseSchema = new mongoose.Schema(

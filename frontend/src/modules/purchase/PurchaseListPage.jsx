@@ -287,18 +287,21 @@ function PurchaseListPage() {
         open={Boolean(barcodePrintPurchase)}
         onClose={() => setBarcodePrintPurchase(null)}
         purchase={barcodePrintPurchase}
-        lines={(barcodePrintPurchase?.products || []).map((item) => {
+        lines={(barcodePrintPurchase?.items || barcodePrintPurchase?.products || []).map((item) => {
+          // Support both raw (productId is an object) and normalized item structures
           const prod = item.productId && typeof item.productId === 'object' ? item.productId : {};
           return {
-            sku: prod.sku || item.productId,
-            itemName: prod.name || '',
-            size: prod.size || '',
-            color: prod.color || '',
-            category: prod.category || '',
-            mrp: prod.salePrice || item.rate || '',
+            sku: item.sku || prod.sku || '',
+            itemName: item.itemName || item.name || prod.name || '',
+            size: item.size || prod.size || '',
+            color: item.color || item.colour || prod.color || '',
+            category: item.category || item.group || prod.category || '',
+            type: item.type || prod.type || 'REGULAR PLAIN',
+            design: item.design || item.itemName || prod.name || '',
+            mrp: item.mrp || prod.salePrice || prod.sellingPrice || item.rate || '',
             quantity: item.quantity || 1,
             rate: item.rate || 0,
-            variantId: prod._id || item.productId,
+            variantId: item.variantId || prod._id || item.productId || '',
           };
         })}
         warehouseMap={warehouseMap}

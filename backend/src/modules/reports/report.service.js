@@ -467,16 +467,16 @@ const getGstSummary = async (startDate, endDate) => {
 
     if (startDate || endDate) {
         saleQuery.saleDate = {};
-        purchaseQuery.billDate = {};
+        purchaseQuery.invoiceDate = {};
         if (startDate) {
             saleQuery.saleDate.$gte = new Date(startDate);
-            purchaseQuery.billDate.$gte = new Date(startDate);
+            purchaseQuery.invoiceDate.$gte = new Date(startDate);
         }
         if (endDate) {
             const end = new Date(endDate);
             end.setHours(23, 59, 59, 999);
             saleQuery.saleDate.$lte = end;
-            purchaseQuery.billDate.$lte = end;
+            purchaseQuery.invoiceDate.$lte = end;
         }
     }
 

@@ -24,7 +24,8 @@ const generateDispatchNumber = async (session = null) => {
  */
 const createDispatch = async (dispatchData, userId) => {
     return await withTransaction(async (session) => {
-        const { storeId, products } = dispatchData;
+        const storeId = dispatchData.storeId || dispatchData.warehouseId;
+        const products = dispatchData.products || dispatchData.items || [];
 
         // 1. Validate Store
         const store = await Store.findOne({ _id: storeId, isDeleted: false }).session(session);
@@ -33,6 +34,7 @@ const createDispatch = async (dispatchData, userId) => {
 
         // 2. Validate Products and Factory Stock
         for (const item of products) {
+            item.productId = item.productId || item.variantId;
             const product = await Product.findOne({ _id: item.productId, isDeleted: false }).session(session);
             if (!product) throw new Error(`Product ${item.productId} not found`);
             if (!product.isActive) throw new Error(`Product ${product.sku} is inactive`);

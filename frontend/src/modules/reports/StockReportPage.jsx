@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useSelector } from 'react-redux';
+import { useEffect, useMemo, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
   Button,
@@ -22,15 +22,27 @@ import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
 import { SummaryChip } from './SalesReportPage';
 import { LOW_STOCK_THRESHOLD } from './data';
+import { fetchStockOverview } from '../inventory/inventorySlice';
+import { fetchSales } from '../sales/salesSlice';
+import { fetchPurchases } from '../purchase/purchaseSlice';
 
 const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 function StockReportPage() {
+  const dispatch = useDispatch();
   const stock = useSelector((state) => state.inventory?.stock || []);
   const warehouses = useSelector((state) => state.masters?.warehouses || []);
   const items = useSelector((state) => state.items?.records || []);
   const brands = useSelector((state) => state.masters?.brands || []);
   const itemGroups = useSelector((state) => state.masters?.itemGroups || []);
+  const purchases = useSelector((state) => state.purchase?.records || []);
+  const sales = useSelector((state) => state.sales?.records || []);
+
+  useEffect(() => {
+    dispatch(fetchStockOverview());
+    dispatch(fetchSales());
+    dispatch(fetchPurchases());
+  }, [dispatch]);
 
   const [filters, setFilters] = useState({});
   const [searchText, setSearchText] = useState('');
@@ -53,26 +65,51 @@ function StockReportPage() {
     [warehouses],
   );
 
+  // Calculate purchased and sold quantities per product from actual data
+  const productMovements = useMemo(() => {
+    const movements = {};
+    // Purchased: sum from purchase records
+    purchases.forEach((p) => {
+      (p.items || []).forEach((line) => {
+        const pid = line.productId || line.variantId;
+        if (!pid) return;
+        if (!movements[pid]) movements[pid] = { purchased: 0, sold: 0 };
+        movements[pid].purchased += toNum(line.quantity);
+      });
+    });
+    // Sold: sum from sales records
+    sales.forEach((s) => {
+      (s.items || []).forEach((line) => {
+        const pid = line.productId || line.variantId;
+        if (!pid) return;
+        if (!movements[pid]) movements[pid] = { purchased: 0, sold: 0 };
+        movements[pid].sold += toNum(line.quantity);
+      });
+    });
+    return movements;
+  }, [purchases, sales]);
+
   const stockRows = useMemo(() => {
     return stock.map((s) => {
       const prices = variantPriceMap[s.variantId] || {};
       const closingStock = toNum(s.quantity);
       const value = closingStock * (prices.cost || prices.selling || 0);
-      const openingStock = closingStock + Math.floor(Math.random() * 10);
-      const purchased = Math.floor(Math.random() * 20);
-      const sold = openingStock + purchased - closingStock;
+      const pid = s.variantId || s.productId;
+      const mov = productMovements[pid] || { purchased: 0, sold: 0 };
+      // Opening = closing + sold - purchased (rearranged: opening + purchased - sold = closing)
+      const openingStock = Math.max(0, closingStock + mov.sold - mov.purchased);
       return {
         ...s,
         warehouseName: warehouseMap[s.warehouseId],
-        openingStock: Math.max(0, openingStock),
-        purchased,
-        sold: Math.max(0, sold),
+        openingStock,
+        purchased: mov.purchased,
+        sold: mov.sold,
         closingStock,
         value,
         isLowStock: closingStock <= LOW_STOCK_THRESHOLD,
       };
     });
-  }, [stock, variantPriceMap, warehouseMap]);
+  }, [stock, variantPriceMap, warehouseMap, productMovements]);
 
   const filteredRows = useMemo(() => {
     const query = searchText.trim().toLowerCase();

@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useSelector } from 'react-redux';
+import { useEffect, useMemo, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
   Paper,
@@ -15,13 +15,21 @@ import {
 import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
 import { SummaryChip } from './SalesReportPage';
+import { fetchBankReceipts } from '../accounts/accountsSlice';
+import { fetchSales } from '../sales/salesSlice';
 
 const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 function CollectionReportPage() {
+  const dispatch = useDispatch();
   const sales = useSelector((state) => state.sales?.records || []);
   const bankReceipts = useSelector((state) => state.accounts?.bankReceipts || []);
   const customers = useSelector((state) => state.masters?.customers || []);
+
+  useEffect(() => {
+    dispatch(fetchSales());
+    dispatch(fetchBankReceipts());
+  }, [dispatch]);
 
   const [filters, setFilters] = useState({});
 

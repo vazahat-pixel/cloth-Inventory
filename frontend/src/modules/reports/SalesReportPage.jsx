@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useSelector } from 'react-redux';
+import { useEffect, useMemo, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
   Button,
@@ -20,15 +20,21 @@ import {
 import SearchIcon from '@mui/icons-material/Search';
 import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
+import { fetchSales } from '../sales/salesSlice';
 
 const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 function SalesReportPage() {
+  const dispatch = useDispatch();
   const sales = useSelector((state) => state.sales?.records || []);
   const salesReturns = useSelector((state) => state.sales?.returns || []);
   const warehouses = useSelector((state) => state.masters?.warehouses || []);
   const itemGroups = useSelector((state) => state.masters?.itemGroups || []);
   const items = useSelector((state) => state.items?.records || []);
+
+  useEffect(() => {
+    dispatch(fetchSales());
+  }, [dispatch]);
   const warehouseMap = useMemo(
     () => warehouses.reduce((acc, w) => ({ ...acc, [w.id]: w.name }), {}),
     [warehouses],

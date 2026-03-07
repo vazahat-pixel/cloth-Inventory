@@ -4,10 +4,8 @@ import { useParams } from 'react-router-dom';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import {
   Alert,
-  Autocomplete,
   Box,
   Button,
-  MenuItem,
   Paper,
   Stack,
   Table,
@@ -18,19 +16,27 @@ import {
   TableRow,
   TextField,
   Typography,
+  Grid,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  FormControl,
+  FormLabel,
+  RadioGroup,
+  FormControlLabel,
+  Radio,
+  MenuItem,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
+import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
 import { useForm } from 'react-hook-form';
-import { addSalesReturn, addSale } from './salesSlice';
-import { applySalesReturnReceipt, applySaleDispatch } from '../inventory/inventorySlice';
-import { addCreditNote } from '../customers/customersSlice';
+import { addSalesReturn } from './salesSlice';
+import ReturnSummaryCard from '../../components/ReturnSummaryCard';
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
-
-const getReturnNumber = () => `SRET-${Date.now().toString().slice(-6)}`;
 
 function SalesReturnPage() {
   const { id } = useParams();
@@ -67,65 +73,19 @@ function SalesReturnPage() {
 
   const [lines, setLines] = useState([]);
   const [returnType, setReturnType] = useState('refund');
-  const [exchangeLines, setExchangeLines] = useState([]);
-  const [exchangePickerValue, setExchangePickerValue] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const stockRows = useSelector((state) => state.inventory.stock);
-  const itemsData = useSelector((state) => state.items.records);
-  const purchaseConfig = useSelector((state) => state.settings.purchaseVoucherConfig) || {};
-
-  const getTaxBySlab = (rate) => {
-    const th = Number(purchaseConfig.gstSlabThreshold) || 1000;
-    const below = Number(purchaseConfig.belowThresholdTax) ?? 5;
-    const above = Number(purchaseConfig.aboveThresholdTax) ?? 12;
-    return Number(rate) < th ? below : above;
-  };
-
-  const warehouseStock = useMemo(
-    () => (stockRows || []).filter((r) => r.warehouseId === sale?.warehouseId),
-    [stockRows, sale?.warehouseId],
-  );
-
-  const exchangeOptions = useMemo(() => {
-    const pickedIds = new Set(exchangeLines.map((l) => l.variantId));
-    const variantMap = {};
-    (itemsData || []).forEach((it) => {
-      it.variants?.forEach((v) => {
-        variantMap[v.id] = { ...v, itemName: it.name, styleCode: it.code };
-      });
-    });
-    return warehouseStock
-      .filter((s) => {
-        const avail = Number(s.quantity) - Number(s.reserved || 0);
-        return avail > 0 && !pickedIds.has(s.variantId);
-      })
-      .map((s) => {
-        const v = variantMap[s.variantId];
-        const avail = Number(s.quantity) - Number(s.reserved || 0);
-        const rate = Number(v?.sellingPrice ?? v?.mrp ?? 0);
-        const tax = purchaseConfig?.gstSlabEnabled ? getTaxBySlab(rate) : 5;
-        return {
-          variantId: s.variantId,
-          itemName: s.itemName || v?.itemName || '',
-          styleCode: s.styleCode || v?.styleCode || '',
-          size: s.size,
-          color: s.color,
-          sku: s.sku,
-          available: avail,
-          rate,
-          tax,
-        };
-      });
-  }, [warehouseStock, exchangeLines, itemsData, purchaseConfig]);
-
-  const { register, handleSubmit, reset } = useForm({
+  const { register, handleSubmit, reset, watch } = useForm({
     defaultValues: {
       returnDate: getTodayDate(),
       reason: '',
     },
   });
+
+  const formValues = watch();
 
   useEffect(() => {
     if (!sale) {
@@ -154,35 +114,21 @@ function SalesReturnPage() {
       lines.reduce(
         (accumulator, line) => {
           const qty = Number(line.returnQty || 0);
+          const rate = Number(line.rate || 0);
+          const amt = qty * rate;
+          const taxVal = Number(line.tax || 5);
+          const gst = amt * (taxVal / 100);
+
           accumulator.totalQuantity += qty;
-          accumulator.refundAmount += qty * Number(line.rate || 0);
+          accumulator.refundAmount += amt;
+          accumulator.gstReversal += gst;
+          accumulator.totalReturn += (amt + gst);
           return accumulator;
         },
-        { totalQuantity: 0, refundAmount: 0 },
+        { totalQuantity: 0, refundAmount: 0, gstReversal: 0, totalReturn: 0 },
       ),
     [lines],
   );
-
-  const exchangeTotals = useMemo(() => {
-    let gross = 0;
-    let taxTotal = 0;
-    exchangeLines.forEach((l) => {
-      const qty = Number(l.quantity);
-      const rate = Number(l.rate);
-      const disc = Number(l.discount) || 0;
-      const tax = Number(l.tax) || 5;
-      const g = qty * rate;
-      const taxable = g * (1 - disc / 100);
-      gross += g;
-      taxTotal += taxable * (tax / 100);
-    });
-    const netExchange = gross + taxTotal;
-    return { gross, taxTotal, netExchange };
-  }, [exchangeLines]);
-
-  const exchangeBalance = useMemo(() => {
-    return exchangeTotals.netExchange - totals.refundAmount;
-  }, [exchangeTotals.netExchange, totals.refundAmount]);
 
   const updateReturnQty = (lineId, value) => {
     setLines((previous) =>
@@ -200,9 +146,8 @@ function SalesReturnPage() {
     );
   };
 
-  const onSubmit = (values) => {
+  const handleOpenConfirm = () => {
     setErrorMessage('');
-    setSuccessMessage('');
 
     if (!sale) {
       setErrorMessage('Sales invoice not found.');
@@ -219,15 +164,19 @@ function SalesReturnPage() {
       (line) => Number(line.returnQty) > Number(line.remainingQty),
     );
     if (invalidLine) {
-      setErrorMessage(`Return quantity exceeds sold quantity for ${invalidLine.sku}.`);
+      setErrorMessage(`Return quantity exceeds sold quantity for ${invalidLine.sku || invalidLine.itemName}.`);
       return;
     }
 
-    if (returnType === 'exchange' && exchangeLines.length === 0) {
-      setErrorMessage('Add at least one exchange item for exchange return.');
-      return;
-    }
+    setConfirmOpen(true);
+  };
 
+  const onSubmit = () => {
+    setConfirmOpen(false);
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    const selectedLines = lines.filter((line) => Number(line.returnQty) > 0);
     const returnPromises = selectedLines.map((line) => {
       const itemPayload = {
         type: 'CUSTOMER_RETURN',
@@ -235,7 +184,8 @@ function SalesReturnPage() {
         productId: line.productId || line.variantId,
         quantity: Number(line.returnQty),
         referenceSaleId: sale.id,
-        reason: values.reason,
+        reason: formValues.reason,
+        paymentMode: returnType === 'refund' ? paymentMethod : 'CREDIT_NOTE',
       };
       return dispatch(addSalesReturn(itemPayload)).unwrap();
     });
@@ -243,160 +193,17 @@ function SalesReturnPage() {
     Promise.all(returnPromises)
       .then(() => {
         setSuccessMessage('Sales return processed successfully.');
-
-        // Handle Credit Note logic locally if needed, though backend already creates one per item return.
-        // If the frontend also dispatches addCreditNote, it might double it.
-        // Looking at backend return.service.js, it ALREADY creates a Credit Note.
-        // So we should NOT call addCreditNote from frontend here if we want to avoid duplicates.
-
         reset({ returnDate: getTodayDate(), reason: '' });
-        setExchangeLines([]);
-        navigate('/sales');
+        setTimeout(() => navigate('/sales'), 1500);
       })
       .catch((err) => {
         setErrorMessage(err || 'Failed to process return');
       });
-
-    // Exchange logic is complex and might hit different endpoints. 
-    // Usually, exchange is a Return + a New Sale.
-    if (returnType === 'exchange' && exchangeLines.length > 0) {
-      // For exchange, we'd need to handle the new sale creation after the return is successful.
-      // This is left for further refinement if the user reports issues with exchange.
-    }
-
-    return; // Stop here as we handle navigate in the promise
-
-    if (returnType === 'credit_note') {
-      dispatch(
-        addCreditNote({
-          customerId: sale.customerId,
-          amount: payload.totals.refundAmount,
-          issueDate: values.returnDate,
-          reason: `Return credit - ${returnNumber} (${payload.returnNumber})`,
-          status: 'Available',
-        }),
-      );
-    }
-
-    if (returnType === 'exchange' && exchangeLines.length > 0) {
-      const invoiceNumber = `INV-EX-${Date.now().toString().slice(-6)}`;
-      const exchangeItems = exchangeLines.map((l) => {
-        const qty = Number(l.quantity);
-        const rate = Number(l.rate);
-        const disc = Number(l.discount) || 0;
-        const tax = Number(l.tax) || 5;
-        const g = qty * rate;
-        const taxable = g * (1 - disc / 100);
-        const amt = taxable * (1 + tax / 100);
-        return {
-          variantId: l.variantId,
-          itemName: l.itemName,
-          styleCode: l.styleCode,
-          size: l.size,
-          color: l.color,
-          sku: l.sku,
-          quantity: qty,
-          rate,
-          discount: disc,
-          tax,
-          amount: amt,
-        };
-      });
-      const exchangeNet = Math.max(exchangeBalance, 0);
-      const exchangePayload = {
-        invoiceNumber,
-        date: values.returnDate,
-        warehouseId: sale.warehouseId,
-        customerId: sale.customerId,
-        customerName,
-        items: exchangeItems,
-        totals: {
-          grossAmount: exchangeTotals.gross,
-          lineDiscount: 0,
-          billDiscount: totals.refundAmount,
-          taxAmount: exchangeTotals.taxTotal,
-          netPayable: exchangeNet,
-        },
-        payment: {
-          mode: exchangeNet > 0 ? 'Cash' : 'Exchange',
-          amountPaid: exchangeNet,
-          changeReturned: 0,
-          dueAmount: 0,
-          status: exchangeNet > 0 ? 'Paid' : 'Paid',
-        },
-        exchangeReturnRef: payload.returnNumber,
-        status: 'Completed',
-      };
-      dispatch(addSale(exchangePayload));
-      dispatch(
-        applySaleDispatch({
-          date: values.returnDate,
-          warehouseId: sale.warehouseId,
-          reference: invoiceNumber,
-          items: exchangeItems,
-          user: 'Admin',
-        }),
-      );
-      if (exchangeBalance < 0) {
-        dispatch(
-          addCreditNote({
-            customerId: sale.customerId,
-            amount: Math.abs(exchangeBalance),
-            issueDate: values.returnDate,
-            reason: `Exchange credit - ${invoiceNumber}`,
-            status: 'Available',
-          }),
-        );
-      }
-    }
-
-    setSuccessMessage('Sales return saved successfully.');
-    reset({ returnDate: getTodayDate(), reason: '' });
-    setExchangeLines([]);
-    navigate('/sales');
-  };
-
-  const addExchangeLine = () => {
-    if (!exchangePickerValue) return;
-    const opt = exchangePickerValue;
-    const line = {
-      id: `${opt.variantId}-${Date.now()}`,
-      variantId: opt.variantId,
-      itemName: opt.itemName,
-      styleCode: opt.styleCode,
-      size: opt.size,
-      color: opt.color,
-      sku: opt.sku,
-      quantity: 1,
-      rate: opt.rate,
-      discount: 0,
-      tax: opt.tax,
-      available: opt.available,
-    };
-    setExchangeLines((prev) => [...prev, line]);
-    setExchangePickerValue(null);
-  };
-
-  const updateExchangeLine = (lineId, field, value) => {
-    setExchangeLines((prev) =>
-      prev.map((l) => {
-        if (l.id !== lineId) return l;
-        const next = { ...l, [field]: value };
-        if (field === 'quantity') {
-          next.quantity = Math.min(Math.max(1, Number(value)), l.available);
-        }
-        return next;
-      }),
-    );
-  };
-
-  const removeExchangeLine = (lineId) => {
-    setExchangeLines((prev) => prev.filter((l) => l.id !== lineId));
   };
 
   if (!sale) {
     return (
-      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3 }}>
+      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3, bgcolor: '#ffffff' }}>
         <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a', mb: 1 }}>
           Sales invoice not found
         </Typography>
@@ -408,163 +215,225 @@ function SalesReturnPage() {
   }
 
   return (
-    <Box component="form" onSubmit={handleSubmit(onSubmit)}>
-      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3, mb: 2 }}>
-        <Stack
-          direction={{ xs: 'column', md: 'row' }}
-          spacing={2}
-          sx={{ justifyContent: 'space-between', alignItems: { md: 'center' } }}
-        >
-          <Box>
-            <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
-              Sales Return
-            </Typography>
-            <Typography variant="body2" sx={{ color: '#64748b' }}>
-              Return sold variants and restock inventory.
-            </Typography>
-          </Box>
+    <Box sx={{ p: { xs: 2, md: 3 }, bgcolor: '#f8fafc', minHeight: '100vh' }}>
+      <Stack
+        direction={{ xs: 'column', md: 'row' }}
+        spacing={2}
+        sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, mb: 3 }}
+      >
+        <Box>
+          <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
+            Customer Return
+          </Typography>
+          <Typography variant="body2" sx={{ color: '#64748b' }}>
+            Process customer refunds and reverse sold items back to inventory.
+          </Typography>
+        </Box>
 
-          <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate('/sales')}>
-            Back
-          </Button>
-        </Stack>
-
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mt: 2 }}>
-          <TextField
-            size="small"
-            label="Reference Invoice"
-            value={sale.invoiceNumber}
-            InputProps={{ readOnly: true }}
-          />
-          <TextField size="small" label="Customer" value={customerName} InputProps={{ readOnly: true }} />
-          <TextField
-            size="small"
-            label="Warehouse"
-            value={warehouseName || sale.warehouseId}
-            InputProps={{ readOnly: true }}
-          />
-        </Stack>
-
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mt: 2 }}>
-          <TextField
-            size="small"
-            select
-            label="Return Type"
-            value={returnType}
-            onChange={(e) => {
-              setReturnType(e.target.value);
-            }}
-            sx={{ minWidth: 180 }}
-          >
-            <MenuItem value="refund">Refund</MenuItem>
-            <MenuItem value="credit_note">Credit Note</MenuItem>
-          </TextField>
-          <TextField
-            size="small"
-            label="Return Date"
-            type="date"
-            InputLabelProps={{ shrink: true }}
-            {...register('returnDate', { required: true })}
-          />
-          <TextField size="small" fullWidth label="Reason" {...register('reason')} />
-        </Stack>
-      </Paper>
-
-      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3 }}>
-        <TableContainer>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 700 }}>Variant</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
-                <TableCell sx={{ fontWeight: 700 }} align="right">
-                  Sold Qty
-                </TableCell>
-                <TableCell sx={{ fontWeight: 700 }} align="right">
-                  Remaining Qty
-                </TableCell>
-                <TableCell sx={{ fontWeight: 700 }} align="right">
-                  Return Qty
-                </TableCell>
-                <TableCell sx={{ fontWeight: 700 }} align="right">
-                  Rate
-                </TableCell>
-                <TableCell sx={{ fontWeight: 700 }} align="right">
-                  Refund
-                </TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {lines.map((line) => (
-                <TableRow key={line.id}>
-                  <TableCell>{`${line.itemName} (${line.size}/${line.color})`}</TableCell>
-                  <TableCell>{line.sku}</TableCell>
-                  <TableCell align="right">{line.soldQty}</TableCell>
-                  <TableCell align="right">{line.remainingQty}</TableCell>
-                  <TableCell align="right">
-                    <TextField
-                      size="small"
-                      type="number"
-                      value={line.returnQty}
-                      onChange={(event) => updateReturnQty(line.id, event.target.value)}
-                      sx={{ width: 95 }}
-                    />
-                  </TableCell>
-                  <TableCell align="right">{Number(line.rate).toFixed(2)}</TableCell>
-                  <TableCell align="right">
-                    {(Number(line.returnQty) * Number(line.rate)).toFixed(2)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="flex-end" sx={{ mt: 2 }}>
-          <SummaryField label="Total Return Qty" value={totals.totalQuantity} />
-          <SummaryField label="Refund Amount" value={totals.refundAmount.toFixed(2)} />
-        </Stack>
-
-      </Paper>
+        <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate('/sales')} sx={{ color: '#475569', borderColor: '#cbd5e1' }}>
+          Back
+        </Button>
+      </Stack>
 
       {errorMessage && (
-        <Alert severity="error" sx={{ mt: 2 }}>
+        <Alert severity="error" sx={{ mb: 2 }}>
           {errorMessage}
         </Alert>
       )}
       {successMessage && (
-        <Alert severity="success" sx={{ mt: 2 }}>
+        <Alert severity="success" sx={{ mb: 2 }}>
           {successMessage}
         </Alert>
       )}
 
-      <Stack direction="row" justifyContent="flex-end" sx={{ mt: 2 }}>
-        <Button type="submit" variant="contained" startIcon={<SaveOutlinedIcon />}>
-          Save Return
-        </Button>
-      </Stack>
-    </Box>
-  );
-}
+      <Grid container spacing={3}>
+        <Grid item xs={12} lg={8}>
+          <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3, mb: 3, bgcolor: '#ffffff' }}>
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  size="small"
+                  fullWidth
+                  label="Reference Invoice"
+                  value={sale.invoiceNumber || sale.billNumber}
+                  InputProps={{ readOnly: true }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <TextField size="small" fullWidth label="Customer" value={customerName} InputProps={{ readOnly: true }} />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  size="small"
+                  fullWidth
+                  label="Warehouse"
+                  value={warehouseName || sale.warehouseId}
+                  InputProps={{ readOnly: true }}
+                />
+              </Grid>
+            </Grid>
+            <Grid container spacing={2} sx={{ mt: 1 }}>
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  size="small"
+                  fullWidth
+                  label="Return Date"
+                  type="date"
+                  InputLabelProps={{ shrink: true }}
+                  {...register('returnDate', { required: true })}
+                />
+              </Grid>
+              <Grid item xs={12} sm={8}>
+                <TextField size="small" fullWidth label="Return Reason" {...register('reason')} />
+              </Grid>
+            </Grid>
+          </Paper>
 
-function SummaryField({ label, value }) {
-  return (
-    <Box
-      sx={{
-        border: '1px solid #e2e8f0',
-        borderRadius: 1.5,
-        px: 1.5,
-        py: 1,
-        minWidth: 160,
-        textAlign: 'right',
-      }}
-    >
-      <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 700 }}>
-        {label}
-      </Typography>
-      <Typography variant="body2" sx={{ color: '#0f172a', fontWeight: 700 }}>
-        {value}
-      </Typography>
+          {/* Refund Method Section */}
+          <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3, mb: 3, bgcolor: '#ffffff' }}>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a', mb: 2 }}>
+              Refund Method
+            </Typography>
+            <FormControl component="fieldset">
+              <RadioGroup
+                row
+                value={returnType}
+                onChange={(e) => setReturnType(e.target.value)}
+              >
+                <FormControlLabel value="refund" control={<Radio sx={{ color: '#2563eb', '&.Mui-checked': { color: '#2563eb' } }} />} label="Refund Cash/Bank" sx={{ color: '#1e293b' }} />
+                <FormControlLabel value="credit_note" control={<Radio sx={{ color: '#2563eb', '&.Mui-checked': { color: '#2563eb' } }} />} label="Issue Credit Note" sx={{ color: '#1e293b' }} />
+              </RadioGroup>
+            </FormControl>
+
+            {returnType === 'refund' && (
+              <Box sx={{ mt: 2, maxWidth: 300 }}>
+                <TextField
+                  select
+                  size="small"
+                  fullWidth
+                  label="Payment Method"
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                >
+                  <MenuItem value="CASH">Cash</MenuItem>
+                  <MenuItem value="BANK">Bank</MenuItem>
+                  <MenuItem value="UPI">UPI</MenuItem>
+                </TextField>
+              </Box>
+            )}
+
+            {returnType === 'credit_note' && (
+              <Alert severity="info" sx={{ mt: 2, '& .MuiAlert-message': { color: '#0369a1' }, bgcolor: '#e0f2fe' }}>
+                Credit note will be applied to future sales.
+              </Alert>
+            )}
+          </Paper>
+
+          <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3, bgcolor: '#ffffff' }}>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a', mb: 2 }}>
+              Returned Items
+            </Typography>
+            <TableContainer>
+              <Table size="small">
+                <TableHead sx={{ bgcolor: '#f8fafc' }}>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 600, color: '#475569', py: 1.5 }}>Variant</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600, color: '#475569', py: 1.5 }}>Sold Qty</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600, color: '#475569', py: 1.5 }}>Return Qty</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600, color: '#475569', py: 1.5 }}>Rate</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600, color: '#475569', py: 1.5 }}>Refund</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {lines.map((line) => {
+                    const lineRefund = Number(line.returnQty) * Number(line.rate);
+                    return (
+                      <TableRow key={line.id} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                        <TableCell>
+                          <Typography variant="body2" sx={{ fontWeight: 500, color: '#1e293b' }}>
+                            {line.itemName || line.name || line.sku}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: '#64748b' }}>
+                            {line.sku && `SKU: ${line.sku} | `}{line.size && `${line.size}/`}{line.color && `${line.color}`}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right" sx={{ color: '#475569' }}>{line.soldQty}</TableCell>
+                        <TableCell align="right">
+                          <TextField
+                            size="small"
+                            type="number"
+                            value={line.returnQty}
+                            onChange={(event) => updateReturnQty(line.id, event.target.value)}
+                            sx={{ width: 95, '& input': { textAlign: 'right', p: 1 } }}
+                          />
+                        </TableCell>
+                        <TableCell align="right" sx={{ color: '#475569' }}>₹{Number(line.rate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600, color: '#dc2626' }}>
+                          ₹{lineRefund.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} lg={4}>
+          <ReturnSummaryCard
+            itemsReturned={totals.totalQuantity}
+            subtotal={totals.refundAmount}
+            gst={totals.gstReversal}
+            total={totals.totalReturn}
+          />
+
+          <Stack spacing={2}>
+            <Button
+              variant="contained"
+              size="large"
+              startIcon={<SaveOutlinedIcon />}
+              onClick={handleOpenConfirm}
+              sx={{ bgcolor: '#2563eb', '&:hover': { bgcolor: '#1d4ed8' }, py: 1.5 }}
+            >
+              Finalize Return
+            </Button>
+            <Button
+              variant="text"
+              size="large"
+              startIcon={<CancelOutlinedIcon />}
+              onClick={() => navigate('/sales')}
+              sx={{ color: '#64748b', '&:hover': { bgcolor: '#f8fafc' } }}
+            >
+              Cancel
+            </Button>
+          </Stack>
+        </Grid>
+      </Grid>
+
+      {/* Confirmation Dialog */}
+      <Dialog
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        PaperProps={{ sx: { borderRadius: 2, p: 1 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 700, color: '#0f172a' }}>Confirm Customer Return</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ color: '#475569' }}>
+            Are you sure you want to finalize this customer return?
+            <br /><br />
+            <strong>Refund Method:</strong> {returnType === 'refund' ? `Cash/Bank (${paymentMethod})` : 'Credit Note'}
+            <br />
+            <strong>Total Amount:</strong> ₹{totals.totalReturn.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setConfirmOpen(false)} sx={{ color: '#64748b' }}>Cancel</Button>
+          <Button onClick={onSubmit} variant="contained" sx={{ bgcolor: '#2563eb', '&:hover': { bgcolor: '#1d4ed8' } }}>
+            Confirm
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

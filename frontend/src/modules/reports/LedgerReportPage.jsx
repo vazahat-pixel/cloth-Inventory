@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useSelector } from 'react-redux';
+import { useEffect, useMemo, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
   MenuItem,
@@ -17,16 +17,27 @@ import {
 import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
 import { SummaryChip } from './SalesReportPage';
+import { fetchBankPayments, fetchBankReceipts } from '../accounts/accountsSlice';
+import { fetchSales } from '../sales/salesSlice';
+import { fetchPurchases } from '../purchase/purchaseSlice';
 
 const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 function LedgerReportPage() {
+  const dispatch = useDispatch();
   const sales = useSelector((state) => state.sales?.records || []);
   const bankReceipts = useSelector((state) => state.accounts?.bankReceipts || []);
   const purchases = useSelector((state) => state.purchase?.records || []);
   const bankPayments = useSelector((state) => state.accounts?.bankPayments || []);
   const customers = useSelector((state) => state.masters?.customers || []);
   const suppliers = useSelector((state) => state.masters?.suppliers || []);
+
+  useEffect(() => {
+    dispatch(fetchSales());
+    dispatch(fetchPurchases());
+    dispatch(fetchBankPayments());
+    dispatch(fetchBankReceipts());
+  }, [dispatch]);
 
   const [accountType, setAccountType] = useState('Customer');
   const [filters, setFilters] = useState({});
@@ -167,15 +178,15 @@ function LedgerReportPage() {
             <MenuItem value="all">All</MenuItem>
             {accountType === 'Customer'
               ? customers.map((c) => (
-                  <MenuItem key={c.id} value={c.id}>
-                    {c.customerName}
-                  </MenuItem>
-                ))
+                <MenuItem key={c.id} value={c.id}>
+                  {c.customerName}
+                </MenuItem>
+              ))
               : suppliers.map((s) => (
-                  <MenuItem key={s.id} value={s.id}>
-                    {s.supplierName}
-                  </MenuItem>
-                ))}
+                <MenuItem key={s.id} value={s.id}>
+                  {s.supplierName}
+                </MenuItem>
+              ))}
           </TextField>
         </Stack>
 

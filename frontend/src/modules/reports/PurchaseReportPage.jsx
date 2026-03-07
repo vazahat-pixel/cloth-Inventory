@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useSelector } from 'react-redux';
+import { useEffect, useMemo, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
   ButtonGroup,
@@ -21,12 +21,19 @@ import SearchIcon from '@mui/icons-material/Search';
 import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
 import { SummaryChip } from './SalesReportPage';
+import { fetchPurchases } from '../purchase/purchaseSlice';
 
 const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 function PurchaseReportPage() {
+  const dispatch = useDispatch();
   const purchases = useSelector((state) => state.purchase?.records || []);
   const suppliers = useSelector((state) => state.masters?.suppliers || []);
+
+  useEffect(() => {
+    dispatch(fetchPurchases());
+  }, [dispatch]);
+
   const supplierMap = useMemo(
     () => suppliers.reduce((acc, s) => ({ ...acc, [s.id]: s.supplierName }), {}),
     [suppliers],

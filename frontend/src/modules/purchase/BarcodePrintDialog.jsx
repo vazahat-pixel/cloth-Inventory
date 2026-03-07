@@ -52,9 +52,14 @@ function BarcodePrintDialog({ open, onClose, purchase, lines = [], warehouseMap 
     selectedLines.forEach((line) => {
       if (!line.selected) return;
       const qty = Math.max(1, Number(line.quantity) || 0);
+      // Generate a clean barcode value — prefer SKU, fallback to a short code never the raw ObjectId
+      const rawSku = line.sku || '';
+      // Skip if sku looks like a MongoDB ObjectId (24 hex chars)
+      const isObjectId = /^[a-f0-9]{24}$/i.test(rawSku.trim());
+      const cleanSku = isObjectId || !rawSku ? `ITEM-${result.length + 1}` : rawSku;
       for (let i = 0; i < qty; i++) {
         result.push({
-          sku: line.sku || line.variantId || '',
+          sku: cleanSku,
           itemName: line.itemName || '',
           group: line.category || line.group || '',
           type: line.type || 'REGULAR PLAIN',
@@ -62,6 +67,7 @@ function BarcodePrintDialog({ open, onClose, purchase, lines = [], warehouseMap 
           size: line.size || '',
           colour: line.color || line.colour || '',
           mrp: line.mrp || line.rate || '',
+          quantity: qty,
           key: `${line.variantId || line.sku || i}-${i}`,
         });
       }
@@ -83,13 +89,13 @@ function BarcodePrintDialog({ open, onClose, purchase, lines = [], warehouseMap 
           ['Type', item.type],
           ['DESIGN', item.design],
           ['Size', item.size],
-          ['Qty', `1N  CASUAL`],
+          ['Qty', item.quantity],
           ['Colour', item.colour],
         ];
 
         return `
           <div class="tag">
-            <!-- BARCODE -->
+            <!-- BARCODE FULL WIDTH -->
             <div class="barcode-wrap">
               <div class="barcode">${escapeHtml(barcodeValue)}</div>
               <div class="sku-text">${escapeHtml(item.sku)}</div>
@@ -98,20 +104,18 @@ function BarcodePrintDialog({ open, onClose, purchase, lines = [], warehouseMap 
             <!-- FIELD ROWS -->
             <table class="fields">
               ${rows
-            .map(
-              ([label, value]) => `
-                <tr>
-                  <td class="label">${escapeHtml(label)} :</td>
-                  <td class="value">${escapeHtml(String(value || ''))}</td>
-                </tr>`,
-            )
+            .map(([label, value]) => `
+                  <tr>
+                    <td class="label">${escapeHtml(label)} :</td>
+                    <td class="value">${escapeHtml(String(value || ''))}</td>
+                  </tr>`)
             .join('')}
             </table>
 
             <!-- MRP -->
             <div class="mrp-row">
               <span class="mrp-label">MRP :</span>
-              <span class="mrp-value">${escapeHtml(String(item.mrp || ''))}</span>
+              <span class="mrp-value">&#8377;${escapeHtml(String(item.mrp || ''))}</span>
             </div>
             <div class="mrp-tax">(Incl of all taxes)</div>
 
@@ -139,7 +143,7 @@ function BarcodePrintDialog({ open, onClose, purchase, lines = [], warehouseMap 
     rel="stylesheet"
   />
   <style>
-    @page { margin: 0.25in; }
+    @page { margin: 0.2in; }
 
     * { box-sizing: border-box; }
 
@@ -153,71 +157,81 @@ function BarcodePrintDialog({ open, onClose, purchase, lines = [], warehouseMap 
     .tags-grid {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px;
+      gap: 5px;
       justify-content: flex-start;
     }
 
     /* ── SINGLE TAG ── */
     .tag {
-      width: 2.75in;
+      width: 2.5in;
       border: 1px solid #444;
-      padding: 6px 8px 5px;
+      padding: 5px 7px 5px;
       page-break-inside: avoid;
-      font-size: 9.5pt;
-      line-height: 1.35;
+      font-size: 8pt;
+      line-height: 1.25;
       background: #fff;
+      overflow: hidden;
     }
 
-    /* Barcode section */
+    /* Barcode — FULL WIDTH, never cut off */
     .barcode-wrap {
       text-align: center;
+      width: 100%;
+      overflow: hidden;
       margin-bottom: 2px;
     }
     .barcode {
       font-family: 'Libre Barcode 39 Text', monospace;
-      font-size: 42pt;
+      font-size: 36pt;
       line-height: 1;
-      letter-spacing: 0;
+      letter-spacing: -2px;
+      display: block;
+      width: 100%;
+      white-space: nowrap;
+      transform: scaleX(0.85);
+      transform-origin: left center;
     }
     .sku-text {
-      font-size: 8.5pt;
+      font-size: 7pt;
       font-weight: bold;
-      letter-spacing: 1px;
+      letter-spacing: 0.5px;
+      text-align: center;
       margin-top: -2px;
+      word-break: break-all;
     }
 
     /* Field table */
     .fields {
       width: 100%;
       border-collapse: collapse;
-      margin: 3px 0;
+      margin: 2px 0;
     }
     .fields td {
-      padding: 0.5px 1px;
+      padding: 0.3px 1px;
       vertical-align: top;
     }
     .label {
       font-weight: bold;
       white-space: nowrap;
-      width: 52px;
-      font-size: 9.5pt;
+      width: 48px;
+      font-size: 8pt;
     }
     .value {
-      font-size: 9.5pt;
-      padding-left: 4px;
+      font-size: 8pt;
+      padding-left: 3px;
       font-weight: normal;
     }
 
     /* MRP */
     .mrp-row {
       margin-top: 2px;
-      font-size: 10.5pt;
+      font-size: 9pt;
       font-weight: bold;
     }
-    .mrp-label { margin-right: 4px; }
-    .mrp-value { font-size: 14pt; }
+    .mrp-label { margin-right: 3px; }
+    .mrp-value { font-size: 13pt; }
     .mrp-tax {
-      font-size: 7.5pt;
+      font-size: 6.5pt;
       color: #333;
       margin-top: -1px;
     }
@@ -225,10 +239,10 @@ function BarcodePrintDialog({ open, onClose, purchase, lines = [], warehouseMap 
     /* Footer */
     .footer {
       border-top: 1px dashed #888;
-      margin-top: 4px;
-      padding-top: 3px;
-      font-size: 7.5pt;
-      line-height: 1.3;
+      margin-top: 3px;
+      padding-top: 2px;
+      font-size: 6.5pt;
+      line-height: 1.25;
     }
     .co-name { font-weight: bold; }
 
