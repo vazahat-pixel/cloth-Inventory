@@ -77,7 +77,9 @@ const createSale = async (saleData, cashierId) => {
             paymentMode,
             customerId,
             redeemPoints,
-            creditNoteId
+            creditNoteId,
+            type = 'RETAIL',
+            parentSaleId
         } = saleData;
 
         // 1. Generate Sale Number
@@ -97,9 +99,9 @@ const createSale = async (saleData, cashierId) => {
                 productId
             }).session(session);
 
-            if (!inventory || inventory.quantityAvailable < item.quantity) {
+            if (item.quantity > 0 && (!inventory || inventory.quantityAvailable < item.quantity)) {
                 const pName = await Product.findById(productId).session(session);
-                throw new Error(`Insufficient stock for ${pName ? pName.name : 'product'}`);
+                throw new Error(`Insufficient stock for ${pName ? pName.name : 'product'} (Available: ${inventory ? inventory.quantityAvailable : 0})`);
             }
 
             const product = await Product.findById(productId).session(session);
@@ -139,20 +141,20 @@ const createSale = async (saleData, cashierId) => {
             totalIGST += gstData.igst;
             totalTax += gstData.totalTax;
 
-            // Reduce stock
+            // Reduce stock (negative item.quantity means return, so -- is +, properly increasing stock)
             await adjustStoreStock({
                 productId,
                 storeId,
                 quantityChange: -item.quantity,
-                type: StockHistoryType.SALE,
+                type: type === 'EXCHANGE' && item.quantity < 0 ? StockHistoryType.RETURN : StockHistoryType.SALE,
                 referenceId: null, // Will update after sale save
                 referenceModel: 'Sale',
                 performedBy: cashierId,
-                notes: `Sale ${saleNumber}`,
+                notes: `Sale ${saleNumber} ${item.quantity < 0 ? '(Exchange Return)' : ''}`,
                 session
             });
 
-            // Update quantitySold
+            // Update quantitySold (returns decrease sold quantity)
             inventory.quantitySold += item.quantity;
             calculatedSubTotal += taxableAmount;
             await inventory.save({ session });
@@ -219,6 +221,8 @@ const createSale = async (saleData, cashierId) => {
             storeId,
             cashierId,
             customerId,
+            type,
+            parentSaleId,
             products,
             subTotal: calculatedSubTotal,
             discount,

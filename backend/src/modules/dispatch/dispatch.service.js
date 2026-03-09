@@ -3,7 +3,7 @@ const Store = require('../../models/store.model');
 const Product = require('../../models/product.model');
 const { DispatchStatus, StockHistoryType } = require('../../core/enums');
 const { withTransaction } = require('../../services/transaction.service');
-const { adjustStock, adjustStoreStock } = require('../../services/stock.service');
+const { adjustWarehouseStock, adjustStoreStock } = require('../../services/stock.service');
 const { createAuditLog } = require('../../middlewares/audit.middleware');
 const { getNextSequence } = require('../../services/sequence.service');
 
@@ -24,23 +24,21 @@ const generateDispatchNumber = async (session = null) => {
  */
 const createDispatch = async (dispatchData, userId) => {
     return await withTransaction(async (session) => {
-        const storeId = dispatchData.storeId || dispatchData.warehouseId;
+        const { sourceWarehouseId, destinationStoreId } = dispatchData;
         const products = dispatchData.products || dispatchData.items || [];
 
         // 1. Validate Store
-        const store = await Store.findOne({ _id: storeId, isDeleted: false }).session(session);
+        const store = await Store.findOne({ _id: destinationStoreId, isDeleted: false }).session(session);
         if (!store) throw new Error('Store not found');
         if (!store.isActive) throw new Error('Store is currently inactive');
 
-        // 2. Validate Products and Factory Stock
+        // 2. Validate Products and Warehouse Stock
         for (const item of products) {
             item.productId = item.productId || item.variantId;
             const product = await Product.findOne({ _id: item.productId, isDeleted: false }).session(session);
             if (!product) throw new Error(`Product ${item.productId} not found`);
             if (!product.isActive) throw new Error(`Product ${product.sku} is inactive`);
-            if (product.factoryStock < item.quantity) {
-                throw new Error(`Insufficient factory stock for ${product.sku}. Available: ${product.factoryStock}, Requested: ${item.quantity}`);
-            }
+
             // Set current price for record
             item.price = product.salePrice;
         }
@@ -56,10 +54,11 @@ const createDispatch = async (dispatchData, userId) => {
         });
         await dispatch.save({ session });
 
-        // 5. Update Stock (Factory Out)
+        // 5. Update Stock (Warehouse Out)
         for (const item of products) {
-            await adjustStock({
+            await adjustWarehouseStock({
                 productId: item.productId,
+                warehouseId: sourceWarehouseId,
                 quantityChange: -item.quantity,
                 type: StockHistoryType.DISPATCH,
                 referenceId: dispatch._id,
@@ -104,7 +103,7 @@ const updateStatus = async (id, status, userId) => {
             for (const item of dispatch.products) {
                 await adjustStoreStock({
                     productId: item.productId,
-                    storeId: dispatch.storeId,
+                    storeId: dispatch.destinationStoreId,
                     quantityChange: item.quantity,
                     type: StockHistoryType.IN,
                     referenceId: dispatch._id,
@@ -140,10 +139,11 @@ const updateStatus = async (id, status, userId) => {
  * List Dispatches
  */
 const getAllDispatches = async (query) => {
-    const { page = 1, limit = 10, storeId, status, startDate, endDate } = query;
+    const { page = 1, limit = 10, sourceWarehouseId, destinationStoreId, status, startDate, endDate } = query;
 
     const filter = { isDeleted: false };
-    if (storeId) filter.storeId = storeId;
+    if (sourceWarehouseId) filter.sourceWarehouseId = sourceWarehouseId;
+    if (destinationStoreId) filter.destinationStoreId = destinationStoreId;
     if (status) filter.status = status;
 
     if (startDate || endDate) {
@@ -163,7 +163,8 @@ const getAllDispatches = async (query) => {
             .sort({ dispatchDate: -1 })
             .skip(skip)
             .limit(parseInt(limit))
-            .populate('storeId', 'name location')
+            .populate('sourceWarehouseId', 'name location')
+            .populate('destinationStoreId', 'name location')
             .populate('products.productId', 'name sku barcode size color')
             .populate('createdBy', 'name'),
         Dispatch.countDocuments(filter)
@@ -174,7 +175,8 @@ const getAllDispatches = async (query) => {
 
 const getDispatchById = async (id) => {
     const dispatch = await Dispatch.findOne({ _id: id, isDeleted: false })
-        .populate('storeId')
+        .populate('sourceWarehouseId')
+        .populate('destinationStoreId')
         .populate('products.productId')
         .populate('createdBy', 'name');
     if (!dispatch) throw new Error('Dispatch not found');
@@ -186,10 +188,11 @@ const deleteDispatch = async (id, userId) => {
         const dispatch = await Dispatch.findOne({ _id: id, isDeleted: false }).session(session);
         if (!dispatch) throw new Error('Dispatch not found');
 
-        // 1. Restore Factory Stock (always needed since stock decreases on creation)
+        // 1. Restore Warehouse Stock (always needed since stock decreases on creation)
         for (const item of dispatch.products) {
-            await adjustStock({
+            await adjustWarehouseStock({
                 productId: item.productId,
+                warehouseId: dispatch.sourceWarehouseId,
                 quantityChange: item.quantity,
                 type: StockHistoryType.ADJUSTMENT,
                 referenceId: dispatch._id,
@@ -205,7 +208,7 @@ const deleteDispatch = async (id, userId) => {
             for (const item of dispatch.products) {
                 await adjustStoreStock({
                     productId: item.productId,
-                    storeId: dispatch.storeId,
+                    storeId: dispatch.destinationStoreId,
                     quantityChange: -item.quantity,
                     type: StockHistoryType.ADJUSTMENT,
                     referenceId: dispatch._id,

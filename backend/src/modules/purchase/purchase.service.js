@@ -4,7 +4,7 @@ const Supplier = require('../../models/supplier.model');
 const Account = require('../../models/account.model');
 const GstSlab = require('../../models/gstSlab.model');
 const { calculateGST } = require('../../services/gst.service');
-const { adjustStock } = require('../../services/stock.service');
+const { adjustWarehouseStock } = require('../../services/stock.service');
 const { createJournalEntries } = require('../../services/ledger.service');
 const { withTransaction } = require('../../services/transaction.service');
 const { getNextSequence } = require('../../services/sequence.service');
@@ -75,33 +75,18 @@ const createPurchase = async (purchaseData, userId) => {
             subTotal += taxableAmount;
             totalTax += gstAmount;
 
-            // 5. Update Stock (Store or Factory level)
-            if (storeId) {
-                const { adjustStoreStock } = require('../../services/stock.service');
-                await adjustStoreStock({
-                    productId: item.productId,
-                    storeId,
-                    quantityChange: item.quantity,
-                    type: StockHistoryType.IN,
-                    referenceId: null, // Update after purchase save
-                    referenceModel: 'Purchase',
-                    performedBy: userId,
-                    notes: `Purchase ${purchaseNumber}`,
-                    session
-                });
-            } else {
-                const { adjustStock } = require('../../services/stock.service');
-                await adjustStock({
-                    productId: item.productId,
-                    quantityChange: item.quantity,
-                    type: StockHistoryType.IN,
-                    referenceId: null,
-                    referenceModel: 'Purchase',
-                    performedBy: userId,
-                    notes: `Purchase ${purchaseNumber}`,
-                    session
-                });
-            }
+            // 5. Update Stock (Warehouse level)
+            await adjustWarehouseStock({
+                productId: item.productId,
+                warehouseId: storeId, // using storeId as warehouseId
+                quantityChange: item.quantity,
+                type: StockHistoryType.IN,
+                referenceId: null, // Update after purchase save
+                referenceModel: 'Purchase',
+                performedBy: userId,
+                notes: `Purchase ${purchaseNumber}`,
+                session
+            });
         }
 
         const grandTotal = subTotal + totalTax;
@@ -175,8 +160,9 @@ const cancelPurchase = async (purchaseId, userId) => {
 
         // 1. Reverse Stock
         for (const item of purchase.products) {
-            await adjustStock({
+            await adjustWarehouseStock({
                 productId: item.productId,
+                warehouseId: purchase.storeId, // storeId is treated as warehouseId
                 quantityChange: -item.quantity,
                 type: StockHistoryType.OUT,
                 referenceId: purchase._id,

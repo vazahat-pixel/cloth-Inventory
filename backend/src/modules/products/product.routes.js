@@ -10,6 +10,7 @@ router.use(protect);
 
 router.get('/', productController.getAllProducts);
 router.post('/', requireAdmin, productController.createProduct);
+router.post('/bulk-import', requireAdmin, productController.bulkImportProducts);
 router.get('/barcode/:barcode', productController.getProductByBarcode);
 router.get('/:id', productController.getProductById);
 

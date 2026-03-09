@@ -26,10 +26,15 @@ const dispatchSchema = new mongoose.Schema(
             unique: true,
             trim: true
         },
-        storeId: {
+        sourceWarehouseId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Warehouse',
+            required: [true, 'Source warehouse reference is required']
+        },
+        destinationStoreId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Store',
-            required: [true, 'Store reference is required']
+            required: [true, 'Destination store reference is required']
         },
         products: [dispatchItemSchema],
         totalItems: {
@@ -79,7 +84,8 @@ dispatchSchema.pre('validate', function (next) {
 
 // Indexes
 // dispatchSchema.index({ dispatchNumber: 1 }); // unique: true handles this
-dispatchSchema.index({ storeId: 1 });
+dispatchSchema.index({ sourceWarehouseId: 1 });
+dispatchSchema.index({ destinationStoreId: 1 });
 dispatchSchema.index({ status: 1 });
 dispatchSchema.index({ isDeleted: 1 });
 

@@ -60,6 +60,15 @@ const saleSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Customer'
         },
+        type: {
+            type: String,
+            enum: ['RETAIL', 'EXCHANGE'],
+            default: 'RETAIL'
+        },
+        parentSaleId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Sale'
+        },
         products: [saleItemSchema],
         subTotal: {
             type: Number,

@@ -80,6 +80,18 @@ const createProduct = async (req, res, next) => {
     }
 };
 
+const bulkImportProducts = async (req, res, next) => {
+    try {
+        if (!req.body.products || !Array.isArray(req.body.products)) {
+            return sendError(res, 'products array is required', 400);
+        }
+        const result = await productService.bulkImportProducts(req.body.products, req.body.warehouseId, req.user._id);
+        return sendSuccess(res, result, 'Bulk import successful', 201);
+    } catch (err) {
+        return sendError(res, err.message, 400);
+    }
+};
+
 module.exports = {
     getAllProducts,
     getProductById,
@@ -87,5 +99,6 @@ module.exports = {
     updateProduct,
     toggleStatus,
     deleteProduct,
-    createProduct
+    createProduct,
+    bulkImportProducts
 };

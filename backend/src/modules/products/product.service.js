@@ -1,5 +1,6 @@
 const Product = require('../../models/product.model');
 const StockHistory = require('../../models/stockHistory.model');
+const WarehouseInventory = require('../../models/warehouseInventory.model');
 const { StockHistoryType } = require('../../core/enums');
 const { withTransaction } = require('../../services/transaction.service');
 
@@ -27,21 +28,13 @@ const generateSKU = async (session = null) => {
     return `${prefix}${nextNum.toString().padStart(5, '0')}`;
 };
 
+const barcodeService = require('./barcode.service');
+
 /**
  * Generate unique numeric barcode
  */
 const generateBarcode = async (session = null) => {
-    let unique = false;
-    let barcode;
-
-    while (!unique) {
-        // Generate 12-digit numeric barcode
-        barcode = Math.floor(100000000000 + Math.random() * 900000000000).toString();
-        const existing = await Product.findOne({ barcode }).session(session);
-        if (!existing) unique = true;
-    }
-
-    return barcode;
+    return await barcodeService.generateBarcode();
 };
 
 /**
@@ -216,6 +209,65 @@ const createProduct = async (productData, userId) => {
     });
 };
 
+/**
+ * Bulk import products & optionally initialize stock
+ */
+const bulkImportProducts = async (productsData, warehouseId, userId) => {
+    return await withTransaction(async (session) => {
+        const createdProducts = [];
+        let totalStockAdded = 0;
+
+        for (const pd of productsData) {
+            // Validate essential fields
+            if (!pd.name || !pd.salePrice || !pd.size) {
+                throw new Error('Name, salePrice, and size are required for all grouped imported products.');
+            }
+
+            const sku = pd.sku || await generateSKU(session);
+            const barcode = pd.barcode || await generateBarcode(session);
+
+            const product = new Product({
+                ...pd,
+                sku,
+                barcode,
+                createdBy: userId,
+                isActive: true
+            });
+
+            await product.save({ session });
+            createdProducts.push(product);
+
+            // Handle bulk stock initialization if warehouseId is valid and factoryStock > 0
+            if (warehouseId && pd.factoryStock > 0) {
+                const stockQty = Number(pd.factoryStock);
+
+                await WarehouseInventory.findOneAndUpdate(
+                    { warehouseId, productId: product._id },
+                    { $inc: { quantity: stockQty } },
+                    { session, upsert: true, new: true }
+                );
+
+                await StockHistory.create([{
+                    productId: product._id,
+                    type: StockHistoryType.IN,
+                    quantityBefore: 0,
+                    quantityChange: stockQty,
+                    quantityAfter: stockQty,
+                    notes: 'Excel Bulk Import initialization',
+                    performedBy: userId
+                }], { session });
+
+                totalStockAdded += stockQty;
+            }
+        }
+
+        return {
+            importedCount: createdProducts.length,
+            totalStockAdded
+        };
+    });
+};
+
 module.exports = {
     generateSKU,
     generateBarcode,
@@ -226,5 +278,6 @@ module.exports = {
     updateProduct,
     toggleStatus,
     deleteProduct,
-    createProduct
+    createProduct,
+    bulkImportProducts
 };

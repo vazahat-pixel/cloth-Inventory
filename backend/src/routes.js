@@ -7,6 +7,7 @@ const authRoutes = require('./modules/auth/auth.routes');
 const registerRoutes = (app) => {
     app.use('/api/auth', authRoutes);
     app.use('/api/stores', require('./modules/stores/store.routes'));
+    app.use('/api/warehouses', require('./modules/warehouses/warehouse.routes'));
     app.use('/api/suppliers', require('./modules/suppliers/supplier.routes'));
     app.use('/api/fabrics', require('./modules/fabrics/fabric.routes'));
     app.use('/api/production', require('./modules/production/production.routes'));

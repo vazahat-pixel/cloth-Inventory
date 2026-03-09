@@ -9,6 +9,7 @@ export const navigationItems = [
   { label: "Customer Rewards", path: "/customers" },
   { label: "Reports", path: "/reports" },
   { label: "GST", path: "/gst" },
+  { label: "Data Import", path: "/data-import" },
   { label: "Settings", path: "/settings" },
 ];
 
@@ -145,6 +146,10 @@ export const getPageTitle = (pathname) => {
 
   if (/^\/purchase\/[^/]+$/.test(p)) {
     return "Edit Purchase";
+  }
+
+  if (p === "/data-import") {
+    return "Data Import";
   }
 
   if (p === "/orders") return "Sale Orders";

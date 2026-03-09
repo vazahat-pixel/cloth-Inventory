@@ -72,6 +72,7 @@ import SaleOrderListPage from '../modules/orders/SaleOrderListPage';
 import SaleOrderFormPage from '../modules/orders/SaleOrderFormPage';
 import PackingSlipPage from '../modules/orders/PackingSlipPage';
 import DeliveryOrderPage from '../modules/orders/DeliveryOrderPage';
+import DataImportPage from '../modules/data/DataImportPage';
 import NotFoundPage from '../pages/NotFoundPage';
 
 function AdminRoutes() {
@@ -147,6 +148,7 @@ function AdminRoutes() {
         <Route path="print-templates" element={<PrintTemplatesPage />} />
         <Route path="audit-logs" element={<AuditLogPage />} />
       </Route>
+      <Route path="data-import" element={<DataImportPage />} />
       <Route path="*" element={<NotFoundPage />} />
     </>
   );
@@ -164,6 +166,7 @@ function StaffRoutes() {
       <Route path="sales/new" element={<BillingPage />} />
       <Route path="sales/:id" element={<BillingPage />} />
       <Route path="sales/:id/return" element={<SalesReturnPage />} />
+      <Route path="data-import" element={<DataImportPage />} />
       <Route path="*" element={<NotFoundPage />} />
     </>
   );

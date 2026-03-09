@@ -3,25 +3,33 @@
 const StockHistory = require('../models/stockHistory.model');
 const Product = require('../models/product.model');
 const StoreInventory = require('../models/storeInventory.model');
-const { StockHistoryType } = require('../core/enums');
+const WarehouseInventory = require('../models/warehouseInventory.model');
 
 /**
- * adjustStock — Adjusts stock for a product (warehouse or store level)
- * @param {Object} opts - { productId, storeId?, quantityChange, type, referenceId, referenceModel, performedBy, notes, session }
+ * adjustWarehouseStock
  */
-const adjustStock = async ({ productId, storeId, quantityChange, type, referenceId, referenceModel, performedBy, notes, session }) => {
-    const product = await Product.findById(productId).session(session);
-    if (!product) throw new Error(`Product ${productId} not found`);
+const adjustWarehouseStock = async ({ productId, warehouseId, quantityChange, type, referenceId, referenceModel, performedBy, notes, session }) => {
+    let inventory = await WarehouseInventory.findOne({ warehouseId, productId }).session(session);
 
-    const quantityBefore = product.factoryStock;
+    if (!inventory) {
+        if (quantityChange < 0) throw new Error(`Insufficient warehouse stock for product ${productId}`);
+        inventory = new WarehouseInventory({
+            warehouseId,
+            productId,
+            quantity: 0
+        });
+    }
+
+    const quantityBefore = inventory.quantity || 0;
     const quantityAfter = quantityBefore + quantityChange;
-    if (quantityAfter < 0) throw new Error(`Insufficient stock for product ${product.sku}`);
+    if (quantityAfter < 0) throw new Error(`Insufficient warehouse stock for product ${productId}`);
 
-    product.factoryStock = quantityAfter;
-    await product.save({ session });
+    inventory.quantity = quantityAfter;
+    inventory.lastUpdated = Date.now();
+    await inventory.save({ session });
 
     await StockHistory.create([{
-        productId, storeId, type, quantityBefore, quantityChange, quantityAfter,
+        productId, type, quantityBefore, quantityChange, quantityAfter,
         referenceId, referenceModel, notes, performedBy,
     }], { session });
 
@@ -33,20 +41,21 @@ const adjustStock = async ({ productId, storeId, quantityChange, type, reference
  */
 const adjustStoreStock = async ({ productId, storeId, quantityChange, type, referenceId, referenceModel, performedBy, notes, session }) => {
     let inventory = await StoreInventory.findOne({ storeId, productId }).session(session);
-    
+
     if (!inventory) {
+        if (quantityChange < 0) throw new Error(`Insufficient store stock for product ${productId}`);
         inventory = new StoreInventory({
             storeId,
             productId,
-            quantityAvailable: 0
+            quantity: 0
         });
     }
 
-    const quantityBefore = inventory.quantityAvailable;
+    const quantityBefore = inventory.quantity || 0;
     const quantityAfter = quantityBefore + quantityChange;
     if (quantityAfter < 0) throw new Error(`Insufficient store stock for product ${productId}`);
 
-    inventory.quantityAvailable = quantityAfter;
+    inventory.quantity = quantityAfter;
     inventory.lastUpdated = Date.now();
     await inventory.save({ session });
 
@@ -58,4 +67,4 @@ const adjustStoreStock = async ({ productId, storeId, quantityChange, type, refe
     return { quantityBefore, quantityAfter };
 };
 
-module.exports = { adjustStock, adjustStoreStock };
+module.exports = { adjustWarehouseStock, adjustStoreStock };

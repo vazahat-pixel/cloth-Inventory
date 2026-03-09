@@ -216,6 +216,7 @@ function BillingPage() {
         rate: toNumber(item.salePrice || item.sellingPrice || item.mrp || 0),
         itemName: item.name,
         styleCode: item.sku || '',
+        barcode: item.barcode || '', // ADDED
         itemId: item.id,
         brand: item.brand,
         category: item.category,
@@ -235,7 +236,7 @@ function BillingPage() {
   const variantOptions = useMemo(() => {
     return warehouseStock
       .map((stock) => {
-        const available = toNumber(stock.quantity) - toNumber(stock.reserved);
+        const available = toNumber(stock.quantity) - Math.abs(toNumber(stock.reserved || 0)); // Ensure valid number subtraction
         const pricing = variantSellingPriceMap[stock.productId || stock.variantId] || {};
         const rate = toNumber(pricing.rate);
         return {
@@ -243,10 +244,10 @@ function BillingPage() {
           variantId: stock.productId || stock.variantId,
           itemName: stock.itemName || pricing.itemName || 'Unknown Item',
           styleCode: stock.styleCode || pricing.styleCode || '',
-          size: stock.size,
-          color: stock.color,
-          sku: stock.sku,
-          barcode: stock.barcode,
+          size: stock.size || '',
+          color: stock.color || '',
+          sku: stock.sku || pricing.styleCode || '',
+          barcode: stock.barcode || pricing.barcode || '',
           available: available > 0 ? available : 0,
           rate,
           tax: 0,
