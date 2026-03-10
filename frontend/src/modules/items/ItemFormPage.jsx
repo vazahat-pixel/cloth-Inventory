@@ -20,6 +20,7 @@ import { useForm } from 'react-hook-form';
 import { addItem, updateItem } from './itemsSlice';
 import VariantTable from './VariantTable';
 import api from '../../services/api';
+import { fetchMasters } from '../masters/mastersSlice';
 
 const defaultValues = {
   name: '',

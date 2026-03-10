@@ -20,11 +20,23 @@ const brandFields = [
 function BrandsFormDialog({ open, onClose, onSubmit, initialValues }) {
   const isEdit = Boolean(initialValues);
 
+  const handleFormSubmit = (values) => {
+    const payload = {
+      ...values,
+      name: values.brandName,
+      isActive: values.status === 'Active',
+    };
+    delete payload.brandName;
+    delete payload.status;
+
+    onSubmit(payload);
+  };
+
   return (
     <MasterFormDialog
       open={open}
       onClose={onClose}
-      onSubmit={onSubmit}
+      onSubmit={handleFormSubmit}
       initialValues={initialValues}
       fields={brandFields}
       title={isEdit ? 'Edit Brand' : 'Add Brand'}
