@@ -227,6 +227,10 @@ const normalizeItem = (item, entityType) => {
             normalized.supplierName = item.name;
             normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
             break;
+        case 'warehouse':
+            normalized.warehouseName = item.name || item.warehouseName;
+            normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
+            break;
         case 'store':
             normalized.storeName = item.name;
             normalized.warehouseName = item.name; // Backwards compat

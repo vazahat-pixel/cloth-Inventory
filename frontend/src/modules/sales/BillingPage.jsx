@@ -7,6 +7,7 @@ import {
   Autocomplete,
   Box,
   Button,
+  Dialog,
   Divider,
   Grid,
   IconButton,
@@ -36,6 +37,7 @@ import { fetchPricingRules, fetchSchemes, fetchCoupons } from '../pricing/pricin
 import { fetchLoyaltyConfig, fetchCreditNotes } from '../customers/customersSlice';
 import PaymentDialog from './PaymentDialog';
 import LoyaltyRedeemDialog from './LoyaltyRedeemDialog';
+import ExchangeInvoicePrint from './ExchangeInvoicePrint';
 
 const DEFAULT_WALK_IN_NAME = 'Walk-in Customer';
 const EMPTY_ARR = [];
@@ -57,7 +59,7 @@ const calculateLine = (line) => {
   };
 };
 
-const calculateTotals = (lines, billDiscount, loyaltyRedeemed, couponDiscount = 0, schemeDiscount = 0, creditNoteAmount = 0) => {
+const calculateTotals = (lines, billDiscount, loyaltyRedeemed, couponDiscount = 0, schemeDiscount = 0, creditNoteAmount = 0, saleType = 'retail') => {
   // Keeping basic UX total calculation for display, but backend performs final authority check
   const totals = lines.reduce((acc, l) => {
     const lineRes = calculateLine(l);
@@ -81,7 +83,7 @@ const calculateTotals = (lines, billDiscount, loyaltyRedeemed, couponDiscount = 
     schemeDiscount,
     loyaltyRedeemed,
     creditNoteAmount,
-    netPayable: net > 0 ? net : 0,
+    netPayable: saleType === 'exchange' ? net : (net > 0 ? net : 0),
   };
 };
 
@@ -131,6 +133,9 @@ function BillingPage() {
   const [couponCode, setCouponCode] = useState('');
   const [couponError, setCouponError] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [saleType, setSaleType] = useState('retail');
+  const [completedSaleData, setCompletedSaleData] = useState(null);
+  const [showPrint, setShowPrint] = useState(false);
 
   const pendingDOsForCustomer = useMemo(() => {
     if (!customerId || billingMode !== 'fromDO') return [];
@@ -288,8 +293,9 @@ function BillingPage() {
         couponDiscountAmount,
         schemeDiscountAmount,
         creditNoteAmount,
+        saleType
       ),
-    [billDiscount, lines, loyaltyRedeemed, couponDiscountAmount, schemeDiscountAmount, creditNoteAmount],
+    [billDiscount, lines, loyaltyRedeemed, couponDiscountAmount, schemeDiscountAmount, creditNoteAmount, saleType],
   );
 
   const handleApplyCoupon = () => {
@@ -398,10 +404,12 @@ function BillingPage() {
         }
 
         if (field === 'quantity') {
-          const quantity = Math.max(1, toNumber(value));
+          const qty = toNumber(value);
+          const limit = saleType === 'exchange' ? -999 : 1;
+          const newQty = Math.max(limit, qty);
           return {
             ...line,
-            quantity: Math.min(quantity, toNumber(line.available)),
+            quantity: newQty > 0 ? Math.min(newQty, toNumber(line.available)) : newQty,
           };
         }
 
@@ -474,12 +482,14 @@ function BillingPage() {
       paymentMode: payment.method || 'CASH', // Uppercase enum from PaymentDialog
       redeemPoints: Math.max(0, toNumber(loyaltyRedeemed)), // Backend uses points count
       creditNoteId: creditNoteId || null,
+      saleType,
     };
 
     dispatch(addSale(payload))
       .unwrap()
-      .then(() => {
-        navigate('/sales');
+      .then((res) => {
+        setCompletedSaleData(res);
+        setShowPrint(true);
       })
       .catch((err) => {
         setErrorMessage(err || 'Failed to save sale');
@@ -647,7 +657,7 @@ function BillingPage() {
             </Stack>
 
             <Grid container spacing={2}>
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={3}>
                 <TextField
                   fullWidth
                   size="small"
@@ -658,7 +668,22 @@ function BillingPage() {
                   onChange={(event) => setBillDate(event.target.value)}
                 />
               </Grid>
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={3}>
+                <TextField
+                  select
+                  fullWidth
+                  size="small"
+                  label="Sale Type"
+                  value={saleType}
+                  onChange={(event) => {
+                    setSaleType(event.target.value);
+                  }}
+                >
+                  <MenuItem value="retail">Retail</MenuItem>
+                  <MenuItem value="exchange">Exchange</MenuItem>
+                </TextField>
+              </Grid>
+              <Grid item xs={12} md={3}>
                 <TextField
                   select
                   fullWidth
@@ -679,7 +704,7 @@ function BillingPage() {
                   ))}
                 </TextField>
               </Grid>
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={3}>
                 <TextField
                   select
                   fullWidth
@@ -888,7 +913,7 @@ function BillingPage() {
                               onChange={(event) =>
                                 updateLineField(line.id, 'quantity', event.target.value)
                               }
-                              inputProps={{ min: 1, max: line.available }}
+                              inputProps={{ min: saleType === 'exchange' ? -999 : 1, max: line.available }}
                               sx={{ width: 90 }}
                             />
                           </TableCell>
@@ -1042,7 +1067,7 @@ function BillingPage() {
 
               <SummaryRow
                 label="Net Payable"
-                value={Math.max(0, totals.netPayable - creditNoteAmount).toFixed(2)}
+                value={(saleType === 'exchange' ? totals.netPayable - creditNoteAmount : Math.max(0, totals.netPayable - creditNoteAmount)).toFixed(2)}
                 strong
               />
             </Stack>
@@ -1070,7 +1095,7 @@ function BillingPage() {
       <PaymentDialog
         open={paymentOpen}
         onClose={() => setPaymentOpen(false)}
-        netAmount={Math.max(0, totals.netPayable - creditNoteAmount)}
+        netAmount={saleType === 'exchange' ? totals.netPayable - creditNoteAmount : Math.max(0, totals.netPayable - creditNoteAmount)}
         onConfirm={handlePaymentConfirm}
         vouchers={vouchers}
       />
@@ -1082,6 +1107,23 @@ function BillingPage() {
         loyaltyConfig={loyaltyConfig}
         onRedeem={(pts) => setLoyaltyRedeemed(String(pts))}
       />
+
+      <Dialog open={showPrint} onClose={() => navigate('/sales')} maxWidth="md" fullWidth>
+        <Box sx={{ p: 2 }}>
+          <Typography variant="h6" sx={{ mb: 2 }}>Sale Completed Successfully!</Typography>
+          {completedSaleData?.saleType === 'exchange' ? (
+            <ExchangeInvoicePrint sale={completedSaleData} />
+          ) : (
+            <Box sx={{ p: 4, textAlign: 'center' }}>
+              <Typography>Standard Invoice Printing logic here...</Typography>
+            </Box>
+          )}
+          <Stack direction="row" spacing={2} justifyContent="flex-end" sx={{ mt: 2 }}>
+            <Button variant="outlined" onClick={() => navigate('/sales')}>Close</Button>
+            <Button variant="contained" onClick={() => window.print()}>Print Now</Button>
+          </Stack>
+        </Box>
+      </Dialog>
     </>
   );
 }

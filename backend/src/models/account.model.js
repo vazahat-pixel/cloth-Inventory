@@ -9,9 +9,12 @@ const accountSchema = new mongoose.Schema(
             enum: ["ASSET", "LIABILITY", "INCOME", "EXPENSE", "EQUITY"],
             required: true,
         },
+        groupId: { type: mongoose.Schema.Types.ObjectId, ref: "AccountGroup" },
         parentId: { type: mongoose.Schema.Types.ObjectId, ref: "Account" },
         isSystem: { type: Boolean, default: false },
         isActive: { type: Boolean, default: true },
+        openingBalance: { type: Number, default: 0 },
+        description: { type: String },
     },
     { timestamps: true }
 );

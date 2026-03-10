@@ -3,6 +3,7 @@ const masterNavigation = [
   { label: 'Customers', path: '/masters/customers' },
   { label: 'Account Groups', path: '/masters/account-groups' },
   { label: 'Warehouses', path: '/masters/warehouses' },
+  { label: 'Stores', path: '/masters/stores' },
   { label: 'Brands', path: '/masters/brands' },
   { label: 'Item Groups', path: '/masters/item-groups' },
   { label: 'Salesmen', path: '/masters/salesmen' },

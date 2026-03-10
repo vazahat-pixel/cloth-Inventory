@@ -16,13 +16,9 @@ const pathMap = {
   '/masters': 'masters',
   '/inventory': 'inventory',
   '/purchase': 'purchase',
-  '/orders': 'orders',
   '/sales': 'sales',
-  '/pricing': 'pricing',
-  '/customers': 'customers',
-  '/accounts': 'accounts',
   '/reports': 'reports',
-  '/gst': 'gst',
+  '/setup': 'setup',
   '/settings': 'settings',
 };
 
@@ -141,40 +137,36 @@ function RoleSidebar({ navConfig }) {
           },
         }}
       >
-      <List sx={{ px: 1.5, py: 1.5 }}>
-        {navConfig.mainNav.map((item) => {
-          const fullPath = toFullPath(item.path);
-          const childKey = pathMap[item.path];
-          return (
-            <Box key={fullPath}>
-              <ListItem disablePadding sx={{ mb: 0.5 }}>
-                <ListItemButton
-                  component={NavLink}
-                  to={fullPath}
-                  end={item.path === '/'}
-                  sx={linkStyle}
-                >
-                  <ListItemText
-                    primary={item.label}
-                    slotProps={{ primary: { fontSize: 14, fontWeight: 600 } }}
-                  />
-                </ListItemButton>
-              </ListItem>
-              {childKey === 'masters' && renderChildren('/masters', 'masters')}
-              {childKey === 'inventory' && renderChildren('/inventory', 'inventory')}
-              {childKey === 'purchase' && renderChildren('/purchase', 'purchase')}
-              {childKey === 'orders' && renderChildren('/orders', 'orders')}
-              {childKey === 'sales' && renderChildren('/sales', 'sales')}
-              {childKey === 'pricing' && renderChildren('/pricing', 'pricing')}
-              {childKey === 'customers' && renderChildren('/customers', 'customers')}
-              {childKey === 'accounts' && renderChildren('/accounts', 'accounts')}
-              {childKey === 'reports' && renderChildren('/reports', 'reports')}
-              {childKey === 'gst' && renderChildren('/gst', 'gst')}
-              {childKey === 'settings' && renderChildren('/settings', 'settings')}
-            </Box>
-          );
-        })}
-      </List>
+        <List sx={{ px: 1.5, py: 1.5 }}>
+          {navConfig.mainNav.map((item) => {
+            const fullPath = toFullPath(item.path);
+            const childKey = pathMap[item.path];
+            return (
+              <Box key={fullPath}>
+                <ListItem disablePadding sx={{ mb: 0.5 }}>
+                  <ListItemButton
+                    component={NavLink}
+                    to={fullPath}
+                    end={item.path === '/'}
+                    sx={linkStyle}
+                  >
+                    <ListItemText
+                      primary={item.label}
+                      slotProps={{ primary: { fontSize: 14, fontWeight: 600 } }}
+                    />
+                  </ListItemButton>
+                </ListItem>
+                {childKey === 'masters' && renderChildren('/masters', 'masters')}
+                {childKey === 'inventory' && renderChildren('/inventory', 'inventory')}
+                {childKey === 'purchase' && renderChildren('/purchase', 'purchase')}
+                {childKey === 'sales' && renderChildren('/sales', 'sales')}
+                {childKey === 'reports' && renderChildren('/reports', 'reports')}
+                {childKey === 'setup' && renderChildren('/setup', 'setup')}
+                {childKey === 'settings' && renderChildren('/settings', 'settings')}
+              </Box>
+            );
+          })}
+        </List>
       </Box>
     </Box>
   );

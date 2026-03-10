@@ -3,7 +3,7 @@ import { useSelector } from 'react-redux';
 import MasterFormDialog from '../components/MasterFormDialog';
 
 const baseSupplierFields = [
-  { name: 'supplierName', label: 'Supplier Name', required: true },
+  { name: 'name', label: 'Supplier Name', required: true },
   { name: 'supplierCode', label: 'Supplier Code', required: true },
   { name: 'gstNumber', label: 'GST Number', required: true },
   { name: 'phone', label: 'Phone', required: true },

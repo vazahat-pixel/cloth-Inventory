@@ -8,7 +8,8 @@ export const fetchMasters = createAsyncThunk('masters/fetchAll', async (entityKe
     const endpointMap = {
       suppliers: '/suppliers',
       customers: '/customers',
-      warehouses: '/stores',
+      warehouses: '/warehouses',
+      stores: '/stores',
       itemGroups: '/categories',
       salesmen: '/auth/users',
       brands: '/brands',
@@ -19,7 +20,8 @@ export const fetchMasters = createAsyncThunk('masters/fetchAll', async (entityKe
     const responseKeyMap = {
       suppliers: 'suppliers',
       customers: 'customers',
-      warehouses: 'stores',
+      warehouses: 'warehouses',
+      stores: 'stores',
       itemGroups: 'categories',
       salesmen: 'users',
       brands: 'brands',
@@ -36,7 +38,8 @@ export const fetchMasters = createAsyncThunk('masters/fetchAll', async (entityKe
 
     const entityTypeMapping = {
       itemGroups: 'category',
-      warehouses: 'store',
+      warehouses: 'warehouse',
+      stores: 'store',
       salesmen: 'user',
     };
     const entityType = entityTypeMapping[entityKey] || entityKey.slice(0, -1);
@@ -51,7 +54,8 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
     const endpointMap = {
       suppliers: '/suppliers',
       customers: '/customers',
-      warehouses: '/stores',
+      warehouses: '/warehouses',
+      stores: '/stores',
       itemGroups: '/categories',
       salesmen: '/auth/users',
       brands: '/brands',
@@ -60,12 +64,12 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
     };
     const endpoint = endpointMap[entityKey];
     const response = await api.post(endpoint, record);
-    const resKey = entityKey === 'warehouses' ? 'store' : entityKey.slice(0, -1);
-    const raw = response.data.data || response.data[resKey] || response.data[entityKey];
+    const raw = response.data.data || response.data[entityKey.slice(0, -1)] || response.data[entityKey];
 
     const entityTypeMapping = {
       itemGroups: 'category',
-      warehouses: 'store',
+      warehouses: 'warehouse',
+      stores: 'store',
       salesmen: 'user',
     };
     const entityType = entityTypeMapping[entityKey] || entityKey.slice(0, -1);
@@ -80,7 +84,8 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
     const endpointMap = {
       suppliers: '/suppliers',
       customers: '/customers',
-      warehouses: '/stores',
+      warehouses: '/warehouses',
+      stores: '/stores',
       itemGroups: '/categories',
       salesmen: '/auth/users',
       brands: '/brands',
@@ -89,12 +94,12 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
     };
     const endpoint = `${endpointMap[entityKey]}/${id}`;
     const response = await api.patch(endpoint, updates);
-    const resKey = entityKey === 'warehouses' ? 'store' : entityKey.slice(0, -1);
-    const raw = response.data.data || response.data[resKey] || response.data[entityKey];
+    const raw = response.data.data || response.data[entityKey.slice(0, -1)] || response.data[entityKey];
 
     const entityTypeMapping = {
       itemGroups: 'category',
-      warehouses: 'store',
+      warehouses: 'warehouse',
+      stores: 'store',
       salesmen: 'user',
     };
     const entityType = entityTypeMapping[entityKey] || entityKey.slice(0, -1);
@@ -109,7 +114,8 @@ export const deleteMasterRecord = createAsyncThunk('masters/delete', async ({ en
     const endpointMap = {
       suppliers: '/suppliers',
       customers: '/customers',
-      warehouses: '/stores',
+      warehouses: '/warehouses',
+      stores: '/stores',
       itemGroups: '/categories',
       salesmen: '/auth/users',
       brands: '/brands',
@@ -128,6 +134,7 @@ const initialState = {
   suppliers: [],
   customers: [],
   warehouses: [],
+  stores: [],
   itemGroups: [],
   salesmen: [],
   brands: [],

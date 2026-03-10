@@ -8,6 +8,10 @@ const supplierSchema = new mongoose.Schema(
             unique: true,
             trim: true
         },
+        supplierCode: {
+            type: String,
+            trim: true
+        },
         contactPerson: {
             type: String,
             trim: true
@@ -22,10 +26,14 @@ const supplierSchema = new mongoose.Schema(
             trim: true
         },
         address: {
-            street: String,
-            city: String,
-            state: String,
-            pincode: String,
+            type: String
+        },
+        bankDetails: {
+            type: String
+        },
+        groupId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'AccountGroup'
         },
         gstNumber: {
             type: String,

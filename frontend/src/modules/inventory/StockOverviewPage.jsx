@@ -27,6 +27,7 @@ const LOW_STOCK_THRESHOLD = 10;
 function StockOverviewPage() {
   const stockRows = useSelector((state) => state.inventory.stock);
   const warehouses = useSelector((state) => state.masters.warehouses || []);
+  const stores = useSelector((state) => state.masters.stores || []);
 
   const [searchText, setSearchText] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState('all');
@@ -39,6 +40,7 @@ function StockOverviewPage() {
   useEffect(() => {
     dispatch(fetchStockOverview());
     dispatch(fetchMasters('warehouses'));
+    dispatch(fetchMasters('stores'));
   }, [dispatch]);
 
   const brands = useMemo(
@@ -50,14 +52,12 @@ function StockOverviewPage() {
     [stockRows],
   );
 
-  const warehouseMap = useMemo(
-    () =>
-      warehouses.reduce((accumulator, warehouse) => {
-        accumulator[warehouse.id] = warehouse.name;
-        return accumulator;
-      }, {}),
-    [warehouses],
-  );
+  const locationMap = useMemo(() => {
+    const map = {};
+    warehouses.forEach(w => { map[w.id || w._id] = w.warehouseName || w.name; });
+    stores.forEach(s => { map[s.id || s._id] = s.name; });
+    return map;
+  }, [warehouses, stores]);
 
   const filteredRows = useMemo(() => {
     const query = searchText.trim().toLowerCase();
@@ -117,7 +117,7 @@ function StockOverviewPage() {
           <TextField
             select
             size="small"
-            label="Warehouse"
+            label="Location"
             value={warehouseFilter}
             onChange={(event) => {
               setPage(0);
@@ -125,10 +125,17 @@ function StockOverviewPage() {
             }}
             sx={{ minWidth: 200 }}
           >
-            <MenuItem value="all">All Warehouses</MenuItem>
-            {warehouses.map((warehouse) => (
-              <MenuItem key={warehouse.id} value={warehouse.id}>
-                {warehouse.name}
+            <MenuItem value="all">All Locations</MenuItem>
+            <Typography variant="overline" sx={{ px: 2, fontWeight: 700, color: 'primary.main' }}>Warehouses</Typography>
+            {warehouses.map((w) => (
+              <MenuItem key={w.id || w._id} value={w.id || w._id}>
+                {w.warehouseName || w.name}
+              </MenuItem>
+            ))}
+            <Typography variant="overline" sx={{ px: 2, fontWeight: 700, color: 'secondary.main' }}>Stores</Typography>
+            {stores.map((s) => (
+              <MenuItem key={s.id || s._id} value={s.id || s._id}>
+                {s.name}
               </MenuItem>
             ))}
           </TextField>
@@ -209,7 +216,7 @@ function StockOverviewPage() {
                       <TableCell>{`${row.size} / ${row.color}`}</TableCell>
                       <TableCell>{row.lotNumber || '-'}</TableCell>
                       <TableCell>{row.sku}</TableCell>
-                      <TableCell>{row.warehouseName || warehouseMap[row.warehouseId] || row.warehouseId || '-'}</TableCell>
+                      <TableCell>{row.warehouseName || row.storeName || locationMap[row.warehouseId] || locationMap[row.storeId] || '-'}</TableCell>
                       <TableCell align="right">{row.quantity}</TableCell>
                       <TableCell align="right">{row.reserved}</TableCell>
                       <TableCell align="right">

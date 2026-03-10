@@ -37,9 +37,9 @@ function WarehousesListPage() {
   return (
     <MasterListPage
       entityKey="warehouses"
-      title="Warehouses"
+      title="Warehouse (Head Office) Master"
       singularLabel="Warehouse"
-      description="Configure warehouse and branch locations for future stock movement."
+      description="Manage your main warehouse and central stock points."
       primaryField="warehouseName"
       searchKeys={['warehouseName', 'code', 'location']}
       columns={warehousesColumns}

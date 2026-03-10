@@ -14,6 +14,7 @@ const StockHistoryType = {
     RETURN: 'RETURN',
     DISPATCH: 'DISPATCH',
     SALE: 'SALE',
+    AUDIT: 'AUDIT',
 };
 
 const ProductionStatus = {
@@ -53,6 +54,7 @@ const ReturnType = {
     CUSTOMER_RETURN: 'CUSTOMER_RETURN',
     STORE_TO_FACTORY: 'STORE_TO_FACTORY',
     DAMAGED: 'DAMAGED',
+    PURCHASE_RETURN: 'PURCHASE_RETURN',
 };
 
 const ReturnStatus = {

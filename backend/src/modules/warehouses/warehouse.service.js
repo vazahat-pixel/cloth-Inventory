@@ -20,6 +20,11 @@ const createWarehouse = async (warehouseData, userId) => {
         throw new Error('A warehouse with this name already exists');
     }
 
+    const count = await Warehouse.countDocuments({ isDeleted: false });
+    if (count > 0) {
+        throw new Error('System restricts to only ONE active warehouse (Head Office) at the moment!');
+    }
+
     const code = await generateWarehouseCode();
 
     const warehouse = new Warehouse({

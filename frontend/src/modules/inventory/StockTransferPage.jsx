@@ -31,6 +31,7 @@ const getTodayDate = () => new Date().toISOString().slice(0, 10);
 function StockTransferPage() {
   const dispatch = useDispatch();
   const warehouses = useSelector((state) => state.masters.warehouses || []);
+  const stores = useSelector((state) => state.masters.stores || []);
   const stockRows = useSelector((state) => state.inventory.stock || []);
 
   const [lines, setLines] = useState([]);
@@ -60,6 +61,7 @@ function StockTransferPage() {
 
   useEffect(() => {
     dispatch(fetchMasters('warehouses'));
+    dispatch(fetchMasters('stores'));
     dispatch(fetchStockOverview());
   }, [dispatch]);
 
@@ -81,14 +83,12 @@ function StockTransferPage() {
       .filter((row) => !selectedIds.has(row.id));
   }, [fromStoreId, lines, stockRows]);
 
-  const warehouseMap = useMemo(
-    () =>
-      warehouses.reduce((accumulator, warehouse) => {
-        accumulator[warehouse.id] = warehouse.name;
-        return accumulator;
-      }, {}),
-    [warehouses],
-  );
+  const locationMap = useMemo(() => {
+    const map = {};
+    warehouses.forEach(w => { map[w.id || w._id] = w.warehouseName || w.name; });
+    stores.forEach(s => { map[s.id || s._id] = s.name; });
+    return map;
+  }, [warehouses, stores]);
 
   const lineRows = useMemo(
     () =>
@@ -211,7 +211,8 @@ function StockTransferPage() {
     });
 
     const payload = {
-      storeId: values.toStoreId, // Backend uses storeId for destination
+      sourceWarehouseId: values.fromStoreId,
+      destinationStoreId: values.toStoreId,
       products: preparedProducts,
       notes: values.remarks,
     };
@@ -248,33 +249,33 @@ function StockTransferPage() {
 
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
           <TextField
-            label="From Store"
+            label="Source Warehouse (Admin)"
             size="small"
             select
             fullWidth
-            {...register('fromStoreId', { required: 'From store is required.' })}
+            {...register('fromStoreId', { required: 'Source warehouse is required.' })}
             error={Boolean(errors.fromStoreId)}
             helperText={errors.fromStoreId?.message || ' '}
           >
-            {warehouses.map((warehouse) => (
-              <MenuItem key={warehouse.id} value={warehouse.id}>
-                {warehouse.name}
+            {warehouses.map((w) => (
+              <MenuItem key={w.id || w._id} value={w.id || w._id}>
+                {w.warehouseName || w.name}
               </MenuItem>
             ))}
           </TextField>
 
           <TextField
-            label="To Store"
+            label="Destination Store"
             size="small"
             select
             fullWidth
-            {...register('toStoreId', { required: 'To store is required.' })}
+            {...register('toStoreId', { required: 'Destination store is required.' })}
             error={Boolean(errors.toStoreId)}
             helperText={errors.toStoreId?.message || ' '}
           >
-            {warehouses.map((warehouse) => (
-              <MenuItem key={warehouse.id} value={warehouse.id}>
-                {warehouse.name}
+            {stores.map((s) => (
+              <MenuItem key={s.id || s._id} value={s.id || s._id}>
+                {s.name}
               </MenuItem>
             ))}
           </TextField>
@@ -425,8 +426,8 @@ function StockTransferPage() {
         )}
 
         <Typography variant="caption" sx={{ display: 'block', color: '#64748b', mt: 1.5 }}>
-          Transfer from: {warehouseMap[fromStoreId] || '-'} | Transfer to:{' '}
-          {warehouseMap[toStoreId] || '-'}
+          Transfer from: {locationMap[fromStoreId] || '-'} | Transfer to:{' '}
+          {locationMap[toStoreId] || '-'}
         </Typography>
       </Paper>
 

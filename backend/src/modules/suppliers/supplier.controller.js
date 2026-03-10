@@ -15,7 +15,13 @@ const createSupplier = async (req, res, next) => {
         const error = validate(req, res);
         if (error) return error;
 
-        const supplier = await supplierService.createSupplier(req.body, req.user._id);
+        const bodyData = { ...req.body };
+        if (bodyData.groupId === '') delete bodyData.groupId;
+        if (bodyData.status) {
+            bodyData.isActive = bodyData.status === 'Active';
+        }
+
+        const supplier = await supplierService.createSupplier(bodyData, req.user._id);
         return sendCreated(res, { supplier }, 'Supplier created successfully');
     } catch (err) {
         return sendError(res, err.message, 400);
@@ -47,7 +53,13 @@ const updateSupplier = async (req, res, next) => {
         const error = validate(req, res);
         if (error) return error;
 
-        const supplier = await supplierService.updateSupplier(req.params.id, req.body);
+        const bodyData = { ...req.body };
+        if (bodyData.groupId === '') delete bodyData.groupId;
+        if (bodyData.status) {
+            bodyData.isActive = bodyData.status === 'Active';
+        }
+
+        const supplier = await supplierService.updateSupplier(req.params.id, bodyData);
         return sendSuccess(res, { supplier }, 'Supplier updated successfully');
     } catch (err) {
         return sendError(res, err.message, 400);

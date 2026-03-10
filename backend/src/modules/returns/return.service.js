@@ -219,6 +219,21 @@ const processReturn = async (returnData, userId) => {
             // We record it as a return record with type DAMAGED.
         }
 
+        // 4. Logic for Return to Supplier (Purchase Return)
+        if (type === ReturnType.PURCHASE_RETURN) {
+            // Usually returns come from Warehouse stock
+            await adjustStock({
+                productId,
+                quantityChange: -quantity,
+                type: StockHistoryType.OUT,
+                referenceId: null,
+                referenceModel: 'Return',
+                performedBy: userId,
+                notes: `Purchase return to supplier. Ref: ${notes || 'N/A'}`,
+                session
+            });
+        }
+
         const returnNumber = await generateReturnNumber(session);
         const returnRecord = new Return({
             ...returnData,

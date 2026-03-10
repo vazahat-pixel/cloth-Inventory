@@ -81,6 +81,8 @@ function PurchaseFormPage() {
     handleSubmit,
     watch,
     reset,
+    setValue,
+    getValues,
     formState: { errors },
   } = useForm({
     defaultValues: {
@@ -128,6 +130,19 @@ function PurchaseFormPage() {
       })),
     );
   }, [existingPurchase, reset]);
+
+  const activeWarehouses = useMemo(
+    () => (warehouses || []).filter((w) => String(w.status).toLowerCase() === 'active'),
+    [warehouses],
+  );
+
+  useEffect(() => {
+    if (!isEditMode && activeWarehouses.length > 0) {
+      if (!getValues('warehouseId')) {
+        setValue('warehouseId', activeWarehouses[0].id || activeWarehouses[0]._id);
+      }
+    }
+  }, [activeWarehouses, isEditMode, setValue, getValues]);
 
   const otherCharges = watch('otherCharges');
 

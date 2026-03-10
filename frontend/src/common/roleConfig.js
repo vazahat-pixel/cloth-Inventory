@@ -4,12 +4,8 @@ import {
   inventoryNavigationItems,
   purchaseNavigationItems,
   salesNavigationItems,
-  ordersNavigationItems,
-  pricingNavigationItems,
-  customersNavigationItems,
-  accountsNavigationItems,
   reportsNavigationItems,
-  gstNavigationItems,
+  setupNavigationItems,
   settingsNavigationItems,
 } from './navigation';
 
@@ -18,8 +14,6 @@ export const ROLES = {
   store_staff: 'store_staff',
 };
 
-// Map legacy roles for compatibility during transition if needed, 
-// but backend will return admin or store_staff
 const roleAliasMap = {
   Admin: 'admin',
   Manager: 'store_staff',
@@ -30,44 +24,36 @@ const roleAliasMap = {
 
 export const getRoleBasePath = (role) => {
   const normalizedRole = roleAliasMap[role] || 'admin';
-  const map = { admin: '/admin', store_staff: '/staff' };
-  return map[normalizedRole] || '/admin';
-};
-
-export const getRoleFromPath = (pathname) => {
-  if (pathname.startsWith('/admin')) return 'admin';
-  if (pathname.startsWith('/staff')) return 'store_staff';
-  return null;
+  const map = { admin: '/ho', store_staff: '/store' };
+  return map[normalizedRole] || '/ho';
 };
 
 export const adminNavConfig = {
   role: ROLES.admin,
-  basePath: '/admin',
-  label: 'Admin Panel',
-  mainNav: navigationItems.filter(i => i.path !== '/sales'),
+  basePath: '/ho',
+  label: 'HO Panel',
+  mainNav: navigationItems.filter(i => !['/pricing', '/customers', '/gst'].includes(i.path)),
   children: {
     masters: mastersNavigationItems,
     inventory: inventoryNavigationItems,
     purchase: purchaseNavigationItems,
-    orders: ordersNavigationItems,
-    pricing: pricingNavigationItems,
-    customers: customersNavigationItems,
-    accounts: accountsNavigationItems,
+    sales: salesNavigationItems,
     reports: reportsNavigationItems,
-    gst: gstNavigationItems,
+    setup: setupNavigationItems,
     settings: settingsNavigationItems,
   },
 };
 
 export const staffNavConfig = {
   role: ROLES.store_staff,
-  basePath: '/staff',
-  label: 'Staff Panel',
-  mainNav: navigationItems.filter((i) => !['/settings', '/masters', '/pricing', '/customers', '/reports', '/gst'].includes(i.path)),
+  basePath: '/store',
+  label: 'Store Panel',
+  mainNav: navigationItems.filter((i) => ['/', '/inventory', '/purchase', '/sales', '/data-import', '/reports'].includes(i.path)),
   children: {
-    inventory: inventoryNavigationItems.filter(i => ['Stock Overview', 'Stock Transfer'].includes(i.label)),
+    inventory: inventoryNavigationItems.filter(i => ['Stock Overview', 'Transfer'].includes(i.label)),
     sales: salesNavigationItems,
-    purchase: purchaseNavigationItems.filter(i => i.label === 'Purchase Bills'), // Just in case, allow viewing purchase bills or return
+    purchase: purchaseNavigationItems.filter(i => i.label === 'Purchase Return'),
+    reports: reportsNavigationItems.filter(i => ['Daily Sales', 'Stock Report'].includes(i.label)),
   },
 };
 
@@ -78,4 +64,10 @@ export const getNavConfigForRole = (role) => {
     [ROLES.store_staff]: staffNavConfig,
   };
   return map[normalizedRole] || adminNavConfig;
+};
+
+export const getRoleFromPath = (pathname) => {
+  if (pathname.startsWith('/ho')) return 'admin';
+  if (pathname.startsWith('/store')) return 'store_staff';
+  return null;
 };

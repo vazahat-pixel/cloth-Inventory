@@ -26,15 +26,24 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import { useForm } from 'react-hook-form';
-import { addUser, updateUser, fetchUsers } from './settingsSlice';
+import { addUser, updateUser, fetchUsers, fetchRoles } from './settingsSlice';
+import { useRoleBasePath } from '../../hooks/useRoleBasePath';
 
 function UsersPage() {
   const dispatch = useDispatch();
   useEffect(() => {
     dispatch(fetchUsers());
+    dispatch(fetchRoles());
   }, [dispatch]);
   const users = useSelector((state) => state.settings.users);
-  const roles = useSelector((state) => state.settings.roles);
+  const rolesFromState = useSelector((state) => state.settings.roles);
+
+  // Fallback to standard roles if database is empty
+  const roles = rolesFromState.length > 0 ? rolesFromState : [
+    { id: 'admin', roleName: 'Admin' },
+    { id: 'manager', roleName: 'Manager' },
+    { id: 'staff', roleName: 'Staff' }
+  ];
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -150,7 +159,7 @@ function UserDialog({ open, onClose, user, roles, onSave }) {
     if (user) {
       reset({ userName: user.userName, email: user.email, mobile: user.mobile || '', roleId: user.roleId || '', status: user.status || 'Active' });
     } else {
-      reset({ userName: '', email: '', mobile: '', roleId: roles[0]?.id || '', status: 'Active' });
+      reset({ userName: '', email: '', mobile: '', roleId: roles[0]?.roleName || '', status: 'Active' });
     }
   }, [open, user, roles, reset]);
 
@@ -166,7 +175,11 @@ function UserDialog({ open, onClose, user, roles, onSave }) {
             <TextField fullWidth size="small" type="email" label="Email" {...register('email', { required: true })} required />
             <TextField fullWidth size="small" label="Mobile" {...register('mobile')} />
             <TextField fullWidth size="small" select label="Role" {...register('roleId', { required: true })}>
-              {roles.map((r) => <MenuItem key={r.id} value={r.id}>{r.roleName}</MenuItem>)}
+              {roles.map((r) => (
+                <MenuItem key={r.id || r._id} value={r.roleName}>
+                  {r.roleName}
+                </MenuItem>
+              ))}
             </TextField>
             <TextField fullWidth size="small" select label="Status" {...register('status')}>
               <MenuItem value="Active">Active</MenuItem>

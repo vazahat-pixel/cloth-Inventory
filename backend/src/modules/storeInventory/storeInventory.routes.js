@@ -7,6 +7,8 @@ const router = express.Router();
 router.use(protect);
 
 router.get('/', storeInventoryController.getStoreInventory);
+router.post('/adjust', storeInventoryController.adjustInventory);
+router.post('/reconcile', storeInventoryController.reconcileStock);
 router.get('/:productId', storeInventoryController.getProductInStore);
 
 module.exports = router;

@@ -34,12 +34,14 @@ export const transferStock = createAsyncThunk(
     try {
       // 1. Create Dispatch
       const payload = {
-        storeId: transferData.storeId || transferData.warehouseId,
+        sourceWarehouseId: transferData.sourceWarehouseId,
+        destinationStoreId: transferData.destinationStoreId,
         products: (transferData.products || transferData.items || []).map(p => ({
           productId: p.productId || p.variantId || p.id,
           quantity: p.quantity,
           price: p.price || 0
-        }))
+        })),
+        notes: transferData.notes
       };
 
       const response = await api.post('/dispatch', payload);

@@ -19,6 +19,7 @@ import UploadFileIcon from '@mui/icons-material/UploadFile';
 import { useForm } from 'react-hook-form';
 import { addItem, updateItem } from './itemsSlice';
 import VariantTable from './VariantTable';
+import api from '../../services/api';
 
 const defaultValues = {
   name: '',
@@ -31,6 +32,7 @@ const defaultValues = {
   season: '',
   fabric: '',
   fabricType: '',
+  hsnCodeId: '',
 };
 
 function ItemFormPage() {
@@ -60,6 +62,14 @@ function ItemFormPage() {
 
   const [variants, setVariants] = useState([]);
   const [variantError, setVariantError] = useState('');
+  const [hsnCodes, setHsnCodes] = useState([]);
+
+  useEffect(() => {
+    dispatch(fetchMasters('brands'));
+    dispatch(fetchMasters('itemGroups'));
+    api.get('/hsn-codes').then(res => setHsnCodes(res.data.data.hsns || [])).catch(console.error);
+  }, [dispatch]);
+
   const [imageData, setImageData] = useState(null);
 
   useEffect(() => {
@@ -79,6 +89,7 @@ function ItemFormPage() {
         season: existingItem.attributes?.season || '',
         fabric: existingItem.attributes?.fabric || '',
         fabricType: existingItem.attributes?.fabricType || '',
+        hsnCodeId: existingItem.hsnCodeId || '',
       });
       setVariants(existingItem.variants || []);
       setImageData(existingItem.image || null);
@@ -133,6 +144,7 @@ function ItemFormPage() {
         fabric: values.fabric,
         fabricType: values.fabricType,
       },
+      hsnCodeId: values.hsnCodeId,
       image: imageData,
       status: values.status,
       variants,
@@ -276,6 +288,22 @@ function ItemFormPage() {
             >
               <MenuItem value="Active">Active</MenuItem>
               <MenuItem value="Inactive">Inactive</MenuItem>
+            </TextField>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField
+              label="HSN Code"
+              select
+              fullWidth
+              size="small"
+              {...register('hsnCodeId')}
+            >
+              <MenuItem value="">None</MenuItem>
+              {hsnCodes.map((hsn) => (
+                <MenuItem key={hsn._id} value={hsn._id}>
+                  {hsn.code} - {hsn.description}
+                </MenuItem>
+              ))}
             </TextField>
           </Grid>
         </Grid>

@@ -8,8 +8,7 @@ const createSupplierValidation = [
 
     body('phone')
         .optional({ checkFalsy: true })
-        .trim()
-        .matches(/^[0-9]{10}$/).withMessage('Phone must be a valid 10-digit number'),
+        .trim(),
 
     body('email')
         .optional({ checkFalsy: true })
@@ -18,9 +17,7 @@ const createSupplierValidation = [
 
     body('gstNumber')
         .optional({ checkFalsy: true })
-        .trim()
-        .matches(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/)
-        .withMessage('Invalid GST number format'),
+        .trim(),
 ];
 
 const updateSupplierValidation = [
@@ -31,8 +28,7 @@ const updateSupplierValidation = [
 
     body('phone')
         .optional({ checkFalsy: true })
-        .trim()
-        .matches(/^[0-9]{10}$/).withMessage('Phone must be a valid 10-digit number'),
+        .trim(),
 
     body('email')
         .optional({ checkFalsy: true })

@@ -171,7 +171,7 @@ function PurchaseReturnPage() {
     const selectedLines = lines.filter((line) => Number(line.returnQty) > 0);
     const returnPromises = selectedLines.map((line) => {
       const itemPayload = {
-        type: 'STORE_TO_FACTORY',
+        type: 'PURCHASE_RETURN',
         storeId: purchase.warehouseId || purchase.storeId,
         productId: line.variantId || line.productId,
         quantity: Number(line.returnQty),

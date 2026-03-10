@@ -60,6 +60,33 @@ export const updatePurchase = createAsyncThunk('purchase/update', async ({ id, p
   }
 });
 
+export const fetchPurchaseOrders = createAsyncThunk('purchase/fetchOrders', async (_, { rejectWithValue }) => {
+  try {
+    const response = await api.get('/purchase-orders');
+    return response.data.purchaseOrders || response.data.data || [];
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || 'Failed to fetch purchase orders');
+  }
+});
+
+export const addPurchaseOrder = createAsyncThunk('purchase/addOrder', async (orderData, { rejectWithValue }) => {
+  try {
+    const response = await api.post('/purchase-orders', orderData);
+    return response.data.purchaseOrder || response.data.po || response.data.data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || 'Failed to create purchase order');
+  }
+});
+
+export const updatePurchaseOrder = createAsyncThunk('purchase/updateOrder', async ({ id, orderData }, { rejectWithValue }) => {
+  try {
+    const response = await api.patch(`/purchase-orders/${id}`, orderData);
+    return response.data.purchaseOrder || response.data.po || response.data.data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || 'Failed to update purchase order');
+  }
+});
+
 export const fetchPurchaseReturns = createAsyncThunk('purchase/fetchReturns', async (_, { rejectWithValue }) => {
   try {
     const response = await api.get('/returns?type=STORE_TO_FACTORY');
@@ -72,8 +99,9 @@ export const fetchPurchaseReturns = createAsyncThunk('purchase/fetchReturns', as
 
 export const addPurchaseReturn = createAsyncThunk('purchase/addReturn', async (returnData, { rejectWithValue }) => {
   try {
-    // Note: Backend might use a single returns endpoint with different types
-    const response = await api.post('/returns', { ...returnData, type: 'STORE_TO_FACTORY' });
+    const payload = { ...returnData };
+    if (!payload.type) payload.type = 'PURCHASE_RETURN';
+    const response = await api.post('/returns', payload);
     const raw = response.data.returnEntry || response.data.data;
     return normalizeResponse(raw, 'return');
   } catch (error) {
@@ -83,6 +111,7 @@ export const addPurchaseReturn = createAsyncThunk('purchase/addReturn', async (r
 
 const initialState = {
   records: [],
+  orders: [],
   returns: [],
   loading: false,
   error: null,
@@ -129,6 +158,23 @@ const purchaseSlice = createSlice({
         const index = state.records.findIndex((r) => r.id === action.payload.id || r._id === action.payload._id);
         if (index !== -1) {
           state.records[index] = action.payload;
+        }
+      })
+      // Purchase Orders
+      .addCase(fetchPurchaseOrders.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(fetchPurchaseOrders.fulfilled, (state, action) => {
+        state.loading = false;
+        state.orders = action.payload || [];
+      })
+      .addCase(addPurchaseOrder.fulfilled, (state, action) => {
+        state.orders.unshift(action.payload);
+      })
+      .addCase(updatePurchaseOrder.fulfilled, (state, action) => {
+        const index = state.orders.findIndex((o) => o.id === action.payload.id || o._id === action.payload._id);
+        if (index !== -1) {
+          state.orders[index] = action.payload;
         }
       })
       // Fetch Returns

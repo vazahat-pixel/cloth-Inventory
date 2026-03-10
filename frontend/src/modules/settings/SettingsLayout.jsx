@@ -8,7 +8,7 @@ const settingsTabs = [
   { label: 'Roles', path: '/settings/roles' },
   { label: 'Number Series', path: '/settings/number-series' },
   { label: 'Preferences', path: '/settings/preferences' },
-  { label: 'Purchase Config', path: '/settings/purchase-config' },
+  { label: 'Purchase Config', path: '/settings/purchase-voucher' },
   { label: 'Print Templates', path: '/settings/print-templates' },
   { label: 'Audit Log', path: '/settings/audit-log' },
 ];

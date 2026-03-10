@@ -3,7 +3,9 @@ import MasterFormDialog from '../components/MasterFormDialog';
 const warehouseFields = [
   { name: 'warehouseName', label: 'Warehouse Name', required: true },
   { name: 'code', label: 'Code', required: true },
-  { name: 'location', label: 'Location', required: true },
+  { name: 'city', label: 'City', required: true },
+  { name: 'state', label: 'State', required: true },
+  { name: 'location', label: 'Complete Address', required: true, multiline: true },
   { name: 'managerName', label: 'Manager Name', required: true },
   { name: 'contactNumber', label: 'Contact Number', required: true },
   {

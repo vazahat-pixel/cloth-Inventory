@@ -24,7 +24,33 @@ const getProductInStore = async (req, res, next) => {
     }
 };
 
+const adjustInventory = async (req, res, next) => {
+    try {
+        const result = await storeInventoryService.adjustInventory(req.body, req.user._id);
+        return sendSuccess(res, result, 'Inventory adjusted successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
+const inventoryService = require('../../services/inventory.service');
+
+const reconcileStock = async (req, res, next) => {
+    try {
+        const { storeId, items } = req.body;
+        if (!storeId || !items || !Array.isArray(items)) {
+            return sendError(res, 'storeId and items array are required', 400);
+        }
+        const results = await inventoryService.reconcileStock(storeId, items, req.user._id);
+        return sendSuccess(res, { results }, 'Stock reconciliation completed successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
 module.exports = {
     getStoreInventory,
-    getProductInStore
+    getProductInStore,
+    adjustInventory,
+    reconcileStock
 };

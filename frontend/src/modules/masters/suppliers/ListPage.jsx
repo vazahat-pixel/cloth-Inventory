@@ -12,7 +12,7 @@ function SuppliersListPage() {
   const supplierColumns = useMemo(
     () => [
       {
-        field: 'supplierName',
+        field: 'name',
         headerName: 'Supplier Name',
         minWidth: 180,
         render: (value) => <Typography sx={{ fontWeight: 700 }}>{value}</Typography>,
@@ -31,27 +31,13 @@ function SuppliersListPage() {
         field: 'address',
         headerName: 'Address',
         minWidth: 220,
-        render: (value) => {
-          if (!value) return '—';
-          if (typeof value === 'object') {
-            const parts = [value.street, value.city, value.state, value.pincode].filter(Boolean);
-            return parts.length > 0 ? parts.join(', ') : '—';
-          }
-          return value;
-        },
+        render: (value) => value || '—',
       },
       {
         field: 'bankDetails',
         headerName: 'Bank Details',
         minWidth: 190,
-        render: (value) => {
-          if (!value) return '—';
-          if (typeof value === 'object') {
-            const parts = [value.bankName, value.accountNumber, value.ifsc].filter(Boolean);
-            return parts.length > 0 ? parts.join(' | ') : '—';
-          }
-          return value;
-        },
+        render: (value) => value || '—',
       },
       {
         field: 'status',
@@ -69,8 +55,8 @@ function SuppliersListPage() {
       title="Suppliers"
       singularLabel="Supplier"
       description="Manage vendors used for procurement and sourcing operations."
-      primaryField="supplierName"
-      searchKeys={['supplierName', 'supplierCode', 'phone']}
+      primaryField="name"
+      searchKeys={['name', 'supplierCode', 'phone']}
       columns={supplierColumns}
       FormDialogComponent={SuppliersFormDialog}
       addButtonLabel="Add Supplier"

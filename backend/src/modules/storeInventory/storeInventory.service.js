@@ -62,7 +62,28 @@ const getProductInStore = async (storeId, productId) => {
     return item;
 };
 
+const { adjustStoreStock } = require('../../services/stock.service');
+const { StockHistoryType } = require('../../core/enums');
+const { withTransaction } = require('../../services/transaction.service');
+
+const adjustInventory = async (adjustmentData, userId) => {
+    return await withTransaction(async (session) => {
+        const { storeId, productId, quantityChange, notes } = adjustmentData;
+        await adjustStoreStock({
+            storeId,
+            productId,
+            quantityChange,
+            type: StockHistoryType.ADJUSTMENT,
+            notes: notes || 'Manual Stock Adjustment',
+            performedBy: userId,
+            session
+        });
+        return { success: true };
+    });
+};
+
 module.exports = {
     getStoreInventory,
-    getProductInStore
+    getProductInStore,
+    adjustInventory
 };

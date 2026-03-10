@@ -6,11 +6,12 @@ import inventoryReducer from '../modules/inventory/inventorySlice';
 import purchaseReducer from '../modules/purchase/purchaseSlice';
 import salesReducer from '../modules/sales/salesSlice';
 import pricingReducer from '../modules/pricing/pricingSlice';
-import customerRewardsReducer from '../modules/customers/customersSlice';
 import gstReducer from '../modules/gst/gstSlice';
 import settingsReducer from '../modules/settings/settingsSlice';
 import accountsReducer from '../modules/accounts/accountsSlice';
 import ordersReducer from '../modules/orders/ordersSlice';
+import customerRewardsReducer from '../modules/customers/customersSlice';
+import dispatchReducer from '../modules/dispatch/dispatchSlice';
 
 export const store = configureStore({
   reducer: {
@@ -26,5 +27,6 @@ export const store = configureStore({
     settings: settingsReducer,
     accounts: accountsReducer,
     orders: ordersReducer,
+    dispatch: dispatchReducer,
   },
 });
