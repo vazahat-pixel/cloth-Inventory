@@ -29,7 +29,8 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import { Controller, useForm } from 'react-hook-form';
 
-const SIZE_OPTIONS = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+// Must align with backend enum: ['S', 'M', 'L', 'XL', 'XXL', 'FREE']
+const SIZE_OPTIONS = ['S', 'M', 'L', 'XL', 'XXL', 'FREE'];
 const COLOR_OPTIONS = ['Black', 'Blue', 'Red', 'White', 'Green', 'Grey', 'Navy', 'Yellow'];
 
 const createVariantId = () => `var-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

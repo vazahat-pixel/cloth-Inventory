@@ -53,10 +53,13 @@ const HSNCodePage = () => {
                 api.get('/hsn-codes'),
                 api.get('/gst')
             ]);
-            setHsns(hsnRes.data.data.hsns || []);
-            setGstSlabs(gstRes.data.data.slabs || []);
+            const hsnData = hsnRes.data;
+            const gstData = gstRes.data;
+            setHsns(hsnData.hsns || hsnData.data?.hsns || []);
+            setGstSlabs(gstData.slabs || gstData.gstSlabs || gstData.data?.slabs || []);
         } catch (err) {
-            setError('Failed to fetch data');
+            const message = err.response?.data?.message || 'Failed to fetch data';
+            setError(message);
             console.error(err);
         } finally {
             setLoading(false);
@@ -92,7 +95,8 @@ const HSNCodePage = () => {
             setOpen(false);
             fetchData();
         } catch (err) {
-            setError('Save failed');
+            const message = err.response?.data?.message || 'Save failed';
+            setError(message);
         }
     };
 
@@ -102,7 +106,8 @@ const HSNCodePage = () => {
             await api.delete(`/hsn-codes/${id}`);
             fetchData();
         } catch (err) {
-            setError('Delete failed');
+            const message = err.response?.data?.message || 'Delete failed';
+            setError(message);
         }
     };
 

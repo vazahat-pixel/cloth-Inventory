@@ -13,10 +13,30 @@ export const fetchItems = createAsyncThunk('items/fetchAll', async (_, { rejectW
   }
 });
 
-export const addItem = createAsyncThunk('items/add', async (productsData, { rejectWithValue }) => {
+export const addItem = createAsyncThunk('items/add', async (itemData, { rejectWithValue }) => {
   try {
-    const response = await api.post('/products', productsData);
-    return response.data.product || response.data.data;
+    // Map style + variants into products array for bulk-import
+    const products = (itemData.variants || []).map((v) => ({
+      name: itemData.name,
+      category: itemData.category,
+      brand: itemData.brand,
+      size: v.size,
+      color: v.color,
+      salePrice: Number(v.sellingPrice || 0),
+      costPrice: Number(v.costPrice || 0),
+      factoryStock: Number(v.stock || 0),
+      // Let backend generate SKU/barcode; we still pass the user-facing SKU to keep a record if needed
+      sku: null,
+      barcode: null,
+      gstSlabId: itemData.hsnCodeId ? undefined : undefined, // optional mapping if you later link GST slabs at product level
+    }));
+
+    if (!products.length) {
+      throw new Error('At least one variant is required to create products.');
+    }
+
+    const response = await api.post('/products/bulk-import', { products, warehouseId: null });
+    return response.data;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -74,9 +94,9 @@ const itemsSlice = createSlice({
         state.loading = true;
         state.error = null;
       })
-      .addCase(addItem.fulfilled, (state, action) => {
+      .addCase(addItem.fulfilled, (state) => {
+        // Bulk import: rely on a fresh fetchItems instead of trying to infer created products here
         state.loading = false;
-        state.records.unshift(action.payload);
       })
       .addCase(addItem.rejected, (state, action) => {
         state.loading = false;

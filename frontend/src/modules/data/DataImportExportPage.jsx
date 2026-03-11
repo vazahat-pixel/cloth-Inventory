@@ -44,7 +44,8 @@ function DataImportExportPage() {
                     brand: row.Brand || row.brand || 'None',
                     costPrice: parseFloat(row.CostPrice || row.costPrice || row['Cost Price'] || 0),
                     salePrice: parseFloat(row.SalePrice || row.salePrice || row['Sale Price'] || 0),
-                    size: row.Size || row.size || 'FS',
+                    // Backend enum: 'S','M','L','XL','XXL','FREE'
+                    size: row.Size || row.size || 'FREE',
                     color: row.Color || row.color || 'Standard',
                     factoryStock: parseInt(row.Stock || row.stock || row.factoryStock || row['Initial Stock'] || 0, 10),
                     sku: row.SKU || row.sku || null,
@@ -70,7 +71,9 @@ function DataImportExportPage() {
             if (type === 'products') {
                 // Fetch a large page of products and export to Excel on the client
                 const res = await api.get('/products', { params: { page: 1, limit: 100000 } });
-                const products = res.data?.data?.products || [];
+                // Backend returns { success, message, products, meta }
+                const data = res.data;
+                const products = data.products || data.data?.products || [];
 
                 const rows = products.map(p => ({
                     Name: p.name,

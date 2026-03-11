@@ -63,8 +63,60 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
       banks: '/banks',
     };
     const endpoint = endpointMap[entityKey];
-    const response = await api.post(endpoint, record);
-    const raw = response.data.data || response.data[entityKey.slice(0, -1)] || response.data[entityKey];
+
+    // Map frontend fields to backend payloads for specific entities
+    let payload = record;
+    if (entityKey === 'itemGroups') {
+      // Item groups are backed by Category model
+      payload = {
+        name: record.groupName,
+        description: record.description,
+        status: record.status,
+      };
+    } else if (entityKey === 'customers') {
+      // Customers: map UI fields to customer model fields
+      payload = {
+        name: record.customerName,
+        phone: record.mobileNumber,
+        email: record.email,
+        address: record.address,
+        points: record.loyaltyPoints ?? 0,
+        isActive: record.status !== 'Inactive',
+      };
+    } else if (entityKey === 'banks') {
+      // Banks: map bankName -> name
+      payload = {
+        name: record.bankName,
+        accountNumber: record.accountNumber,
+        branch: record.branch,
+        ifsc: record.ifsc,
+      };
+    } else if (entityKey === 'warehouses') {
+      // Warehouses: map dialog fields to backend warehouse schema
+      payload = {
+        name: record.warehouseName,
+        code: record.code,
+        contactPerson: record.managerName,
+        contactPhone: record.contactNumber,
+        location: {
+          address: record.location,
+          city: record.city,
+          state: record.state,
+          pincode: record.pincode || '',
+        },
+        isActive: record.status !== 'Inactive',
+      };
+    }
+
+    const response = await api.post(endpoint, payload);
+
+    let raw;
+    if (entityKey === 'itemGroups') {
+      // Category create returns { success, message, category }
+      raw = response.data.category || response.data.data?.category;
+    } else {
+      raw = response.data.data || response.data[entityKey.slice(0, -1)] || response.data[entityKey];
+    }
 
     const entityTypeMapping = {
       itemGroups: 'category',
@@ -93,8 +145,55 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
       banks: '/banks',
     };
     const endpoint = `${endpointMap[entityKey]}/${id}`;
-    const response = await api.patch(endpoint, updates);
-    const raw = response.data.data || response.data[entityKey.slice(0, -1)] || response.data[entityKey];
+
+    // Map update payloads similar to addMasterRecord
+    let payload = updates;
+    if (entityKey === 'itemGroups') {
+      payload = {
+        name: updates.groupName,
+        description: updates.description,
+        status: updates.status,
+      };
+    } else if (entityKey === 'customers') {
+      payload = {
+        name: updates.customerName,
+        phone: updates.mobileNumber,
+        email: updates.email,
+        address: updates.address,
+        points: updates.loyaltyPoints ?? 0,
+        isActive: updates.status !== 'Inactive',
+      };
+    } else if (entityKey === 'banks') {
+      payload = {
+        name: updates.bankName,
+        accountNumber: updates.accountNumber,
+        branch: updates.branch,
+        ifsc: updates.ifsc,
+      };
+    } else if (entityKey === 'warehouses') {
+      payload = {
+        name: updates.warehouseName,
+        code: updates.code,
+        contactPerson: updates.managerName,
+        contactPhone: updates.contactNumber,
+        location: {
+          address: updates.location,
+          city: updates.city,
+          state: updates.state,
+          pincode: updates.pincode || '',
+        },
+        isActive: updates.status !== 'Inactive',
+      };
+    }
+
+    const response = await api.patch(endpoint, payload);
+
+    let raw;
+    if (entityKey === 'itemGroups') {
+      raw = response.data.category || response.data.data?.category;
+    } else {
+      raw = response.data.data || response.data[entityKey.slice(0, -1)] || response.data[entityKey];
+    }
 
     const entityTypeMapping = {
       itemGroups: 'category',

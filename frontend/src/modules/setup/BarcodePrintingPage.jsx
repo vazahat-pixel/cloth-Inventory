@@ -30,9 +30,11 @@ const BarcodePrintingPage = () => {
         const fetchProducts = async () => {
             try {
                 const res = await api.get('/products');
-                setProducts(res.data.data.products || []);
+                // Backend returns { success, message, products, meta }
+                const data = res.data;
+                setProducts(data.products || data.data?.products || []);
             } catch (err) {
-                console.error(err);
+                console.error('Failed to load products for barcode printing', err);
             }
         };
         fetchProducts();

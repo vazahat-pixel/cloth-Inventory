@@ -1,0 +1,129 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - heading [level=6] [ref=e6]: Cloth ERP
+        - text: HO Panel
+      - separator [ref=e7]
+      - list [ref=e9]:
+        - listitem [ref=e11]:
+          - link [ref=e12] [cursor=pointer]:
+            - /url: /ho
+            - generic [ref=e14]: Dashboard
+        - listitem [ref=e16]:
+          - link [ref=e17] [cursor=pointer]:
+            - /url: /ho/masters
+            - generic [ref=e19]: Master
+        - listitem [ref=e21]:
+          - link [ref=e22] [cursor=pointer]:
+            - /url: /ho/inventory
+            - generic [ref=e24]: Inventory (INV)
+        - listitem [ref=e26]:
+          - link [ref=e27] [cursor=pointer]:
+            - /url: /ho/purchase
+            - generic [ref=e29]: Purchase
+        - listitem [ref=e31]:
+          - link [ref=e32] [cursor=pointer]:
+            - /url: /ho/sales
+            - generic [ref=e34]: Sales
+        - listitem [ref=e36]:
+          - link [ref=e37] [cursor=pointer]:
+            - /url: /ho/reports
+            - generic [ref=e39]: Reports
+        - generic [ref=e40]:
+          - listitem [ref=e41]:
+            - link [ref=e42] [cursor=pointer]:
+              - /url: /ho/setup
+              - generic [ref=e44]: Setup
+          - list [ref=e48]:
+            - listitem [ref=e49]:
+              - link [ref=e50] [cursor=pointer]:
+                - /url: /ho/setup/accounts
+                - generic [ref=e52]: Account Master
+            - listitem [ref=e53]:
+              - link [ref=e54] [cursor=pointer]:
+                - /url: /ho/pricing/schemes
+                - generic [ref=e56]: Promotion
+            - listitem [ref=e57]:
+              - link [ref=e58] [cursor=pointer]:
+                - /url: /ho/pricing/coupons
+                - generic [ref=e60]: Offer
+            - listitem [ref=e61]:
+              - link [ref=e62] [cursor=pointer]:
+                - /url: /ho/gst/tax-rates
+                - generic [ref=e64]: Tax GST
+            - listitem [ref=e65]:
+              - link [ref=e66] [cursor=pointer]:
+                - /url: /ho/setup/hsn-codes
+                - generic [ref=e68]: HSN Code
+        - listitem [ref=e70]:
+          - link [ref=e71] [cursor=pointer]:
+            - /url: /ho/settings
+            - generic [ref=e73]: Settings
+    - generic [ref=e75]:
+      - banner [ref=e76]:
+        - heading [level=6] [ref=e77]: HSN Code
+        - generic [ref=e78]:
+          - generic [ref=e79]:
+            - paragraph [ref=e80]: Super Admin
+            - text: Admin
+          - button [ref=e81] [cursor=pointer]: Logout
+      - main [ref=e82]:
+        - generic [ref=e83]:
+          - generic [ref=e84]:
+            - heading [level=4] [ref=e85]: HSN Code Master
+            - button [ref=e86] [cursor=pointer]:
+              - img [ref=e88]
+              - text: Add HSN Code
+          - alert [ref=e90]:
+            - img [ref=e92]
+            - generic [ref=e94]: "E11000 duplicate key error collection: cloth-inventory.hsncodes index: code_1 dup key: { code: \"6109\" }"
+            - button [ref=e96] [cursor=pointer]:
+              - img [ref=e97]
+          - table [ref=e100]:
+            - rowgroup [ref=e101]:
+              - row [ref=e102]:
+                - columnheader [ref=e103]: HSN Code
+                - columnheader [ref=e104]: Description
+                - columnheader [ref=e105]: GST %
+                - columnheader [ref=e106]: Actions
+            - rowgroup [ref=e107]:
+              - row [ref=e108]:
+                - cell [ref=e109]: "6109"
+                - cell [ref=e110]: T-Shirt
+                - cell [ref=e111]: 5% (GST 5%)
+                - cell [ref=e112]:
+                  - button [ref=e113] [cursor=pointer]:
+                    - img [ref=e114]
+                  - button [ref=e116] [cursor=pointer]:
+                    - img [ref=e117]
+  - dialog "Add New HSN Code" [ref=e121]:
+    - heading "Add New HSN Code" [level=2] [ref=e122]
+    - generic [ref=e124]:
+      - generic [ref=e125]:
+        - generic [ref=e126]: HSN Code
+        - generic [ref=e127]:
+          - textbox "HSN Code" [ref=e128]: "6109"
+          - group:
+            - generic: HSN Code
+      - generic [ref=e129]:
+        - generic [ref=e130]: Description
+        - generic [ref=e131]:
+          - textbox "Description" [ref=e132]: T-Shirt
+          - group:
+            - generic: Description
+      - generic [ref=e133]:
+        - generic [ref=e134]: GST Slab
+        - generic [ref=e135]:
+          - combobox "GST Slab GST 5% (5%)" [ref=e136] [cursor=pointer]: GST 5% (5%)
+          - textbox: 69b1385988172f35a9a40ca5
+          - img
+          - group:
+            - generic: GST Slab
+    - generic [ref=e137]:
+      - button "Cancel" [ref=e138] [cursor=pointer]
+      - button "Save" [active] [ref=e139] [cursor=pointer]: Save
+```

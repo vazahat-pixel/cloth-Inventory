@@ -123,7 +123,8 @@ const DataImportPage = () => {
                     brand: row.Brand || row.brand || 'None',
                     costPrice: parseFloat(row.CostPrice || row.costPrice || row['Cost Price'] || 0),
                     salePrice: parseFloat(row.SalePrice || row.salePrice || row['Sale Price'] || 0),
-                    size: row.Size || row.size || 'FS',
+                    // Backend enum: 'S','M','L','XL','XXL','FREE'
+                    size: row.Size || row.size || 'FREE',
                     color: row.Color || row.color || 'Standard',
                     factoryStock: parseInt(row.Stock || row.stock || row.factoryStock || row['Initial Stock'] || 0, 10),
                     sku: row.SKU || row.sku || null,

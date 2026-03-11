@@ -22,7 +22,8 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import { useForm } from 'react-hook-form';
-import { applyStockAdjustment } from './inventorySlice';
+import { applyStockAdjustment, fetchStockOverview } from './inventorySlice';
+import { fetchMasters } from '../masters/mastersSlice';
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
 

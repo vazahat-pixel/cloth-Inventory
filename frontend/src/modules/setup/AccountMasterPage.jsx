@@ -53,8 +53,10 @@ const AccountMasterPage = () => {
                 api.get('/account-master'),
                 api.get('/account-groups')
             ]);
-            setAccounts(accRes.data.data.accounts || []);
-            setGroups(groupRes.data.data || []);
+            const accountsData = accRes.data.accounts || accRes.data.data?.accounts || [];
+            const groupsData = groupRes.data.accountGroups || groupRes.data.data?.accountGroups || groupRes.data.data || [];
+            setAccounts(accountsData);
+            setGroups(groupsData);
         } catch (err) {
             setError('Failed to fetch accounts');
             console.error(err);

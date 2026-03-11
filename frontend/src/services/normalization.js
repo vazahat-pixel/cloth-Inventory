@@ -245,6 +245,10 @@ const normalizeItem = (item, entityType) => {
             normalized.groupName = item.name; // For components expecting groupName
             normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
             break;
+        case 'bank':
+            normalized.bankName = item.name;
+            normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
+            break;
 
         default:
             break;

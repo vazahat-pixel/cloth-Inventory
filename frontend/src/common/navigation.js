@@ -1,6 +1,7 @@
 export const navigationItems = [
   { label: "Dashboard", path: "/" },
-  { label: "Master", path: "/masters" },
+  // Plural to match breadcrumbs/title used in master screens
+  { label: "Masters", path: "/masters" },
   { label: "Inventory (INV)", path: "/inventory" },
   { label: "Purchase", path: "/purchase" },
   { label: "Sales", path: "/sales" },
@@ -14,7 +15,8 @@ export const mastersNavigationItems = [
   { label: "Customers", path: "/masters/customers" },
   { label: "Warehouses", path: "/masters/warehouses" },
   { label: "Stores", path: "/masters/stores" },
-  { label: "Categories", path: "/masters/item-groups" },
+  // Match screen title "Item Groups"
+  { label: "Item Groups", path: "/masters/item-groups" },
   { label: "Brands", path: "/masters/brands" },
   { label: "Salesmen", path: "/masters/salesmen" },
   { label: "Banks", path: "/masters/banks" },
@@ -58,6 +60,8 @@ export const setupNavigationItems = [
   { label: "Offer", path: "/pricing/coupons" },
   { label: "Tax GST", path: "/gst/tax-rates" },
   { label: "HSN Code", path: "/setup/hsn-codes" },
+  // Expose existing barcode printing screen in Setup menu
+  { label: "Barcode Print", path: "/setup/barcode-print" },
 ];
 
 export const settingsNavigationItems = [
