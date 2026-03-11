@@ -14,7 +14,16 @@ const getStoreInventory = async (req, res, next) => {
 
 const getProductInStore = async (req, res, next) => {
     try {
-        const { storeId } = req.query;
+        let { storeId } = req.query;
+
+        // Enforce store scoping for store staff
+        if (req.user.role === 'store_staff') {
+            if (!req.user.shopId) {
+                return sendError(res, 'User is not linked to any store. Please contact administrator.', 400);
+            }
+            storeId = req.user.shopId.toString();
+        }
+
         if (!storeId) return sendError(res, 'storeId is required', 400);
 
         const item = await storeInventoryService.getProductInStore(storeId, req.params.productId);
@@ -26,7 +35,20 @@ const getProductInStore = async (req, res, next) => {
 
 const adjustInventory = async (req, res, next) => {
     try {
-        const result = await storeInventoryService.adjustInventory(req.body, req.user._id);
+        const payload = { ...req.body };
+
+        // Store staff can only adjust their own store inventory
+        if (req.user.role === 'store_staff') {
+            if (!req.user.shopId) {
+                return sendError(res, 'User is not linked to any store. Please contact administrator.', 400);
+            }
+            if (payload.storeId && payload.storeId.toString() !== req.user.shopId.toString()) {
+                return sendError(res, 'You can only adjust inventory for your own store.', 403);
+            }
+            payload.storeId = req.user.shopId;
+        }
+
+        const result = await storeInventoryService.adjustInventory(payload, req.user._id);
         return sendSuccess(res, result, 'Inventory adjusted successfully');
     } catch (err) {
         next(err);
@@ -37,7 +59,19 @@ const inventoryService = require('../../services/inventory.service');
 
 const reconcileStock = async (req, res, next) => {
     try {
-        const { storeId, items } = req.body;
+        let { storeId, items } = req.body;
+
+        // Store staff can only reconcile their own store
+        if (req.user.role === 'store_staff') {
+            if (!req.user.shopId) {
+                return sendError(res, 'User is not linked to any store. Please contact administrator.', 400);
+            }
+            if (storeId && storeId.toString() !== req.user.shopId.toString()) {
+                return sendError(res, 'You can only reconcile stock for your own store.', 403);
+            }
+            storeId = req.user.shopId;
+        }
+
         if (!storeId || !items || !Array.isArray(items)) {
             return sendError(res, 'storeId and items array are required', 400);
         }

@@ -40,24 +40,24 @@ function Sidebar() {
         flexShrink: 0,
         alignSelf: 'flex-start',
         height: '100vh',
-        backgroundColor: '#0f172a',
-        color: '#e2e8f0',
-        borderRight: '1px solid #1e293b',
+        background: 'linear-gradient(180deg, #020617 0%, #0F172A 40%, #020617 100%)',
+        color: '#E2E8F0',
+        borderRight: '1px solid #1E293B',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
       }}
     >
       <Box sx={{ px: 3, py: 2.5, flexShrink: 0 }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, letterSpacing: 0.2 }}>
+        <Typography variant="h6" sx={{ fontWeight: 700, letterSpacing: 0.3 }}>
           Cloth ERP
         </Typography>
-        <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+        <Typography variant="caption" sx={{ color: '#94A3B8' }}>
           Inventory System
         </Typography>
       </Box>
 
-      <Divider sx={{ borderColor: '#1e293b', flexShrink: 0 }} />
+      <Divider sx={{ borderColor: '#1E293B', flexShrink: 0 }} />
 
       <Box
         sx={{
@@ -66,16 +66,16 @@ function Sidebar() {
           overflowY: 'auto',
           overflowX: 'hidden',
           scrollbarWidth: 'thin',
-          scrollbarColor: '#475569 #1e293b',
+          scrollbarColor: '#475569 #020617',
           '&::-webkit-scrollbar': { width: 6 },
           '&::-webkit-scrollbar-track': {
-            backgroundColor: '#1e293b',
+            backgroundColor: '#020617',
             borderRadius: 3,
           },
           '&::-webkit-scrollbar-thumb': {
-            backgroundColor: '#475569',
+            backgroundColor: '#1F2937',
             borderRadius: 3,
-            '&:hover': { backgroundColor: '#64748b' },
+            '&:hover': { backgroundColor: '#4B5563' },
           },
         }}
       >
@@ -89,13 +89,18 @@ function Sidebar() {
                   end={item.path === '/'}
                   sx={{
                     borderRadius: 1.5,
-                    color: '#cbd5e1',
+                    px: 1.5,
+                    py: 0.75,
+                    color: '#CBD5E1',
+                    alignItems: 'center',
+                    gap: 1,
                     '&:hover': {
-                      backgroundColor: '#1e293b',
+                      backgroundColor: 'rgba(148, 163, 184, 0.12)',
                     },
                     '&.active': {
-                      backgroundColor: '#1d4ed8',
-                      color: '#ffffff',
+                      backgroundColor: '#2563EB',
+                      color: '#FFFFFF',
+                      boxShadow: '0 10px 20px rgba(37, 99, 235, 0.35)',
                     },
                   }}
                 >

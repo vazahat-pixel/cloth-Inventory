@@ -180,6 +180,64 @@ const getLowStockReport = async () => {
 };
 
 /**
+ * Inventory export - flattened stock by location (warehouses + stores)
+ */
+const getInventoryExport = async () => {
+    // 1. Warehouse inventory
+    const warehouseInventory = await WarehouseInventory.find({})
+        .populate('warehouseId', 'name')
+        .populate('productId', 'name sku barcode size color category brand');
+
+    // 2. Store inventory
+    const storeInventory = await StoreInventory.find({})
+        .populate('storeId', 'name')
+        .populate('productId', 'name sku barcode size color category brand');
+
+    const rows = [];
+
+    warehouseInventory.forEach((inv) => {
+        if (!inv.productId || !inv.warehouseId) return;
+        rows.push({
+            locationType: 'WAREHOUSE',
+            locationName: inv.warehouseId.name,
+            productName: inv.productId.name,
+            sku: inv.productId.sku,
+            barcode: inv.productId.barcode,
+            size: inv.productId.size,
+            color: inv.productId.color,
+            category: inv.productId.category,
+            brand: inv.productId.brand,
+            quantity: inv.quantity,
+            quantityAvailable: inv.quantity, // warehouse is always available
+            minStockLevel: inv.minStockLevel || 0
+        });
+    });
+
+    storeInventory.forEach((inv) => {
+        if (!inv.productId || !inv.storeId) return;
+        const available = typeof inv.quantityAvailable === 'number'
+            ? inv.quantityAvailable
+            : inv.quantity || 0;
+        rows.push({
+            locationType: 'STORE',
+            locationName: inv.storeId.name,
+            productName: inv.productId.name,
+            sku: inv.productId.sku,
+            barcode: inv.productId.barcode,
+            size: inv.productId.size,
+            color: inv.productId.color,
+            category: inv.productId.category,
+            brand: inv.productId.brand,
+            quantity: inv.quantity,
+            quantityAvailable: available,
+            minStockLevel: inv.minStockLevel || 0
+        });
+    });
+
+    return rows;
+};
+
+/**
  * Return Summary Report
  */
 const getReturnSummary = async () => {
@@ -521,6 +579,7 @@ module.exports = {
     getProductWiseSales,
     getFabricConsumption,
     getLowStockReport,
+    getInventoryExport,
     getReturnSummary,
     getLedgerReport,
     getTrialBalance,

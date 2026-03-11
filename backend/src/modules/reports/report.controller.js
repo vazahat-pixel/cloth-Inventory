@@ -149,6 +149,18 @@ const getBalanceSheet = async (req, res, next) => {
     }
 };
 
+/**
+ * Inventory export (stock-by-store & warehouse)
+ */
+const getInventoryExport = async (req, res, next) => {
+    try {
+        const rows = await reportService.getInventoryExport();
+        return sendSuccess(res, { rows }, 'Inventory export data retrieved successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
 module.exports = {
     getDailySales,
     getMonthlySales,
@@ -164,5 +176,6 @@ module.exports = {
     getPurchaseRegister,
     getTrialBalance,
     getProfitAndLoss,
-    getBalanceSheet
+    getBalanceSheet,
+    getInventoryExport
 };

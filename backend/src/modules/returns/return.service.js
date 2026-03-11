@@ -260,12 +260,19 @@ const processReturn = async (returnData, userId) => {
 /**
  * Get Return History
  */
-const getAllReturns = async (query) => {
+const getAllReturns = async (query, user) => {
     const { page = 1, limit = 10, type, storeId, productId, startDate, endDate } = query;
     const filter = { isDeleted: false };
 
     if (type) filter.type = type;
-    if (storeId) filter.storeId = storeId;
+    if (user && user.role === 'store_staff') {
+        if (!user.shopId) {
+            throw new Error('User is not linked to any store. Please contact administrator.');
+        }
+        filter.storeId = user.shopId;
+    } else if (storeId) {
+        filter.storeId = storeId;
+    }
     if (productId) filter.productId = productId;
 
     if (startDate || endDate) {

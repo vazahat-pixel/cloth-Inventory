@@ -608,25 +608,39 @@ function BillingPage() {
       <Stack
         direction={{ xs: 'column', md: 'row' }}
         spacing={2}
-        sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, mb: 2 }}
+        sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, mb: 2.5 }}
       >
         <Box>
-          <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
-            New Sale Billing
+          <Typography variant="h5" sx={{ fontWeight: 800, color: '#0F172A', mb: 0.5 }}>
+            POS Billing
           </Typography>
-          <Typography variant="body2" sx={{ color: '#64748b' }}>
-            Fast POS billing for variant-level sales.
+          <Typography variant="body2" sx={{ color: '#64748B' }}>
+            Fast, store-level checkout for walk-in and repeat customers.
           </Typography>
         </Box>
 
-        <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate('/sales')}>
+        <Button
+          variant="outlined"
+          startIcon={<ArrowBackIcon />}
+          onClick={() => navigate('/sales')}
+          sx={{ borderRadius: 999 }}
+        >
           Back to Sales
         </Button>
       </Stack>
 
       <Grid container spacing={2.5}>
         <Grid item xs={12} lg={8}>
-          <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3, mb: 2 }}>
+          <Paper
+            elevation={0}
+            sx={{
+              border: '1px solid #E5E7EB',
+              borderRadius: 2.5,
+              p: 3,
+              mb: 2.5,
+              background: '#FFFFFF',
+            }}
+          >
             <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a', mb: 2 }}>
               Customer & Bill Info
             </Typography>
@@ -812,8 +826,16 @@ function BillingPage() {
             </Stack>
           </Paper>
 
-          <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3 }}>
-            <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a', mb: 1.5 }}>
+          <Paper
+            elevation={0}
+            sx={{
+              border: '1px solid #E5E7EB',
+              borderRadius: 2.5,
+              p: 3,
+              background: '#FFFFFF',
+            }}
+          >
+            <Typography variant="h6" sx={{ fontWeight: 700, color: '#0F172A', mb: 1.5 }}>
               Item Entry
             </Typography>
 
@@ -868,8 +890,8 @@ function BillingPage() {
             </Stack>
 
             {lines.length ? (
-              <TableContainer sx={{ border: '1px solid #e2e8f0', borderRadius: 1.5 }}>
-                <Table size="small">
+              <TableContainer sx={{ border: '1px solid #E5E7EB', borderRadius: 2, maxHeight: 420 }}>
+                <Table size="medium" stickyHeader>
                   <TableHead>
                     <TableRow>
                       <TableCell sx={{ fontWeight: 700 }}>Item Name</TableCell>
@@ -899,7 +921,7 @@ function BillingPage() {
                             <Typography variant="body2" sx={{ fontWeight: 700 }}>
                               {line.itemName}
                             </Typography>
-                            <Typography variant="caption" sx={{ color: '#64748b' }}>
+                            <Typography variant="caption" sx={{ color: '#64748B' }}>
                               Avl: {line.available}
                             </Typography>
                           </TableCell>

@@ -8,7 +8,16 @@ const getStoreInventory = async (query, user) => {
     const { page = 1, limit = 10, search, storeId, lowStock } = query;
 
     const filter = {};
-    if (storeId) filter.storeId = storeId;
+
+    // Enforce store scoping for store staff
+    if (user.role === 'store_staff') {
+        if (!user.shopId) {
+            throw new Error('User is not linked to any store. Please contact administrator.');
+        }
+        filter.storeId = user.shopId;
+    } else if (storeId) {
+        filter.storeId = storeId;
+    }
 
     if (lowStock === 'true') {
         filter.$expr = { $lte: ['$quantityAvailable', '$minStockLevel'] };

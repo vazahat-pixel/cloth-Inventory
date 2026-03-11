@@ -48,7 +48,11 @@ const getProductForSale = async (barcode, storeId) => {
     if (!product) throw new Error('Product not found or inactive');
 
     const inventory = await StoreInventory.findOne({ storeId, productId: product._id });
-    if (!inventory || inventory.quantityAvailable <= 0) {
+    const availableQty = inventory ? (typeof inventory.quantityAvailable === 'number'
+        ? inventory.quantityAvailable
+        : inventory.quantity || 0) : 0;
+
+    if (!inventory || availableQty <= 0) {
         throw new Error('Out of stock in this store');
     }
 
@@ -58,7 +62,7 @@ const getProductForSale = async (barcode, storeId) => {
         sku: product.sku,
         barcode: product.barcode,
         salePrice: product.salePrice,
-        available: inventory.quantityAvailable
+        available: availableQty
     };
 };
 
@@ -99,9 +103,13 @@ const createSale = async (saleData, cashierId) => {
                 productId
             }).session(session);
 
-            if (item.quantity > 0 && (!inventory || inventory.quantityAvailable < item.quantity)) {
+            const availableQty = inventory ? (typeof inventory.quantityAvailable === 'number'
+                ? inventory.quantityAvailable
+                : inventory.quantity || 0) : 0;
+
+            if (item.quantity > 0 && (!inventory || availableQty < item.quantity)) {
                 const pName = await Product.findById(productId).session(session);
-                throw new Error(`Insufficient stock for ${pName ? pName.name : 'product'} (Available: ${inventory ? inventory.quantityAvailable : 0})`);
+                throw new Error(`Insufficient stock for ${pName ? pName.name : 'product'} (Available: ${availableQty})`);
             }
 
             const product = await Product.findById(productId).session(session);
@@ -154,8 +162,9 @@ const createSale = async (saleData, cashierId) => {
                 session
             });
 
-            // Update quantitySold (returns decrease sold quantity)
-            inventory.quantitySold += item.quantity;
+            // Update quantitySold (returns decrease sold quantity).
+            // Keep it defensive in case inventory document was just created.
+            inventory.quantitySold = (inventory.quantitySold || 0) + item.quantity;
             calculatedSubTotal += taxableAmount;
             await inventory.save({ session });
         }
@@ -403,13 +412,14 @@ const getAllSales = async (query, user) => {
     const { page = 1, limit = 10, storeId, startDate, endDate } = query;
     const filter = { isDeleted: false };
 
-    // If store staff, enforce their store
+    // If store staff, enforce their own store only
     if (user.role === 'store_staff') {
-        // Need to know which store the user belongs to. 
-        // For now, if storeId passed in query use it, but logic should be stricter in prod.
-        if (storeId) filter.storeId = storeId;
-    } else {
-        if (storeId) filter.storeId = storeId;
+        if (!user.shopId) {
+            throw new Error('User is not linked to any store. Please contact administrator.');
+        }
+        filter.storeId = user.shopId;
+    } else if (storeId) {
+        filter.storeId = storeId;
     }
 
     if (startDate || endDate) {

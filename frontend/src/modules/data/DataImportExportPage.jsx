@@ -5,6 +5,7 @@ import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import api from '../../services/api';
+import * as XLSX from 'xlsx';
 
 function DataImportExportPage() {
     const navigate = useAppNavigate();
@@ -20,15 +21,38 @@ function DataImportExportPage() {
         if (!file) return setStatus({ type: 'error', msg: 'Please select a file first.' });
 
         setLoading(true);
-        setStatus({ type: 'info', msg: 'Uploading and processing...' });
-
-        const formData = new FormData();
-        formData.append('file', file);
+        setStatus({ type: 'info', msg: 'Reading Excel and importing...' });
 
         try {
-            await api.post('/products/import', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            // Read Excel on the client and reuse the same mapping as DataImportPage
+            const data = await file.arrayBuffer();
+            const workbook = XLSX.read(new Uint8Array(data), { type: 'array' });
+            const firstSheet = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheet];
+            const rows = XLSX.utils.sheet_to_json(worksheet);
+
+            if (!rows.length) {
+                setStatus({ type: 'error', msg: 'The selected Excel file is empty.' });
+                setLoading(false);
+                return;
+            }
+
+            const payload = {
+                products: rows.map(row => ({
+                    name: row.Name || row.name || row['Product Name'],
+                    category: row.Category || row.category || 'General',
+                    brand: row.Brand || row.brand || 'None',
+                    costPrice: parseFloat(row.CostPrice || row.costPrice || row['Cost Price'] || 0),
+                    salePrice: parseFloat(row.SalePrice || row.salePrice || row['Sale Price'] || 0),
+                    size: row.Size || row.size || 'FS',
+                    color: row.Color || row.color || 'Standard',
+                    factoryStock: parseInt(row.Stock || row.stock || row.factoryStock || row['Initial Stock'] || 0, 10),
+                    sku: row.SKU || row.sku || null,
+                    barcode: row.Barcode || row.barcode || null
+                }))
+            };
+
+            await api.post('/products/bulk-import', payload);
             setStatus({ type: 'success', msg: 'Data imported successfully!' });
             setFile(null);
         } catch (err) {
@@ -43,14 +67,60 @@ function DataImportExportPage() {
         setStatus({ type: 'info', msg: 'Generating export file...' });
 
         try {
-            const response = await api.get(`/products/export?type=${type}`, { responseType: 'blob' });
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', `products_export_${Date.now()}.xlsx`);
-            document.body.appendChild(link);
-            link.click();
-            setStatus({ type: 'success', msg: 'Export started.' });
+            if (type === 'products') {
+                // Fetch a large page of products and export to Excel on the client
+                const res = await api.get('/products', { params: { page: 1, limit: 100000 } });
+                const products = res.data?.data?.products || [];
+
+                const rows = products.map(p => ({
+                    Name: p.name,
+                    SKU: p.sku,
+                    Category: p.category,
+                    Brand: p.brand,
+                    'Cost Price': p.costPrice,
+                    'Sale Price': p.salePrice,
+                    Size: p.size,
+                    Color: p.color,
+                    Barcode: p.barcode
+                }));
+
+                const worksheet = XLSX.utils.json_to_sheet(rows);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Products');
+
+                const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+                const blob = new Blob([wbout], { type: 'application/octet-stream' });
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.setAttribute('download', `products_export_${Date.now()}.xlsx`);
+                document.body.appendChild(link);
+                link.click();
+                setStatus({ type: 'success', msg: 'Products exported successfully.' });
+            } else if (type === 'inventory') {
+                // Use backend inventory-export report (admin only)
+                const res = await api.get('/reports/inventory-export');
+                const rows = res.data?.data?.rows || [];
+
+                if (!rows.length) {
+                    setStatus({ type: 'error', msg: 'No inventory data to export.' });
+                    return;
+                }
+
+                const worksheet = XLSX.utils.json_to_sheet(rows);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Inventory');
+
+                const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+                const blob = new Blob([wbout], { type: 'application/octet-stream' });
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.setAttribute('download', `inventory_export_${Date.now()}.xlsx`);
+                document.body.appendChild(link);
+                link.click();
+                setStatus({ type: 'success', msg: 'Inventory exported successfully.' });
+            }
         } catch (err) {
             setStatus({ type: 'error', msg: 'Export failed.' });
         } finally {
@@ -131,7 +201,7 @@ function DataImportExportPage() {
                                 disabled={loading}
                                 sx={{ py: 1.8 }}
                             >
-                                Export Stock Assets (Excel)
+                                Export Inventory (Excel)
                             </Button>
                         </Stack>
                     </Card>

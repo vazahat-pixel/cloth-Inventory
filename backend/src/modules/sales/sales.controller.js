@@ -12,7 +12,16 @@ const validate = (req, res) => {
 
 const getProductByBarcode = async (req, res, next) => {
     try {
-        const { storeId } = req.query;
+        let { storeId } = req.query;
+
+        // Store staff can only query their own store
+        if (req.user.role === 'store_staff') {
+            if (!req.user.shopId) {
+                return sendError(res, 'User is not linked to any store. Please contact administrator.', 400);
+            }
+            storeId = req.user.shopId.toString();
+        }
+
         if (!storeId) return sendError(res, 'storeId is required for stock check', 400);
 
         const product = await salesService.getProductForSale(req.params.barcode, storeId);
@@ -24,6 +33,19 @@ const getProductByBarcode = async (req, res, next) => {
 
 const createSale = async (req, res, next) => {
     try {
+        // Enforce store scoping for store staff
+        if (req.user.role === 'store_staff') {
+            if (!req.user.shopId) {
+                return sendError(res, 'User is not linked to any store. Please contact administrator.', 400);
+            }
+
+            if (req.body.storeId && req.body.storeId.toString() !== req.user.shopId.toString()) {
+                return sendError(res, 'You can only create sales for your own store.', 403);
+            }
+
+            req.body.storeId = req.user.shopId;
+        }
+
         const error = validate(req, res);
         if (error) return error;
 

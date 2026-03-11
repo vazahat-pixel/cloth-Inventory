@@ -12,6 +12,20 @@ const validate = (req, res) => {
 
 const processReturn = async (req, res, next) => {
     try {
+        // Enforce store scoping for store staff on store-based returns
+        if (req.user.role === 'store_staff') {
+            if (!req.user.shopId) {
+                return sendError(res, 'User is not linked to any store. Please contact administrator.', 400);
+            }
+
+            if (req.body.storeId && req.body.storeId.toString() !== req.user.shopId.toString()) {
+                return sendError(res, 'You can only process returns for your own store.', 403);
+            }
+
+            // For customer and store-level returns, make sure storeId is set to the user’s store
+            req.body.storeId = req.user.shopId;
+        }
+
         const error = validate(req, res);
         if (error) return error;
 
@@ -24,7 +38,7 @@ const processReturn = async (req, res, next) => {
 
 const getAllReturns = async (req, res, next) => {
     try {
-        const { returns, total, page, limit } = await returnService.getAllReturns(req.query);
+        const { returns, total, page, limit } = await returnService.getAllReturns(req.query, req.user);
         const meta = buildPaginationMeta(total, page, limit);
         return sendSuccess(res, { returns, meta }, 'Return history retrieved');
     } catch (err) {

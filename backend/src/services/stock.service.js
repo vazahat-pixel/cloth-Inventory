@@ -47,15 +47,23 @@ const adjustStoreStock = async ({ productId, storeId, quantityChange, type, refe
         inventory = new StoreInventory({
             storeId,
             productId,
-            quantity: 0
+            quantity: 0,
+            quantityAvailable: 0
         });
     }
 
-    const quantityBefore = inventory.quantity || 0;
+    // Backwards compatibility: if quantityAvailable is not set, treat it as `quantity`
+    const currentQty = typeof inventory.quantityAvailable === 'number'
+        ? inventory.quantityAvailable
+        : (inventory.quantity || 0);
+
+    const quantityBefore = currentQty;
     const quantityAfter = quantityBefore + quantityChange;
     if (quantityAfter < 0) throw new Error(`Insufficient store stock for product ${productId}`);
 
+    // Keep both fields in sync so that existing services using either work correctly
     inventory.quantity = quantityAfter;
+    inventory.quantityAvailable = quantityAfter;
     inventory.lastUpdated = Date.now();
     await inventory.save({ session });
 
