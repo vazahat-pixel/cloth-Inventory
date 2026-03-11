@@ -37,7 +37,7 @@ export const adminNavConfig = {
     masters: mastersNavigationItems,
     inventory: inventoryNavigationItems,
     purchase: purchaseNavigationItems,
-    sales: salesNavigationItems,
+    sales: salesNavigationItems.filter(i => i.label !== 'New Sale (POS)'),
     reports: reportsNavigationItems,
     setup: setupNavigationItems,
     settings: settingsNavigationItems,

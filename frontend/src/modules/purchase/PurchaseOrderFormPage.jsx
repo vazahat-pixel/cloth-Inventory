@@ -188,27 +188,16 @@ function PurchaseOrderFormPage() {
         }
 
         const payload = {
-            orderDate: date,
+            poDate: date,
             supplierId,
-            warehouseId,
-            items: lines.map((l) => {
-                const lt = calculateLine(l);
-                return {
-                    variantId: l.variantId,
-                    itemName: l.itemName,
-                    styleCode: l.styleCode,
-                    size: l.size,
-                    color: l.color,
-                    sku: l.sku,
-                    quantity: toNumber(l.quantity),
-                    rate: toNumber(l.rate),
-                    discount: toNumber(l.discount),
-                    tax: toNumber(l.tax),
-                    amount: lt.amount,
-                };
-            }),
-            totals,
-            status: existing?.status || 'Pending',
+            storeId: warehouseId,
+            items: lines.map((l) => ({
+                productId: l.variantId,
+                quantity: toNumber(l.quantity),
+                rate: toNumber(l.rate),
+            })),
+            notes: '', // Optional notes
+            status: existing?.status || 'DRAFT',
         };
 
         if (isEdit) {

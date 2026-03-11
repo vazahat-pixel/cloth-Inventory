@@ -7,16 +7,14 @@ const itemGroupsColumns = [
   {
     field: 'groupName',
     headerName: 'Group Name',
-    minWidth: 170,
+    minWidth: 200,
     render: (value) => <Typography sx={{ fontWeight: 700 }}>{value}</Typography>,
   },
-  { field: 'type', headerName: 'Type', minWidth: 120 },
-  { field: 'parentGroup', headerName: 'Parent Group', minWidth: 140 },
-  { field: 'description', headerName: 'Description', minWidth: 240 },
+  { field: 'description', headerName: 'Description', minWidth: 350 },
   {
     field: 'status',
     headerName: 'Status',
-    minWidth: 110,
+    minWidth: 120,
     render: (value) => <StatusChip value={value} />,
   },
 ];
