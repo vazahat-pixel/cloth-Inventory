@@ -42,7 +42,7 @@ const createStore = async (storeData, userId) => {
  * Get all stores with pagination and search
  */
 const getAllStores = async (query) => {
-    const { page = 1, limit = 10, search, city, state, isActive } = query;
+    const { page = 1, limit = 100, search, city, state, isActive } = query;
 
     const filter = { isDeleted: false };
 

@@ -24,6 +24,6 @@ router.get('/profit-loss', requireAdmin, reportController.getProfitAndLoss);
 router.get('/balance-sheet', requireAdmin, reportController.getBalanceSheet);
 
 // Inventory export (stock-by-store & warehouse) - HO only
-router.get('/inventory-export', requireAdmin, reportController.getInventoryExport);
+router.get('/inventory-export', protect, reportController.getInventoryExport);
 
 module.exports = router;

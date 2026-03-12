@@ -189,6 +189,7 @@ function SalesListPage() {
                     <TableCell sx={{ fontWeight: 700 }}>Invoice Number</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Customer / Mobile</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Type</TableCell>
                     <TableCell sx={{ fontWeight: 700 }} align="right">
                       Total Qty
                     </TableCell>
@@ -196,7 +197,6 @@ function SalesListPage() {
                       Net Amount
                     </TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Payment Status</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Salesman</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Actions</TableCell>
                   </TableRow>
                 </TableHead>
@@ -219,12 +219,19 @@ function SalesListPage() {
                             {customerMobile}
                           </Typography>
                         </TableCell>
+                        <TableCell>
+                          <Chip
+                            size="small"
+                            label={String(row.saleType || 'retail').toUpperCase()}
+                            color={row.saleType === 'exchange' ? 'warning' : 'default'}
+                            variant="outlined"
+                          />
+                        </TableCell>
                         <TableCell align="right">{row.totals?.totalQuantity ?? '-'}</TableCell>
                         <TableCell align="right">{row.totals?.netPayable != null ? Number(row.totals.netPayable).toFixed(2) : '-'}</TableCell>
                         <TableCell>
                           <PaymentStatusChip status={row.payment?.status || 'Pending'} />
                         </TableCell>
-                        <TableCell>{row.salesmanName || '-'}</TableCell>
                         <TableCell>
                           <Stack direction="row" spacing={0.5}>
                             <IconButton size="small" color="info" onClick={() => setSelectedSale(row)}>

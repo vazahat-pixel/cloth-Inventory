@@ -24,7 +24,11 @@ const cancelPurchase = async (req, res, next) => {
 
 const getAllPurchases = async (req, res, next) => {
     try {
-        const result = await purchaseService.getAllPurchases(req.query);
+        const query = { ...req.query };
+        if (req.user.role === 'store_staff') {
+            query.storeId = req.user.shopId;
+        }
+        const result = await purchaseService.getAllPurchases(query);
         return sendSuccess(res, result, 'Purchases retrieved successfully');
     } catch (err) {
         next(err);

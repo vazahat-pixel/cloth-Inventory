@@ -36,6 +36,18 @@ function ReportFilterPanel({
   const customers = useSelector((state) => state.masters?.customers || []);
   const suppliers = useSelector((state) => state.masters?.suppliers || []);
   const salesmen = useSelector((state) => state.masters?.salesmen || []);
+  const user = useSelector((state) => state.auth.user);
+  const stores = useSelector((state) => state.masters?.stores || []);
+
+  const isStoreStaff = user?.role !== 'Admin';
+
+  const availableLocations = useMemo(() => {
+    const combined = [...warehouses, ...stores];
+    if (isStoreStaff && user?.shopId) {
+      return combined.filter(l => l.id === user.shopId);
+    }
+    return combined;
+  }, [warehouses, stores, isStoreStaff, user?.shopId]);
 
   useEffect(() => {
     if (showWarehouse) dispatch(fetchMasters('warehouses'));
@@ -109,18 +121,18 @@ function ReportFilterPanel({
           </Grid>
         </>
       )}
-      {showWarehouse && (
+      {showWarehouse && !isStoreStaff && (
         <Grid item xs={12} sm={6} md={3}>
           <TextField
             fullWidth
             size="small"
             select
-            label="Warehouse"
+            label="Location"
             value={filters?.warehouseId || 'all'}
             onChange={(e) => update('warehouseId', e.target.value)}
           >
             <MenuItem value="all">All</MenuItem>
-            {warehouses.map((w) => (
+            {availableLocations.map((w) => (
               <MenuItem key={w.id} value={w.id}>
                 {w.name}
               </MenuItem>

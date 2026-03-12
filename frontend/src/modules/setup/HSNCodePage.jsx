@@ -73,7 +73,7 @@ const HSNCodePage = () => {
     const handleOpen = (hsn = null) => {
         if (hsn) {
             setFormData({
-                code: hsn.code,
+                code: hsn.code || '',
                 description: hsn.description || '',
                 gstSlabId: hsn.gstSlabId?._id || ''
             });

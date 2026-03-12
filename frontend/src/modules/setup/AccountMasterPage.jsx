@@ -72,11 +72,11 @@ const AccountMasterPage = () => {
     const handleOpen = (acc = null) => {
         if (acc) {
             setFormData({
-                name: acc.name,
+                name: acc.name || '',
                 code: acc.code || '',
                 type: acc.type || 'ASSET',
-                groupId: acc.groupId?._id || '',
-                openingBalance: acc.openingBalance || 0,
+                groupId: acc.groupId?._id || acc.groupId || '',
+                openingBalance: acc.openingBalance ?? 0,
                 description: acc.description || ''
             });
             setEditId(acc._id);
@@ -89,10 +89,14 @@ const AccountMasterPage = () => {
 
     const handleSave = async () => {
         try {
+            const payload = {
+                ...formData,
+                openingBalance: Number(formData.openingBalance) || 0
+            };
             if (editId) {
-                await api.patch(`/account-master/${editId}`, formData);
+                await api.patch(`/account-master/${editId}`, payload);
             } else {
-                await api.post('/account-master', formData);
+                await api.post('/account-master', payload);
             }
             setOpen(false);
             fetchData();

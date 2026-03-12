@@ -4,7 +4,8 @@ const { sendSuccess, sendError } = require('../../utils/response.handler');
 const getDailySales = async (req, res, next) => {
     try {
         const { date } = req.query;
-        const report = await reportService.getDailySalesReport(date);
+        const storeId = req.user.role === 'store_staff' ? req.user.shopId : req.query.storeId;
+        const report = await reportService.getDailySalesReport(date, storeId);
         return sendSuccess(res, { report: report[0] || { totalRevenue: 0, totalSales: 0 } }, 'Daily sales report retrieved');
     } catch (err) {
         next(err);
@@ -15,8 +16,9 @@ const getMonthlySales = async (req, res, next) => {
     try {
         const { month, year } = req.query;
         if (!month || !year) return sendError(res, 'Month and Year are required', 400);
+        const storeId = req.user.role === 'store_staff' ? req.user.shopId : req.query.storeId;
 
-        const report = await reportService.getMonthlySalesReport(parseInt(month), parseInt(year));
+        const report = await reportService.getMonthlySalesReport(parseInt(month), parseInt(year), storeId);
         return sendSuccess(res, { report }, 'Monthly sales report retrieved');
     } catch (err) {
         next(err);
@@ -36,7 +38,8 @@ const getStoreWiseSales = async (req, res, next) => {
 const getProductWiseSales = async (req, res, next) => {
     try {
         const { startDate, endDate } = req.query;
-        const report = await reportService.getProductWiseSales(startDate, endDate);
+        const storeId = req.user.role === 'store_staff' ? req.user.shopId : req.query.storeId;
+        const report = await reportService.getProductWiseSales(startDate, endDate, storeId);
         return sendSuccess(res, { report }, 'Product-wise sales report retrieved');
     } catch (err) {
         next(err);
@@ -54,7 +57,8 @@ const getFabricConsumption = async (req, res, next) => {
 
 const getLowStockReport = async (req, res, next) => {
     try {
-        const report = await reportService.getLowStockReport();
+        const storeId = req.user.role === 'store_staff' ? req.user.shopId : req.query.storeId;
+        const report = await reportService.getLowStockReport(storeId);
         return sendSuccess(res, { report }, 'Low stock report retrieved');
     } catch (err) {
         next(err);
@@ -63,7 +67,8 @@ const getLowStockReport = async (req, res, next) => {
 
 const getReturnSummary = async (req, res, next) => {
     try {
-        const report = await reportService.getReturnSummary();
+        const storeId = req.user.role === 'store_staff' ? req.user.shopId : req.query.storeId;
+        const report = await reportService.getReturnSummary(storeId);
         return sendSuccess(res, { report }, 'Return summary report retrieved');
     } catch (err) {
         next(err);
@@ -72,7 +77,11 @@ const getReturnSummary = async (req, res, next) => {
 
 const getStockHistory = async (req, res, next) => {
     try {
-        const history = await reportService.getStockHistory(req.query);
+        const filters = { ...req.query };
+        if (req.user.role === 'store_staff') {
+            filters.storeId = req.user.shopId;
+        }
+        const history = await reportService.getStockHistory(filters);
         return sendSuccess(res, { history }, 'Stock history retrieved successfully');
     } catch (err) {
         next(err);
@@ -102,7 +111,8 @@ const getLedgerReport = async (req, res, next) => {
 const getGstSummary = async (req, res, next) => {
     try {
         const { startDate, endDate } = req.query;
-        const report = await reportService.getGstSummary(startDate, endDate);
+        const storeId = req.user.role === 'store_staff' ? req.user.shopId : req.query.storeId;
+        const report = await reportService.getGstSummary(startDate, endDate, storeId);
         return sendSuccess(res, { report }, 'GST summary report retrieved successfully');
     } catch (err) {
         next(err);
@@ -112,7 +122,8 @@ const getGstSummary = async (req, res, next) => {
 const getPurchaseRegister = async (req, res, next) => {
     try {
         const { supplierId, startDate, endDate } = req.query;
-        const report = await reportService.getPurchaseRegister(supplierId, startDate, endDate);
+        const storeId = req.user.role === 'store_staff' ? req.user.shopId : req.query.storeId;
+        const report = await reportService.getPurchaseRegister(supplierId, startDate, endDate, storeId);
         return sendSuccess(res, { report: report[0] || { totalPurchase: 0, totalGST: 0, grandTotal: 0, count: 0 } }, 'Purchase register report retrieved');
     } catch (err) {
         next(err);
@@ -154,7 +165,8 @@ const getBalanceSheet = async (req, res, next) => {
  */
 const getInventoryExport = async (req, res, next) => {
     try {
-        const rows = await reportService.getInventoryExport();
+        const storeId = req.user.role === 'store_staff' ? req.user.shopId : req.query.storeId;
+        const rows = await reportService.getInventoryExport(storeId);
         return sendSuccess(res, { rows }, 'Inventory export data retrieved successfully');
     } catch (err) {
         next(err);

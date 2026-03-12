@@ -41,16 +41,24 @@ function StockOverviewPage() {
     dispatch(fetchStockOverview());
     dispatch(fetchMasters('warehouses'));
     dispatch(fetchMasters('stores'));
+    dispatch(fetchMasters('brands'));
+    dispatch(fetchMasters('itemGroups'));
   }, [dispatch]);
 
-  const brands = useMemo(
-    () => Array.from(new Set(stockRows.map((row) => row.brand))).filter(Boolean),
-    [stockRows],
-  );
-  const categories = useMemo(
-    () => Array.from(new Set(stockRows.map((row) => row.category))).filter(Boolean),
-    [stockRows],
-  );
+  const masterBrands = useSelector((state) => state.masters.brands || []);
+  const masterCategories = useSelector((state) => state.masters.itemGroups || []);
+
+  const brands = useMemo(() => {
+    const fromStock = stockRows.map((row) => row.brand).filter(Boolean);
+    const fromMaster = masterBrands.map((b) => b.brandName || b.name);
+    return Array.from(new Set([...fromStock, ...fromMaster]));
+  }, [stockRows, masterBrands]);
+
+  const categories = useMemo(() => {
+    const fromStock = stockRows.map((row) => row.category).filter(Boolean);
+    const fromMaster = masterCategories.map((c) => c.groupName || c.name);
+    return Array.from(new Set([...fromStock, ...fromMaster]));
+  }, [stockRows, masterCategories]);
 
   const locationMap = useMemo(() => {
     const map = {};
@@ -187,19 +195,20 @@ function StockOverviewPage() {
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ fontWeight: 700, minWidth: 170 }}>Item Name</TableCell>
+                  <TableCell sx={{ fontWeight: 700, minWidth: 120 }}>Brand</TableCell>
                   <TableCell sx={{ fontWeight: 700, minWidth: 130 }}>Style Code</TableCell>
                   <TableCell sx={{ fontWeight: 700, minWidth: 120 }}>Variant</TableCell>
                   <TableCell sx={{ fontWeight: 700, minWidth: 90 }}>Lot</TableCell>
                   <TableCell sx={{ fontWeight: 700, minWidth: 170 }}>SKU</TableCell>
-                  <TableCell sx={{ fontWeight: 700, minWidth: 160 }}>Warehouse</TableCell>
+                  <TableCell sx={{ fontWeight: 700, minWidth: 160 }}>Location</TableCell>
                   <TableCell sx={{ fontWeight: 700 }} align="right">
-                    Quantity
+                    Qty
                   </TableCell>
                   <TableCell sx={{ fontWeight: 700 }} align="right">
-                    Reserved
+                    Rsv
                   </TableCell>
                   <TableCell sx={{ fontWeight: 700 }} align="right">
-                    Available
+                    Avail
                   </TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
                 </TableRow>
@@ -212,6 +221,7 @@ function StockOverviewPage() {
                   return (
                     <TableRow key={row.id} hover sx={isLowStock ? { backgroundColor: '#fff7ed' } : undefined}>
                       <TableCell sx={{ fontWeight: 700, color: '#0f172a' }}>{row.itemName}</TableCell>
+                      <TableCell>{row.brand || '-'}</TableCell>
                       <TableCell>{row.styleCode}</TableCell>
                       <TableCell>{`${row.size} / ${row.color}`}</TableCell>
                       <TableCell>{row.lotNumber || '-'}</TableCell>

@@ -1,8 +1,12 @@
 const { body } = require('express-validator');
 
 const createDispatchValidation = [
-    body('storeId')
-        .notEmpty().withMessage('Store ID is required')
+    body('sourceWarehouseId')
+        .notEmpty().withMessage('Source Warehouse ID is required')
+        .isMongoId().withMessage('Invalid Warehouse ID'),
+
+    body('destinationStoreId')
+        .notEmpty().withMessage('Destination Store ID is required')
         .isMongoId().withMessage('Invalid Store ID'),
     
     body('products')

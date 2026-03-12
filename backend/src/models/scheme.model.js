@@ -6,7 +6,7 @@ const schemeSchema = new mongoose.Schema(
         description: { type: String, trim: true },
         type: {
             type: String,
-            enum: ['PERCENTAGE', 'FLAT', 'BOGO', 'BUY_X_GET_Y'],
+            enum: ['PERCENTAGE', 'FLAT', 'BOGO', 'BUY_X_GET_Y', 'FREE_GIFT'],
             required: true
         },
         value: { type: Number, default: 0 }, // For percentage or flat
@@ -17,7 +17,11 @@ const schemeSchema = new mongoose.Schema(
         isActive: { type: Boolean, default: true },
         applicableCategories: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Category' }],
         applicableProducts: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Product' }],
+        applicableBrands: [{ type: String }],
         minPurchaseAmount: { type: Number, default: 0 },
+        minPurchaseQuantity: { type: Number, default: 0 },
+        giftItemId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+        giftQuantity: { type: Number, default: 0 },
         createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
     },
     { timestamps: true }

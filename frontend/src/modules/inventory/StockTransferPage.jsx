@@ -57,7 +57,7 @@ function StockTransferPage() {
   });
 
   const fromStoreId = watch('fromStoreId');
-  const toStoreId = watch('toStoreId');
+  const toStoreId = watch('toStoreId') || '';
 
   useEffect(() => {
     dispatch(fetchMasters('warehouses'));
@@ -351,9 +351,10 @@ function StockTransferPage() {
             value={variantPickerValue}
             onChange={(_, value) => setVariantPickerValue(value)}
             options={availableRows}
-            getOptionLabel={(option) =>
-              `${option.itemName} (${option.size}/${option.color}) - SKU: ${option.sku || ''} - BC: ${option.barcode || ''}`
-            }
+            getOptionLabel={(option) => {
+              const avail = Number(option.quantity || 0) - Number(option.reserved || 0);
+              return `${option.itemName} (${option.size}/${option.color}) — SKU: ${option.sku || ''} — Avail: ${avail}`;
+            }}
             renderInput={(params) => (
               <TextField
                 {...params}

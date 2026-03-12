@@ -8,6 +8,7 @@ export const navigationItems = [
   { label: "Reports", path: "/reports" },
   { label: "Setup", path: "/setup" },
   { label: "Settings", path: "/settings" },
+  { label: "Data Import", path: "/data-import" },
 ];
 
 export const mastersNavigationItems = [

@@ -48,12 +48,17 @@ export const staffNavConfig = {
   role: ROLES.store_staff,
   basePath: '/store',
   label: 'Store Panel',
-  mainNav: navigationItems.filter((i) => ['/', '/inventory', '/purchase', '/sales', '/data-import', '/reports'].includes(i.path)),
+  mainNav: [
+    { label: 'Purchase', path: '/purchase' },
+    { label: 'Data Import & Export', path: '/data-import' },
+    { label: 'POS - Sales', path: '/sales' },
+    { label: 'Reports', path: '/reports' },
+  ],
   children: {
-    inventory: inventoryNavigationItems.filter(i => ['Stock Overview', 'Transfer'].includes(i.label)),
-    sales: salesNavigationItems,
-    purchase: purchaseNavigationItems.filter(i => i.label === 'Purchase Return'),
-    reports: reportsNavigationItems.filter(i => ['Daily Sales', 'Stock Report'].includes(i.label)),
+    purchase: purchaseNavigationItems.filter(i => i.label !== 'Purchase Orders'), // Exclude HO level PO management
+    sales: salesNavigationItems.filter(i => i.label !== 'Delivery Challans'),
+    reports: reportsNavigationItems, // Backend will filter data based on user.shopId
+    dataImport: settingsNavigationItems.filter(i => i.label === 'Data Import'),
   },
 };
 

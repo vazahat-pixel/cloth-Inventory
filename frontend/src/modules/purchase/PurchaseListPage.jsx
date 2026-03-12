@@ -47,11 +47,25 @@ function PurchaseListPage() {
   const [selectedPurchase, setSelectedPurchase] = useState(null);
   const [barcodePrintPurchase, setBarcodePrintPurchase] = useState(null);
 
+  const user = useSelector((state) => state.auth.user);
+  const stores = useSelector((state) => state.masters.stores || []);
+
+  const isStoreStaff = user?.role !== 'Admin';
+
   useEffect(() => {
     dispatch(fetchPurchases());
     dispatch(fetchMasters('suppliers'));
     dispatch(fetchMasters('warehouses'));
+    dispatch(fetchMasters('stores'));
   }, [dispatch]);
+
+  const availableLocations = useMemo(() => {
+    const combined = [...warehouses, ...stores];
+    if (isStoreStaff && user?.shopId) {
+      return combined.filter(l => l.id === user.shopId);
+    }
+    return combined;
+  }, [warehouses, stores, isStoreStaff, user?.shopId]);
 
   const supplierMap = useMemo(
     () =>
@@ -142,24 +156,26 @@ function PurchaseListPage() {
               }}
             />
 
-            <TextField
-              size="small"
-              select
-              label="Warehouse"
-              value={warehouseFilter}
-              onChange={(event) => {
-                setPage(0);
-                setWarehouseFilter(event.target.value);
-              }}
-              sx={{ minWidth: 180 }}
-            >
-              <MenuItem value="all">All Warehouses</MenuItem>
-              {warehouses.map((warehouse) => (
-                <MenuItem key={warehouse.id} value={warehouse.id}>
-                  {warehouse.name}
-                </MenuItem>
-              ))}
-            </TextField>
+            {availableLocations.length > 1 && (
+              <TextField
+                size="small"
+                select
+                label="Location"
+                value={warehouseFilter}
+                onChange={(event) => {
+                  setPage(0);
+                  setWarehouseFilter(event.target.value);
+                }}
+                sx={{ minWidth: 180 }}
+              >
+                <MenuItem value="all">All Locations</MenuItem>
+                {availableLocations.map((loc) => (
+                  <MenuItem key={loc.id} value={loc.id}>
+                    {loc.name}
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
 
             <TextField
               size="small"

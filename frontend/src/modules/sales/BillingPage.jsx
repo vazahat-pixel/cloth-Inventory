@@ -34,6 +34,7 @@ import { addSale, fetchSales } from './salesSlice';
 import { fetchStockOverview } from '../inventory/inventorySlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchPricingRules, fetchSchemes, fetchCoupons } from '../pricing/pricingSlice';
+import { fetchItems } from '../items/itemsSlice';
 import { fetchLoyaltyConfig, fetchCreditNotes } from '../customers/customersSlice';
 import PaymentDialog from './PaymentDialog';
 import LoyaltyRedeemDialog from './LoyaltyRedeemDialog';
@@ -108,6 +109,18 @@ function BillingPage() {
   const purchaseConfig = useSelector((state) => state.settings.purchaseVoucherConfig) ?? {};
   const deliveryOrders = useSelector((state) => state.orders?.deliveryOrders) ?? [];
   const creditNotes = useSelector((state) => state.customerRewards?.creditNotes) ?? [];
+  const user = useSelector((state) => state.auth.user);
+  const stores = useSelector((state) => state.masters.stores || []);
+
+  const isStoreStaff = user?.role !== 'Admin';
+
+  const availableLocations = useMemo(() => {
+    const combined = [...warehouses, ...stores];
+    if (isStoreStaff && user?.shopId) {
+      return combined.filter(l => l.id === user.shopId);
+    }
+    return combined;
+  }, [warehouses, stores, isStoreStaff, user?.shopId]);
 
   const existingSale = useMemo(
     () => (isDetailMode ? sales.find((entry) => entry.id === id) : null),
@@ -115,7 +128,7 @@ function BillingPage() {
   );
 
   const [billDate, setBillDate] = useState(getTodayDate());
-  const [storeId, setStoreId] = useState(warehouses[0]?.id || '');
+  const [storeId, setStoreId] = useState(user?.shopId || warehouses[0]?.id || stores[0]?.id || '');
   const [salesmanId, setSalesmanId] = useState('');
   const [mobileInput, setMobileInput] = useState('');
   const [customerId, setCustomerId] = useState('');
@@ -149,12 +162,22 @@ function BillingPage() {
   useEffect(() => {
     dispatch(fetchMasters('customers'));
     dispatch(fetchMasters('warehouses'));
+    dispatch(fetchMasters('stores'));
+    dispatch(fetchItems());
     dispatch(fetchStockOverview());
     dispatch(fetchPricingRules());
     dispatch(fetchSchemes());
     dispatch(fetchCoupons());
     dispatch(fetchSales());
   }, [dispatch]);
+
+  // Sync storeId when warehouses/stores load or user changes
+  useEffect(() => {
+    if (!storeId) {
+      const defaultId = user?.shopId || warehouses[0]?.id || stores[0]?.id;
+      if (defaultId) setStoreId(defaultId);
+    }
+  }, [storeId, user, warehouses, stores]);
 
   const loadLinesFromDO = (doId) => {
     const do_ = deliveryOrders.find((d) => d.id === doId);
@@ -697,27 +720,34 @@ function BillingPage() {
                   <MenuItem value="exchange">Exchange</MenuItem>
                 </TextField>
               </Grid>
-              <Grid item xs={12} md={3}>
-                <TextField
-                  select
-                  fullWidth
-                  size="small"
-                  label="Store"
-                  value={storeId}
-                  onChange={(event) => {
-                    setStoreId(event.target.value);
-                    setLines([]);
-                    setSelectedOption(null);
-                    setBarcodeInput('');
-                  }}
-                >
-                  {warehouses.map((warehouse) => (
-                    <MenuItem key={warehouse.id} value={warehouse.id}>
-                      {warehouse.name}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
+              {!isStoreStaff && (
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    select
+                    fullWidth
+                    size="small"
+                    label="Store"
+                    value={storeId}
+                    onChange={(event) => {
+                      setStoreId(event.target.value);
+                      setLines([]);
+                      setSelectedOption(null);
+                      setBarcodeInput('');
+                    }}
+                  >
+                    {warehouses.map((w) => (
+                      <MenuItem key={w.id} value={w.id}>
+                        {w.name} (W)
+                      </MenuItem>
+                    ))}
+                    {stores.map((s) => (
+                      <MenuItem key={s.id} value={s.id}>
+                        {s.name} (S)
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                </Grid>
+              )}
               <Grid item xs={12} md={3}>
                 <TextField
                   select

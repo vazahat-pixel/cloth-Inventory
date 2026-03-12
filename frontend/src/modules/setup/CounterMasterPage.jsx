@@ -67,9 +67,9 @@ const CounterMasterPage = () => {
     const handleOpen = (counter = null) => {
         if (counter) {
             setFormData({
-                name: counter.name,
+                name: counter.name || '',
                 code: counter.code || '',
-                storeId: counter.storeId?._id || '',
+                storeId: counter.storeId?._id || counter.storeId || '',
                 status: counter.status || 'Active'
             });
             setEditId(counter._id);

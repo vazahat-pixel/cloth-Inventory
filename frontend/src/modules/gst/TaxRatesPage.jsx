@@ -260,10 +260,10 @@ function TaxRateDialog({ open, onClose, rate, taxRates, onSave }) {
     if (!open) return;
     if (rate) {
       reset({
-        name: rate.name,
-        cgst: rate.cgst,
-        sgst: rate.sgst,
-        igst: rate.igst,
+        name: rate.name || '',
+        cgst: rate.cgst ?? '',
+        sgst: rate.sgst ?? '',
+        igst: rate.igst ?? '',
         effectiveFrom: rate.effectiveFrom || '',
         status: rate.status || 'Active',
       });

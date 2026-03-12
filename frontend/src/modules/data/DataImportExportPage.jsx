@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Box, Button, Card, Grid, Stack, Typography, Alert, Paper } from '@mui/material';
+import { useSelector } from 'react-redux';
 import FileUploadOutlinedIcon from '@mui/icons-material/FileUploadOutlined';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -12,6 +13,8 @@ function DataImportExportPage() {
     const [file, setFile] = useState(null);
     const [status, setStatus] = useState({ type: '', msg: '' });
     const [loading, setLoading] = useState(false);
+    const user = useSelector((state) => state.auth.user);
+    const isAdmin = user?.role === 'Admin';
 
     const handleFileChange = (e) => {
         setFile(e.target.files[0]);
@@ -135,56 +138,58 @@ function DataImportExportPage() {
         <Box sx={{ p: 4 }}>
             <Stack direction="row" spacing={2} sx={{ mb: 4, alignItems: 'center' }}>
                 <Button startIcon={<ArrowBackIcon />} onClick={() => navigate(-1)}>Back</Button>
-                <Typography variant="h4" fontWeight={700}>Data Management</Typography>
+                <Typography variant="h4" fontWeight={700}>Data Import & Export</Typography>
             </Stack>
 
             {status.msg && <Alert severity={status.type} sx={{ mb: 3 }}>{status.msg}</Alert>}
 
             <Grid container spacing={4}>
-                <Grid item xs={12} md={6}>
-                    <Card sx={{ p: 4, height: '100%', border: '1px solid #e2e8f0', borderRadius: 3, boxShadow: 'none' }}>
-                        <Typography variant="h6" gutterBottom fontWeight={600}>Import Products</Typography>
-                        <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
-                            Upload an Excel file to bulk import products and variants into the system.
-                        </Typography>
+                {isAdmin && (
+                    <Grid item xs={12} md={6}>
+                        <Card sx={{ p: 4, height: '100%', border: '1px solid #e2e8f0', borderRadius: 3, boxShadow: 'none' }}>
+                            <Typography variant="h6" gutterBottom fontWeight={600}>Import Products</Typography>
+                            <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
+                                Upload an Excel file to bulk import products into the global catalog.
+                            </Typography>
 
-                        <Stack spacing={2}>
-                            <input
-                                accept=".xlsx, .xls"
-                                style={{ display: 'none' }}
-                                id="import-file"
-                                type="file"
-                                onChange={handleFileChange}
-                            />
-                            <label htmlFor="import-file">
+                            <Stack spacing={2}>
+                                <input
+                                    accept=".xlsx, .xls"
+                                    style={{ display: 'none' }}
+                                    id="import-file"
+                                    type="file"
+                                    onChange={handleFileChange}
+                                />
+                                <label htmlFor="import-file">
+                                    <Button
+                                        variant="outlined"
+                                        component="span"
+                                        fullWidth
+                                        startIcon={<FileUploadOutlinedIcon />}
+                                        sx={{ py: 2, borderStyle: 'dashed' }}
+                                    >
+                                        {file ? file.name : 'Select Excel File'}
+                                    </Button>
+                                </label>
+
                                 <Button
-                                    variant="outlined"
-                                    component="span"
-                                    fullWidth
-                                    startIcon={<FileUploadOutlinedIcon />}
-                                    sx={{ py: 2, borderStyle: 'dashed' }}
+                                    variant="contained"
+                                    onClick={handleImport}
+                                    disabled={!file || loading}
+                                    sx={{ py: 1.5, fontWeight: 600 }}
                                 >
-                                    {file ? file.name : 'Select Excel File'}
+                                    Start Import
                                 </Button>
-                            </label>
+                            </Stack>
+                        </Card>
+                    </Grid>
+                )}
 
-                            <Button
-                                variant="contained"
-                                onClick={handleImport}
-                                disabled={!file || loading}
-                                sx={{ py: 1.5, fontWeight: 600 }}
-                            >
-                                Start Import
-                            </Button>
-                        </Stack>
-                    </Card>
-                </Grid>
-
-                <Grid item xs={12} md={6}>
+                <Grid item xs={12} md={isAdmin ? 6 : 12}>
                     <Card sx={{ p: 4, height: '100%', border: '1px solid #e2e8f0', borderRadius: 3, boxShadow: 'none' }}>
                         <Typography variant="h6" gutterBottom fontWeight={600}>Export Data</Typography>
                         <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
-                            Download the entire product catalog, inventory records, or customer lists.
+                            Download the product catalog or {isAdmin ? 'global' : 'store'} inventory records.
                         </Typography>
 
                         <Stack spacing={2}>
@@ -204,7 +209,7 @@ function DataImportExportPage() {
                                 disabled={loading}
                                 sx={{ py: 1.8 }}
                             >
-                                Export Inventory (Excel)
+                                Export {isAdmin ? 'All' : 'Store'} Inventory (Excel)
                             </Button>
                         </Stack>
                     </Card>

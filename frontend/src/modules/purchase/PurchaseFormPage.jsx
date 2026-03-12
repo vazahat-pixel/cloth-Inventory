@@ -63,6 +63,8 @@ function PurchaseFormPage() {
   const purchases = useSelector((state) => state.purchase.records || []);
   const suppliers = useSelector((state) => state.masters.suppliers || []);
   const warehouses = useSelector((state) => state.masters.warehouses || []);
+  const stores = useSelector((state) => state.masters.stores || []);
+  const user = useSelector((state) => state.auth.user);
   const items = useSelector((state) => state.items.records || []);
 
   const existingPurchase = useMemo(
@@ -98,6 +100,7 @@ function PurchaseFormPage() {
   useEffect(() => {
     dispatch(fetchMasters('suppliers'));
     dispatch(fetchMasters('warehouses'));
+    dispatch(fetchMasters('stores'));
     dispatch(fetchItems());
   }, [dispatch]);
 
@@ -136,13 +139,24 @@ function PurchaseFormPage() {
     [warehouses],
   );
 
+  const isStoreStaff = user?.role !== 'Admin';
+
+  const availableLocations = useMemo(() => {
+    const combined = [...warehouses, ...stores];
+    if (isStoreStaff && user?.shopId) {
+      return combined.filter(l => l.id === user.shopId);
+    }
+    return combined;
+  }, [warehouses, stores, isStoreStaff, user?.shopId]);
+
   useEffect(() => {
-    if (!isEditMode && activeWarehouses.length > 0) {
+    if (!isEditMode && (warehouses.length > 0 || stores.length > 0)) {
       if (!getValues('warehouseId')) {
-        setValue('warehouseId', activeWarehouses[0].id || activeWarehouses[0]._id);
+        const defaultId = user?.shopId || warehouses[0]?.id || stores[0]?.id;
+        if (defaultId) setValue('warehouseId', defaultId);
       }
     }
-  }, [activeWarehouses, isEditMode, setValue, getValues]);
+  }, [warehouses, stores, user, isEditMode, setValue, getValues]);
 
   const otherCharges = watch('otherCharges');
 
@@ -419,14 +433,15 @@ function PurchaseFormPage() {
               select
               fullWidth
               size="small"
-              label="Warehouse"
-              {...register('warehouseId', { required: 'Warehouse is required.' })}
+              label="Location"
+              {...register('warehouseId', { required: 'Location is required.' })}
               error={Boolean(errors.warehouseId)}
               helperText={errors.warehouseId?.message || ' '}
+              disabled={isStoreStaff && availableLocations.length === 1}
             >
-              {warehouses.map((warehouse) => (
-                <MenuItem key={warehouse.id} value={warehouse.id}>
-                  {warehouse.name || warehouse.storeName || ''}
+              {availableLocations.map((loc) => (
+                <MenuItem key={loc.id} value={loc.id}>
+                  {loc.name} ({warehouses.find(w => w.id === loc.id) ? 'Warehouse' : 'Store'})
                 </MenuItem>
               ))}
             </TextField>

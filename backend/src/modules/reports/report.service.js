@@ -6,18 +6,22 @@ const Return = require('../../models/return.model');
 const Account = require('../../models/account.model');
 const Ledger = require('../../models/ledger.model');
 const Purchase = require('../../models/purchase.model');
+const WarehouseInventory = require('../../models/warehouseInventory.model');
 
 /**
  * Daily Sales Report
  */
-const getDailySalesReport = async (date) => {
+const getDailySalesReport = async (date, storeId) => {
     const start = new Date(date || Date.now());
     start.setHours(0, 0, 0, 0);
     const end = new Date(start);
     end.setHours(23, 59, 59, 999);
 
+    const match = { saleDate: { $gte: start, $lte: end }, isDeleted: false };
+    if (storeId) match.storeId = new require('mongoose').Types.ObjectId(storeId);
+
     return await Sale.aggregate([
-        { $match: { saleDate: { $gte: start, $lte: end }, isDeleted: false } },
+        { $match: match },
         {
             $group: {
                 _id: null,
@@ -31,12 +35,15 @@ const getDailySalesReport = async (date) => {
 /**
  * Monthly Sales Report
  */
-const getMonthlySalesReport = async (month, year) => {
+const getMonthlySalesReport = async (month, year, storeId) => {
     const start = new Date(year, month - 1, 1);
     const end = new Date(year, month, 0, 23, 59, 59, 999);
 
+    const match = { saleDate: { $gte: start, $lte: end }, isDeleted: false };
+    if (storeId) match.storeId = new require('mongoose').Types.ObjectId(storeId);
+
     return await Sale.aggregate([
-        { $match: { saleDate: { $gte: start, $lte: end }, isDeleted: false } },
+        { $match: match },
         {
             $group: {
                 _id: { $dateToString: { format: "%Y-%m-%d", date: "$saleDate" } },
@@ -91,13 +98,14 @@ const getStoreWiseSales = async (startDate, endDate) => {
 /**
  * Product-wise Sales Summary
  */
-const getProductWiseSales = async (startDate, endDate) => {
+const getProductWiseSales = async (startDate, endDate, storeId) => {
     const query = { isDeleted: false };
     if (startDate || endDate) {
         query.saleDate = {};
         if (startDate) query.saleDate.$gte = new Date(startDate);
         if (endDate) query.saleDate.$lte = new Date(endDate);
     }
+    if (storeId) query.storeId = new require('mongoose').Types.ObjectId(storeId);
 
     return await Sale.aggregate([
         { $match: query },
@@ -166,30 +174,45 @@ const getFabricConsumption = async () => {
 /**
  * Low Stock Report
  */
-const getLowStockReport = async () => {
-    const factoryLow = await Product.find({
-        $expr: { $lte: ['$factoryStock', '$minStockLevel'] },
-        isDeleted: false
-    }).select('name sku factoryStock minStockLevel');
+const getLowStockReport = async (storeId) => {
+    const productQuery = { isDeleted: false };
+    if (!storeId) {
+        // Only return factory low stock if no specific store is requested
+        const factoryLow = await Product.find({
+            $expr: { $lte: ['$factoryStock', '$minStockLevel'] },
+            isDeleted: false
+        }).select('name sku factoryStock minStockLevel');
+        
+        const storeLow = await StoreInventory.find({
+            $expr: { $lte: ['$quantityAvailable', '$minStockLevel'] }
+        }).populate('storeId', 'name').populate('productId', 'name sku');
+        
+        return { factoryLow, storeLow };
+    }
 
     const storeLow = await StoreInventory.find({
+        storeId,
         $expr: { $lte: ['$quantityAvailable', '$minStockLevel'] }
     }).populate('storeId', 'name').populate('productId', 'name sku');
 
-    return { factoryLow, storeLow };
+    return { factoryLow: [], storeLow };
 };
 
 /**
  * Inventory export - flattened stock by location (warehouses + stores)
  */
-const getInventoryExport = async () => {
+const getInventoryExport = async (storeId) => {
     // 1. Warehouse inventory
-    const warehouseInventory = await WarehouseInventory.find({})
+    const warehouseQuery = {};
+    if (storeId) warehouseQuery.warehouseId = storeId;
+    const warehouseInventory = await WarehouseInventory.find(warehouseQuery)
         .populate('warehouseId', 'name')
         .populate('productId', 'name sku barcode size color category brand');
 
     // 2. Store inventory
-    const storeInventory = await StoreInventory.find({})
+    const storeQuery = {};
+    if (storeId) storeQuery.storeId = storeId;
+    const storeInventory = await StoreInventory.find(storeQuery)
         .populate('storeId', 'name')
         .populate('productId', 'name sku barcode size color category brand');
 
@@ -240,9 +263,12 @@ const getInventoryExport = async () => {
 /**
  * Return Summary Report
  */
-const getReturnSummary = async () => {
+const getReturnSummary = async (storeId) => {
+    const match = { isDeleted: false };
+    if (storeId) match.storeId = new require('mongoose').Types.ObjectId(storeId);
+    
     return await Return.aggregate([
-        { $match: { isDeleted: false } },
+        { $match: match },
         {
             $group: {
                 _id: '$type',
@@ -487,10 +513,11 @@ const getAuditLogs = async (query = {}) => {
 /**
  * Purchase Register Report
  */
-const getPurchaseRegister = async (supplierId, startDate, endDate) => {
+const getPurchaseRegister = async (supplierId, startDate, endDate, storeId) => {
     const query = { status: 'COMPLETED' };
 
     if (supplierId) query.supplierId = supplierId;
+    if (storeId) query.storeId = storeId; // Assuming Purchase model has storeId if relevant, else ignore
 
     if (startDate || endDate) {
         query.invoiceDate = {};
@@ -519,9 +546,15 @@ const getPurchaseRegister = async (supplierId, startDate, endDate) => {
 /**
  * GST Summary Report
  */
-const getGstSummary = async (startDate, endDate) => {
+const getGstSummary = async (startDate, endDate, storeId) => {
     const saleQuery = { isDeleted: false, status: 'COMPLETED' };
     const purchaseQuery = { status: 'COMPLETED' };
+
+    if (storeId) {
+        const oid = new require('mongoose').Types.ObjectId(storeId);
+        saleQuery.storeId = oid;
+        purchaseQuery.storeId = oid;
+    }
 
     if (startDate || endDate) {
         saleQuery.saleDate = {};

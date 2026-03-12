@@ -467,7 +467,7 @@ function CouponDialog({ open, onClose, coupon, onSave }) {
     if (!open) return;
     if (isEdit && coupon) {
       reset({
-        code: coupon.code,
+        code: coupon.code || '',
         discountType: coupon.discountType || 'percentage',
         value: coupon.value ?? '',
         minAmount: coupon.minAmount ?? 0,

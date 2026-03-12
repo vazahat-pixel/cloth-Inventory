@@ -170,16 +170,20 @@ const normalizeItem = (item, entityType) => {
                 normalized.brand = item.productId.brand;
                 normalized.category = item.productId.category;
             }
+            const sId = item.storeId?._id || item.storeId?.id || item.storeId || item.warehouseId?._id || item.warehouseId?.id || item.warehouseId;
+            normalized.storeId = sId;
+            normalized.warehouseId = sId;
+
             if (item.storeId && typeof item.storeId === 'object') {
-                normalized.storeId = item.storeId._id || item.storeId.id;
-                normalized.warehouseId = normalized.storeId; // Backwards compat
                 normalized.storeName = item.storeId.name;
-                normalized.warehouseName = normalized.storeName;
-            } else {
-                normalized.warehouseId = item.storeId;
+                normalized.warehouseName = item.storeId.name;
+            } else if (item.warehouseId && typeof item.warehouseId === 'object') {
+                normalized.storeName = item.warehouseId.name;
+                normalized.warehouseName = item.warehouseId.name;
             }
-            normalized.quantity = item.quantityAvailable;
-            normalized.reserved = item.quantityReserved;
+
+            normalized.quantity = item.quantityAvailable ?? item.quantity ?? 0;
+            normalized.reserved = item.quantityReserved ?? 0;
             normalized.status = (item.quantityAvailable <= 10) ? 'LOW_STOCK' : 'OK';
             break;
 
@@ -199,15 +203,74 @@ const normalizeItem = (item, entityType) => {
             normalized.name = item.name;
             break;
 
-        case 'scheme':
-            normalized.name = item.name;
-            normalized.status = item.isActive ? 'Active' : 'Inactive';
-            break;
+        case 'scheme': {
+            // Map Backend flat fields to Frontend nested structure
+            const typeMap = {
+                'PERCENTAGE': 'percentage_discount',
+                'FLAT': 'flat_discount',
+                'FREE_GIFT': 'free_gift',
+                'BUY_X_GET_Y': 'buy_x_get_y'
+            };
 
-        case 'coupon':
-            normalized.code = item.code;
+            normalized.name = item.name;
+            normalized.type = typeMap[item.type] || item.type;
             normalized.status = item.isActive ? 'Active' : 'Inactive';
+
+            // Applicability
+            let appType = 'item';
+            let appIds = [];
+            if (item.applicableProducts?.length) {
+                appType = 'item';
+                appIds = item.applicableProducts.map(p => p._id || p);
+            } else if (item.applicableCategories?.length) {
+                appType = 'itemGroup';
+                appIds = item.applicableCategories.map(c => c._id || c);
+            } else if (item.applicableBrands?.length) {
+                appType = 'brand';
+                appIds = item.applicableBrands;
+            }
+            normalized.applicability = { type: appType, ids: appIds };
+
+            // Conditions
+            normalized.conditions = {
+                minQuantity: item.minPurchaseQuantity || 0,
+                minValue: item.minPurchaseAmount || 0
+            };
+
+            // Benefit
+            normalized.benefit = {
+                discountPercent: (item.type === 'PERCENTAGE') ? (item.value || '') : '',
+                flatAmount: (item.type === 'FLAT') ? (item.value || '') : '',
+                buyQty: item.buyQuantity || '',
+                getQty: item.getQuantity || ''
+            };
+
+            // Validity
+            normalized.validity = {
+                from: item.startDate ? new Date(item.startDate).toISOString().split('T')[0] : '',
+                to: item.endDate ? new Date(item.endDate).toISOString().split('T')[0] : ''
+            };
+
+            normalized.giftItemId = item.giftItemId?._id || item.giftItemId || '';
+            normalized.giftQuantity = item.giftQuantity || '';
             break;
+        }
+
+        case 'coupon': {
+            const typeMap = {
+                'PERCENTAGE': 'percentage',
+                'FLAT': 'amount'
+            };
+            normalized.code = item.code || '';
+            normalized.discountType = typeMap[item.type] || 'percentage';
+            normalized.value = item.value || '';
+            normalized.minAmount = item.minPurchaseAmount || 0;
+            normalized.usageLimit = item.usageLimit || 1;
+            normalized.usageCount = item.usedCount || 0;
+            normalized.expiry = item.endDate ? new Date(item.endDate).toISOString().split('T')[0] : '';
+            normalized.status = item.isActive !== false ? 'Active' : 'Expired';
+            break;
+        }
 
         case 'voucher': {
             normalized.code = item.voucherNumber;

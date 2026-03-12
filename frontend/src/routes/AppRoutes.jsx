@@ -210,10 +210,14 @@ function AppRoutes() {
       <Route path="inventory/stock-in" element={<StockInPage />} />
       <Route path="inventory/transfer" element={<StockTransferPage />} />
       <Route path="inventory/transfer-receive" element={<StockTransferPage />} />
+      <Route path="purchase" element={<PurchaseListPage />} />
+      <Route path="purchase/new" element={<PurchaseFormPage />} />
+      <Route path="purchase/:id" element={<PurchaseFormPage />} />
       <Route path="purchase/return" element={<PurchaseReturnPageStaff />} />
       <Route path="purchase-return" element={<PurchaseReturnPageStaff />} />
       <Route path="sales" element={<SalesListPage />} />
       <Route path="sales/new" element={<BillingPage />} />
+      <Route path="sales/returns" element={<SalesListPage />} />
       <Route path="sales/:id" element={<BillingPage />} />
       <Route path="sales/:id/return" element={<SalesReturnPage />} />
       <Route path="reports" element={<ReportsDashboard />} />
@@ -224,7 +228,7 @@ function AppRoutes() {
       <Route path="reports/ledger" element={<LedgerReportPage />} />
       <Route path="reports/collection" element={<CollectionReportPage />} />
       <Route path="data-import" element={<DataImportExportPage />} />
-      <Route path="*" element={<NotFoundPage />} />
+      <Route path="*" element={<Navigate to="" replace />} />
         </Route>
       </Route>
 
