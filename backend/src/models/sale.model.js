@@ -7,14 +7,14 @@ const saleItemSchema = new mongoose.Schema({
         ref: 'Product',
         required: true
     },
+    // Keep barcode for reference, but do not enforce it
+    // so that manual POS entry without a physical scanner works.
     barcode: {
-        type: String,
-        required: true
+        type: String
     },
     quantity: {
         type: Number,
-        required: true,
-        min: 1
+        required: true
     },
     price: {
         type: Number,

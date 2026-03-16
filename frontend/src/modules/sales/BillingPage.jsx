@@ -39,6 +39,7 @@ import { fetchLoyaltyConfig, fetchCreditNotes } from '../customers/customersSlic
 import PaymentDialog from './PaymentDialog';
 import LoyaltyRedeemDialog from './LoyaltyRedeemDialog';
 import ExchangeInvoicePrint from './ExchangeInvoicePrint';
+import StandardInvoicePrint from './StandardInvoicePrint';
 
 const DEFAULT_WALK_IN_NAME = 'Walk-in Customer';
 const EMPTY_ARR = [];
@@ -381,6 +382,7 @@ function BillingPage() {
           size: option.size,
           color: option.color,
           sku: option.sku,
+          barcode: option.barcode || '',
           quantity: 1,
           rate: option.rate,
           discount: 0,
@@ -403,14 +405,14 @@ function BillingPage() {
 
   const handleBarcodeAdd = (scannedValue) => {
     const rawCode = typeof scannedValue === 'string' ? scannedValue : barcodeInput;
-    const scannedCode = rawCode.trim().toLowerCase();
+    const scannedCode = (rawCode || '').trim().toLowerCase();
     if (!scannedCode) {
       return;
     }
 
     const matched = variantOptions.find((option) => (option.sku || '').toLowerCase() === scannedCode || (option.styleCode || '').toLowerCase() === scannedCode || (option.barcode || '').toLowerCase() === scannedCode);
     if (!matched) {
-      setErrorMessage('No SKU/Barcode found in the selected warehouse stock.');
+      setErrorMessage('Product not found for this barcode');
       return;
     }
 
@@ -476,6 +478,17 @@ function BillingPage() {
       return;
     }
 
+    // Prevent proceeding when nothing is actually payable
+    const effectiveNet =
+      saleType === 'exchange'
+        ? totals.netPayable - creditNoteAmount
+        : Math.max(0, totals.netPayable - creditNoteAmount);
+
+    if (effectiveNet <= 0) {
+      setErrorMessage('Net payable must be greater than 0 to proceed.');
+      return;
+    }
+
     if (toNumber(loyaltyRedeemed) > availableLoyalty) {
       setErrorMessage('Loyalty redeemed cannot exceed available customer points.');
       return;
@@ -488,6 +501,7 @@ function BillingPage() {
     // 1. Align with backend products array: [{ productId, quantity, price, total }]
     const preparedProducts = lines.map((line) => ({
       productId: line.productId || line.variantId,
+      barcode: line.barcode || line.sku || '',
       quantity: toNumber(line.quantity),
       price: toNumber(line.rate),
       total: toNumber(line.quantity) * toNumber(line.rate),
@@ -502,10 +516,10 @@ function BillingPage() {
       discount: toNumber(billDiscount) + toNumber(couponDiscountAmount) + toNumber(schemeDiscountAmount),
       tax: totals.taxAmount,
       grandTotal: totals.netPayable,
-      paymentMode: payment.method || 'CASH', // Uppercase enum from PaymentDialog
-      redeemPoints: Math.max(0, toNumber(loyaltyRedeemed)), // Backend uses points count
+      paymentMode: payment.method || 'CASH',
+      redeemPoints: Math.max(0, toNumber(loyaltyRedeemed)),
       creditNoteId: creditNoteId || null,
-      saleType,
+      type: (saleType || 'retail').toUpperCase(),
     };
 
     dispatch(addSale(payload))
@@ -1166,9 +1180,7 @@ function BillingPage() {
           {completedSaleData?.saleType === 'exchange' ? (
             <ExchangeInvoicePrint sale={completedSaleData} />
           ) : (
-            <Box sx={{ p: 4, textAlign: 'center' }}>
-              <Typography>Standard Invoice Printing logic here...</Typography>
-            </Box>
+            <StandardInvoicePrint sale={completedSaleData} />
           )}
           <Stack direction="row" spacing={2} justifyContent="flex-end" sx={{ mt: 2 }}>
             <Button variant="outlined" onClick={() => navigate('/sales')}>Close</Button>

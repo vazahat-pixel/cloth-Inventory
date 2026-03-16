@@ -4,7 +4,7 @@ const Product = require('../../models/product.model');
 const StoreInventory = require('../../models/storeInventory.model');
 const { ReturnType, StockHistoryType, CreditNoteStatus } = require('../../core/enums');
 const { withTransaction } = require('../../services/transaction.service');
-const { adjustStock, adjustStoreStock } = require('../../services/stock.service');
+const { adjustWarehouseStock, adjustStoreStock } = require('../../services/stock.service');
 const { createAuditLog } = require('../../middlewares/audit.middleware');
 const CreditNote = require('../../models/creditNote.model');
 const Customer = require('../../models/customer.model');
@@ -14,9 +14,6 @@ const { calculateGST } = require('../../services/gst.service');
 const GstSlab = require('../../models/gstSlab.model');
 const { getNextSequence } = require('../../services/sequence.service');
 
-/**
- * Generate unique Return Number (RTN-YYYY-XXXXX)
- */
 const generateReturnNumber = async (session = null) => {
     const year = new Date().getFullYear();
     const prefix = `RTN-${year}-`;
@@ -188,9 +185,15 @@ const processReturn = async (returnData, userId) => {
                 session
             });
 
-            // Increase Factory stock
-            await adjustStock({
+            // Increase destination Warehouse/Factory stock
+            const destinationWarehouseId = returnData.destinationId || returnData.warehouseId;
+            if (!destinationWarehouseId) {
+                throw new Error('Destination warehouse is required for store to factory returns');
+            }
+
+            await adjustWarehouseStock({
                 productId,
+                warehouseId: destinationWarehouseId,
                 quantityChange: quantity,
                 type: StockHistoryType.IN,
                 referenceId: null,
@@ -222,8 +225,14 @@ const processReturn = async (returnData, userId) => {
         // 4. Logic for Return to Supplier (Purchase Return)
         if (type === ReturnType.PURCHASE_RETURN) {
             // Usually returns come from Warehouse stock
-            await adjustStock({
+            const warehouseId = returnData.warehouseId || returnData.storeId;
+            if (!warehouseId) {
+                throw new Error('Warehouse reference is required for purchase returns');
+            }
+
+            await adjustWarehouseStock({
                 productId,
+                warehouseId,
                 quantityChange: -quantity,
                 type: StockHistoryType.OUT,
                 referenceId: null,
@@ -292,7 +301,7 @@ const getAllReturns = async (query, user) => {
             .skip(skip)
             .limit(parseInt(limit))
             .populate('storeId', 'name')
-            .populate('productId', 'name sku barcode')
+            .populate('productId', 'name sku barcode size color')
             .populate('createdBy', 'name')
             .populate('referenceSaleId', 'saleNumber'),
         Return.countDocuments(filter)
@@ -304,7 +313,7 @@ const getAllReturns = async (query, user) => {
 const getReturnById = async (id) => {
     const record = await Return.findById(id)
         .populate('storeId')
-        .populate('productId')
+        .populate('productId', 'name sku barcode size color')
         .populate('createdBy', 'name')
         .populate('referenceSaleId');
     if (!record) throw new Error('Return record not found');

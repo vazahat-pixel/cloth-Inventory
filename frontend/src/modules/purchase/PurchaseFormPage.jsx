@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
+
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import {
   Alert,
@@ -26,7 +27,8 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import { useForm } from 'react-hook-form';
-import { addPurchase, updatePurchase, fetchPurchases } from './purchaseSlice';
+import { addPurchase, updatePurchase, fetchPurchases, fetchPurchaseOrderById } from './purchaseSlice';
+
 import { parsePurchaseExcel } from './purchaseImportService';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchItems } from '../items/itemsSlice';
@@ -55,7 +57,10 @@ const calculateTotals = (items, otherCharges) => {
 
 function PurchaseFormPage() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const orderId = searchParams.get('orderId');
   const isEditMode = Boolean(id);
+
 
   const dispatch = useDispatch();
   const navigate = useAppNavigate();
@@ -105,16 +110,51 @@ function PurchaseFormPage() {
   }, [dispatch]);
 
   useEffect(() => {
+    if (orderId && !isEditMode) {
+      dispatch(fetchPurchaseOrderById(orderId))
+        .unwrap()
+        .then((order) => {
+          reset({
+            supplierId: order.supplierId,
+            warehouseId: order.warehouseId,
+            invoiceNumber: '',
+            invoiceDate: getTodayDate(),
+            notes: `Converted from PO: ${order.orderNumber}`,
+            otherCharges: order.totals?.otherCharges || 0,
+          });
+          setLines(
+            (order.items || order.products || []).map((item, index) => ({
+              id: `${item.productId || item.variantId}-${index}-${Date.now()}`,
+              variantId: item.productId || item.variantId,
+              itemName: item.itemName || (items.find(i => i._id === (item.productId || item.variantId))?.name) || 'Item',
+              styleCode: item.styleCode || (items.find(i => i._id === (item.productId || item.variantId))?.sku) || '',
+              size: item.size || (items.find(i => i._id === (item.productId || item.variantId))?.size) || '',
+              color: item.color || (items.find(i => i._id === (item.productId || item.variantId))?.color) || '',
+              sku: item.sku || (items.find(i => i._id === (item.productId || item.variantId))?.barcode) || '',
+              quantity: item.quantity,
+              rate: item.rate,
+              discount: item.discount || 0,
+              tax: item.tax || 0,
+            })),
+          );
+        })
+        .catch(err => setFormError("Failed to load Purchase Order details"));
+    }
+  }, [orderId, isEditMode, dispatch, reset, items]);
+
+  useEffect(() => {
     if (!existingPurchase) {
-      reset({
-        supplierId: '',
-        invoiceNumber: '',
-        invoiceDate: getTodayDate(),
-        warehouseId: '',
-        notes: '',
-        otherCharges: 0,
-      });
-      setLines([]);
+      if (!orderId) {
+        reset({
+          supplierId: '',
+          invoiceNumber: '',
+          invoiceDate: getTodayDate(),
+          warehouseId: '',
+          notes: '',
+          otherCharges: 0,
+        });
+        setLines([]);
+      }
       return;
     }
 
@@ -132,7 +172,8 @@ function PurchaseFormPage() {
         ...item,
       })),
     );
-  }, [existingPurchase, reset]);
+  }, [existingPurchase, reset, orderId]);
+
 
   const activeWarehouses = useMemo(
     () => (warehouses || []).filter((w) => String(w.status).toLowerCase() === 'active'),
@@ -142,11 +183,15 @@ function PurchaseFormPage() {
   const isStoreStaff = user?.role !== 'Admin';
 
   const availableLocations = useMemo(() => {
-    const combined = [...warehouses, ...stores];
+    // If user is Staff/Manager, they only see their assigned shop
     if (isStoreStaff && user?.shopId) {
-      return combined.filter(l => l.id === user.shopId);
+      const combined = [...warehouses, ...stores];
+      return combined.filter(l => l.id === user.shopId || l._id === user.shopId);
     }
-    return combined;
+    
+    // For HO / Admin, show only Warehouses to keep the list clear of retail stores.
+    // This addresses the user's feedback that showing all stores is unnecessary here.
+    return warehouses.length > 0 ? warehouses : [...warehouses, ...stores];
   }, [warehouses, stores, isStoreStaff, user?.shopId]);
 
   useEffect(() => {

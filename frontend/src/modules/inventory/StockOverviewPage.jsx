@@ -28,9 +28,12 @@ function StockOverviewPage() {
   const stockRows = useSelector((state) => state.inventory.stock);
   const warehouses = useSelector((state) => state.masters.warehouses || []);
   const stores = useSelector((state) => state.masters.stores || []);
+  const user = useSelector((state) => state.auth.user);
 
   const [searchText, setSearchText] = useState('');
-  const [warehouseFilter, setWarehouseFilter] = useState('all');
+  const [warehouseFilter, setWarehouseFilter] = useState(
+    user?.role === 'Staff' && user?.shopId ? user.shopId : 'all'
+  );
   const [brandFilter, setBrandFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [page, setPage] = useState(0);
@@ -133,14 +136,18 @@ function StockOverviewPage() {
             }}
             sx={{ minWidth: 200 }}
           >
-            <MenuItem value="all">All Locations</MenuItem>
-            <Typography variant="overline" sx={{ px: 2, fontWeight: 700, color: 'primary.main' }}>Warehouses</Typography>
-            {warehouses.map((w) => (
-              <MenuItem key={w.id || w._id} value={w.id || w._id}>
-                {w.warehouseName || w.name}
-              </MenuItem>
-            ))}
-            <Typography variant="overline" sx={{ px: 2, fontWeight: 700, color: 'secondary.main' }}>Stores</Typography>
+            {user?.role !== 'Staff' && <MenuItem value="all">All Locations</MenuItem>}
+            {warehouses.length > 0 && (
+              <>
+                <Typography variant="overline" sx={{ px: 2, fontWeight: 700, color: 'primary.main' }}>Warehouses</Typography>
+                {warehouses.map((w) => (
+                  <MenuItem key={w.id || w._id} value={w.id || w._id}>
+                    {w.warehouseName || w.name}
+                  </MenuItem>
+                ))}
+              </>
+            )}
+            {stores.length > 0 && <Typography variant="overline" sx={{ px: 2, fontWeight: 700, color: 'secondary.main' }}>Stores</Typography>}
             {stores.map((s) => (
               <MenuItem key={s.id || s._id} value={s.id || s._id}>
                 {s.name}

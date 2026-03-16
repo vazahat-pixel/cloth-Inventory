@@ -151,4 +151,32 @@ const createUser = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
-module.exports = { adminRegister, adminLogin, storeRegister, storeLogin, getMe, logout, getAllUsers, updateUser, createUser };
+const changePassword = async (req, res, next) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        const user = await User.findById(req.user._id).select('+passwordHash');
+        
+        if (!user) return sendError(res, 'User not found.', 404);
+
+        const isMatch = await user.comparePassword(currentPassword);
+        if (!isMatch) return sendError(res, 'Incorrect current password.', 400);
+
+        user.passwordHash = newPassword;
+        await user.save();
+
+        return sendSuccess(res, {}, 'Password updated successfully.');
+    } catch (error) { next(error); }
+};
+
+module.exports = { 
+    adminRegister, 
+    adminLogin, 
+    storeRegister, 
+    storeLogin, 
+    getMe, 
+    logout, 
+    getAllUsers, 
+    updateUser, 
+    createUser,
+    changePassword
+};

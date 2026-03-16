@@ -4,7 +4,14 @@ const storeFields = [
     { name: 'name', label: 'Store Name', required: true },
     { name: 'managerName', label: 'Manager Name', required: true },
     { name: 'managerPhone', label: 'Manager Phone', required: true },
-    { name: 'email', label: 'Email', required: true, type: 'email' },
+    { name: 'email', label: 'Login Email / Username', required: true, type: 'email' },
+    { 
+        name: 'password', 
+        label: 'Login Password', 
+        required: false, 
+        type: 'password', 
+        helperText: 'Default: Store@123 (Used for first time login)' 
+    },
     { name: 'city', label: 'City', required: true },
     { name: 'state', label: 'State', required: true },
     { name: 'address', label: 'Complete Address', required: true, multiline: true },

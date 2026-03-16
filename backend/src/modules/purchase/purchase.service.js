@@ -245,6 +245,7 @@ const getAllPurchases = async (query) => {
             .limit(parseInt(limit))
             .populate('supplierId', 'name contactPerson')
             .populate('storeId', 'name')
+            .populate('products.productId', 'name sku barcode size color category')
             .populate('createdBy', 'name'),
         Purchase.countDocuments(filter)
     ]);

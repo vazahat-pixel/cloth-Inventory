@@ -44,18 +44,23 @@ function DeliveryChallanForm() {
     const [variantPickerValue, setVariantPickerValue] = useState(null);
     const [error, setError] = useState('');
 
-    const stores = useSelector((state) => state.masters.warehouses || []);
+    const warehouses = useSelector((state) => state.masters.warehouses || []);
+    const stores = useSelector((state) => state.masters.stores || []);
     const stockRows = useSelector((state) => state.inventory.stock || []);
+
 
     useEffect(() => {
         dispatch(fetchMasters('warehouses'));
+        dispatch(fetchMasters('stores'));
         dispatch(fetchStockOverview());
     }, [dispatch]);
 
-    const activeWarehouses = useMemo(
-        () => (stores || []).filter((w) => String(w.status).toLowerCase() === 'active'),
-        [stores],
+
+    const activeLocations = useMemo(
+        () => [...warehouses, ...stores].filter((w) => String(w.status || w.isActive).toLowerCase() !== 'false'),
+        [warehouses, stores],
     );
+
 
     const warehouseStock = useMemo(() => {
         if (!sourceId) return [];
@@ -157,9 +162,10 @@ function DeliveryChallanForm() {
                                 setLines([]);
                             }}
                         >
-                            {activeWarehouses.map((s) => (
+                            {activeLocations.map((s) => (
                                 <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
                             ))}
+
                         </Select>
                     </FormControl>
                     <FormControl fullWidth size="small">
@@ -169,9 +175,10 @@ function DeliveryChallanForm() {
                             label="Destination Store"
                             onChange={(e) => setStoreId(e.target.value)}
                         >
-                            {activeWarehouses.map((s) => (
+                            {activeLocations.map((s) => (
                                 <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
                             ))}
+
                         </Select>
                     </FormControl>
                 </Stack>

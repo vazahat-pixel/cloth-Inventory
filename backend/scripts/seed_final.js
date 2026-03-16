@@ -60,11 +60,9 @@ async function seed() {
             await model.deleteMany({});
             console.log(`   - Cleared ${model.modelName}`);
         }
-
         // We also want to clear all users for a clean seed
         console.log('👤 Cleaning all users...');
         await User.deleteMany({});
-
         // Ensure Admin exists
         let adminUser = await User.findOne({ email: 'admin@test.com' });
         if (!adminUser) {
@@ -79,7 +77,6 @@ async function seed() {
             });
         }
         const adminId = adminUser._id;
-
         // 2. Seed Settings
         console.log('⚙️  Seeding Settings...');
         await Settings.create({
@@ -94,7 +91,6 @@ async function seed() {
             },
             updatedBy: adminId
         });
-
         // 3. Seed GST Slabs & HSN Codes
         console.log('📉 Seeding GST & HSN...');
         const slabsData = [
@@ -348,7 +344,6 @@ async function seed() {
                     { warehouseId: warehouse._id, productId: product._id },
                     { $inc: { quantity: -20 } }
                 );
-
                 // Store Incr
                 await StoreInventory.findOneAndUpdate(
                     { storeId: store._id, productId: product._id },

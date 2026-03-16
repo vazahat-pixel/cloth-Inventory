@@ -27,7 +27,7 @@ exports.createWarehouse = async (req, res, next) => {
 
 exports.getAllWarehouses = async (req, res, next) => {
     try {
-        const { warehouses, total, page, limit } = await warehouseService.getAllWarehouses(req.query);
+        const { warehouses, total, page, limit } = await warehouseService.getAllWarehouses(req.query, req.user);
         const meta = buildPaginationMeta(total, page, limit);
         return sendSuccess(res, { warehouses, meta }, 'Warehouses retrieved successfully');
     } catch (err) {

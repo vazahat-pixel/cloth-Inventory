@@ -106,6 +106,8 @@ const normalizeItem = (item, entityType) => {
                         variantId: prod._id || p.productId,
                         itemName: prod.name || p.name || '',
                         sku: prod.sku || p.barcode || '',
+                        size: prod.size || '',
+                        color: prod.color || '',
                         rate: p.price || p.appliedPrice || 0,
                         amount: p.total || 0,
                         quantity: p.quantity || 0
@@ -131,6 +133,7 @@ const normalizeItem = (item, entityType) => {
 
             normalized.date = item.saleDate ? new Date(item.saleDate).toISOString().split('T')[0] : '';
             normalized.invoiceNumber = item.saleNumber;
+            normalized.saleType = (item.type || 'RETAIL').toLowerCase();
 
             // Payment object for list and detail view
             normalized.payment = {
@@ -142,6 +145,40 @@ const normalizeItem = (item, entityType) => {
             };
 
             normalized.salesmanName = item.cashierId?.name || '';
+            break;
+
+        case 'return':
+            normalized.id = item._id || item.id;
+            normalized.storeId = item.storeId?._id || item.storeId;
+            normalized.warehouseId = normalized.storeId;
+            normalized.saleId = item.referenceSaleId?._id || item.referenceSaleId;
+            normalized.date = item.createdAt ? new Date(item.createdAt).toISOString().split('T')[0] : '';
+            normalized.returnDate = normalized.date;
+            normalized.returnNumber = item.returnNumber;
+            normalized.type = item.type;
+            normalized.reason = item.reason;
+
+            if (item.productId) {
+                const p = (typeof item.productId === 'object') ? item.productId : {};
+                normalized.items = [{
+                    productId: p._id || item.productId,
+                    variantId: p._id || item.productId,
+                    itemName: p.name || '',
+                    sku: p.sku || '',
+                    size: p.size || '',
+                    color: p.color || '',
+                    returnQty: item.quantity || 0,
+                    quantity: item.quantity || 0, // Fallback
+                    rate: item.rate || 0, 
+                    amount: item.amount || 0
+                }];
+            } else if (item.items) {
+                // If it already has items (maybe from some other backend structure)
+                normalized.items = item.items.map(it => ({
+                    ...it,
+                    variantId: it.variantId || it.productId?._id || it.productId
+                }));
+            }
             break;
 
         case 'dispatch':
@@ -310,6 +347,14 @@ const normalizeItem = (item, entityType) => {
             break;
         case 'bank':
             normalized.bankName = item.name;
+            normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
+            break;
+
+        case 'user':
+            normalized.userName = item.name;
+            normalized.email = item.email;
+            normalized.mobile = item.mobile;
+            normalized.roleId = item.role;
             normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
             break;
 

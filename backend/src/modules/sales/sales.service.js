@@ -61,6 +61,8 @@ const getProductForSale = async (barcode, storeId) => {
         name: product.name,
         sku: product.sku,
         barcode: product.barcode,
+        size: product.size,
+        color: product.color,
         salePrice: product.salePrice,
         available: availableQty
     };
@@ -154,19 +156,22 @@ const createSale = async (saleData, cashierId) => {
                 productId,
                 storeId,
                 quantityChange: -item.quantity,
-                type: type === 'EXCHANGE' && item.quantity < 0 ? StockHistoryType.RETURN : StockHistoryType.SALE,
+                type: (type || 'RETAIL').toUpperCase() === 'EXCHANGE' && item.quantity < 0 ? StockHistoryType.RETURN : StockHistoryType.SALE,
                 referenceId: null, // Will update after sale save
                 referenceModel: 'Sale',
                 performedBy: cashierId,
-                notes: `Sale ${saleNumber} ${item.quantity < 0 ? '(Exchange Return)' : ''}`,
+                notes: `Sale ${saleNumber} ${(type || 'RETAIL').toUpperCase() === 'EXCHANGE' && item.quantity < 0 ? '(Exchange Return)' : ''}`,
                 session
             });
 
-            // Update quantitySold (returns decrease sold quantity).
-            // Keep it defensive in case inventory document was just created.
-            inventory.quantitySold = (inventory.quantitySold || 0) + item.quantity;
+            // Update quantitySold atomically (returns decrease sold quantity).
+            await StoreInventory.updateOne(
+                { storeId, productId },
+                { $inc: { quantitySold: item.quantity } },
+                { session }
+            );
+            
             calculatedSubTotal += taxableAmount;
-            await inventory.save({ session });
         }
 
         // 2.1. Handle Loyalty Redemption
@@ -347,7 +352,6 @@ const createSale = async (saleData, cashierId) => {
                     });
                 }
             }
-
             // 5.3. Add Credit Note Control entry
             if (creditNoteAppliedAmount > 0) {
                 const creditNoteAccount = await Account.findOne({ name: 'Credit Note Control' }).session(session);
@@ -363,7 +367,6 @@ const createSale = async (saleData, cashierId) => {
                     });
                 }
             }
-
             // If there's tax, add GST entry
             if (sale.totalTax > 0) {
                 const gstAccount = await Account.findOne({ name: 'GST Payable' }).session(session);
@@ -441,7 +444,7 @@ const getAllSales = async (query, user) => {
             .limit(parseInt(limit))
             .populate('storeId', 'name')
             .populate('cashierId', 'name')
-            .populate('products.productId', 'name sku barcode size category'),
+            .populate('products.productId', 'name sku barcode size color category'),
         Sale.countDocuments(filter)
     ]);
 

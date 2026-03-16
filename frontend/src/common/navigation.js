@@ -1,5 +1,6 @@
 export const navigationItems = [
   { label: "Dashboard", path: "/" },
+  { label: "Items (Products)", path: "/items" },
   // Plural to match breadcrumbs/title used in master screens
   { label: "Masters", path: "/masters" },
   { label: "Inventory (INV)", path: "/inventory" },
@@ -9,6 +10,11 @@ export const navigationItems = [
   { label: "Setup", path: "/setup" },
   { label: "Settings", path: "/settings" },
   { label: "Data Import", path: "/data-import" },
+];
+
+export const itemsNavigationItems = [
+  { label: "Item List", path: "/items" },
+  { label: "Add New Item", path: "/items/new" },
 ];
 
 export const mastersNavigationItems = [
@@ -21,7 +27,6 @@ export const mastersNavigationItems = [
   { label: "Brands", path: "/masters/brands" },
   { label: "Salesmen", path: "/masters/salesmen" },
   { label: "Banks", path: "/masters/banks" },
-  { label: "Items", path: "/items" },
 ];
 
 export const inventoryNavigationItems = [
@@ -78,6 +83,7 @@ export const getPageTitle = (pathname) => {
   // Basic logic to return label based on path matching
   const allItems = [
     ...navigationItems,
+    ...itemsNavigationItems,
     ...mastersNavigationItems,
     ...inventoryNavigationItems,
     ...purchaseNavigationItems,

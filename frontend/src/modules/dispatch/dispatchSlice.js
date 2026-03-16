@@ -22,6 +22,19 @@ export const addChallan = createAsyncThunk('dispatch/addChallan', async (challan
     }
 });
 
+export const updateChallanStatus = createAsyncThunk(
+    'dispatch/updateStatus',
+    async ({ id, status }, { rejectWithValue }) => {
+        try {
+            const response = await api.patch(`/dispatch/${id}/status`, { status });
+            const raw = response.data.dispatch || response.data.data;
+            return normalizeResponse(raw, 'dispatch');
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to update dispatch status');
+        }
+    }
+);
+
 const initialState = {
     records: [],
     loading: false,
@@ -59,6 +72,24 @@ const dispatchSlice = createSlice({
                 state.records.unshift(action.payload);
             })
             .addCase(addChallan.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.payload;
+            })
+            .addCase(updateChallanStatus.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
+            .addCase(updateChallanStatus.fulfilled, (state, action) => {
+                state.loading = false;
+                const updated = action.payload;
+                const idx = state.records.findIndex(
+                    (r) => r.id === updated.id || r._id === updated._id
+                );
+                if (idx !== -1) {
+                    state.records[idx] = updated;
+                }
+            })
+            .addCase(updateChallanStatus.rejected, (state, action) => {
                 state.loading = false;
                 state.error = action.payload;
             });

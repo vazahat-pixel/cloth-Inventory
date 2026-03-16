@@ -1,4 +1,5 @@
 const Store = require('../../models/store.model');
+const User = require('../../models/user.model');
 
 /**
  * Generate next Store Code (STR-001 format)
@@ -35,16 +36,42 @@ const createStore = async (storeData, userId) => {
         createdBy: userId
     });
 
-    return await store.save();
+    const savedStore = await store.save();
+
+    // Automatically create a manager user for this store if email is provided
+    if (storeData.email) {
+        const userExists = await User.findOne({ email: storeData.email.toLowerCase() });
+        if (!userExists) {
+            await User.create({
+                name: storeData.managerName || storeData.name,
+                email: storeData.email.toLowerCase(),
+                passwordHash: storeData.password || 'Store@123',
+                role: 'store_staff',
+                shopId: savedStore._id,
+                shopName: savedStore.name,
+                mobile: storeData.managerPhone
+            });
+        }
+    }
+
+    return savedStore;
 };
 
 /**
  * Get all stores with pagination and search
  */
-const getAllStores = async (query) => {
+const getAllStores = async (query, user) => {
     const { page = 1, limit = 100, search, city, state, isActive } = query;
 
     const filter = { isDeleted: false };
+
+    // Enforce store scoping for store staff
+    if (user && user.role === 'store_staff') {
+        if (!user.shopId) {
+            throw new Error('User is not linked to any store. Please contact administrator.');
+        }
+        filter._id = user.shopId;
+    }
 
     if (search) {
         filter.$or = [

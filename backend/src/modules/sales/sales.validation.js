@@ -11,13 +11,15 @@ const createSaleValidation = [
     body('products.*.productId')
         .notEmpty().withMessage('Product ID is required')
         .isMongoId().withMessage('Invalid Product ID'),
-    
+
     body('products.*.barcode')
-        .notEmpty().withMessage('Barcode is required'),
+        .optional()
+        .isString().withMessage('Barcode must be a string')
+        .trim(),
         
     body('products.*.quantity')
         .notEmpty().withMessage('Quantity is required')
-        .isInt({ min: 1 }).withMessage('Quantity must be at least 1'),
+        .isNumeric().withMessage('Quantity must be a number'),
         
     body('products.*.price')
         .notEmpty().withMessage('Item price is required')
@@ -28,7 +30,7 @@ const createSaleValidation = [
     
     body('paymentMode')
         .optional()
-        .isIn(['CASH', 'CARD', 'UPI']).withMessage('Invalid payment mode'),
+        .isIn(['CASH', 'CARD', 'UPI', 'GIFT_VOUCHER', 'SPLIT']).withMessage('Invalid payment mode'),
 ];
 
 module.exports = {

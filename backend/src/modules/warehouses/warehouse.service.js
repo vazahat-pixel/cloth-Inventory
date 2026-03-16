@@ -36,10 +36,18 @@ const createWarehouse = async (warehouseData, userId) => {
     return await warehouse.save();
 };
 
-const getAllWarehouses = async (query) => {
+const getAllWarehouses = async (query, user) => {
     const { page = 1, limit = 10, search, city, state, isActive } = query;
 
     const filter = { isDeleted: false };
+
+    // Enforce store scoping for store staff
+    if (user && user.role === 'store_staff') {
+        // Warehouse masters are normally only for admin.
+        // If a store staff asks, they get NOTHING or only their linked store (if it was a warehouse, which it isn't here).
+        // Since the user wants to HIDE other locations, we just return empty for warehouses.
+        return { warehouses: [], total: 0, page: parseInt(page), limit: parseInt(limit) };
+    }
 
     if (search) {
         filter.$or = [

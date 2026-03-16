@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import {
+    Alert,
     Box,
     Button,
+    Chip,
     Paper,
     Stack,
     Table,
@@ -15,16 +17,36 @@ import {
     Typography,
 } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
-import { fetchChallans } from './dispatchSlice';
+import { fetchChallans, updateChallanStatus } from './dispatchSlice';
 
 function DeliveryChallanPage() {
     const navigate = useAppNavigate();
     const dispatch = useDispatch();
-    const challans = useSelector((state) => state.dispatch.records || []);
+    const { records: challans = [], loading, error } = useSelector((state) => state.dispatch);
+    const userRole = useSelector((state) => state.auth.role);
 
     useEffect(() => {
         dispatch(fetchChallans());
     }, [dispatch]);
+
+    const handleMarkReceived = (row) => {
+        const id = row.id || row._id;
+        if (!id) return;
+        dispatch(updateChallanStatus({ id, status: 'RECEIVED' }));
+    };
+
+    const renderStatusChip = (status) => {
+        const value = status || 'PENDING';
+        let color = 'default';
+        if (value === 'SHIPPED') color = 'warning';
+        if (value === 'RECEIVED') color = 'success';
+        return <Chip label={value} color={color} size="small" />;
+    };
+
+    const canReceive = (row) => {
+        const status = row.status || 'PENDING';
+        return status === 'SHIPPED';
+    };
 
     return (
         <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2 }}>
@@ -39,7 +61,7 @@ function DeliveryChallanPage() {
                             Delivery Challans
                         </Typography>
                         <Typography variant="body2" sx={{ color: '#64748b' }}>
-                            Manage dispatches from warehouse to store.
+                            Manage dispatches from warehouse to store and confirm receipts.
                         </Typography>
                     </Box>
 
@@ -51,6 +73,12 @@ function DeliveryChallanPage() {
                         Create Challan
                     </Button>
                 </Stack>
+
+                {error && (
+                    <Alert severity="error">
+                        {error}
+                    </Alert>
+                )}
             </Stack>
 
             {challans.length > 0 ? (
@@ -63,18 +91,41 @@ function DeliveryChallanPage() {
                                 <TableCell sx={{ fontWeight: 700 }}>To Store</TableCell>
                                 <TableCell sx={{ fontWeight: 700 }}>Vehicle / Driver</TableCell>
                                 <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                                <TableCell sx={{ fontWeight: 700 }} align="right">
+                                    Actions
+                                </TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {challans.map((row) => (
-                                <TableRow key={row.id || row._id} hover>
-                                    <TableCell sx={{ fontWeight: 700 }}>{row.challanNumber || row.dispatchNumber}</TableCell>
-                                    <TableCell>{row.date || row.dispatchDate}</TableCell>
-                                    <TableCell>{row.storeName || row.destination?.name || 'Store'}</TableCell>
-                                    <TableCell>{row.vehicleNumber || '-'} / {row.driverName || '-'}</TableCell>
-                                    <TableCell>{row.status || 'Pending'}</TableCell>
-                                </TableRow>
-                            ))}
+                            {challans.map((row) => {
+                                const status = row.status || 'PENDING';
+                                const receiveAllowed = canReceive(row);
+                                return (
+                                    <TableRow key={row.id || row._id} hover>
+                                        <TableCell sx={{ fontWeight: 700 }}>
+                                            {row.challanNumber || row.dispatchNumber}
+                                        </TableCell>
+                                        <TableCell>{row.date || row.dispatchDate}</TableCell>
+                                        <TableCell>{row.storeName || row.destination?.name || 'Store'}</TableCell>
+                                        <TableCell>
+                                            {row.vehicleNumber || '-'} / {row.driverName || '-'}
+                                        </TableCell>
+                                        <TableCell>{renderStatusChip(status)}</TableCell>
+                                        <TableCell align="right">
+                                            {receiveAllowed && (
+                                                <Button
+                                                    variant="outlined"
+                                                    size="small"
+                                                    disabled={loading}
+                                                    onClick={() => handleMarkReceived(row)}
+                                                >
+                                                    Mark Received
+                                                </Button>
+                                            )}
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })}
                         </TableBody>
                     </Table>
                 </TableContainer>

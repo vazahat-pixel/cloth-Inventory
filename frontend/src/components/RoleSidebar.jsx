@@ -13,9 +13,11 @@ import { NavLink, useLocation } from 'react-router-dom';
 const sidebarWidth = 240;
 
 const pathMap = {
+  '/items': 'items',
   '/masters': 'masters',
   '/inventory': 'inventory',
   '/purchase': 'purchase',
+  '/orders': 'sales',
   '/sales': 'sales',
   '/reports': 'reports',
   '/setup': 'setup',
@@ -164,6 +166,7 @@ function RoleSidebar({ navConfig }) {
                     />
                   </ListItemButton>
                 </ListItem>
+                {childKey === 'items' && renderChildren('/items', 'items')}
                 {childKey === 'masters' && renderChildren('/masters', 'masters')}
                 {childKey === 'inventory' && renderChildren('/inventory', 'inventory')}
                 {childKey === 'purchase' && renderChildren('/purchase', 'purchase')}

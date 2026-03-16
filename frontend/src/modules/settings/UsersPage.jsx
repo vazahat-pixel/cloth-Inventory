@@ -55,7 +55,10 @@ function UsersPage() {
     [users, page, rowsPerPage],
   );
 
-  const getRoleName = (roleId) => roles.find((r) => r.id === roleId)?.roleName || roleId;
+  const getRoleName = (roleId) => {
+    const r = roles.find((r) => r.id === roleId || r.roleName?.toLowerCase() === roleId?.toLowerCase());
+    return r ? r.roleName : roleId;
+  };
 
   const handleOpenNew = () => {
     setEditingUser(null);
@@ -96,12 +99,12 @@ function UsersPage() {
                 <TableBody>
                   {paginatedRows.map((row) => (
                     <TableRow key={row.id} hover>
-                      <TableCell sx={{ fontWeight: 600 }}>{row.userName}</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>{row.userName || 'No Name'}</TableCell>
                       <TableCell>{row.email}</TableCell>
                       <TableCell>{row.mobile || '-'}</TableCell>
                       <TableCell>{getRoleName(row.roleId)}</TableCell>
                       <TableCell>
-                        <Chip size="small" color={row.status === 'Active' ? 'success' : 'default'} variant="outlined" label={row.status} />
+                        <Chip size="small" color={row.status === 'Active' ? 'success' : 'default'} variant="outlined" label={row.status || 'Active'} />
                       </TableCell>
                       <TableCell>
                         <IconButton size="small" color="primary" onClick={() => handleOpenEdit(row)}>
@@ -157,9 +160,21 @@ function UserDialog({ open, onClose, user, roles, onSave }) {
   useEffect(() => {
     if (!open) return;
     if (user) {
-      reset({ userName: user.userName, email: user.email, mobile: user.mobile || '', roleId: user.roleId || '', status: user.status || 'Active' });
+      reset({ 
+        userName: user.userName || '', 
+        email: user.email || '', 
+        mobile: user.mobile || '', 
+        roleId: user.roleId || '', 
+        status: user.status || 'Active' 
+      });
     } else {
-      reset({ userName: '', email: '', mobile: '', roleId: roles[0]?.roleName || '', status: 'Active' });
+      reset({ 
+        userName: '', 
+        email: '', 
+        mobile: '', 
+        roleId: roles[0]?.id || '', 
+        status: 'Active' 
+      });
     }
   }, [open, user, roles, reset]);
 
@@ -176,7 +191,7 @@ function UserDialog({ open, onClose, user, roles, onSave }) {
             <TextField fullWidth size="small" label="Mobile" {...register('mobile')} />
             <TextField fullWidth size="small" select label="Role" {...register('roleId', { required: true })}>
               {roles.map((r) => (
-                <MenuItem key={r.id || r._id} value={r.roleName}>
+                <MenuItem key={r.id || r._id} value={r.id || r._id}>
                   {r.roleName}
                 </MenuItem>
               ))}

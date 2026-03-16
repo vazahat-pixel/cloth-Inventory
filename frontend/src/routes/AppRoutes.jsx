@@ -86,6 +86,7 @@ import BarcodePrintingPage from '../modules/setup/BarcodePrintingPage';
 import StoreMasterPage from '../modules/setup/StoreMasterPage';
 import DiscountSetupPage from '../modules/setup/DiscountSetupPage';
 import CounterMasterPage from '../modules/setup/CounterMasterPage';
+import ProfilePage from '../modules/profile/ProfilePage';
 import NotFoundPage from '../pages/NotFoundPage';
 
 
@@ -197,6 +198,7 @@ function AppRoutes() {
         <Route path="print-templates" element={<PrintTemplatesPage />} />
         <Route path="audit-logs" element={<AuditLogPage />} />
       </Route>
+      <Route path="profile" element={<ProfilePage />} />
       <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Route>
@@ -228,6 +230,7 @@ function AppRoutes() {
       <Route path="reports/ledger" element={<LedgerReportPage />} />
       <Route path="reports/collection" element={<CollectionReportPage />} />
       <Route path="data-import" element={<DataImportExportPage />} />
+      <Route path="profile" element={<ProfilePage />} />
       <Route path="*" element={<Navigate to="" replace />} />
         </Route>
       </Route>

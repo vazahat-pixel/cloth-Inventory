@@ -8,7 +8,8 @@ const {
     logout,
     getAllUsers,
     updateUser,
-    createUser
+    createUser,
+    changePassword
 } = require('./auth.controller');
 const { adminRegisterValidation, loginValidation, storeRegisterValidation } = require('./auth.validation');
 const { protect } = require('../../middlewares/auth.middleware');
@@ -27,6 +28,7 @@ router.post('/store/login', loginValidation, storeLogin);
 // Shared protected
 router.get('/me', protect, getMe);
 router.post('/logout', protect, logout);
+router.patch('/change-password', protect, changePassword);
 
 // User Management (Admin Only)
 router.get('/users', protect, requireAdmin, getAllUsers);

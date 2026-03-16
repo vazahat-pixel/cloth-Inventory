@@ -37,7 +37,7 @@ const createStore = async (req, res, next) => {
  */
 const getAllStores = async (req, res, next) => {
     try {
-        const { stores, total, page, limit } = await storeService.getAllStores(req.query);
+        const { stores, total, page, limit } = await storeService.getAllStores(req.query, req.user);
         const meta = buildPaginationMeta(total, page, limit);
 
         return sendSuccess(res, { stores, meta }, 'Stores retrieved successfully');

@@ -69,6 +69,16 @@ export const fetchPurchaseOrders = createAsyncThunk('purchase/fetchOrders', asyn
   }
 });
 
+export const fetchPurchaseOrderById = createAsyncThunk('purchase/fetchOrderById', async (id, { rejectWithValue }) => {
+  try {
+    const response = await api.get(`/purchase-orders/${id}`);
+    return response.data.purchaseOrder || response.data.po || response.data.data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || 'Failed to fetch purchase order details');
+  }
+});
+
+
 export const addPurchaseOrder = createAsyncThunk('purchase/addOrder', async (orderData, { rejectWithValue }) => {
   try {
     const response = await api.post('/purchase-orders', orderData);

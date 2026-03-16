@@ -7,6 +7,7 @@ import {
   reportsNavigationItems,
   setupNavigationItems,
   settingsNavigationItems,
+  itemsNavigationItems,
 } from './navigation';
 
 export const ROLES = {
@@ -32,12 +33,19 @@ export const adminNavConfig = {
   role: ROLES.admin,
   basePath: '/ho',
   label: 'HO Panel',
-  mainNav: navigationItems.filter(i => !['/pricing', '/customers', '/gst'].includes(i.path)),
+  mainNav: [
+    ...navigationItems.filter(i => !['/pricing', '/customers', '/gst', '/sales'].includes(i.path)),
+    { label: "Sales (Orders)", path: "/orders" }
+  ],
   children: {
+    items: itemsNavigationItems,
     masters: mastersNavigationItems,
     inventory: inventoryNavigationItems,
-    purchase: purchaseNavigationItems,
-    sales: salesNavigationItems.filter(i => i.label !== 'New Sale (POS)'),
+    purchase: purchaseNavigationItems.filter(i => i.label !== 'Purchase Return'),
+    sales: [
+      { label: "Sale Orders", path: "/orders" },
+      { label: "Delivery Challans", path: "/orders/delivery-challan" },
+    ],
     reports: reportsNavigationItems,
     setup: setupNavigationItems,
     settings: settingsNavigationItems,
@@ -50,14 +58,17 @@ export const staffNavConfig = {
   label: 'Store Panel',
   mainNav: [
     { label: 'Purchase', path: '/purchase' },
+    { label: 'Inventory', path: '/inventory' },
     { label: 'Data Import & Export', path: '/data-import' },
     { label: 'POS - Sales', path: '/sales' },
     { label: 'Reports', path: '/reports' },
   ],
   children: {
-    purchase: purchaseNavigationItems.filter(i => i.label !== 'Purchase Orders'), // Exclude HO level PO management
+    items: itemsNavigationItems.filter(i => i.label === 'Item List'),
+    purchase: purchaseNavigationItems.filter(i => i.label !== 'Purchase Orders'),
+    inventory: inventoryNavigationItems.filter(i => i.label === 'Stock Overview'),
     sales: salesNavigationItems.filter(i => i.label !== 'Delivery Challans'),
-    reports: reportsNavigationItems, // Backend will filter data based on user.shopId
+    reports: reportsNavigationItems,
     dataImport: settingsNavigationItems.filter(i => i.label === 'Data Import'),
   },
 };

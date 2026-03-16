@@ -40,7 +40,7 @@ function PaymentDialog({ open, onClose, netAmount, onConfirm }) {
 
   const handleConfirm = () => {
     onConfirm({
-      method: paymentMode.toUpperCase(), // Map to Backend Enum
+      method: paymentMode === 'Gift Voucher' ? 'GIFT_VOUCHER' : paymentMode.toUpperCase(), // Map to Backend Enum
       amountPaid: computedAmountPaid,
       changeReturned,
       dueAmount,

@@ -3,12 +3,16 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Box, Button, Stack, Typography } from '@mui/material';
 import { getPageTitle } from '../common/navigation';
 import { logout } from '../app/features/auth/authSlice';
+import useRoleBasePath from '../hooks/useRoleBasePath';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import { Link } from 'react-router-dom';
 
 function Topbar() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
   const { user, role } = useSelector((state) => state.auth);
+  const basePath = useRoleBasePath();
 
   const title = getPageTitle(location.pathname);
 
@@ -43,6 +47,17 @@ function Topbar() {
             {role || 'No Role'}
           </Typography>
         </Box>
+
+        <Button
+          component={Link}
+          to={`${basePath}/profile`}
+          variant="text"
+          size="small"
+          startIcon={<AccountCircleIcon />}
+          sx={{ color: '#64748b', textTransform: 'none', fontWeight: 600 }}
+        >
+          My Profile
+        </Button>
 
         <Button variant="outlined" size="small" onClick={handleLogout}>
           Logout

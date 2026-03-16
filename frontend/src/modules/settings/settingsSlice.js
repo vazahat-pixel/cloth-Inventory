@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
+import { normalizeResponse } from '../../services/normalization';
 
 // Async Thunks
 
@@ -7,7 +8,8 @@ import api from '../../services/api';
 export const fetchUsers = createAsyncThunk('settings/fetchUsers', async (_, { rejectWithValue }) => {
   try {
     const response = await api.get('/auth/users');
-    return response.data.users || response.data.data || [];
+    const raw = response.data.users || response.data.data || [];
+    return normalizeResponse(raw, 'user');
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -20,10 +22,16 @@ export const addUser = createAsyncThunk('settings/addUser', async (userData, { r
       email: userData.email,
       password: userData.password || 'Temporary@123',
       mobile: userData.mobile,
-      role: userData.roleId === 'Admin' ? 'admin' : 'store_staff',
+      role: userData.roleId === 'Admin' ? 'admin' : (userData.roleId === 'Manager' ? 'manager' : 'staff'), // Backward compat or direct string
     };
+    // Ensure we use the lowercase role string the backend expects if it's already lowercase
+    if (userData.roleId === 'admin' || userData.roleId === 'store_staff') {
+      payload.role = userData.roleId;
+    }
+
     const response = await api.post('/auth/users', payload);
-    return response.data.user || response.data.data;
+    const raw = response.data.user || response.data.data;
+    return normalizeResponse(raw, 'user');
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -39,7 +47,8 @@ export const updateUser = createAsyncThunk('settings/updateUser', async ({ id, u
       status: user.status
     };
     const response = await api.patch(`/auth/users/${id}`, payload);
-    return response.data.user || response.data.data;
+    const raw = response.data.user || response.data.data;
+    return normalizeResponse(raw, 'user');
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
