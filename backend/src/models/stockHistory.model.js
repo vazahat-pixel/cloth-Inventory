@@ -1,17 +1,18 @@
 const mongoose = require('mongoose');
-const { StockHistoryType } = require('../core/enums');
+const { MovementType } = require('../core/enums');
 
 const stockHistorySchema = new mongoose.Schema(
     {
         productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+        variantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' }, // Track specific variants
         storeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Store' },
         type: {
             type: String,
-            enum: Object.values(StockHistoryType),
+            enum: Object.values(MovementType),
             required: true,
         },
         quantityBefore: { type: Number, required: true },
-        quantityChange: { type: Number, required: true },          // positive = IN, negative = OUT
+        qty: { type: Number, required: true },          // positive = IN, negative = OUT
         quantityAfter: { type: Number, required: true },
         referenceId: { type: mongoose.Schema.Types.ObjectId },     // Sale / Dispatch / Return ID
         referenceModel: { type: String },                           // 'Sale', 'Dispatch', 'Return'

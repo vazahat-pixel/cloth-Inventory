@@ -8,7 +8,9 @@ const { adjustWarehouseStock } = require('../../services/stock.service');
 const { createJournalEntries } = require('../../services/ledger.service');
 const { withTransaction } = require('../../services/transaction.service');
 const { getNextSequence } = require('../../services/sequence.service');
-const { PurchaseStatus, StockHistoryType } = require('../../core/enums');
+const { PurchaseStatus, StockHistoryType, DocumentType } = require('../../core/enums');
+const workflowService = require('../workflow/workflow.service');
+const { createAuditLog } = require('../../middlewares/audit.middleware');
 
 const createPurchase = async (purchaseData, userId) => {
     return await withTransaction(async (session) => {
@@ -74,19 +76,6 @@ const createPurchase = async (purchaseData, userId) => {
 
             subTotal += taxableAmount;
             totalTax += gstAmount;
-
-            // 5. Update Stock (Warehouse level)
-            await adjustWarehouseStock({
-                productId: item.productId,
-                warehouseId: storeId, // using storeId as warehouseId
-                quantityChange: item.quantity,
-                type: StockHistoryType.IN,
-                referenceId: null, // Update after purchase save
-                referenceModel: 'Purchase',
-                performedBy: userId,
-                notes: `Purchase ${purchaseNumber}`,
-                session
-            });
         }
 
         const grandTotal = subTotal + totalTax;
@@ -102,12 +91,27 @@ const createPurchase = async (purchaseData, userId) => {
             subTotal,
             totalTax,
             grandTotal,
-            status: PurchaseStatus.COMPLETED,
+            status: PurchaseStatus.PENDING_QC,
             createdBy: userId,
             notes
         });
 
         await purchase.save({ session });
+
+        // Audit Logging
+        await createAuditLog({
+            action: 'CREATE_PURCHASE',
+            module: 'PURCHASE',
+            performedBy: userId,
+            targetId: purchase._id,
+            targetModel: 'Purchase',
+            before: null,
+            after: purchase.toObject(),
+            session
+        });
+
+        // Workflow logging
+        await workflowService.updateStatus(purchase._id, DocumentType.PURCHASE, null, PurchaseStatus.PENDING_QC, userId, `Created Purchase ${purchaseNumber} - Pending QC`);
 
         // 7. Ledger integration
         const inventoryAccount = await Account.findOne({ name: 'Inventory Account' }).session(session);

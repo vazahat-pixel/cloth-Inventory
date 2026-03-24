@@ -12,6 +12,12 @@ const settingsSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.Mixed,
             default: {}
         },
+        type: {
+            type: String,
+            required: true,
+            enum: ['STRING', 'NUMBER', 'BOOLEAN', 'OBJECT'],
+            default: 'STRING'
+        },
         updatedBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User'

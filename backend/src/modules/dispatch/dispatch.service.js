@@ -1,11 +1,9 @@
 const Dispatch = require('../../models/dispatch.model');
-const Store = require('../../models/store.model');
-const Product = require('../../models/product.model');
-const { DispatchStatus, StockHistoryType } = require('../../core/enums');
+const { DispatchStatus, DocumentType } = require('../../core/enums');
 const { withTransaction } = require('../../services/transaction.service');
-const { adjustWarehouseStock, adjustStoreStock } = require('../../services/stock.service');
-const { createAuditLog } = require('../../middlewares/audit.middleware');
+const stockService = require('../../services/stock.service');
 const { getNextSequence } = require('../../services/sequence.service');
+const workflowService = require('../workflow/workflow.service');
 
 /**
  * Generate unique Dispatch Number (DSP-YYYY-XXXXX)
@@ -20,230 +18,89 @@ const generateDispatchNumber = async (session = null) => {
 };
 
 /**
- * Create a new Dispatch
+ * Create a new Dispatch record (PENDING)
  */
 const createDispatch = async (dispatchData, userId) => {
     return await withTransaction(async (session) => {
-        const { sourceWarehouseId, destinationStoreId } = dispatchData;
-        const products = dispatchData.products || dispatchData.items || [];
-
-        // 1. Validate Store
-        const store = await Store.findOne({ _id: destinationStoreId, isDeleted: false }).session(session);
-        if (!store) throw new Error('Store not found');
-        if (!store.isActive) throw new Error('Store is currently inactive');
-
-        // 2. Validate Products and Warehouse Stock
-        for (const item of products) {
-            item.productId = item.productId || item.variantId;
-            const product = await Product.findOne({ _id: item.productId, isDeleted: false }).session(session);
-            if (!product) throw new Error(`Product ${item.productId} not found`);
-            if (!product.isActive) throw new Error(`Product ${product.sku} is inactive`);
-
-            // Set current price for record
-            item.price = product.salePrice;
-        }
-
-        // 3. Generate Dispatch Number
         const dispatchNumber = await generateDispatchNumber(session);
-
-        // 4. Create Dispatch Record
+        
         const dispatch = new Dispatch({
             ...dispatchData,
             dispatchNumber,
+            status: DispatchStatus.PENDING,
             createdBy: userId
         });
+
         await dispatch.save({ session });
 
-        // 5. Update Stock (Warehouse Out)
-        for (const item of products) {
-            await adjustWarehouseStock({
-                productId: item.productId,
-                warehouseId: sourceWarehouseId,
-                quantityChange: -item.quantity,
-                type: StockHistoryType.DISPATCH,
+        // Workflow logging
+        await workflowService.updateStatus(dispatch._id, DocumentType.DISPATCH, null, DispatchStatus.PENDING, userId, `Dispatch ${dispatchNumber} created from Order ${dispatchData.orderId || 'N/A'}`);
+
+        return dispatch;
+    });
+};
+
+/**
+ * Complete Dispatch (Execute movement)
+ * Moves stock from Warehouse to Store
+ */
+const completeDispatch = async (id, userId) => {
+    return await withTransaction(async (session) => {
+        const dispatch = await Dispatch.findById(id).session(session);
+        if (!dispatch) throw new Error('Dispatch not found');
+        if (dispatch.status !== DispatchStatus.PENDING) {
+            throw new Error(`Cannot complete dispatch in ${dispatch.status} status`);
+        }
+
+        // Execute stock transfers for each item
+        for (const item of dispatch.items) {
+            await stockService.transferStock({
+                variantId: item.variantId,
+                fromLocationId: dispatch.source,
+                fromLocationType: 'WAREHOUSE',
+                toLocationId: dispatch.destination,
+                toLocationType: 'STORE',
+                qty: item.qty,
+                type: 'TRANSFER',
                 referenceId: dispatch._id,
-                referenceModel: 'Dispatch',
+                referenceType: 'Dispatch',
                 performedBy: userId,
-                notes: `Dispatch to ${store.name}`,
                 session
             });
         }
 
-        // 6. Audit Log
-        await createAuditLog({
-            performedBy: userId,
-            action: 'CREATE_DISPATCH',
-            module: 'DISPATCH',
-            targetId: dispatch._id,
-            targetModel: 'Dispatch',
-            after: dispatch.toObject(),
-            session
-        });
-
-        return dispatch;
-    });
-};
-
-/**
- * Update Dispatch Status (SHIPPED / RECEIVED)
- */
-const updateStatus = async (id, status, userId) => {
-    return await withTransaction(async (session) => {
-        const dispatch = await Dispatch.findOne({ _id: id, isDeleted: false }).session(session);
-        if (!dispatch) throw new Error('Dispatch record not found');
-
+        // Update dispatch status
         const oldStatus = dispatch.status;
-        if (oldStatus === DispatchStatus.RECEIVED) {
-            throw new Error('This dispatch has already been received');
-        }
-
-        // Handle RECEIVED logic
-        if (status === DispatchStatus.RECEIVED && oldStatus !== DispatchStatus.RECEIVED) {
-            // Update Store Inventory
-            for (const item of dispatch.products) {
-                await adjustStoreStock({
-                    productId: item.productId,
-                    storeId: dispatch.destinationStoreId,
-                    quantityChange: item.quantity,
-                    type: StockHistoryType.IN,
-                    referenceId: dispatch._id,
-                    referenceModel: 'Dispatch',
-                    performedBy: userId,
-                    notes: `Received from Dispatch ${dispatch.dispatchNumber}`,
-                    session
-                });
-            }
-            dispatch.receivedDate = Date.now();
-        }
-
-        dispatch.status = status;
+        dispatch.status = DispatchStatus.DELIVERED;
+        dispatch.deliveredAt = Date.now();
         await dispatch.save({ session });
 
-        // Audit Log
-        await createAuditLog({
-            performedBy: userId,
-            action: 'UPDATE_DISPATCH_STATUS',
-            module: 'DISPATCH',
-            targetId: dispatch._id,
-            targetModel: 'Dispatch',
-            before: { status: oldStatus },
-            after: { status },
-            session
-        });
+        // Workflow logging
+        await workflowService.updateStatus(dispatch._id, DocumentType.DISPATCH, oldStatus, DispatchStatus.DELIVERED, userId, `Dispatch ${dispatch.dispatchNumber} completed and delivered`);
 
         return dispatch;
     });
-};
-
-/**
- * List Dispatches
- */
-const getAllDispatches = async (query) => {
-    const { page = 1, limit = 10, sourceWarehouseId, destinationStoreId, status, startDate, endDate } = query;
-
-    const filter = { isDeleted: false };
-    if (sourceWarehouseId) filter.sourceWarehouseId = sourceWarehouseId;
-    if (destinationStoreId) filter.destinationStoreId = destinationStoreId;
-    if (status) filter.status = status;
-
-    if (startDate || endDate) {
-        filter.dispatchDate = {};
-        if (startDate) filter.dispatchDate.$gte = new Date(startDate);
-        if (endDate) {
-            const end = new Date(endDate);
-            end.setHours(23, 59, 59, 999);
-            filter.dispatchDate.$lte = end;
-        }
-    }
-
-    const skip = (page - 1) * limit;
-
-    const [dispatches, total] = await Promise.all([
-        Dispatch.find(filter)
-            .sort({ dispatchDate: -1 })
-            .skip(skip)
-            .limit(parseInt(limit))
-            .populate('sourceWarehouseId', 'name location')
-            .populate('destinationStoreId', 'name location')
-            .populate('products.productId', 'name sku barcode size color')
-            .populate('createdBy', 'name'),
-        Dispatch.countDocuments(filter)
-    ]);
-
-    return { dispatches, total, page: parseInt(page), limit: parseInt(limit) };
 };
 
 const getDispatchById = async (id) => {
-    const dispatch = await Dispatch.findOne({ _id: id, isDeleted: false })
-        .populate('sourceWarehouseId')
-        .populate('destinationStoreId')
-        .populate('products.productId')
-        .populate('createdBy', 'name');
+    const dispatch = await Dispatch.findById(id)
+        .populate('source', 'name')
+        .populate('destination', 'name')
+        .populate('items.variantId', 'name sku barcode');
     if (!dispatch) throw new Error('Dispatch not found');
     return dispatch;
 };
 
-const deleteDispatch = async (id, userId) => {
-    return await withTransaction(async (session) => {
-        const dispatch = await Dispatch.findOne({ _id: id, isDeleted: false }).session(session);
-        if (!dispatch) throw new Error('Dispatch not found');
-
-        // 1. Restore Warehouse Stock (always needed since stock decreases on creation)
-        for (const item of dispatch.products) {
-            await adjustWarehouseStock({
-                productId: item.productId,
-                warehouseId: dispatch.sourceWarehouseId,
-                quantityChange: item.quantity,
-                type: StockHistoryType.ADJUSTMENT,
-                referenceId: dispatch._id,
-                referenceModel: 'Dispatch',
-                performedBy: userId,
-                notes: `System: Stock restored due to dispatch ${dispatch.dispatchNumber} deletion`,
-                session
-            });
-        }
-
-        // 2. If it was already RECEIVED, reduce Store Stock as well
-        if (dispatch.status === DispatchStatus.RECEIVED) {
-            for (const item of dispatch.products) {
-                await adjustStoreStock({
-                    productId: item.productId,
-                    storeId: dispatch.destinationStoreId,
-                    quantityChange: -item.quantity,
-                    type: StockHistoryType.ADJUSTMENT,
-                    referenceId: dispatch._id,
-                    referenceModel: 'Dispatch',
-                    performedBy: userId,
-                    notes: `System: Store stock reduced due to dispatch ${dispatch.dispatchNumber} deletion`,
-                    session
-                });
-            }
-        }
-
-        // 3. Mark as deleted
-        dispatch.isDeleted = true;
-        await dispatch.save({ session });
-
-        // 4. Audit Log
-        await createAuditLog({
-            performedBy: userId,
-            action: 'DELETE_DISPATCH',
-            module: 'DISPATCH',
-            targetId: dispatch._id,
-            targetModel: 'Dispatch',
-            before: { isDeleted: false },
-            after: { isDeleted: true },
-            session
-        });
-
-        return dispatch;
-    });
+const getAllDispatches = async (filter = {}) => {
+    return await Dispatch.find(filter)
+        .sort({ createdAt: -1 })
+        .populate('source', 'name')
+        .populate('destination', 'name');
 };
 
 module.exports = {
     createDispatch,
-    updateStatus,
-    getAllDispatches,
+    completeDispatch,
     getDispatchById,
-    deleteDispatch
+    getAllDispatches
 };

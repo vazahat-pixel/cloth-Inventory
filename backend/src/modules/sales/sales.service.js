@@ -1,7 +1,8 @@
 const Sale = require('../../models/sale.model');
 const StoreInventory = require('../../models/storeInventory.model');
 const Product = require('../../models/product.model');
-const { SaleStatus, StockHistoryType } = require('../../core/enums');
+const { SaleStatus, MovementType, DocumentType } = require('../../core/enums');
+const workflowService = require('../workflow/workflow.service');
 const { withTransaction } = require('../../services/transaction.service');
 const { adjustStoreStock } = require('../../services/stock.service');
 const { createAuditLog } = require('../../middlewares/audit.middleware');
@@ -154,6 +155,7 @@ const createSale = async (saleData, cashierId) => {
             // Reduce stock (negative item.quantity means return, so -- is +, properly increasing stock)
             await adjustStoreStock({
                 productId,
+                variantId: productId,
                 storeId,
                 quantityChange: -item.quantity,
                 type: (type || 'RETAIL').toUpperCase() === 'EXCHANGE' && item.quantity < 0 ? StockHistoryType.RETURN : StockHistoryType.SALE,
@@ -185,12 +187,12 @@ const createSale = async (saleData, cashierId) => {
                 if (redeemPoints < MIN_REDEEM_POINTS) {
                     throw new Error(`Minimum ${MIN_REDEEM_POINTS} points required for redemption`);
                 }
-                if (customer.points < redeemPoints) {
+                if (customer.loyaltyPoints < redeemPoints) {
                     throw new Error('Insufficient loyalty points');
                 }
 
                 loyaltyRedemptionAmount = redeemPoints * LOYALTY_POINT_VALUE;
-                customer.points -= redeemPoints;
+                customer.loyaltyPoints -= redeemPoints;
                 customer.totalRedeemed += redeemPoints;
                 await customer.save({ session });
 
@@ -257,13 +259,15 @@ const createSale = async (saleData, cashierId) => {
         });
         await sale.save({ session });
 
+        // Log workflow transition from STOCK to SALE
+        await workflowService.updateStatus(sale._id, DocumentType.SALE, 'STOCK_UPDATE', SaleStatus.COMPLETED, cashierId, `Created Sale ${saleNumber}`);
+
         // 3.1 Earn Points for Customer
         if (customer) {
             const earnedPoints = Math.floor(finalGrandTotal / LOYALTY_EARNING_RATIO);
             if (earnedPoints > 0) {
-                customer.points += earnedPoints;
+                customer.loyaltyPoints += earnedPoints;
                 customer.totalEarned += earnedPoints;
-                await customer.save({ session });
 
                 await LoyaltyTransaction.create([{
                     customerId,
@@ -275,6 +279,8 @@ const createSale = async (saleData, cashierId) => {
                     date: Date.now()
                 }], { session });
             }
+            customer.purchaseHistory.push(sale._id);
+            await customer.save({ session });
         }
 
         // 4. Audit Log
@@ -473,9 +479,10 @@ const cancelSale = async (id, userId) => {
         for (const item of sale.products) {
             await adjustStoreStock({
                 productId: item.productId,
+                variantId: item.productId,
                 storeId: sale.storeId,
                 quantityChange: item.quantity,
-                type: StockHistoryType.ADJUSTMENT,
+                type: StockHistoryType.SALE,
                 referenceId: sale._id,
                 referenceModel: 'Sale',
                 performedBy: userId,

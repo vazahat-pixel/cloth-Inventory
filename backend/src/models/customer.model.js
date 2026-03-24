@@ -19,10 +19,16 @@ const customerSchema = new mongoose.Schema(
             trim: true
         },
         address: { type: String },
-        points: {
+        loyaltyPoints: {
             type: Number,
             default: 0
         },
+        purchaseHistory: [
+            {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'Sale'
+            }
+        ],
         totalEarned: {
             type: Number,
             default: 0
@@ -41,5 +47,6 @@ const customerSchema = new mongoose.Schema(
 
 customerSchema.index({ phone: 1 });
 customerSchema.index({ name: 'text' });
+customerSchema.index({ purchaseHistory: 1 });
 
 module.exports = mongoose.model('Customer', customerSchema);

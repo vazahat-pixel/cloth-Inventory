@@ -605,6 +605,173 @@ const getGstSummary = async (startDate, endDate, storeId) => {
     };
 };
 
+/**
+ * Consolidated Sales Report (Total by Date + Item-wise)
+ */
+const getSalesReport = async (startDate, endDate, storeId) => {
+    const match = { isDeleted: false };
+    if (startDate || endDate) {
+        match.saleDate = {};
+        if (startDate) match.saleDate.$gte = new Date(startDate);
+        if (endDate) match.saleDate.$lte = new Date(endDate);
+    }
+    if (storeId) match.storeId = new (require('mongoose').Types.ObjectId)(storeId);
+
+    const salesByDate = await Sale.aggregate([
+        { $match: match },
+        {
+            $group: {
+                _id: { $dateToString: { format: "%Y-%m-%d", date: "$saleDate" } },
+                totalRevenue: { $sum: "$grandTotal" },
+                totalSales: { $sum: 1 }
+            }
+        },
+        { $sort: { _id: 1 } }
+    ]);
+
+    const itemWiseSales = await Sale.aggregate([
+        { $match: match },
+        { $unwind: "$products" },
+        {
+            $group: {
+                _id: "$products.productId",
+                totalQty: { $sum: "$products.quantity" },
+                totalRevenue: { $sum: "$products.total" }
+            }
+        },
+        {
+            $lookup: {
+                from: "products",
+                localField: "_id",
+                foreignField: "_id",
+                as: "product"
+            }
+        },
+        { $unwind: "$product" },
+        {
+            $project: {
+                name: "$product.name",
+                sku: "$product.sku",
+                totalQty: 1,
+                totalRevenue: 1
+            }
+        },
+        { $sort: { totalQty: -1 } }
+    ]);
+
+    return { salesByDate, itemWiseSales };
+};
+
+/**
+ * Consolidated Stock Report (Current Stock + Low Stock Alerts)
+ */
+const getStockReport = async () => {
+    const storeStock = await StoreInventory.aggregate([
+        {
+            $group: {
+                _id: "$productId",
+                qty: { $sum: "$quantityAvailable" },
+                locations: { $push: { storeId: "$storeId", qty: "$quantityAvailable" } }
+            }
+        },
+        {
+            $lookup: {
+                from: "products",
+                localField: "_id",
+                foreignField: "_id",
+                as: "product"
+            }
+        },
+        { $unwind: "$product" },
+        {
+            $project: {
+                name: "$product.name",
+                sku: "$product.sku",
+                minStockLevel: "$product.minStockLevel",
+                totalQty: "$qty",
+                isLowStock: { $lte: ["$qty", "$product.minStockLevel"] }
+            }
+        }
+    ]);
+
+    const warehouseStock = await WarehouseInventory.aggregate([
+        {
+            $group: {
+                _id: "$productId",
+                qty: { $sum: "$quantity" }
+            }
+        },
+        {
+            $lookup: {
+                from: "products",
+                localField: "_id",
+                foreignField: "_id",
+                as: "product"
+            }
+        },
+        { $unwind: "$product" },
+        {
+            $project: {
+                name: "$product.name",
+                sku: "$product.sku",
+                totalQty: "$qty"
+            }
+        }
+    ]);
+
+    const lowStockAlerts = storeStock.filter(s => s.isLowStock);
+
+    return { storeStock, warehouseStock, lowStockAlerts };
+};
+
+/**
+ * Movement Report (History from StockMovement)
+ */
+const getMovementReport = async (startDate, endDate, variantId) => {
+    const match = {};
+    if (startDate || endDate) {
+        match.createdAt = {};
+        if (startDate) match.createdAt.$gte = new Date(startDate);
+        if (endDate) match.createdAt.$lte = new Date(endDate);
+    }
+    if (variantId) match.variantId = new (require('mongoose').Types.ObjectId)(variantId);
+
+    return await require('../../models/stockMovement.model').aggregate([
+        { $match: match },
+        {
+            $lookup: {
+                from: "products",
+                localField: "variantId",
+                foreignField: "_id",
+                as: "product"
+            }
+        },
+        { $unwind: "$product" },
+        {
+            $lookup: {
+                from: "users",
+                localField: "performedBy",
+                foreignField: "_id",
+                as: "user"
+            }
+        },
+        { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
+        {
+            $project: {
+                date: "$createdAt",
+                productName: "$product.name",
+                sku: "$product.sku",
+                qty: 1,
+                type: 1,
+                fromLocation: 1,
+                toLocation: 1,
+                performedBy: "$user.name"
+            }
+        },
+        { $sort: { date: -1 } }
+    ]);
+};
+
 module.exports = {
     getDailySalesReport,
     getMonthlySalesReport,
@@ -621,5 +788,9 @@ module.exports = {
     getStockHistory,
     getAuditLogs,
     getGstSummary,
-    getPurchaseRegister
+    getPurchaseRegister,
+    getSalesReport,
+    getStockReport,
+    getMovementReport
 };
+

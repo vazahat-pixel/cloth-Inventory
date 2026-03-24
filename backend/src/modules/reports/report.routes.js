@@ -23,6 +23,10 @@ router.get('/trial-balance', requireAdmin, reportController.getTrialBalance);
 router.get('/profit-loss', requireAdmin, reportController.getProfitAndLoss);
 router.get('/balance-sheet', requireAdmin, reportController.getBalanceSheet);
 
+router.get('/sales', reportController.getSalesReport);
+router.get('/stock', reportController.getStockReport);
+router.get('/movement', reportController.getMovementReport);
+
 // Inventory export (stock-by-store & warehouse) - HO only
 router.get('/inventory-export', protect, reportController.getInventoryExport);
 

@@ -92,6 +92,7 @@ const adjustInventory = async (adjustmentData, userId) => {
         await adjustStoreStock({
             storeId,
             productId,
+            variantId: productId,
             quantityChange,
             type: StockHistoryType.ADJUSTMENT,
             notes: notes || 'Manual Stock Adjustment',

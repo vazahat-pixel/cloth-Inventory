@@ -23,7 +23,7 @@ const registerRoutes = (app) => {
     app.use('/api/categories', require('./modules/categories/category.routes'));
     app.use('/api/gst', require('./modules/gst/gst.routes'));
     app.use('/api/purchase', require('./modules/purchase/purchase.routes'));
-    app.use('/api/purchase-orders', require('./modules/purchase/purchaseOrder.routes'));
+    app.use('/api/purchase-orders', require('./modules/purchaseOrder/purchaseOrder.routes'));
     app.use('/api/pricing', require('./modules/pricing/pricing.routes'));
     app.use('/api/schemes', require('./modules/schemes/scheme.routes'));
     app.use('/api/coupons', require('./modules/coupons/coupon.routes'));
@@ -36,6 +36,14 @@ const registerRoutes = (app) => {
     app.use('/api/hsn-codes', require('./modules/hsnCode/hsnCode.routes'));
     app.use('/api/account-master', require('./modules/accountMaster/accountMaster.routes'));
     app.use('/api/counters', require('./modules/billingCounter/billingCounter.routes'));
+    app.use('/api/documents', require('./modules/documents/document.routes'));
+    app.use('/api/grn', require('./modules/grn/grn.routes'));
+    app.use('/api/qc', require('./modules/qc/qc.routes'));
+    app.use('/api/stock', require('./modules/stock/stock.routes'));
+    app.use('/api/approval', require('./modules/approval/approval.routes'));
+    app.use('/api/config', require('./modules/systemConfig/systemConfig.routes'));
+    app.use('/api/notifications', require('./modules/notifications/notification.routes'));
+    app.use('/api/rbac', require('./modules/rbac/rbac.routes'));
 };
 
 module.exports = registerRoutes;

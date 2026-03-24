@@ -1,17 +1,44 @@
 const dashboardService = require('./dashboard.service');
-const { sendSuccess } = require('../../utils/response.handler');
+const { sendSuccess, sendError } = require('../../utils/response.handler');
 
-const getAdminDashboard = async (req, res, next) => {
+/**
+ * Handle GET /dashboard/summary
+ */
+const getSummary = async (req, res, next) => {
     try {
-        const metrics = await dashboardService.getDashboardMetrics();
-        const recentSales = await dashboardService.getRecentSales();
-        
-        return sendSuccess(res, { metrics, recentSales }, 'Admin dashboard data retrieved');
-    } catch (err) {
-        next(err);
+        const summary = await dashboardService.getSummary();
+        return sendSuccess(res, { summary }, 'Dashboard summary retrieved');
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Handle GET /dashboard/top-products
+ */
+const getTopProducts = async (req, res, next) => {
+    try {
+        const topProducts = await dashboardService.getTopProducts(req.query.limit);
+        return sendSuccess(res, { topProducts }, 'Top selling products retrieved');
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Handle GET /dashboard/alerts
+ */
+const getAlerts = async (req, res, next) => {
+    try {
+        const alerts = await dashboardService.getAlerts();
+        return sendSuccess(res, { alerts }, 'Dashboard alerts retrieved');
+    } catch (error) {
+        next(error);
     }
 };
 
 module.exports = {
-    getAdminDashboard
+    getSummary,
+    getTopProducts,
+    getAlerts
 };

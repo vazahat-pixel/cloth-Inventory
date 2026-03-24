@@ -23,7 +23,7 @@ const getAllCustomers = async (query) => {
 };
 
 const getCustomerById = async (id) => {
-    const customer = await Customer.findById(id);
+    const customer = await Customer.findById(id).populate('purchaseHistory');
     if (!customer) throw new Error('Customer not found');
     return customer;
 };

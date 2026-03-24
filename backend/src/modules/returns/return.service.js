@@ -175,9 +175,10 @@ const processReturn = async (returnData, userId) => {
             // Reduce Store stock
             await adjustStoreStock({
                 productId,
+                variantId: productId,
                 storeId,
                 quantityChange: -quantity,
-                type: StockHistoryType.OUT,
+                type: StockHistoryType.RETURN,
                 referenceId: null,
                 referenceModel: 'Return',
                 performedBy: userId,
@@ -193,9 +194,10 @@ const processReturn = async (returnData, userId) => {
 
             await adjustWarehouseStock({
                 productId,
+                variantId: productId,
                 warehouseId: destinationWarehouseId,
                 quantityChange: quantity,
-                type: StockHistoryType.IN,
+                type: StockHistoryType.RETURN,
                 referenceId: null,
                 referenceModel: 'Return',
                 performedBy: userId,
@@ -209,17 +211,30 @@ const processReturn = async (returnData, userId) => {
             // Reduce Store stock (available)
             await adjustStoreStock({
                 productId,
+                variantId: productId,
                 storeId,
                 quantityChange: -quantity,
-                type: StockHistoryType.OUT,
+                type: StockHistoryType.RETURN,
                 referenceId: null,
                 referenceModel: 'Return',
                 performedBy: userId,
-                notes: 'Damaged stock marking',
+                notes: 'Damaged stock marking - move from available',
                 session
             });
 
-            // We record it as a return record with type DAMAGED.
+            // Move to Damaged pool
+            await adjustStoreStockDamaged({
+                productId,
+                variantId: productId,
+                storeId,
+                quantityChange: quantity,
+                type: StockHistoryType.RETURN,
+                referenceId: null,
+                referenceModel: 'Return',
+                performedBy: userId,
+                notes: 'Damaged stock marking - add to damaged pool',
+                session
+            });
         }
 
         // 4. Logic for Return to Supplier (Purchase Return)
@@ -232,6 +247,7 @@ const processReturn = async (returnData, userId) => {
 
             await adjustWarehouseStock({
                 productId,
+                variantId: productId,
                 warehouseId,
                 quantityChange: -quantity,
                 type: StockHistoryType.OUT,

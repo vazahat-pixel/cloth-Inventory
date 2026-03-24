@@ -27,8 +27,9 @@ const reconcileStock = async (storeId, items, userId) => {
                 // 3. Adjust stock accordingly
                 await adjustStoreStock({
                     productId,
+                    variantId: productId,
                     storeId,
-                    quantityChange: difference,
+                    qty: difference,
                     type: StockHistoryType.AUDIT,
                     performedBy: userId,
                     notes: `Stock Audit Reconciliation (Physical: ${physicalQty}, Previous: ${currentQty})`,
