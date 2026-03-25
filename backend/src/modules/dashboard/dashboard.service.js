@@ -1,87 +1,67 @@
 const Sale = require('../../models/sale.model');
 const Product = require('../../models/product.model');
 const StoreInventory = require('../../models/storeInventory.model');
-const Dispatch = require('../../models/dispatch.model');
-const { DispatchStatus } = require('../../core/enums');
+const WarehouseInventory = require('../../models/warehouseInventory.model');
+const ApprovalRequest = require('../../models/approvalRequest.model');
 
 /**
- * Get core dashboard metrics
+ * EXECUTIVE DASHBOARD INSIGHTS
+ * 1. Total Sales Today
+ * 2. Total Stock Value
+ * 3. Low Stock Alerts
+ * 4. Top Selling Products
  */
-const getDashboardMetrics = async () => {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+const getDashboardStats = async (storeId = null) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-    const monthStart = new Date();
-    monthStart.setDate(1);
-    monthStart.setHours(0, 0, 0, 0);
-
-    const [todayRevenue, monthRevenue, factoryStock, storeStock, topProducts, lowStockCount, pendingDispatch] = await Promise.all([
-        // Revenue Today
-        Sale.aggregate([
-            { $match: { saleDate: { $gte: todayStart }, isDeleted: false } },
-            { $group: { _id: null, total: { $sum: '$grandTotal' } } }
-        ]),
-        // Revenue This Month
-        Sale.aggregate([
-            { $match: { saleDate: { $gte: monthStart }, isDeleted: false } },
-            { $group: { _id: null, total: { $sum: '$grandTotal' } } }
-        ]),
-        // Factory Stock Total
-        Product.aggregate([
-            { $match: { isDeleted: false } },
-            { $group: { _id: null, total: { $sum: '$factoryStock' } } }
-        ]),
-        // Store Stock Total
-        StoreInventory.aggregate([
-            { $group: { _id: null, total: { $sum: '$quantityAvailable' } } }
-        ]),
-        // Top 5 Products
-        Sale.aggregate([
-            { $match: { isDeleted: false } },
-            { $unwind: '$products' },
-            { $group: { _id: '$products.productId', count: { $sum: '$products.quantity' } } },
-            { $sort: { count: -1 } },
-            { $limit: 5 },
-            {
-                $lookup: {
-                    from: 'products',
-                    localField: '_id',
-                    foreignField: '_id',
-                    as: 'product'
-                }
-            },
-            { $unwind: '$product' },
-            { $project: { name: '$product.name', sku: '$product.sku', count: 1 } }
-        ]),
-        // Low Stock Alerts Count
-        Product.countDocuments({ $expr: { $lte: ['$factoryStock', '$minStockLevel'] }, isDeleted: false }),
-        // Pending Dispatch Count
-        Dispatch.countDocuments({ status: DispatchStatus.PENDING, isDeleted: false })
+    // 1. Total Sales Today
+    const saleQuery = { saleDate: { $gte: today }, isDeleted: false };
+    if (storeId) saleQuery.storeId = storeId;
+    const salesToday = await Sale.aggregate([
+        { $match: saleQuery },
+        { $group: { _id: null, total: { $sum: '$grandTotal' }, count: { $sum: 1 } } }
+    ]);
+    // 2. Stock Value (Cost Price based)
+    const productStats = await Product.aggregate([
+        { $match: { isDeleted: false } },
+        { $group: { _id: null, totalValue: { $sum: { $multiply: ['$costPrice', '$factoryStock'] } } } }
+    ]);
+    // 3. Low Stock Count
+    const lowStockAlerts = await StoreInventory.countDocuments({
+        $expr: { $lte: ['$quantityAvailable', '$minStockLevel'] }
+    });
+    // 4. Pending Approvals Count
+    const pendingApprovals = await ApprovalRequest.countDocuments({ status: 'PENDING' });
+    // 5. Top 5 Products
+    const topProducts = await Sale.aggregate([
+        { $match: { isDeleted: false } }, // Global top
+        { $unwind: '$products' },
+        { $group: { _id: '$products.productId', totalQty: { $sum: '$products.quantity' } } },
+        { $sort: { totalQty: -1 } },
+        { $limit: 5 },
+        {
+            $lookup: {
+                from: 'products',
+                localField: '_id',
+                foreignField: '_id',
+                as: 'product'
+            }
+        },
+        { $unwind: '$product' },
+        { $project: { name: '$product.name', sku: '$product.sku', totalQty: 1 } }
     ]);
 
     return {
-        revenueToday: todayRevenue[0]?.total || 0,
-        revenueMonth: monthRevenue[0]?.total || 0,
-        factoryStock: factoryStock[0]?.total || 0,
-        storeStock: storeStock[0]?.total || 0,
-        topProducts,
-        lowStockCount,
-        pendingDispatch
+        revenueToday: salesToday[0]?.total || 0,
+        salesCountToday: salesToday[0]?.count || 0,
+        inventoryValue: productStats[0]?.totalValue || 0,
+        lowStockAlerts,
+        pendingApprovals,
+        topProducts
     };
 };
 
-/**
- * Get Recent Sales (10)
- */
-const getRecentSales = async () => {
-    return await Sale.find({ isDeleted: false })
-        .sort({ saleDate: -1 })
-        .limit(10)
-        .populate('storeId', 'name')
-        .populate('cashierId', 'name');
-};
-
 module.exports = {
-    getDashboardMetrics,
-    getRecentSales
+    getDashboardStats
 };

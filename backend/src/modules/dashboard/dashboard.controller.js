@@ -1,17 +1,16 @@
 const dashboardService = require('./dashboard.service');
-const { sendSuccess } = require('../../utils/response.handler');
+const { sendSuccess, sendError } = require('../../utils/response.handler');
 
-const getAdminDashboard = async (req, res, next) => {
+const getStats = async (req, res, next) => {
     try {
-        const metrics = await dashboardService.getDashboardMetrics();
-        const recentSales = await dashboardService.getRecentSales();
-        
-        return sendSuccess(res, { metrics, recentSales }, 'Admin dashboard data retrieved');
+        const storeId = req.user.role === 'store_staff' ? req.user.shopId : req.query.storeId;
+        const stats = await dashboardService.getDashboardStats(storeId);
+        return sendSuccess(res, { stats }, 'Dashboard statistics retrieved');
     } catch (err) {
         next(err);
     }
 };
 
 module.exports = {
-    getAdminDashboard
+    getStats
 };

@@ -13,6 +13,7 @@ const storeInventorySchema = new mongoose.Schema(
         quantityAvailable: { type: Number, default: 0, min: 0 },
 
         // Counters used by sales/returns logic
+        damagedQuantity: { type: Number, default: 0, min: 0 }, // Qty rejected in QC
         quantitySold: { type: Number, default: 0, min: 0 },
         quantityReturned: { type: Number, default: 0, min: 0 },
 

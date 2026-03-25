@@ -7,7 +7,7 @@ const Roles = {
     STORE_STAFF: 'store_staff',
 };
 
-const StockHistoryType = {
+const MovementType = {
     IN: 'IN',
     OUT: 'OUT',
     ADJUSTMENT: 'ADJUSTMENT',
@@ -15,6 +15,8 @@ const StockHistoryType = {
     DISPATCH: 'DISPATCH',
     SALE: 'SALE',
     AUDIT: 'AUDIT',
+    PURCHASE: 'PURCHASE',
+    QC_APPROVED: 'QC_APPROVED',
 };
 
 const ProductionStatus = {
@@ -38,7 +40,7 @@ const SaleStatus = {
 
 const DispatchStatus = {
     PENDING: 'PENDING',
-    SHIPPED: 'SHIPPED',
+    DISPATCHED: 'DISPATCHED',
     RECEIVED: 'RECEIVED',
 };
 
@@ -51,10 +53,10 @@ const PaymentMethod = {
 };
 
 const ReturnType = {
-    CUSTOMER_RETURN: 'CUSTOMER_RETURN',
+    SALES_RETURN: 'SALES_RETURN',
+    PURCHASE_RETURN: 'PURCHASE_RETURN',
     STORE_TO_FACTORY: 'STORE_TO_FACTORY',
     DAMAGED: 'DAMAGED',
-    PURCHASE_RETURN: 'PURCHASE_RETURN',
 };
 
 const ReturnStatus = {
@@ -70,8 +72,16 @@ const GstType = {
 
 const PurchaseStatus = {
     DRAFT: 'DRAFT',
+    PENDING_QC: 'PENDING_QC',
     COMPLETED: 'COMPLETED',
     CANCELLED: 'CANCELLED'
+};
+
+const PurchaseOrderStatus = {
+    DRAFT: 'DRAFT',
+    APPROVED: 'APPROVED',
+    SENT: 'SENT',
+    CLOSED: 'CLOSED'
 };
 
 const LoyaltyType = {
@@ -85,9 +95,24 @@ const CreditNoteStatus = {
     CANCELLED: 'CANCELLED'
 };
 
+const DocumentType = {
+    PO: 'PO',
+    GRN: 'GRN',
+    QC: 'QC',
+    SALE: 'SALE',
+    PURCHASE: 'PURCHASE',
+    DISPATCH: 'DISPATCH',
+};
+
+const DocumentStatus = {
+    DRAFT: 'DRAFT',
+    APPROVED: 'APPROVED',
+    REJECTED: 'REJECTED',
+};
+
 module.exports = {
     Roles,
-    StockHistoryType,
+    MovementType,
     ProductionStatus,
     ProductionStage,
     SaleStatus,
@@ -97,6 +122,18 @@ module.exports = {
     ReturnStatus,
     GstType,
     PurchaseStatus,
+    PurchaseOrderStatus,
     LoyaltyType,
-    CreditNoteStatus
+    CreditNoteStatus,
+    DocumentType,
+    DocumentStatus,
+    GrnStatus: {
+        PENDING: 'PENDING',
+        COMPLETED: 'COMPLETED',
+    },
+    QcStatus: {
+        PENDING: 'PENDING',
+        APPROVED: 'APPROVED',
+        REJECTED: 'REJECTED',
+    }
 };

@@ -1,17 +1,14 @@
 const express = require('express');
 const returnController = require('./return.controller');
-const { processReturnValidation } = require('./return.validation');
 const { protect } = require('../../middlewares/auth.middleware');
-const { requireAny } = require('../../middlewares/role.middleware');
 
 const router = express.Router();
 
 router.use(protect);
 
-router.route('/')
-    .post(requireAny, processReturnValidation, returnController.processReturn)
-    .get(requireAny, returnController.getAllReturns);
-
-router.get('/:id', requireAny, returnController.getReturnById);
+router.post('/purchase-return', returnController.purchaseReturn);
+router.post('/sales-return', returnController.salesReturn);
+router.get('/', returnController.getReturns);
+router.get('/:id', returnController.getById);
 
 module.exports = router;
