@@ -1,0 +1,200 @@
+import PrecisionManufacturingOutlinedIcon from '@mui/icons-material/PrecisionManufacturingOutlined';
+import ArchiveOutlinedIcon from '@mui/icons-material/ArchiveOutlined';
+import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
+import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import ChecklistRtlOutlinedIcon from '@mui/icons-material/ChecklistRtlOutlined';
+import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
+import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
+import SyncAltOutlinedIcon from '@mui/icons-material/SyncAltOutlined';
+import DifferenceOutlinedIcon from '@mui/icons-material/DifferenceOutlined';
+import QrCodeScannerOutlinedIcon from '@mui/icons-material/QrCodeScannerOutlined';
+
+export const inventoryMatchPaths = ['/inventory'];
+
+export const inventoryNavItems = [
+  {
+    key: 'stock-receipt-production',
+    label: 'Stock Receipt - Production',
+    path: '/inventory/stock-receipt-production',
+    matchPaths: ['/inventory/stock-receipt-production', '/inventory/stock-in'],
+    icon: PrecisionManufacturingOutlinedIcon,
+  },
+  {
+    key: 'create-cartons',
+    label: 'Create Cartons',
+    path: '/inventory/create-cartons',
+    icon: ArchiveOutlinedIcon,
+  },
+  {
+    key: 'delete-cartons',
+    label: 'Delete Cartons',
+    path: '/inventory/delete-cartons',
+    icon: DeleteOutlineOutlinedIcon,
+  },
+  {
+    key: 'generate-box-wise-receiving',
+    label: 'Generate Box Wise Stock Receiving Document Against STI',
+    path: '/inventory/generate-box-wise-receiving',
+    icon: Inventory2OutlinedIcon,
+  },
+  {
+    key: 'physical-stock-verification',
+    label: 'Physical Stock Verification Of PUV',
+    path: '/inventory/physical-stock-verification',
+    matchPaths: ['/inventory/physical-stock-verification', '/inventory/audit'],
+    icon: ChecklistRtlOutlinedIcon,
+  },
+  {
+    key: 'physical-vs-actual-doc',
+    label: 'Physical Vs Actual Stock Doc Wise Entry',
+    path: '/inventory/physical-vs-actual-doc',
+    icon: FactCheckOutlinedIcon,
+  },
+  {
+    key: 'physical-vs-actual-consignment',
+    label: 'Physical Vs Actual Consignment Stock Doc Wise Entry',
+    path: '/inventory/physical-vs-actual-consignment',
+    icon: LocalShippingOutlinedIcon,
+  },
+  {
+    key: 'issue-receipt-physical-vs-actual',
+    label: 'Issue/Receipt against Physical Vs Actual Stock Doc Wise',
+    path: '/inventory/issue-receipt-physical-vs-actual',
+    matchPaths: ['/inventory/issue-receipt-physical-vs-actual', '/inventory/adjustment'],
+    icon: SyncAltOutlinedIcon,
+  },
+  {
+    key: 'generate-stock-receipt-purchase-physical',
+    label: 'Generate Stock Receipt from Purchase Physical Stock',
+    path: '/inventory/generate-stock-receipt-purchase-physical',
+    icon: Inventory2OutlinedIcon,
+  },
+  {
+    key: 'convert-goods-transit-received',
+    label: 'Convert Goods in Transit Docs as Received',
+    path: '/inventory/convert-goods-transit-received',
+    icon: LocalShippingOutlinedIcon,
+  },
+  {
+    key: 'enter-opening-stock',
+    label: 'Enter Opening Stock',
+    path: '/inventory/enter-opening-stock',
+    icon: Inventory2OutlinedIcon,
+  },
+  {
+    key: 'overwrite-lot-rates',
+    label: "Overwrite Lot No.'s/Rates",
+    path: '/inventory/overwrite-lot-rates',
+    icon: DifferenceOutlinedIcon,
+  },
+  {
+    key: 'edit-item-lot-rates-barcodes',
+    label: 'Edit Item / Lot Rates from Barcodes',
+    path: '/inventory/edit-item-lot-rates-barcodes',
+    icon: QrCodeScannerOutlinedIcon,
+  },
+];
+
+export const inventoryPlaceholderContent = {
+  'create-cartons': {
+    title: 'Create Cartons',
+    description: 'This Inventory subfield is now ready on the frontend for carton creation and packing structure workflows.',
+    highlights: [
+      'Prepare carton creation against received or produced stock.',
+      'Keep carton labels, counts, and box grouping inside the Inventory flow.',
+      'Extend this page later with carton numbering, size selection, and print actions.',
+    ],
+    actions: [
+      { label: 'Open Stock Receipt - Production', path: '/inventory/stock-receipt-production', variant: 'contained' },
+    ],
+  },
+  'delete-cartons': {
+    title: 'Delete Cartons',
+    description: 'The frontend page is in place for carton cleanup and reversal tasks under Inventory.',
+    highlights: [
+      'Review carton records before deleting or reopening them.',
+      'Keep carton cleanup separate from receipt entry screens.',
+      'Add filters, approval checks, and audit notes here later.',
+    ],
+    actions: [
+      { label: 'Open Create Cartons', path: '/inventory/create-cartons', variant: 'contained' },
+    ],
+  },
+  'generate-box-wise-receiving': {
+    title: 'Generate Box Wise Stock Receiving Document Against STI',
+    description: 'This page is ready for box-wise receiving workflows linked to stock transfer in documents.',
+    highlights: [
+      'Prepare receiving documents box by box against incoming transfer references.',
+      'Keep STI-based inward documentation inside the Inventory side flow.',
+      'Extend later with scan-to-receive, carton counts, and received variance checks.',
+    ],
+    actions: [
+      { label: 'Open Transfer IN', path: '/inventory/transfer-receive', variant: 'contained' },
+      { label: 'Open Stock Overview', path: '/inventory/stock-overview', variant: 'outlined' },
+    ],
+  },
+  'physical-vs-actual-consignment': {
+    title: 'Physical Vs Actual Consignment Stock Doc Wise Entry',
+    description: 'The Inventory submenu now includes a dedicated frontend page for consignment-specific stock verification entry.',
+    highlights: [
+      'Separate consignment verification from standard physical stock reviews.',
+      'Prepare doc-wise entry flows for consignment inward and reconciliation.',
+      'Add supplier-linked discrepancy handling later without changing navigation again.',
+    ],
+    actions: [
+      { label: 'Open Physical Vs Actual Entry', path: '/inventory/physical-vs-actual-doc', variant: 'contained' },
+    ],
+  },
+  'generate-stock-receipt-purchase-physical': {
+    title: 'Generate Stock Receipt from Purchase Physical Stock',
+    description: 'This frontend section is ready for converting purchase-side physical verification into stock receipt documents.',
+    highlights: [
+      'Create receipt-ready inventory entries from verified purchase stock.',
+      'Keep purchase physical stock follow-up inside the Inventory module.',
+      'Extend later with supplier references, inward checks, and receipt generation actions.',
+    ],
+    actions: [
+      { label: 'Open Purchase Voucher', path: '/purchase/purchase-voucher', variant: 'contained' },
+      { label: 'Open Stock Receipt - Production', path: '/inventory/stock-receipt-production', variant: 'outlined' },
+    ],
+  },
+  'convert-goods-transit-received': {
+    title: 'Convert Goods in Transit Docs as Received',
+    description: 'The frontend page is ready for marking in-transit inventory documents as received under the new Inventory submenu.',
+    highlights: [
+      'Review incoming transit documents before final receipt conversion.',
+      'Keep transit-to-received status changes inside the Inventory side panel.',
+      'Add batch receive, discrepancy checks, and confirmation steps later.',
+    ],
+    actions: [
+      { label: 'Open Transfer IN', path: '/inventory/transfer-receive', variant: 'contained' },
+      { label: 'Open Stock Overview', path: '/inventory/stock-overview', variant: 'outlined' },
+    ],
+  },
+  'overwrite-lot-rates': {
+    title: "Overwrite Lot No.'s/Rates",
+    description: 'This Inventory page is now available on the frontend for lot-number and rate override workflows.',
+    highlights: [
+      'Prepare controlled edits for lot identification and rate corrections.',
+      'Keep lot-wise corrections separated from stock receipt entry screens.',
+      'Add barcode lookup, approval, and change-history handling here later.',
+    ],
+    actions: [
+      { label: 'Open Edit Item / Lot Rates', path: '/inventory/edit-item-lot-rates-barcodes', variant: 'contained' },
+      { label: 'Open Stock Adjustment', path: '/inventory/adjustment', variant: 'outlined' },
+    ],
+  },
+  'edit-item-lot-rates-barcodes': {
+    title: 'Edit Item / Lot Rates from Barcodes',
+    description: 'A barcode-driven Inventory page is now in place on the frontend for item and lot rate edits.',
+    highlights: [
+      'Prepare barcode-first correction flows for lot and rate updates.',
+      'Keep barcode-assisted edits inside the Inventory module.',
+      'Extend later with scanned variant lookup, lot history, and save validation.',
+    ],
+    actions: [
+      { label: 'Open Overwrite Lot No./Rates', path: '/inventory/overwrite-lot-rates', variant: 'contained' },
+      { label: 'Open Items', path: '/items', variant: 'outlined' },
+    ],
+  },
+};

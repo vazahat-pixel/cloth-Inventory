@@ -27,7 +27,10 @@ import { fetchMasters } from '../masters/mastersSlice';
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
 
-function StockAdjustmentPage() {
+function StockAdjustmentPage({
+  pageTitle = 'Stock Adjustment',
+  pageDescription = 'Apply manual stock increase or decrease with reason and date tracking.',
+}) {
   const dispatch = useDispatch();
   const warehouses = useSelector((state) => state.masters.warehouses || []);
   const stockRows = useSelector((state) => state.inventory.stock || []);
@@ -169,10 +172,10 @@ function StockAdjustmentPage() {
     <Box component="form" onSubmit={handleSubmit(onSubmit)}>
       <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3, mb: 2 }}>
         <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
-          Stock Adjustment
+          {pageTitle}
         </Typography>
         <Typography variant="body2" sx={{ color: '#64748b', mb: 2 }}>
-          Apply manual stock increase or decrease with reason and date tracking.
+          {pageDescription}
         </Typography>
 
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>

@@ -28,7 +28,10 @@ import { parseTransferExcel } from './transferImportService';
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
 
-function StockTransferPage() {
+function StockTransferPage({
+  pageTitle = 'Stock Transfer',
+  pageDescription = 'Move variant stock between warehouses with quantity controls.',
+}) {
   const dispatch = useDispatch();
   const warehouses = useSelector((state) => state.masters.warehouses || []);
   const stores = useSelector((state) => state.masters.stores || []);
@@ -241,10 +244,10 @@ function StockTransferPage() {
     <Box component="form" onSubmit={handleSubmit(onSubmit)}>
       <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3, mb: 2 }}>
         <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
-          Stock Transfer
+          {pageTitle}
         </Typography>
         <Typography variant="body2" sx={{ color: '#64748b', mb: 2 }}>
-          Move variant stock between warehouses with quantity controls.
+          {pageDescription}
         </Typography>
 
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>

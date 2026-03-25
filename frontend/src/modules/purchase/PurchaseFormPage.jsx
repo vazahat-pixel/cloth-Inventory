@@ -32,6 +32,7 @@ import { addPurchase, updatePurchase, fetchPurchases, fetchPurchaseOrderById } f
 import { parsePurchaseExcel } from './purchaseImportService';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchItems } from '../items/itemsSlice';
+import useRoleBasePath from '../../hooks/useRoleBasePath';
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
 
@@ -64,6 +65,7 @@ function PurchaseFormPage() {
 
   const dispatch = useDispatch();
   const navigate = useAppNavigate();
+  const basePath = useRoleBasePath();
 
   const purchases = useSelector((state) => state.purchase.records || []);
   const suppliers = useSelector((state) => state.masters.suppliers || []);
@@ -76,6 +78,11 @@ function PurchaseFormPage() {
     () => (isEditMode ? purchases.find((entry) => entry.id === id) : null),
     [id, isEditMode, purchases],
   );
+  const purchaseListPath = basePath === '/ho' ? '/purchase/purchase-voucher' : '/purchase';
+  const pageTitle = isEditMode
+    ? (basePath === '/ho' ? 'Edit Purchase Voucher' : 'Edit Purchase Bill')
+    : (basePath === '/ho' ? 'New Purchase Voucher' : 'New Purchase Bill');
+  const saveButtonLabel = basePath === '/ho' ? 'Save Voucher' : 'Save Bill';
 
   const [lines, setLines] = useState([]);
   const [variantPickerValue, setVariantPickerValue] = useState(null);
@@ -401,7 +408,7 @@ function PurchaseFormPage() {
     dispatch(isEditMode ? updatePurchase({ id, purchaseData: payload }) : addPurchase(payload))
       .unwrap()
       .then(() => {
-        navigate('/purchase');
+        navigate(purchaseListPath);
       })
       .catch((err) => {
         setFormError(err || 'Failed to save purchase');
@@ -414,7 +421,7 @@ function PurchaseFormPage() {
         <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a', mb: 1 }}>
           Purchase bill not found
         </Typography>
-        <Button variant="contained" onClick={() => navigate('/purchase')}>
+        <Button variant="contained" onClick={() => navigate(purchaseListPath)}>
           Back to Purchase List
         </Button>
       </Paper>
@@ -431,7 +438,7 @@ function PurchaseFormPage() {
         >
           <Box>
             <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
-              {isEditMode ? 'Edit Purchase Bill' : 'New Purchase Bill'}
+              {pageTitle}
             </Typography>
             <Typography variant="body2" sx={{ color: '#64748b' }}>
               Capture supplier invoice and inward stock details.
@@ -439,11 +446,11 @@ function PurchaseFormPage() {
           </Box>
 
           <Stack direction="row" spacing={1.5}>
-            <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate('/purchase')}>
+            <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate(purchaseListPath)}>
               Back
             </Button>
             <Button type="submit" variant="contained" startIcon={<SaveOutlinedIcon />}>
-              Save Bill
+              {saveButtonLabel}
             </Button>
           </Stack>
         </Stack>
@@ -709,11 +716,11 @@ function PurchaseFormPage() {
       )}
 
       <Stack direction="row" justifyContent="flex-end" spacing={1.5} sx={{ mt: 2 }}>
-        <Button variant="outlined" onClick={() => navigate('/purchase')}>
+        <Button variant="outlined" onClick={() => navigate(purchaseListPath)}>
           Cancel
         </Button>
         <Button type="submit" variant="contained" startIcon={<SaveOutlinedIcon />}>
-          Save Purchase
+          {saveButtonLabel}
         </Button>
       </Stack>
     </Box>

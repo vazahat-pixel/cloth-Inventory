@@ -89,7 +89,14 @@ const calculateTotals = (lines, billDiscount, loyaltyRedeemed, couponDiscount = 
   };
 };
 
-function BillingPage() {
+function BillingPage({
+  listPath = '/sales',
+  pageTitle = 'POS Billing',
+  pageDescription = 'Fast, store-level checkout for walk-in and repeat customers.',
+  listLabel = 'Back to Sales List',
+  backButtonLabel = 'Back to Sales',
+  returnPathBuilder = (saleId) => `/sales/${saleId}/return`,
+}) {
   const { id } = useParams();
   const isDetailMode = Boolean(id);
 
@@ -542,8 +549,8 @@ function BillingPage() {
           <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a', mb: 1 }}>
             Sales invoice not found
           </Typography>
-          <Button variant="contained" onClick={() => navigate('/sales')}>
-            Back to Sales List
+          <Button variant="contained" onClick={() => navigate(listPath)}>
+            {listLabel}
           </Button>
         </Paper>
       );
@@ -568,7 +575,7 @@ function BillingPage() {
             <Button
               variant="outlined"
               startIcon={<ArrowBackIcon />}
-              onClick={() => navigate('/sales')}
+              onClick={() => navigate(listPath)}
             >
               Back
             </Button>
@@ -576,7 +583,7 @@ function BillingPage() {
               variant="contained"
               color="warning"
               startIcon={<KeyboardReturnOutlinedIcon />}
-              onClick={() => navigate(`/sales/${existingSale.id}/return`)}
+              onClick={() => navigate(returnPathBuilder(existingSale.id))}
             >
               Create Return
             </Button>
@@ -649,20 +656,20 @@ function BillingPage() {
       >
         <Box>
           <Typography variant="h5" sx={{ fontWeight: 800, color: '#0F172A', mb: 0.5 }}>
-            POS Billing
+            {pageTitle}
           </Typography>
           <Typography variant="body2" sx={{ color: '#64748B' }}>
-            Fast, store-level checkout for walk-in and repeat customers.
+            {pageDescription}
           </Typography>
         </Box>
 
         <Button
           variant="outlined"
           startIcon={<ArrowBackIcon />}
-          onClick={() => navigate('/sales')}
+          onClick={() => navigate(listPath)}
           sx={{ borderRadius: 999 }}
         >
-          Back to Sales
+          {backButtonLabel}
         </Button>
       </Stack>
 
@@ -1174,7 +1181,7 @@ function BillingPage() {
         onRedeem={(pts) => setLoyaltyRedeemed(String(pts))}
       />
 
-      <Dialog open={showPrint} onClose={() => navigate('/sales')} maxWidth="md" fullWidth>
+      <Dialog open={showPrint} onClose={() => navigate(listPath)} maxWidth="md" fullWidth>
         <Box sx={{ p: 2 }}>
           <Typography variant="h6" sx={{ mb: 2 }}>Sale Completed Successfully!</Typography>
           {completedSaleData?.saleType === 'exchange' ? (
@@ -1183,7 +1190,7 @@ function BillingPage() {
             <StandardInvoicePrint sale={completedSaleData} />
           )}
           <Stack direction="row" spacing={2} justifyContent="flex-end" sx={{ mt: 2 }}>
-            <Button variant="outlined" onClick={() => navigate('/sales')}>Close</Button>
+            <Button variant="outlined" onClick={() => navigate(listPath)}>Close</Button>
             <Button variant="contained" onClick={() => window.print()}>Print Now</Button>
           </Stack>
         </Box>

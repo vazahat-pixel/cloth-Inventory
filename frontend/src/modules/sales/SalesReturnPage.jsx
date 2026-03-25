@@ -33,12 +33,18 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
 import { useForm } from 'react-hook-form';
-import { addSalesReturn } from './salesSlice';
+import { addSalesReturn, fetchSales, fetchSalesReturns } from './salesSlice';
+import { fetchMasters } from '../masters/mastersSlice';
 import ReturnSummaryCard from '../../components/ReturnSummaryCard';
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
 
-function SalesReturnPage() {
+function SalesReturnPage({
+  listPath = '/sales',
+  pageTitle = 'Customer Return',
+  pageDescription = 'Process customer refunds and reverse sold items back to inventory.',
+  listLabel = 'Back to Sales List',
+}) {
   const { id } = useParams();
   const dispatch = useDispatch();
   const navigate = useAppNavigate();
@@ -46,7 +52,7 @@ function SalesReturnPage() {
   const sales = useSelector((state) => state.sales.records || []);
   const salesReturns = useSelector((state) => state.sales.returns || []);
   const customers = useSelector((state) => state.masters.customers || []);
-  const warehouses = useSelector((state) => state.inventory.warehouses || []);
+  const warehouses = useSelector((state) => state.masters.warehouses || []);
 
   const sale = sales.find((entry) => entry.id === id);
   const customerName =
@@ -86,6 +92,13 @@ function SalesReturnPage() {
   });
 
   const formValues = watch();
+
+  useEffect(() => {
+    dispatch(fetchSales());
+    dispatch(fetchSalesReturns());
+    dispatch(fetchMasters('customers'));
+    dispatch(fetchMasters('warehouses'));
+  }, [dispatch]);
 
   useEffect(() => {
     if (!sale) {
@@ -194,7 +207,7 @@ function SalesReturnPage() {
       .then(() => {
         setSuccessMessage('Sales return processed successfully.');
         reset({ returnDate: getTodayDate(), reason: '' });
-        setTimeout(() => navigate('/sales'), 1500);
+        setTimeout(() => navigate(listPath), 1500);
       })
       .catch((err) => {
         setErrorMessage(err || 'Failed to process return');
@@ -207,8 +220,8 @@ function SalesReturnPage() {
         <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a', mb: 1 }}>
           Sales invoice not found
         </Typography>
-        <Button variant="contained" onClick={() => navigate('/sales')}>
-          Back to Sales List
+        <Button variant="contained" onClick={() => navigate(listPath)}>
+          {listLabel}
         </Button>
       </Paper>
     );
@@ -223,14 +236,14 @@ function SalesReturnPage() {
       >
         <Box>
           <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
-            Customer Return
+            {pageTitle}
           </Typography>
           <Typography variant="body2" sx={{ color: '#64748b' }}>
-            Process customer refunds and reverse sold items back to inventory.
+            {pageDescription}
           </Typography>
         </Box>
 
-        <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate('/sales')} sx={{ color: '#475569', borderColor: '#cbd5e1' }}>
+        <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate(listPath)} sx={{ color: '#475569', borderColor: '#cbd5e1' }}>
           Back
         </Button>
       </Stack>
@@ -402,7 +415,7 @@ function SalesReturnPage() {
               variant="text"
               size="large"
               startIcon={<CancelOutlinedIcon />}
-              onClick={() => navigate('/sales')}
+              onClick={() => navigate(listPath)}
               sx={{ color: '#64748b', '&:hover': { bgcolor: '#f8fafc' } }}
             >
               Cancel

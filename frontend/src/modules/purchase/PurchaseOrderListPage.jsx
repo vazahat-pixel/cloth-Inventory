@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchPurchaseOrders } from './purchaseSlice';
@@ -26,13 +27,25 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import SearchIcon from '@mui/icons-material/Search';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import ReceiptOutlinedIcon from '@mui/icons-material/ReceiptOutlined';
+import useRoleBasePath from '../../hooks/useRoleBasePath';
 
 function PurchaseOrderListPage() {
     const navigate = useAppNavigate();
+    const location = useLocation();
+    const basePath = useRoleBasePath();
     const dispatch = useDispatch();
     const orders = useSelector((state) => state.purchase.orders || []);
     const suppliers = useSelector((state) => state.masters.suppliers || []);
     const warehouses = useSelector((state) => state.masters.warehouses || []);
+    const localPath = location.pathname.startsWith(basePath)
+        ? location.pathname.slice(basePath.length) || '/'
+        : location.pathname;
+    const purchaseOrderListPath = localPath.startsWith('/orders/purchase-order')
+        ? '/orders/purchase-order'
+        : '/purchase/orders';
+    const purchaseOrderNewPath = `${purchaseOrderListPath}/new`;
+    const getPurchaseOrderEditPath = (orderId) => `${purchaseOrderListPath}/${orderId}`;
+    const pageTitle = purchaseOrderListPath === '/orders/purchase-order' ? 'Purchase Order' : '1. Purchase Orders';
 
     const [searchText, setSearchText] = useState('');
     const [warehouseFilter, setWarehouseFilter] = useState('all');
@@ -101,7 +114,7 @@ function PurchaseOrderListPage() {
                     >
                         <Box>
                             <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
-                                1. Purchase Orders
+                                {pageTitle}
                             </Typography>
                             <Typography variant="body2" sx={{ color: '#64748b' }}>
                                 Create and manage orders to send to your suppliers.
@@ -111,7 +124,7 @@ function PurchaseOrderListPage() {
                         <Button
                             variant="contained"
                             startIcon={<AddCircleOutlineIcon />}
-                            onClick={() => navigate('/purchase/orders/new')}
+                            onClick={() => navigate(purchaseOrderNewPath)}
                         >
                             Add Purchase Order
                         </Button>
@@ -217,7 +230,7 @@ function PurchaseOrderListPage() {
                                                     <IconButton
                                                         size="small"
                                                         color="info"
-                                                        onClick={() => navigate(`/purchase/orders/${row.id}`)}
+                                                        onClick={() => navigate(getPurchaseOrderEditPath(row.id))}
                                                         title="Edit / View"
                                                     >
                                                         <EditOutlinedIcon fontSize="small" />
@@ -225,7 +238,7 @@ function PurchaseOrderListPage() {
                                                     <IconButton
                                                         size="small"
                                                         color="primary"
-                                                        onClick={() => navigate(`/purchase/new?orderId=${row.id}`)}
+                                                        onClick={() => navigate(`/purchase/purchase-voucher/new?orderId=${row.id}`)}
                                                         title="Convert to Bill"
                                                     >
                                                         <ReceiptOutlinedIcon fontSize="small" />
@@ -259,7 +272,7 @@ function PurchaseOrderListPage() {
                         <Typography variant="body2" sx={{ color: '#64748b', mb: 2 }}>
                             Create your first purchase order for your suppliers.
                         </Typography>
-                        <Button variant="contained" onClick={() => navigate('/purchase/orders/new')}>
+                        <Button variant="contained" onClick={() => navigate(purchaseOrderNewPath)}>
                             Add Purchase Order
                         </Button>
                     </Box>

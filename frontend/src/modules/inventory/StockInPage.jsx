@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import {
     Box,
     Button,
@@ -27,7 +27,13 @@ import SaveIcon from '@mui/icons-material/Save';
 import { applyStockAdjustment } from './inventorySlice';
 import api from '../../services/api';
 
-const StockInPage = () => {
+const StockInPage = ({
+    pageTitle = 'Manual Stock IN',
+    pageDescription = 'Scan variants and post inward quantity updates into the selected warehouse.',
+    submitLabel = 'Record Stock IN',
+    defaultNotes = 'Manual Stock IN',
+    successMessage = 'Stock updated successfully',
+}) => {
     const dispatch = useDispatch();
     const [storeId, setStoreId] = useState('');
     const [stores, setStores] = useState([]);
@@ -88,10 +94,10 @@ const StockInPage = () => {
                     storeId,
                     productId: item._id,
                     quantityChange: item.quantity,
-                    notes: notes || 'Manual Stock IN'
+                    notes: notes || defaultNotes
                 })).unwrap();
             }
-            setSuccess('Stock updated successfully');
+            setSuccess(successMessage);
             setItems([]);
             setNotes('');
         } catch (err) {
@@ -101,7 +107,10 @@ const StockInPage = () => {
 
     return (
         <Box p={3}>
-            <Typography variant="h5" gutterBottom fontWeight="bold">Manual Stock IN</Typography>
+            <Typography variant="h5" gutterBottom fontWeight="bold">{pageTitle}</Typography>
+            <Typography variant="body2" sx={{ color: '#64748b', mb: 3 }}>
+                {pageDescription}
+            </Typography>
 
             <Grid container spacing={3}>
                 <Grid item xs={12} md={4}>
@@ -147,7 +156,7 @@ const StockInPage = () => {
                                     onClick={handleSave}
                                     disabled={items.length === 0}
                                 >
-                                    Record Stock IN
+                                    {submitLabel}
                                 </Button>
                             </Stack>
                         </CardContent>

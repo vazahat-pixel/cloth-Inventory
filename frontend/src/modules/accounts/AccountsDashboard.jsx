@@ -98,10 +98,10 @@ function AccountsDashboard() {
         >
           <Box>
             <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
-              Accounts Dashboard
+              A/C Vouchers
             </Typography>
             <Typography variant="body2" sx={{ color: '#64748b' }}>
-              Financial overview, receivables, payables, and transactions.
+              Manage voucher activity from Accounts and use the side menu to switch to Continuous Printing or Utilities.
             </Typography>
           </Box>
         </Stack>
@@ -179,7 +179,7 @@ function AccountsDashboard() {
           <Grid item xs={12} md={4}>
             <Paper elevation={0} sx={{ p: 3, border: '1px solid #e2e8f0', borderRadius: 2, bgcolor: '#ffffff' }}>
               <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a', mb: 2 }}>
-                Quick Finance Actions
+                Voucher Actions
               </Typography>
               <Stack spacing={2}>
                 <Button

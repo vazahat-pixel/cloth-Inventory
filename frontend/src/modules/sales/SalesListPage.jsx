@@ -30,12 +30,23 @@ import SalesDetailDialog from './SalesDetailDialog';
 
 const PAYMENT_STATUS_OPTIONS = ['Paid', 'Partial'];
 
-function SalesListPage() {
+function SalesListPage({
+  pageTitle = 'Sales Invoices',
+  pageDescription = 'Review retail invoices, payment status, and returns.',
+  showPrimaryAction = true,
+  primaryActionLabel = 'New Sale',
+  primaryActionPath = '/sales/new',
+  returnPathBuilder = (saleId) => `/sales/${saleId}/return`,
+  emptyStateTitle = 'No sales invoices found.',
+  emptyStateDescription = 'Start billing to create your first POS invoice.',
+  emptyStateActionLabel = 'New Sale',
+  emptyStateActionPath = '/sales/new',
+}) {
   const navigate = useAppNavigate();
   const dispatch = useDispatch();
   const sales = useSelector((state) => state.sales.records || []);
   const customers = useSelector((state) => state.masters.customers || []);
-  const warehouses = useSelector((state) => state.inventory.warehouses || []);
+  const warehouses = useSelector((state) => state.masters.warehouses || []);
 
   const [searchText, setSearchText] = useState('');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('all');
@@ -112,20 +123,22 @@ function SalesListPage() {
           >
             <Box>
               <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
-                Sales Invoices
+                {pageTitle}
               </Typography>
               <Typography variant="body2" sx={{ color: '#64748b' }}>
-                Review retail invoices, payment status, and returns.
+                {pageDescription}
               </Typography>
             </Box>
 
-            <Button
-              variant="contained"
-              startIcon={<AddCircleOutlineIcon />}
-              onClick={() => navigate('/sales/new')}
-            >
-              New Sale
-            </Button>
+            {showPrimaryAction ? (
+              <Button
+                variant="contained"
+                startIcon={<AddCircleOutlineIcon />}
+                onClick={() => navigate(primaryActionPath)}
+              >
+                {primaryActionLabel}
+              </Button>
+            ) : null}
           </Stack>
 
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
@@ -240,7 +253,7 @@ function SalesListPage() {
                             <IconButton
                               size="small"
                               color="warning"
-                              onClick={() => navigate(`/sales/${row.id}/return`)}
+                              onClick={() => navigate(returnPathBuilder(row.id))}
                             >
                               <KeyboardReturnOutlinedIcon fontSize="small" />
                             </IconButton>
@@ -269,14 +282,16 @@ function SalesListPage() {
         ) : (
           <Box sx={{ py: 7, textAlign: 'center' }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0f172a', mb: 1 }}>
-              No sales invoices found.
+              {emptyStateTitle}
             </Typography>
             <Typography variant="body2" sx={{ color: '#64748b', mb: 2 }}>
-              Start billing to create your first POS invoice.
+              {emptyStateDescription}
             </Typography>
-            <Button variant="contained" onClick={() => navigate('/sales/new')}>
-              New Sale
-            </Button>
+            {emptyStateActionLabel && emptyStateActionPath ? (
+              <Button variant="contained" onClick={() => navigate(emptyStateActionPath)}>
+                {emptyStateActionLabel}
+              </Button>
+            ) : null}
           </Box>
         )}
       </Paper>

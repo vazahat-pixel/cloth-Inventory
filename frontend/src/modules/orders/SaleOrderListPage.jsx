@@ -3,6 +3,7 @@ import { useAppNavigate } from '../../hooks/useAppNavigate';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchSaleOrders } from './ordersSlice';
 import { fetchMasters } from '../masters/mastersSlice';
+import useRoleBasePath from '../../hooks/useRoleBasePath';
 import {
   Box,
   Button,
@@ -28,9 +29,15 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 
 function SaleOrderListPage() {
   const navigate = useAppNavigate();
+  const basePath = useRoleBasePath();
   const saleOrders = useSelector((state) => state.orders.saleOrders || []);
   const customers = useSelector((state) => state.masters.customers || []);
   const dispatch = useDispatch();
+  const saleOrderNewPath = basePath === '/ho' ? '/orders/sale-order/new' : '/orders/new';
+  const getSaleOrderEditPath = (orderId) => (
+    basePath === '/ho' ? `/orders/sale-order/${orderId}/edit` : `/orders/${orderId}/edit`
+  );
+  const pageTitle = basePath === '/ho' ? 'Sale Order' : 'Sale Orders';
 
   useEffect(() => {
     dispatch(fetchSaleOrders());
@@ -84,7 +91,7 @@ function SaleOrderListPage() {
         >
           <Box>
             <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
-              Sale Orders
+              {pageTitle}
             </Typography>
             <Typography variant="body2" sx={{ color: '#64748b' }}>
               Manage wholesale sale orders from confirmation to delivery.
@@ -93,7 +100,7 @@ function SaleOrderListPage() {
           <Button
             variant="contained"
             startIcon={<AddCircleOutlineIcon />}
-            onClick={() => navigate('/orders/new')}
+            onClick={() => navigate(saleOrderNewPath)}
           >
             New Sale Order
           </Button>
@@ -189,7 +196,7 @@ function SaleOrderListPage() {
                       <IconButton
                         size="small"
                         color="primary"
-                        onClick={() => navigate(`/orders/${row.id}/edit`)}
+                        onClick={() => navigate(getSaleOrderEditPath(row.id))}
                       >
                         <EditOutlinedIcon fontSize="small" />
                       </IconButton>
@@ -220,7 +227,7 @@ function SaleOrderListPage() {
           <Typography variant="body2" sx={{ color: '#64748b', mb: 2 }}>
             Create your first sale order to begin the wholesale order flow.
           </Typography>
-          <Button variant="contained" onClick={() => navigate('/orders/new')}>
+          <Button variant="contained" onClick={() => navigate(saleOrderNewPath)}>
             New Sale Order
           </Button>
         </Box>

@@ -2,8 +2,8 @@ const path = require('path');
 const dotenv = require('dotenv');
 
 // Try loading from root first, then relative to __dirname
-// Triggering nodemon restart...
 dotenv.config();
+
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 require('./config/env');  // validate env vars early

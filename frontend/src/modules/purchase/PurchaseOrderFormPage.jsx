@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import {
     Autocomplete,
@@ -23,9 +24,10 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
-import { addPurchaseOrder, updatePurchaseOrder } from './purchaseSlice';
+import { addPurchaseOrder, updatePurchaseOrder, fetchPurchaseOrders } from './purchaseSlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchItems } from '../items/itemsSlice';
+import useRoleBasePath from '../../hooks/useRoleBasePath';
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
 
@@ -64,11 +66,19 @@ function PurchaseOrderFormPage() {
     const isEdit = Boolean(id);
     const dispatch = useDispatch();
     const navigate = useAppNavigate();
+    const location = useLocation();
+    const basePath = useRoleBasePath();
 
     const purchaseOrders = useSelector((state) => state.purchase.orders || []);
     const suppliers = useSelector((state) => state.masters.suppliers || []);
     const warehouses = useSelector((state) => state.masters.warehouses || []);
     const items = useSelector((state) => state.items.records || []);
+    const localPath = location.pathname.startsWith(basePath)
+        ? location.pathname.slice(basePath.length) || '/'
+        : location.pathname;
+    const purchaseOrderListPath = localPath.startsWith('/orders/purchase-order')
+        ? '/orders/purchase-order'
+        : '/purchase/orders';
 
     const existing = useMemo(
         () => (isEdit ? purchaseOrders.find((o) => o.id === id) : null),
@@ -114,6 +124,7 @@ function PurchaseOrderFormPage() {
     const totals = useMemo(() => calculateTotals(lines), [lines]);
 
     useEffect(() => {
+        dispatch(fetchPurchaseOrders());
         dispatch(fetchMasters('suppliers'));
         dispatch(fetchMasters('warehouses'));
         dispatch(fetchItems());
@@ -202,17 +213,17 @@ function PurchaseOrderFormPage() {
 
         if (isEdit) {
             dispatch(updatePurchaseOrder({ id, orderData: payload }));
-            navigate('/purchase/orders');
+            navigate(purchaseOrderListPath);
         } else {
             dispatch(addPurchaseOrder(payload));
-            navigate('/purchase/orders');
+            navigate(purchaseOrderListPath);
         }
     };
 
     return (
         <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3 }}>
             <Stack direction="row" spacing={2} sx={{ mb: 2, alignItems: 'center' }}>
-                <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/purchase/orders')}>
+                <Button startIcon={<ArrowBackIcon />} onClick={() => navigate(purchaseOrderListPath)}>
                     Back
                 </Button>
                 <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', flex: 1 }}>
@@ -374,7 +385,7 @@ function PurchaseOrderFormPage() {
             </Stack>
 
             <Stack direction="row" spacing={1.5} justifyContent="flex-end">
-                <Button variant="outlined" onClick={() => navigate('/purchase/orders')}>
+                <Button variant="outlined" onClick={() => navigate(purchaseOrderListPath)}>
                     Cancel
                 </Button>
                 <Button variant="contained" startIcon={<SaveOutlinedIcon />} onClick={handleSave}>

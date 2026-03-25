@@ -31,7 +31,11 @@ import { fetchStockOverview } from '../inventory/inventorySlice';
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
 
-function DeliveryChallanForm() {
+function DeliveryChallanForm({
+    listPath = '/orders/delivery-challan',
+    pageTitle = 'New Delivery Challan',
+    saveLabel = 'Save Challan',
+}) {
     const dispatch = useDispatch();
     const navigate = useAppNavigate();
 
@@ -126,18 +130,18 @@ function DeliveryChallanForm() {
 
         dispatch(addChallan(payload))
             .unwrap()
-            .then(() => navigate('/orders/delivery-challan'))
+            .then(() => navigate(listPath))
             .catch(err => setError(err || "Failed to save challan"));
     };
 
     return (
         <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3 }}>
             <Stack direction="row" spacing={2} sx={{ mb: 4, alignItems: 'center' }}>
-                <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/orders/delivery-challan')}>
+                <Button startIcon={<ArrowBackIcon />} onClick={() => navigate(listPath)}>
                     Back
                 </Button>
                 <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', flex: 1 }}>
-                    New Delivery Challan
+                    {pageTitle}
                 </Typography>
             </Stack>
 
@@ -266,9 +270,9 @@ function DeliveryChallanForm() {
             </Stack>
 
             <Stack direction="row" spacing={2} sx={{ mt: 4, justifyContent: 'flex-end' }}>
-                <Button variant="outlined" onClick={() => navigate('/orders/delivery-challan')}>Cancel</Button>
+                <Button variant="outlined" onClick={() => navigate(listPath)}>Cancel</Button>
                 <Button variant="contained" startIcon={<SaveOutlinedIcon />} onClick={handleSave}>
-                    Save Challan
+                    {saveLabel}
                 </Button>
             </Stack>
         </Paper>
