@@ -23,8 +23,11 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
-import { addSaleOrder, updateSaleOrder } from './ordersSlice';
+import { addSaleOrder, updateSaleOrder, fetchSaleOrders } from './ordersSlice';
 import { getVariantRateFromPriceLists } from '../pricing/priceListService';
+import { fetchMasters } from '../masters/mastersSlice';
+import { fetchItems } from '../items/itemsSlice';
+import useRoleBasePath from '../../hooks/useRoleBasePath';
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
 
@@ -72,8 +75,9 @@ function SaleOrderFormPage() {
   const isEdit = Boolean(id);
   const dispatch = useDispatch();
   const navigate = useAppNavigate();
+  const basePath = useRoleBasePath();
 
-  const saleOrders = useSelector((state) => state.orders.saleOrders);
+  const saleOrders = useSelector((state) => state.orders.saleOrders || []);
   const customers = useSelector((state) => state.masters.customers || []);
   const salesmen = useSelector((state) => state.masters.salesmen || []);
   const priceLists = useSelector((state) => state.pricing.priceLists || []);
@@ -84,6 +88,10 @@ function SaleOrderFormPage() {
     () => (isEdit ? saleOrders.find((o) => o.id === id) : null),
     [id, isEdit, saleOrders],
   );
+  const saleOrderListPath = basePath === '/ho' ? '/orders/sale-order' : '/orders';
+  const pageTitle = isEdit
+    ? 'Edit Sale Order'
+    : 'New Sale Order';
 
   const [date, setDate] = useState(getTodayDate());
   const [customerId, setCustomerId] = useState('');
@@ -147,6 +155,7 @@ function SaleOrderFormPage() {
   const totals = useMemo(() => calculateTotals(lines), [lines]);
 
   useEffect(() => {
+    dispatch(fetchSaleOrders());
     dispatch(fetchMasters('customers'));
     dispatch(fetchMasters('salesmen'));
     dispatch(fetchItems());
@@ -254,7 +263,7 @@ function SaleOrderFormPage() {
     } else {
       dispatch(addSaleOrder(payload));
     }
-    navigate('/orders');
+    navigate(saleOrderListPath);
   };
 
   if (isEdit && !existing) {
@@ -263,7 +272,7 @@ function SaleOrderFormPage() {
         <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a', mb: 1 }}>
           Sale order not found
         </Typography>
-        <Button variant="contained" onClick={() => navigate('/orders')}>
+        <Button variant="contained" onClick={() => navigate(saleOrderListPath)}>
           Back to Sale Orders
         </Button>
       </Paper>
@@ -273,11 +282,11 @@ function SaleOrderFormPage() {
   return (
     <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3 }}>
       <Stack direction="row" spacing={2} sx={{ mb: 2, alignItems: 'center' }}>
-        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/orders')}>
+        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate(saleOrderListPath)}>
           Back
         </Button>
         <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', flex: 1 }}>
-          {isEdit ? 'Edit Sale Order' : 'New Sale Order'}
+          {pageTitle}
         </Typography>
       </Stack>
 
@@ -444,7 +453,7 @@ function SaleOrderFormPage() {
       </Stack>
 
       <Stack direction="row" spacing={1.5} justifyContent="flex-end">
-        <Button variant="outlined" onClick={() => navigate('/orders')}>
+        <Button variant="outlined" onClick={() => navigate(saleOrderListPath)}>
           Cancel
         </Button>
         <Button variant="contained" startIcon={<SaveOutlinedIcon />} onClick={handleSave}>

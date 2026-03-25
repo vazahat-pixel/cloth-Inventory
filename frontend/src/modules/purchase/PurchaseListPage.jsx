@@ -30,9 +30,11 @@ import KeyboardReturnOutlinedIcon from '@mui/icons-material/KeyboardReturnOutlin
 import LocalPrintshopOutlinedIcon from '@mui/icons-material/LocalPrintshopOutlined';
 import PurchaseDetailDialog from './PurchaseDetailDialog';
 import BarcodePrintDialog from './BarcodePrintDialog';
+import useRoleBasePath from '../../hooks/useRoleBasePath';
 
 function PurchaseListPage() {
   const navigate = useAppNavigate();
+  const basePath = useRoleBasePath();
   const dispatch = useDispatch();
   const purchases = useSelector((state) => state.purchase.records || []);
   const suppliers = useSelector((state) => state.masters.suppliers || []);
@@ -51,6 +53,15 @@ function PurchaseListPage() {
   const stores = useSelector((state) => state.masters.stores || []);
 
   const isStoreStaff = user?.role !== 'Admin';
+  const purchaseNewPath = basePath === '/ho' ? '/purchase/purchase-voucher/new' : '/purchase/new';
+  const getPurchaseEditPath = (purchaseId) => (
+    basePath === '/ho' ? `/purchase/purchase-voucher/${purchaseId}` : `/purchase/${purchaseId}`
+  );
+  const getPurchaseReturnPath = (purchaseId) => (
+    basePath === '/ho' ? `/purchase/purchase-return/${purchaseId}` : `/purchase/${purchaseId}/return`
+  );
+  const pageTitle = basePath === '/ho' ? 'Purchase Voucher' : 'Purchase Bills';
+  const addButtonLabel = basePath === '/ho' ? 'Add Purchase Voucher' : 'Add Purchase';
 
   useEffect(() => {
     dispatch(fetchPurchases());
@@ -121,7 +132,7 @@ function PurchaseListPage() {
           >
             <Box>
               <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
-                Purchase Bills
+                {pageTitle}
               </Typography>
               <Typography variant="body2" sx={{ color: '#64748b' }}>
                 Manage supplier purchase entries and stock inward transactions.
@@ -131,9 +142,9 @@ function PurchaseListPage() {
             <Button
               variant="contained"
               startIcon={<AddCircleOutlineIcon />}
-              onClick={() => navigate('/purchase/new')}
+              onClick={() => navigate(purchaseNewPath)}
             >
-              Add Purchase
+              {addButtonLabel}
             </Button>
           </Stack>
 
@@ -242,7 +253,7 @@ function PurchaseListPage() {
                           <IconButton
                             size="small"
                             color="primary"
-                            onClick={() => navigate(`/purchase/${row.id}`)}
+                            onClick={() => navigate(getPurchaseEditPath(row.id))}
                             title="Edit"
                           >
                             <EditOutlinedIcon fontSize="small" />
@@ -258,7 +269,7 @@ function PurchaseListPage() {
                           <IconButton
                             size="small"
                             color="warning"
-                            onClick={() => navigate(`/purchase/${row.id}/return`)}
+                            onClick={() => navigate(getPurchaseReturnPath(row.id))}
                             title="Return"
                           >
                             <KeyboardReturnOutlinedIcon fontSize="small" />
@@ -292,8 +303,8 @@ function PurchaseListPage() {
             <Typography variant="body2" sx={{ color: '#64748b', mb: 2 }}>
               Create your first supplier bill to begin procurement workflow.
             </Typography>
-            <Button variant="contained" onClick={() => navigate('/purchase/new')}>
-              Add Purchase
+            <Button variant="contained" onClick={() => navigate(purchaseNewPath)}>
+              {addButtonLabel}
             </Button>
           </Box>
         )}

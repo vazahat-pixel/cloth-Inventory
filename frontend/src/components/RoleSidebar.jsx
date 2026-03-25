@@ -5,6 +5,7 @@ import {
   List,
   ListItem,
   ListItemButton,
+  ListItemIcon,
   ListItemText,
   Typography,
 } from '@mui/material';
@@ -29,6 +30,7 @@ function RoleSidebar({ navConfig }) {
   const basePath = navConfig.basePath;
 
   const toFullPath = (path) => {
+    if (!path) return undefined;
     if (path === '/') return basePath;
     return `${basePath}${path}`;
   };
@@ -39,15 +41,35 @@ function RoleSidebar({ navConfig }) {
   };
 
   const localPath = stripBasePath(location.pathname);
-  const showMasters = localPath.startsWith('/masters');
-  const showInventory = localPath.startsWith('/inventory');
-  const showPurchase = localPath.startsWith('/purchase');
-  const showSales = localPath.startsWith('/sales');
-  const showPricing = localPath.startsWith('/pricing');
-  const showCustomers = localPath.startsWith('/customers');
-  const showReports = localPath.startsWith('/reports');
-  const showGst = localPath.startsWith('/gst');
-  const showSettings = localPath.startsWith('/settings');
+
+  const matchesPath = (item, pathname) => {
+    const candidatePaths = item?.matchPaths?.length
+      ? item.matchPaths
+      : item?.path
+        ? [item.path]
+        : [];
+
+    return candidatePaths.some((candidate) => (
+      candidate === '/'
+        ? pathname === '/'
+        : pathname === candidate || pathname.startsWith(`${candidate}/`)
+    ));
+  };
+
+  const getChildKey = (item) => (item?.path ? pathMap[item.path] : null);
+
+  const getChildItems = (item) => {
+    const childKey = getChildKey(item);
+    return childKey ? navConfig.children?.[childKey] || [] : [];
+  };
+
+  const hasActiveChild = (item) => getChildItems(item).some((child) => !child?.exitsDrilldown && matchesPath(child, localPath));
+
+  const activeDrilldownItem = navConfig.mainNav.find((item) => (
+    item?.drilldown
+    && getChildItems(item).length
+    && (matchesPath(item, localPath) || hasActiveChild(item))
+  ));
 
   const linkStyle = {
     borderRadius: 1.5,
@@ -62,6 +84,21 @@ function RoleSidebar({ navConfig }) {
       color: '#FFFFFF',
       boxShadow: '0 10px 20px rgba(37, 99, 235, 0.35)',
     },
+    '&.Mui-selected': {
+      backgroundColor: '#2563EB',
+      color: '#FFFFFF',
+      boxShadow: '0 10px 20px rgba(37, 99, 235, 0.35)',
+    },
+    '&.Mui-selected:hover': {
+      backgroundColor: '#2563EB',
+    },
+    '&.Mui-disabled': {
+      color: '#64748B',
+      opacity: 1,
+    },
+    '&.Mui-disabled .MuiListItemIcon-root': {
+      color: '#475569',
+    },
   };
 
   const childLinkStyle = {
@@ -71,34 +108,78 @@ function RoleSidebar({ navConfig }) {
     color: '#94a3b8',
     '&:hover': { backgroundColor: '#1e293b' },
     '&.active': { backgroundColor: '#172554', color: '#bfdbfe' },
+    '&.Mui-selected': { backgroundColor: '#172554', color: '#bfdbfe' },
+    '&.Mui-selected:hover': { backgroundColor: '#172554' },
+    '&.Mui-disabled': {
+      color: '#64748B',
+      opacity: 1,
+    },
   };
 
   const renderChildren = (parentPath, childKey) => {
     const children = navConfig.children?.[childKey];
     if (!children?.length) return null;
-    const isExpanded = localPath.startsWith(parentPath);
+    const isExpanded = localPath.startsWith(parentPath) || children.some((child) => matchesPath(child, localPath));
     return (
       <Collapse in={isExpanded} timeout="auto" unmountOnExit>
         <List disablePadding sx={{ pl: 1, pr: 0.5, pb: 0.5 }}>
-          {children.map((child) => (
-            <ListItem key={child.path} disablePadding sx={{ mb: 0.25 }}>
-              <ListItemButton
-                component={NavLink}
-                to={toFullPath(child.path)}
-                end={child.path === parentPath}
-                sx={childLinkStyle}
-              >
-                <ListItemText
-                  primary={child.label}
-                  slotProps={{ primary: { fontSize: 12.5, fontWeight: 600 } }}
-                />
-              </ListItemButton>
-            </ListItem>
-          ))}
+          {children.map((child) => {
+            const childFullPath = toFullPath(child.path);
+            const isChildDisabled = Boolean(child.disabled || !child.path);
+            const isChildSelected = !isChildDisabled && matchesPath(child, localPath);
+            const childButtonProps = isChildDisabled
+              ? { component: 'div', disabled: true }
+              : { component: NavLink, to: childFullPath, end: child.path === parentPath };
+
+            return (
+              <ListItem key={child.label} disablePadding sx={{ mb: 0.25 }}>
+                <ListItemButton
+                  {...childButtonProps}
+                  selected={isChildSelected}
+                  sx={childLinkStyle}
+                >
+                  <ListItemText
+                    primary={child.label}
+                    slotProps={{ primary: { fontSize: 12.5, fontWeight: 600 } }}
+                  />
+                </ListItemButton>
+              </ListItem>
+            );
+          })}
         </List>
       </Collapse>
     );
   };
+
+  const renderStandaloneChildren = (children) => (
+    children.map((child) => {
+      const childFullPath = toFullPath(child.path);
+      const isChildDisabled = Boolean(child.disabled || !child.path);
+      const isChildSelected = !isChildDisabled && !child?.exitsDrilldown && matchesPath(child, localPath);
+      const childButtonProps = isChildDisabled
+        ? { component: 'div', disabled: true }
+        : { component: NavLink, to: childFullPath, end: child.path === '/' };
+
+      return (
+        <ListItem key={child.label} disablePadding sx={{ mb: 0.5 }}>
+          <ListItemButton
+            {...childButtonProps}
+            selected={isChildSelected}
+            sx={{
+              ...childLinkStyle,
+              minHeight: 44,
+              px: 1.5,
+            }}
+          >
+            <ListItemText
+              primary={child.label}
+              slotProps={{ primary: { fontSize: 14, fontWeight: 600 } }}
+            />
+          </ListItemButton>
+        </ListItem>
+      );
+    })
+  );
 
   return (
     <Box
@@ -148,18 +229,34 @@ function RoleSidebar({ navConfig }) {
         }}
       >
         <List sx={{ px: 1.5, py: 1.5 }}>
-          {navConfig.mainNav.map((item) => {
+          {activeDrilldownItem ? renderStandaloneChildren(getChildItems(activeDrilldownItem)) : navConfig.mainNav.map((item) => {
             const fullPath = toFullPath(item.path);
-            const childKey = pathMap[item.path];
+            const childKey = getChildKey(item);
+            const Icon = item.icon;
+            const isDisabled = Boolean(item.disabled || !item.path);
+            const isSelected = !isDisabled && (matchesPath(item, localPath) || hasActiveChild(item));
+            const buttonProps = isDisabled
+              ? { component: 'div', disabled: true }
+              : { component: NavLink, to: fullPath, end: item.path === '/' };
+
             return (
-              <Box key={fullPath}>
+              <Box key={item.label}>
                 <ListItem disablePadding sx={{ mb: 0.5 }}>
                   <ListItemButton
-                    component={NavLink}
-                    to={fullPath}
-                    end={item.path === '/'}
+                    {...buttonProps}
+                    selected={isSelected}
                     sx={linkStyle}
                   >
+                    {Icon ? (
+                      <ListItemIcon
+                        sx={{
+                          minWidth: 30,
+                          color: 'inherit',
+                        }}
+                      >
+                        <Icon sx={{ fontSize: 18 }} />
+                      </ListItemIcon>
+                    ) : null}
                     <ListItemText
                       primary={item.label}
                       slotProps={{ primary: { fontSize: 14, fontWeight: 600 } }}

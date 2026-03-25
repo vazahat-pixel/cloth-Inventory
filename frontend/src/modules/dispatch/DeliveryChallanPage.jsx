@@ -19,11 +19,15 @@ import {
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import { fetchChallans, updateChallanStatus } from './dispatchSlice';
 
-function DeliveryChallanPage() {
+function DeliveryChallanPage({
+    pageTitle = 'Delivery Challans',
+    pageDescription = 'Manage dispatches from warehouse to store and confirm receipts.',
+    createPath = '/orders/delivery-challan/new',
+    createLabel = 'Create Challan',
+}) {
     const navigate = useAppNavigate();
     const dispatch = useDispatch();
     const { records: challans = [], loading, error } = useSelector((state) => state.dispatch);
-    const userRole = useSelector((state) => state.auth.role);
 
     useEffect(() => {
         dispatch(fetchChallans());
@@ -58,19 +62,19 @@ function DeliveryChallanPage() {
                 >
                     <Box>
                         <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
-                            Delivery Challans
+                            {pageTitle}
                         </Typography>
                         <Typography variant="body2" sx={{ color: '#64748b' }}>
-                            Manage dispatches from warehouse to store and confirm receipts.
+                            {pageDescription}
                         </Typography>
                     </Box>
 
                     <Button
                         variant="contained"
                         startIcon={<AddCircleOutlineIcon />}
-                        onClick={() => navigate('/orders/delivery-challan/new')}
+                        onClick={() => navigate(createPath)}
                     >
-                        Create Challan
+                        {createLabel}
                     </Button>
                 </Stack>
 
@@ -137,8 +141,8 @@ function DeliveryChallanPage() {
                     <Typography variant="body2" sx={{ color: '#64748b', mb: 2 }}>
                         You haven't dispatched any items to the stores yet.
                     </Typography>
-                    <Button variant="contained" onClick={() => navigate('/orders/delivery-challan/new')}>
-                        Create Delivery Challan
+                    <Button variant="contained" onClick={() => navigate(createPath)}>
+                        {createLabel}
                     </Button>
                 </Box>
             )}

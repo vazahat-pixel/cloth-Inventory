@@ -30,6 +30,7 @@ import PreviewOutlinedIcon from '@mui/icons-material/PreviewOutlined';
 import { useForm } from 'react-hook-form';
 import { addPurchaseReturn } from './purchaseSlice';
 import ReturnSummaryCard from '../../components/ReturnSummaryCard';
+import useRoleBasePath from '../../hooks/useRoleBasePath';
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
 
@@ -37,6 +38,7 @@ function PurchaseReturnPage() {
   const { id } = useParams();
   const dispatch = useDispatch();
   const navigate = useAppNavigate();
+  const basePath = useRoleBasePath();
 
   const purchases = useSelector((state) => state.purchase.records || []);
   const purchaseReturns = useSelector((state) => state.purchase.returns || []);
@@ -46,6 +48,8 @@ function PurchaseReturnPage() {
   const purchase = purchases.find((entry) => entry.id === id);
   const supplierName = suppliers.find((entry) => entry.id === purchase?.supplierId)?.supplierName;
   const warehouseName = warehouses.find((entry) => entry.id === purchase?.warehouseId)?.name;
+  const purchaseListPath = basePath === '/ho' ? '/purchase/purchase-voucher' : '/purchase';
+  const purchaseReturnHomePath = basePath === '/ho' ? '/purchase/purchase-return' : '/purchase/return';
 
   const returnedByVariantLot = useMemo(() => {
     if (!purchase) {
@@ -184,7 +188,7 @@ function PurchaseReturnPage() {
       .then(() => {
         setSuccessMessage('Purchase return processed successfully.');
         reset({ returnDate: getTodayDate(), remarks: '' });
-        setTimeout(() => navigate('/purchase'), 1500);
+        setTimeout(() => navigate(purchaseReturnHomePath), 1500);
       })
       .catch((err) => {
         setErrorMessage(err || 'Failed to process return');
@@ -197,7 +201,7 @@ function PurchaseReturnPage() {
         <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a', mb: 1 }}>
           Purchase bill not found
         </Typography>
-        <Button variant="contained" onClick={() => navigate('/purchase')}>
+        <Button variant="contained" onClick={() => navigate(purchaseListPath)}>
           Back to Purchase List
         </Button>
       </Paper>
@@ -220,7 +224,7 @@ function PurchaseReturnPage() {
           </Typography>
         </Box>
 
-        <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate('/purchase')}>
+        <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate(purchaseReturnHomePath)}>
           Back
         </Button>
       </Stack>
@@ -351,7 +355,7 @@ function PurchaseReturnPage() {
               variant="text"
               size="large"
               startIcon={<CancelOutlinedIcon />}
-              onClick={() => navigate('/purchase')}
+              onClick={() => navigate(purchaseReturnHomePath)}
               sx={{ color: '#64748b', '&:hover': { bgcolor: '#f8fafc' } }}
             >
               Cancel
