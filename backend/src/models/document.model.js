@@ -64,6 +64,10 @@ const documentSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Warehouse'
         },
+        entityName: {
+            type: String,
+            trim: true // Searchable name for supplier/customer
+        },
         items: [documentItemSchema],
         createdBy: {
             type: mongoose.Schema.Types.ObjectId,
@@ -77,6 +81,13 @@ const documentSchema = new mongoose.Schema(
         notes: {
             type: String
         },
+        attachments: [
+            {
+                url: String,
+                fileName: String,
+                fileType: String
+            }
+        ],
         isDeleted: {
             type: Boolean,
             default: false
@@ -91,5 +102,6 @@ documentSchema.index({ status: 1 });
 documentSchema.index({ branchId: 1 });
 documentSchema.index({ warehouseId: 1 });
 documentSchema.index({ documentNumber: 1 });
+documentSchema.index({ entityName: 1 });
 
 module.exports = mongoose.model('Document', documentSchema);

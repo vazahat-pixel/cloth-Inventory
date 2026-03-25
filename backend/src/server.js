@@ -10,6 +10,7 @@ require('./config/env');  // validate env vars early
 
 const connectDB = require('./config/db');
 const app = require('./app');
+const { initSocket } = require('./config/socket');
 const logger = require('./config/logger');
 const { PORT } = require('./config/env');
 
@@ -20,6 +21,9 @@ const startServer = async () => {
         logger.info(`🚀 Server running on http://localhost:${PORT}`);
         logger.info(`📌 Environment: ${process.env.NODE_ENV}`);
     });
+
+    // 1. Initialize Real-time Visibility (Socket.io)
+    initSocket(server);
 
     // ── Graceful shutdown ─────────────────────────────────────────
     const shutdown = async (signal) => {

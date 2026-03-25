@@ -772,6 +772,102 @@ const getMovementReport = async (startDate, endDate, variantId) => {
     ]);
 };
 
+/**
+ * STOCK AGING REPORT
+ * Tracks how long inventory has been sitting in stock.
+ */
+const getStockAgingReport = async () => {
+    return await Product.aggregate([
+        { $match: { isDeleted: false, isActive: true } },
+        {
+            $project: {
+                name: 1,
+                sku: 1,
+                currentStock: { $add: ["$factoryStock", 0] }, // Simplify: just factory stock for now or join with stores
+                createdAt: 1,
+                daysInStock: {
+                    $floor: {
+                        $divide: [
+                            { $subtract: [new Date(), "$createdAt"] },
+                            1000 * 60 * 60 * 24
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            $project: {
+                name: 1,
+                sku: 1,
+                currentStock: 1,
+                daysInStock: 1,
+                category: {
+                    $cond: [
+                        { $gte: ["$daysInStock", 90] }, "SLOW_MOVING",
+                        { $cond: [{ $gte: ["$daysInStock", 30] }, "NORMAL", "FAST_MOVING"] }
+                    ]
+                }
+            }
+        },
+        { $sort: { daysInStock: -1 } }
+    ]);
+};
+
+/**
+ * PROFIT REPORT (Sales - Purchase Cost)
+ * Calculates realized margin on sold items.
+ */
+const getProfitReport = async (startDate, endDate) => {
+    const match = { isDeleted: false };
+    if (startDate || endDate) {
+        match.saleDate = {};
+        if (startDate) match.saleDate.$gte = new Date(startDate);
+        if (endDate) match.saleDate.$lte = new Date(endDate);
+    }
+
+    return await Sale.aggregate([
+        { $match: match },
+        { $unwind: "$products" },
+        {
+            $lookup: {
+                from: "products",
+                localField: "products.productId",
+                foreignField: "_id",
+                as: "productData"
+            }
+        },
+        { $unwind: "$productData" },
+        {
+            $group: {
+                _id: "$products.productId",
+                name: { $first: "$productData.name" },
+                sku: { $first: "$productData.sku" },
+                qtySold: { $sum: "$products.quantity" },
+                revenue: { $sum: "$products.total" },
+                totalCost: { $sum: { $multiply: ["$products.quantity", "$productData.costPrice"] } }
+            }
+        },
+        {
+            $project: {
+                name: 1,
+                sku: 1,
+                qtySold: 1,
+                revenue: 1,
+                totalCost: 1,
+                profit: { $subtract: ["$revenue", "$totalCost"] },
+                margin: {
+                    $cond: [
+                        { $eq: ["$revenue", 0] },
+                        0,
+                        { $multiply: [{ $divide: [{ $subtract: ["$revenue", "$totalCost"] }, "$revenue"] }, 100] }
+                    ]
+                }
+            }
+        },
+        { $sort: { profit: -1 } }
+    ]);
+};
+
 module.exports = {
     getDailySalesReport,
     getMonthlySalesReport,
@@ -791,6 +887,8 @@ module.exports = {
     getPurchaseRegister,
     getSalesReport,
     getStockReport,
-    getMovementReport
+    getMovementReport,
+    getStockAgingReport,
+    getProfitReport
 };
 

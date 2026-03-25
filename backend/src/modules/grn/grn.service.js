@@ -18,25 +18,59 @@ const generateGrnNumber = async (session = null) => {
 };
 
 /**
- * Create a new GRN
- * @param {Object} grnData - GRN data including purchaseId and items
- * @param {String} userId - User creating the GRN
+ * Step 1: Create a new GRN (Partial Receiving Support)
+ * Manages the increment of received counts without affecting physical stock.
  */
 const createGRN = async (grnData, userId) => {
     return await withTransaction(async (session) => {
         const { purchaseId, items } = grnData;
 
-        // 1. Workflow validation: Ensure PURCHASE exists and transition is allowed
+        // 1. Validate Purchase Document
         const purchase = await Purchase.findById(purchaseId).session(session);
         if (!purchase) throw new Error(`Purchase record ${purchaseId} not found`);
 
-        workflowService.validateNextStep(DocumentType.PURCHASE, DocumentType.GRN);
+        // 2. Fetch all existing GRNs to calculate total received history
+        const existingGrns = await GRN.find({ 
+            purchaseId, 
+            isDeleted: false 
+        }).session(session);
 
-        // Validation: Every item's receivedQty must be <= orderedQty
+        const processedItems = [];
+
         for (const item of items) {
-            if (item.receivedQty > item.orderedQty) {
-                throw new Error(`Invalid received quantity for product ${item.productId}. Received (${item.receivedQty}) cannot exceed ordered (${item.orderedQty})`);
+            const originalPurchaseItem = purchase.products.find(
+                p => p.productId.toString() === item.productId.toString()
+            );
+
+            if (!originalPurchaseItem) {
+                throw new Error(`Product ${item.productId} was not part of original Purchase Order`);
             }
+
+            const orderedQty = originalPurchaseItem.quantity;
+
+            // Calculate historical total received
+            let totalPreviouslyReceived = 0;
+            existingGrns.forEach(g => {
+                const prevItem = g.items.find(i => i.productId.toString() === item.productId.toString());
+                if (prevItem) {
+                    totalPreviouslyReceived += prevItem.receivedQty;
+                }
+            });
+
+            const currentTotalReceived = totalPreviouslyReceived + item.receivedQty;
+
+            // Validation: Ensure total receiving (historical + current) <= Ordered
+            if (currentTotalReceived > orderedQty) {
+                throw new Error(`Overage error for product ${item.productId}. Total received (${currentTotalReceived}) would exceed ordered (${orderedQty}). Previously received: ${totalPreviouslyReceived}`);
+            }
+
+            processedItems.push({
+                productId: item.productId,
+                orderedQty,
+                receivedQty: item.receivedQty,
+                pendingQty: orderedQty - currentTotalReceived,
+                batchNumber: item.batchNumber || `BATCH-${Date.now()}`
+            });
         }
 
         const grnNumber = await generateGrnNumber(session);
@@ -44,38 +78,33 @@ const createGRN = async (grnData, userId) => {
         const grn = new GRN({
             grnNumber,
             purchaseId,
-            items,
+            items: processedItems,
             receivedBy: userId,
-            status: GrnStatus.COMPLETED // Automatically marked completed as per standard GRN process if all items are validated
+            status: GrnStatus.COMPLETED
         });
 
         await grn.save({ session });
         
         // Link document and log transition
         await workflowService.linkDocuments(purchaseId, grn._id, DocumentType.PURCHASE, DocumentType.GRN);
-        await workflowService.updateStatus(grn._id, DocumentType.GRN, null, GrnStatus.COMPLETED, userId, `Created GRN ${grnNumber} from Purchase ${purchase.purchaseNumber}`);
+        await workflowService.updateStatus(grn._id, DocumentType.GRN, null, GrnStatus.COMPLETED, userId, `Created GRN ${grnNumber} (Partial Receipt) from Purchase ${purchase.purchaseNumber}`);
         
-        // Update purchase history note if needed (via meta/notes)
-        await workflowService.updateStatus(purchaseId, DocumentType.PURCHASE, purchase.status, purchase.status, userId, `GRN ${grnNumber} linked`);
-
         return grn;
     });
 };
 
-/**
- * Get GRN by ID
- */
 const getGRNById = async (id) => {
-    const grn = await GRN.findOne({ _id: id, isDeleted: false })
+    return await GRN.findOne({ _id: id, isDeleted: false })
         .populate('purchaseId')
-        .populate('receivedBy', 'name email')
-        .populate('items.productId', 'name sku barcode');
-    
-    if (!grn) throw new Error('GRN not found');
-    return grn;
+        .populate('items.productId', 'name sku');
+};
+
+const getGrnsByPurchase = async (purchaseId) => {
+    return await GRN.find({ purchaseId, isDeleted: false }).sort({ createdAt: -1 });
 };
 
 module.exports = {
     createGRN,
-    getGRNById
+    getGRNById,
+    getGrnsByPurchase
 };

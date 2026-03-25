@@ -25,12 +25,12 @@ const dispatchSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             required: false // Optional if dispatch can be manual
         },
-        source: {
+        sourceWarehouseId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Warehouse',
             required: [true, 'Source warehouse reference is required']
         },
-        destination: {
+        destinationStoreId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Store',
             required: [true, 'Destination store reference is required']
@@ -44,7 +44,7 @@ const dispatchSchema = new mongoose.Schema(
         dispatchedAt: {
             type: Date
         },
-        deliveredAt: {
+        receivedAt: {
             type: Date
         },
         notes: {
@@ -59,8 +59,8 @@ const dispatchSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
-dispatchSchema.index({ source: 1 });
-dispatchSchema.index({ destination: 1 });
+dispatchSchema.index({ sourceWarehouseId: 1 });
+dispatchSchema.index({ destinationStoreId: 1 });
 dispatchSchema.index({ status: 1 });
 
 module.exports = mongoose.model('Dispatch', dispatchSchema);

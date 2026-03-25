@@ -79,8 +79,8 @@ const approveQC = async (id, userId) => {
 
         const grn = qc.grnId;
         const purchase = grn.purchaseId;
-        const storeId = purchase.storeId;
-        if (!storeId) throw new Error('No store destination linked to this QC (via GRN -> Purchase)');
+        const warehouseId = purchase.storeId; // Treating the receiving entity of Purchase as Warehouse in ERP flow
+        if (!warehouseId) throw new Error('No Warehouse destination linked to this QC (via GRN -> Purchase)');
 
         const before = qc.toObject();
         let totalLossAmount = 0;
@@ -90,12 +90,12 @@ const approveQC = async (id, userId) => {
             const purchaseItem = purchase.products.find(p => p.productId.toString() === item.productId.toString());
             const rate = purchaseItem ? purchaseItem.rate : 0;
 
-            // 1. Add Approved Stock
+            // 1. Add Approved Stock to WAREHOUSE
             if (item.approvedQty > 0) {
                 await addStock({
                     variantId: item.variantId || item.productId,
-                    locationId: storeId,
-                    locationType: 'STORE',
+                    locationId: warehouseId,
+                    locationType: 'WAREHOUSE',
                     qty: item.approvedQty,
                     type: 'QC_APPROVED',
                     referenceId: qc._id,
@@ -105,18 +105,15 @@ const approveQC = async (id, userId) => {
                 });
             }
 
-            // 2. Track Loss for Rejected
+            // 2. Track Loss for Rejected in WAREHOUSE
             if (item.rejectedQty > 0) {
                 totalLossAmount += (item.rejectedQty * rate);
-                // We might want to track damaged items in a specific location or just as MOVEMENT
-                // User asked: rejectedQty -> damaged stock. 
-                // I'll call addStock for damaged location if exists, or just log movement with 'DAMAGED'
                 await addStock({
                     variantId: item.variantId || item.productId,
-                    locationId: storeId,
-                    locationType: 'STORE',
+                    locationId: warehouseId,
+                    locationType: 'WAREHOUSE',
                     qty: item.rejectedQty,
-                    type: 'DAMAGED', // Explicit type for filtering
+                    type: 'DAMAGED', 
                     referenceId: qc._id,
                     referenceType: 'QC',
                     performedBy: userId,
@@ -169,7 +166,7 @@ const approveQC = async (id, userId) => {
         });
 
         // Document transition from QC to STOCK_UPDATE
-        await workflowService.updateStatus(qc._id, DocumentType.QC, QcStatus.PENDING, 'STOCK_UPDATE', userId, `QC ${qc.qcNumber} Approved - Stock added to Store`);
+        await workflowService.updateStatus(qc._id, DocumentType.QC, QcStatus.PENDING, 'STOCK_UPDATE', userId, `QC ${qc.qcNumber} Approved - Stock added to Warehouse`);
 
         return qc;
     });

@@ -42,8 +42,12 @@ const registerRoutes = (app) => {
     app.use('/api/stock', require('./modules/stock/stock.routes'));
     app.use('/api/approval', require('./modules/approval/approval.routes'));
     app.use('/api/config', require('./modules/systemConfig/systemConfig.routes'));
+    app.use('/api/dispatch', require('./modules/dispatch/dispatch.routes'));
+    app.use('/api/returns', require('./modules/returns/return.routes'));
     app.use('/api/notifications', require('./modules/notifications/notification.routes'));
     app.use('/api/rbac', require('./modules/rbac/rbac.routes'));
+    app.use('/api/accounting', require('./modules/accounting/accounting.routes'));
+    app.use('/api/delivery-challans', require('./modules/deliveryChallan/deliveryChallan.routes'));
 };
 
 module.exports = registerRoutes;

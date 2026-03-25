@@ -41,7 +41,7 @@ const SaleStatus = {
 const DispatchStatus = {
     PENDING: 'PENDING',
     DISPATCHED: 'DISPATCHED',
-    DELIVERED: 'DELIVERED',
+    RECEIVED: 'RECEIVED',
 };
 
 const PaymentMethod = {
@@ -53,10 +53,10 @@ const PaymentMethod = {
 };
 
 const ReturnType = {
-    CUSTOMER_RETURN: 'CUSTOMER_RETURN',
+    SALES_RETURN: 'SALES_RETURN',
+    PURCHASE_RETURN: 'PURCHASE_RETURN',
     STORE_TO_FACTORY: 'STORE_TO_FACTORY',
     DAMAGED: 'DAMAGED',
-    PURCHASE_RETURN: 'PURCHASE_RETURN',
 };
 
 const ReturnStatus = {

@@ -1,9 +1,6 @@
 const dispatchService = require('./dispatch.service');
 const { sendSuccess, sendError } = require('../../utils/response.handler');
 
-/**
- * Handle POST /dispatch
- */
 const create = async (req, res, next) => {
     try {
         const dispatch = await dispatchService.createDispatch(req.body, req.user._id);
@@ -13,9 +10,6 @@ const create = async (req, res, next) => {
     }
 };
 
-/**
- * Handle PUT /dispatch/:id/complete
- */
 const complete = async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -26,25 +20,18 @@ const complete = async (req, res, next) => {
     }
 };
 
-/**
- * List all dispatches
- */
-const getAll = async (req, res, next) => {
+const get = async (req, res, next) => {
     try {
-        const dispatches = await dispatchService.getAllDispatches(req.query);
-        return sendSuccess(res, { dispatches }, 'Dispatches retrieved successfully');
+        const dispatches = await dispatchService.getDispatches(req.query);
+        return sendSuccess(res, { dispatches }, 'Dispatches retrieved');
     } catch (error) {
         next(error);
     }
 };
 
-/**
- * Get dispatch by ID
- */
 const getById = async (req, res, next) => {
     try {
-        const { id } = req.params;
-        const dispatch = await dispatchService.getDispatchById(id);
+        const dispatch = await dispatchService.getDispatchById(req.params.id);
         return sendSuccess(res, { dispatch }, 'Dispatch details retrieved');
     } catch (error) {
         next(error);
@@ -54,6 +41,6 @@ const getById = async (req, res, next) => {
 module.exports = {
     create,
     complete,
-    getAll,
+    get,
     getById
 };

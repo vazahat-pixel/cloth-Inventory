@@ -18,6 +18,14 @@ const grnItemSchema = new mongoose.Schema({
     receivedQty: {
         type: Number,
         required: true
+    },
+    pendingQty: {
+        type: Number,
+        default: 0
+    },
+    batchNumber: {
+        type: String,
+        trim: true
     }
 }, { _id: false });
 

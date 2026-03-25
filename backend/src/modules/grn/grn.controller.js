@@ -1,25 +1,28 @@
 const grnService = require('./grn.service');
 const { sendSuccess, sendError } = require('../../utils/response.handler');
 
-/**
- * POST /grn -> createGRN
- */
 const create = async (req, res, next) => {
     try {
         const grn = await grnService.createGRN(req.body, req.user._id);
-        sendSuccess(res, 'GRN created successfully', grn, 201);
+        return sendSuccess(res, { grn }, 'GRN created successfully');
     } catch (err) {
         next(err);
     }
 };
 
-/**
- * GET /grn/:id -> getGRNById
- */
 const getById = async (req, res, next) => {
     try {
         const grn = await grnService.getGRNById(req.params.id);
-        sendSuccess(res, 'GRN fetched successfully', grn);
+        return sendSuccess(res, { grn }, 'GRN fetched successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
+const getByPurchase = async (req, res, next) => {
+    try {
+        const grns = await grnService.getGrnsByPurchase(req.params.purchaseId);
+        return sendSuccess(res, { grns }, 'GRN history for this purchase retrieved');
     } catch (err) {
         next(err);
     }
@@ -27,5 +30,6 @@ const getById = async (req, res, next) => {
 
 module.exports = {
     create,
-    getById
+    getById,
+    getByPurchase
 };

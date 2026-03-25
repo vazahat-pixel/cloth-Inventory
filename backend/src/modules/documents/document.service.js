@@ -16,7 +16,8 @@ const generateDocumentNumber = async (type, session = null) => {
 };
 
 /**
- * Create a new Document
+ * 1. Create a new Document
+ * Supports specifying entityName (Supplier/Customer) for easy visibility.
  */
 const createDocument = async (docData, userId) => {
     return await withTransaction(async (session) => {
@@ -26,7 +27,7 @@ const createDocument = async (docData, userId) => {
             ...docData,
             documentNumber,
             createdBy: userId,
-            status: DocumentStatus.DRAFT
+            status: docData.status || DocumentStatus.DRAFT
         });
 
         await document.save({ session });
@@ -35,16 +36,29 @@ const createDocument = async (docData, userId) => {
 };
 
 /**
- * List Documents with filters and pagination
+ * 2. List Documents and ENHANCE ERP visibility with filters and search.
+ * Filter by Type (PO, GRN, QC, SALE)
+ * Filter by Status (PENDING, APPROVED)
+ * Search by Number or Supplier/Customer
  */
 const getAllDocuments = async (query) => {
-    const { page = 1, limit = 10, type, status, branchId, warehouseId } = query;
+    const { page = 1, limit = 10, type, status, search, branchId, warehouseId } = query;
     const filter = { isDeleted: false };
 
+    // Advanced Filters
     if (type) filter.type = type;
     if (status) filter.status = status;
     if (branchId) filter.branchId = branchId;
     if (warehouseId) filter.warehouseId = warehouseId;
+
+    // Search globally across key identifiers
+    if (search) {
+        filter.$or = [
+            { documentNumber: { $regex: search, $options: 'i' } },
+            { entityName: { $regex: search, $options: 'i' } },
+            { notes: { $regex: search, $options: 'i' } }
+        ];
+    }
 
     const skip = (page - 1) * limit;
 
@@ -53,46 +67,48 @@ const getAllDocuments = async (query) => {
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(parseInt(limit))
-            .populate('createdBy', 'name email')
-            .populate('approvedBy', 'name email')
+            .populate('createdBy', 'name')
+            .populate('approvedBy', 'name')
             .populate('branchId', 'name')
             .populate('warehouseId', 'name')
             .populate('items.productId', 'name sku barcode'),
         Document.countDocuments(filter)
     ]);
 
-    return { documents, total, page: parseInt(page), limit: parseInt(limit) };
+    return { 
+        documents, 
+        total, 
+        page: parseInt(page), 
+        limit: parseInt(limit),
+        totalPages: Math.ceil(total / limit)
+    };
 };
 
 /**
- * Approve a Document
+ * 3. Approve a Document
  */
 const approveDocument = async (id, userId) => {
     return await withTransaction(async (session) => {
         const document = await Document.findById(id).session(session);
         if (!document) throw new Error('Document not found');
-        if (document.status !== DocumentStatus.DRAFT) throw new Error(`Only draft documents can be approved (Current: ${document.status})`);
+        if (document.status !== DocumentStatus.DRAFT && document.status !== 'PENDING') {
+            throw new Error(`Only draft/pending documents can be approved (Current: ${document.status})`);
+        }
 
         document.status = DocumentStatus.APPROVED;
         document.approvedBy = userId;
         await document.save({ session });
-
-        // Logic for downstream actions (like updating inventory) could be added here
         
         return document;
     });
 };
 
-/**
- * Reject a Document
- */
 const rejectDocument = async (id, userId) => {
     return await withTransaction(async (session) => {
         const document = await Document.findById(id).session(session);
         if (!document) throw new Error('Document not found');
-        if (document.status !== DocumentStatus.DRAFT) throw new Error(`Only draft documents can be rejected (Current: ${document.status})`);
 
-        document.status = DocumentStatus.REJECTED;
+        document.status = 'REJECTED'; // Static string for flexibility
         document.approvedBy = userId;
         await document.save({ session });
 

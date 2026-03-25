@@ -2,60 +2,44 @@ const Sale = require('../../models/sale.model');
 const Product = require('../../models/product.model');
 const StoreInventory = require('../../models/storeInventory.model');
 const WarehouseInventory = require('../../models/warehouseInventory.model');
+const ApprovalRequest = require('../../models/approvalRequest.model');
 
 /**
- * Summary: Sales Today & Total Stock Metrics
+ * EXECUTIVE DASHBOARD INSIGHTS
+ * 1. Total Sales Today
+ * 2. Total Stock Value
+ * 3. Low Stock Alerts
+ * 4. Top Selling Products
  */
-const getSummary = async () => {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+const getDashboardStats = async (storeId = null) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-    const [salesToday, warehouseStock, storeStock] = await Promise.all([
-        // Sales Today
-        Sale.aggregate([
-            { $match: { saleDate: { $gte: todayStart }, isDeleted: false } },
-            { 
-                $group: { 
-                    _id: null, 
-                    revenue: { $sum: '$grandTotal' },
-                    count: { $sum: 1 }
-                } 
-            }
-        ]),
-        // Warehouse Stock Total
-        WarehouseInventory.aggregate([
-            { $group: { _id: null, totalQty: { $sum: '$quantity' } } }
-        ]),
-        // Store Stock Total
-        StoreInventory.aggregate([
-            { $group: { _id: null, totalQty: { $sum: '$quantityAvailable' } } }
-        ])
+    // 1. Total Sales Today
+    const saleQuery = { saleDate: { $gte: today }, isDeleted: false };
+    if (storeId) saleQuery.storeId = storeId;
+    const salesToday = await Sale.aggregate([
+        { $match: saleQuery },
+        { $group: { _id: null, total: { $sum: '$grandTotal' }, count: { $sum: 1 } } }
     ]);
-
-    return {
-        salesToday: salesToday[0] || { revenue: 0, count: 0 },
-        totalStock: (warehouseStock[0]?.totalQty || 0) + (storeStock[0]?.totalQty || 0),
-        warehouseStock: warehouseStock[0]?.totalQty || 0,
-        storeStock: storeStock[0]?.totalQty || 0
-    };
-};
-
-/**
- * Top Selling Products (By Quantity)
- */
-const getTopProducts = async (limit = 5) => {
-    return await Sale.aggregate([
+    // 2. Stock Value (Cost Price based)
+    const productStats = await Product.aggregate([
         { $match: { isDeleted: false } },
+        { $group: { _id: null, totalValue: { $sum: { $multiply: ['$costPrice', '$factoryStock'] } } } }
+    ]);
+    // 3. Low Stock Count
+    const lowStockAlerts = await StoreInventory.countDocuments({
+        $expr: { $lte: ['$quantityAvailable', '$minStockLevel'] }
+    });
+    // 4. Pending Approvals Count
+    const pendingApprovals = await ApprovalRequest.countDocuments({ status: 'PENDING' });
+    // 5. Top 5 Products
+    const topProducts = await Sale.aggregate([
+        { $match: { isDeleted: false } }, // Global top
         { $unwind: '$products' },
-        { 
-            $group: { 
-                _id: '$products.productId', 
-                soldQty: { $sum: '$products.quantity' },
-                totalRevenue: { $sum: '$products.total' }
-            } 
-        },
-        { $sort: { soldQty: -1 } },
-        { $limit: limit },
+        { $group: { _id: '$products.productId', totalQty: { $sum: '$products.quantity' } } },
+        { $sort: { totalQty: -1 } },
+        { $limit: 5 },
         {
             $lookup: {
                 from: 'products',
@@ -65,55 +49,19 @@ const getTopProducts = async (limit = 5) => {
             }
         },
         { $unwind: '$product' },
-        { 
-            $project: { 
-                name: '$product.name', 
-                sku: '$product.sku', 
-                soldQty: 1, 
-                totalRevenue: 1 
-            } 
-        }
-    ]);
-};
-
-/**
- * Low Stock Alerts (Across all locations)
- */
-const getAlerts = async () => {
-    // We'll aggregate store inventory and find where total qty < minStockLevel
-    const storeAlerts = await StoreInventory.aggregate([
-        {
-            $group: {
-                _id: "$productId",
-                qty: { $sum: "$quantityAvailable" }
-            }
-        },
-        {
-            $lookup: {
-                from: "products",
-                localField: "_id",
-                foreignField: "_id",
-                as: "product"
-            }
-        },
-        { $unwind: "$product" },
-        {
-            $project: {
-                name: "$product.name",
-                sku: "$product.sku",
-                qty: 1,
-                minStockLevel: "$product.minStockLevel",
-                isLow: { $lte: ["$qty", "$product.minStockLevel"] }
-            }
-        },
-        { $match: { isLow: true } }
+        { $project: { name: '$product.name', sku: '$product.sku', totalQty: 1 } }
     ]);
 
-    return { storeAlerts };
+    return {
+        revenueToday: salesToday[0]?.total || 0,
+        salesCountToday: salesToday[0]?.count || 0,
+        inventoryValue: productStats[0]?.totalValue || 0,
+        lowStockAlerts,
+        pendingApprovals,
+        topProducts
+    };
 };
 
 module.exports = {
-    getSummary,
-    getTopProducts,
-    getAlerts
+    getDashboardStats
 };

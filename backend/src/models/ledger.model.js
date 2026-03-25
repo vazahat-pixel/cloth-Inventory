@@ -4,7 +4,12 @@ const ledgerSchema = new mongoose.Schema(
     {
         voucherType: {
             type: String,
-            enum: ["SALE", "PURCHASE", "RETURN", "PAYMENT", "SALE_CANCEL", "PURCHASE_CANCEL", "RETURN_CANCEL"],
+            enum: [
+                "SALE", "PURCHASE", "RETURN", "PAYMENT", 
+                "SALE_CANCEL", "PURCHASE_CANCEL", "RETURN_CANCEL",
+                "JOURNAL", "CREDIT_NOTE", "DEBIT_NOTE", 
+                "BANK_RECEIPT", "BANK_PAYMENT", "CASH_RECEIPT", "CASH_PAYMENT"
+            ],
             required: true,
         },
         voucherId: {

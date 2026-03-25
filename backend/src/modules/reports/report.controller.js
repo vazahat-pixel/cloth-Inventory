@@ -202,6 +202,25 @@ const getMovementReport = async (req, res, next) => {
     }
 };
 
+const getStockAging = async (req, res, next) => {
+    try {
+        const report = await reportService.getStockAgingReport();
+        return sendSuccess(res, { report }, 'Stock aging report retrieved');
+    } catch (err) {
+        next(err);
+    }
+};
+
+const getProfitReport = async (req, res, next) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const report = await reportService.getProfitReport(startDate, endDate);
+        return sendSuccess(res, { report }, 'Profit report retrieved');
+    } catch (err) {
+        next(err);
+    }
+};
+
 module.exports = {
     getDailySales,
     getMonthlySales,
@@ -221,5 +240,7 @@ module.exports = {
     getInventoryExport,
     getSalesReport,
     getStockReport,
-    getMovementReport
+    getMovementReport,
+    getStockAging,
+    getProfitReport
 };
