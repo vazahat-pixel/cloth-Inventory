@@ -19,6 +19,13 @@ const utilityCards = [
     actionPath: '/reports/ledger',
     icon: AssessmentOutlinedIcon,
   },
+  {
+    title: 'Voucher Re-Saving',
+    description: 'Bulk re-save and correct voucher numbering issues for cash, bank, or journal vouchers.',
+    actionLabel: 'Re-Save Tools',
+    actionPath: '/accounts/utilities/re-save-vouchers',
+    icon: BuildOutlinedIcon,
+  },
 ];
 
 function AccountsUtilitiesPage() {
