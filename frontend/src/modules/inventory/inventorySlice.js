@@ -30,33 +30,30 @@ export const fetchMovements = createAsyncThunk(
 
 export const transferStock = createAsyncThunk(
   'inventory/transfer',
-  async (transferData, { rejectWithValue }) => {
+  async (transferData, { dispatch, rejectWithValue }) => {
     try {
-      // 1. Create Dispatch
       const payload = {
         sourceWarehouseId: transferData.sourceWarehouseId,
         destinationStoreId: transferData.destinationStoreId,
         products: (transferData.products || transferData.items || []).map(p => ({
           productId: p.productId || p.variantId || p.id,
-          quantity: p.quantity,
-          price: p.price || 0
+          qty: p.quantity || p.qty
         })),
         notes: transferData.notes
       };
 
+      // 1. Create Pending Dispatch
       const response = await api.post('/dispatch', payload);
-      const dispatch = response.data.dispatch || response.data.data;
+      const resData = response.data.dispatch || response.data.data;
+      const dispatchId = resData._id || resData.id;
 
-      if (!dispatch || (!dispatch._id && !dispatch.id)) {
-        throw new Error('Failed to create dispatch');
-      }
+      // 2. Transition to DISPATCHED to trigger ATOMIC STOCK MOVEMENT
+      const statusResponse = await api.patch(`/dispatch/${dispatchId}/status`, { status: 'DISPATCHED' });
+      
+      // 3. Refresh local stock overview to reflect change
+      dispatch(fetchStockOverview());
 
-      const dispatchId = dispatch._id || dispatch.id;
-
-      // 2. Mark as RECEIVED to update store stock immediately (Factory -> Store flow)
-      await api.patch(`/dispatch/${dispatchId}/status`, { status: 'RECEIVED' });
-
-      return normalizeResponse(dispatch, 'dispatch');
+      return statusResponse.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to transfer stock');
     }

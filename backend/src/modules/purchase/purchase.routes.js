@@ -2,6 +2,8 @@ const express = require('express');
 const purchaseController = require('./purchase.controller');
 const { protect } = require('../../middlewares/auth.middleware');
 const { requireAdmin } = require('../../middlewares/role.middleware');
+const { createPurchaseValidation } = require('./purchase.validation');
+const validate = require('../../middlewares/validate.middleware');
 
 const router = express.Router();
 
@@ -10,7 +12,7 @@ router.use(requireAdmin);
 
 router.route('/')
     .get(purchaseController.getAllPurchases)
-    .post(purchaseController.createPurchase);
+    .post(createPurchaseValidation, validate, purchaseController.createPurchase);
 
 router.route('/:id')
     .get(purchaseController.getPurchaseById)

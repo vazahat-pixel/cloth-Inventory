@@ -10,11 +10,14 @@ const create = async (req, res, next) => {
     }
 };
 
-const complete = async (req, res, next) => {
+const updateStatus = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const dispatch = await dispatchService.completeDispatch(id, req.user._id);
-        return sendSuccess(res, { dispatch }, 'Dispatch completed and stock transferred');
+        const { status } = req.body;
+        if (!status) return sendError(res, 'Status is required', 400);
+
+        const dispatch = await dispatchService.updateDispatchStatus(id, status, req.user._id);
+        return sendSuccess(res, { dispatch }, `Dispatch status updated to ${status}`);
     } catch (error) {
         next(error);
     }
@@ -40,7 +43,7 @@ const getById = async (req, res, next) => {
 
 module.exports = {
     create,
-    complete,
+    updateStatus,
     get,
     getById
 };

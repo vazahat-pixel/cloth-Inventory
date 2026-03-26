@@ -101,16 +101,18 @@ function PurchaseListPage() {
 
     return purchases.filter((row) => {
       const supplierName = supplierMap[row.supplierId] || '';
+      const invoiceNo = row.invoiceNumber || row.billNumber || '';
       const matchesSearch = query
-        ? row.billNumber.toLowerCase().includes(query) ||
+        ? invoiceNo.toLowerCase().includes(query) ||
         supplierName.toLowerCase().includes(query)
         : true;
 
       const matchesWarehouse =
         warehouseFilter === 'all' ? true : row.warehouseId === warehouseFilter;
 
-      const matchesDateFrom = dateFrom ? row.billDate >= dateFrom : true;
-      const matchesDateTo = dateTo ? row.billDate <= dateTo : true;
+      const invoiceDate = row.invoiceDate || row.billDate || '';
+      const matchesDateFrom = dateFrom ? invoiceDate >= dateFrom : true;
+      const matchesDateTo = dateTo ? invoiceDate <= dateTo : true;
 
       return matchesSearch && matchesWarehouse && matchesDateFrom && matchesDateTo;
     });
@@ -219,9 +221,9 @@ function PurchaseListPage() {
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 700 }}>Bill Number</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Invoice No.</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Supplier</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Bill Date</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Invoice Date</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Warehouse</TableCell>
                     <TableCell sx={{ fontWeight: 700 }} align="right">
                       Total Qty
@@ -236,9 +238,9 @@ function PurchaseListPage() {
                 <TableBody>
                   {paginatedRows.map((row) => (
                     <TableRow key={row.id} hover>
-                      <TableCell sx={{ fontWeight: 700 }}>{row.billNumber}</TableCell>
-                      <TableCell>{supplierMap[row.supplierId] || (typeof row.supplierId === 'object' ? row.supplierId.name : row.supplierName) || ''}</TableCell>
-                      <TableCell>{row.billDate}</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>{row.invoiceNumber || row.billNumber || '-'}</TableCell>
+                      <TableCell>{supplierMap[row.supplierId] || (row.supplierId?.name) || ''}</TableCell>
+                      <TableCell>{row.invoiceDate || row.billDate || '-'}</TableCell>
                       <TableCell>{warehouseMap[row.warehouseId] || (typeof row.warehouseId === 'object' ? row.warehouseId.name : row.warehouseName) || ''}</TableCell>
                       <TableCell align="right">{row.totals?.totalQuantity ?? '-'}</TableCell>
                       <TableCell align="right">{row.totals?.netAmount != null ? Number(row.totals.netAmount).toFixed(2) : '-'}</TableCell>

@@ -36,6 +36,8 @@ import { fetchMasters } from '../masters/mastersSlice';
 import { fetchPricingRules, fetchSchemes, fetchCoupons } from '../pricing/pricingSlice';
 import { fetchItems } from '../items/itemsSlice';
 import { fetchLoyaltyConfig, fetchCreditNotes } from '../customers/customersSlice';
+import api from '../../services/api';
+import { fetchGstSlabs } from '../gst/gstSlice';
 import PaymentDialog from './PaymentDialog';
 import LoyaltyRedeemDialog from './LoyaltyRedeemDialog';
 import ExchangeInvoicePrint from './ExchangeInvoicePrint';
@@ -173,6 +175,7 @@ function BillingPage({
     dispatch(fetchMasters('stores'));
     dispatch(fetchItems());
     dispatch(fetchStockOverview());
+    dispatch(fetchGstSlabs());
     dispatch(fetchPricingRules());
     dispatch(fetchSchemes());
     dispatch(fetchCoupons());
@@ -249,7 +252,7 @@ function BillingPage({
     const map = {};
     (items || []).forEach((item) => {
       map[item.id] = {
-        rate: toNumber(item.salePrice || item.sellingPrice || item.mrp || 0),
+        rate: toNumber(item.salePrice || 0),
         itemName: item.name,
         styleCode: item.sku || '',
         barcode: item.barcode || '', // ADDED
@@ -410,22 +413,42 @@ function BillingPage({
     setErrorMessage('');
   };
 
-  const handleBarcodeAdd = (scannedValue) => {
+  const handleBarcodeAdd = async (scannedValue) => {
     const rawCode = typeof scannedValue === 'string' ? scannedValue : barcodeInput;
-    const scannedCode = (rawCode || '').trim().toLowerCase();
-    if (!scannedCode) {
-      return;
-    }
+    const scannedCode = (rawCode || '').trim();
+    if (!scannedCode) return;
 
-    const matched = variantOptions.find((option) => (option.sku || '').toLowerCase() === scannedCode || (option.styleCode || '').toLowerCase() === scannedCode || (option.barcode || '').toLowerCase() === scannedCode);
-    if (!matched) {
-      setErrorMessage('Product not found for this barcode');
-      return;
-    }
+    try {
+      setErrorMessage('');
+      const response = await api.get(`/products/barcode/${scannedCode}`);
+      const product = response.data.product || response.data.data;
+      
+      if (!product) {
+        setErrorMessage('Product not found for this barcode');
+        return;
+      }
 
-    upsertLine(matched);
-    setBarcodeInput('');
-    setErrorMessage('');
+      // Check real-time stock from our inventory list (or handle lack of it)
+      const stock = warehouseStock.find(s => (s.productId === product._id || s.barcode === product.barcode));
+      const available = stock ? toNumber(stock.quantity) : 0;
+
+      upsertLine({
+        productId: product._id,
+        variantId: product._id,
+        itemName: product.name,
+        styleCode: product.sku || '',
+        size: product.size || '',
+        color: product.color || '',
+        sku: product.sku || '',
+        barcode: product.barcode || '',
+        available: available,
+        rate: toNumber(product.salePrice),
+        tax: 0, // Should come from linked HSN -> GST
+      });
+      setBarcodeInput('');
+    } catch (err) {
+      setErrorMessage(err.response?.data?.message || 'Error fetching product by barcode');
+    }
   };
 
   const updateLineField = (lineId, field, value) => {

@@ -19,79 +19,80 @@ const generateDispatchNumber = async (session = null) => {
 
 /**
  * CREATE DISPATCH (Warehouse -> Store Movement)
- * Requirement: Execute stock reduction and increase at creation phase.
+ * Initial state: PENDING. No stock moved yet.
  */
 const createDispatch = async (dispatchData, userId) => {
     return await withTransaction(async (session) => {
         const dispatchNumber = await generateDispatchNumber(session);
         
-        // 1. STOCK MOVEMENT ENGINE (Transactional)
-        for (const item of dispatchData.items) {
-            // Reduce from Warehouse
-            await removeStock({
-                variantId: item.variantId,
-                locationId: dispatchData.sourceWarehouseId,
-                locationType: 'WAREHOUSE',
-                qty: item.qty,
-                type: 'TRANSFER',
-                referenceId: null, // Update later after save
-                referenceType: 'Dispatch',
-                performedBy: userId,
-                session
-            });
+        // Use products array naming as per common frontend payload
+        const rawItems = dispatchData.items || dispatchData.products || [];
+        const items = rawItems.map(item => ({
+            variantId: item.variantId || item.productId,
+            qty: Number(item.qty || item.quantity)
+        }));
 
-            // Increase in Store
-            await addStock({
-                variantId: item.variantId,
-                locationId: dispatchData.destinationStoreId,
-                locationType: 'STORE',
-                qty: item.qty,
-                type: 'TRANSFER',
-                referenceId: null, // Update later after save
-                referenceType: 'Dispatch',
-                performedBy: userId,
-                session
-            });
-        }
-
-        // 2. Save Dispatch Document (Auto-DISPATCHED)
         const dispatch = new Dispatch({
             ...dispatchData,
+            items,
             dispatchNumber,
-            status: DispatchStatus.DISPATCHED,
-            dispatchedAt: Date.now(),
+            status: DispatchStatus.PENDING,
             createdBy: userId
         });
 
         await dispatch.save({ session });
 
-        // Update referenceId in StockMovements if needed (internal logic usually handles it via movement model)
-        
         // Log in workflow
-        await workflowService.updateStatus(dispatch._id, DocumentType.DISPATCH, null, DispatchStatus.DISPATCHED, userId, `Dispatch ${dispatchNumber} created: Stock moved Warehouse -> Store`);
+        await workflowService.updateStatus(dispatch._id, DocumentType.DISPATCH, null, DispatchStatus.PENDING, userId, `Dispatch ${dispatchNumber} created in PENDING state.`);
 
         return dispatch;
     });
 };
 
 /**
- * COMPLETE DISPATCH (Receipt Confirmation)
- * Status update to RECEIVED.
+ * UPDATE DISPATCH STATUS
+ * Performs atomic stock transfer during DISPATCHED state change.
  */
-const completeDispatch = async (id, userId) => {
+const updateDispatchStatus = async (id, status, userId) => {
     return await withTransaction(async (session) => {
         const dispatch = await Dispatch.findById(id).session(session);
         if (!dispatch) throw new Error('Dispatch record not found');
-        if (dispatch.status === DispatchStatus.RECEIVED) {
-            throw new Error('Dispatch already received and completed');
+
+        const oldStatus = dispatch.status;
+        if (oldStatus === status) return dispatch;
+
+        if (status === DispatchStatus.DISPATCHED && oldStatus === DispatchStatus.PENDING) {
+            // ATOMIC STOCK MOVEMENT: Warehouse -> Store
+            const stockService = require('../../services/stock.service');
+            
+            for (const item of dispatch.items) {
+                await stockService.transferStock({
+                    variantId: item.variantId,
+                    fromLocationId: dispatch.sourceWarehouseId,
+                    fromLocationType: 'WAREHOUSE',
+                    toLocationId: dispatch.destinationStoreId,
+                    toLocationType: 'STORE',
+                    qty: item.qty,
+                    referenceId: dispatch._id,
+                    referenceType: 'Dispatch',
+                    performedBy: userId,
+                    session
+                });
+            }
+            dispatch.dispatchedAt = Date.now();
+        } else if (status === DispatchStatus.RECEIVED && oldStatus === DispatchStatus.DISPATCHED) {
+            dispatch.receivedAt = Date.now();
+        } else if (status === DispatchStatus.CANCELLED && oldStatus === DispatchStatus.PENDING) {
+             // Just cancel, no stock moved yet
+        } else {
+            throw new Error(`Invalid status transition from ${oldStatus} to ${status}`);
         }
 
-        dispatch.status = DispatchStatus.RECEIVED;
-        dispatch.receivedAt = Date.now();
+        dispatch.status = status;
         await dispatch.save({ session });
 
-        // Log receipt
-        await workflowService.updateStatus(dispatch._id, DocumentType.DISPATCH, DispatchStatus.DISPATCHED, DispatchStatus.RECEIVED, userId, `Dispatch ${dispatch.dispatchNumber} marked as RECEIVED`);
+        // Log in workflow
+        await workflowService.updateStatus(dispatch._id, DocumentType.DISPATCH, oldStatus, status, userId, `Dispatch ${dispatch.dispatchNumber} updated to ${status}`);
 
         return dispatch;
     });
@@ -101,12 +102,18 @@ const getDispatchById = async (id) => {
     return await Dispatch.findById(id)
         .populate('sourceWarehouseId', 'name')
         .populate('destinationStoreId', 'name')
-        .populate('items.variantId', 'name sku');
+        .populate('items.variantId', 'name sku barcode');
 };
 
-const getDispatches = async (filter = {}) => {
+const getDispatches = async (query = {}) => {
+    const { status, sourceWarehouseId, destinationStoreId } = query;
+    const filter = {};
+    if (status) filter.status = status;
+    if (sourceWarehouseId) filter.sourceWarehouseId = sourceWarehouseId;
+    if (destinationStoreId) filter.destinationStoreId = destinationStoreId;
+
     return await Dispatch.find(filter)
-        .sort({ createdAt: -1 })
+        .sort({ updatedAt: -1 })
         .populate('sourceWarehouseId', 'name')
         .populate('destinationStoreId', 'name');
 };

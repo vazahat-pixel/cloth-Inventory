@@ -11,7 +11,7 @@ router.post('/', dispatchController.create);
 router.get('/', dispatchController.get);
 router.get('/:id', dispatchController.getById);
 
-// Admin or stock manager only to complete movement
-router.put('/:id/complete', requireAdmin, dispatchController.complete);
+// Admin or stock manager only to update status
+router.patch('/:id/status', requireAdmin, dispatchController.updateStatus);
 
 module.exports = router;

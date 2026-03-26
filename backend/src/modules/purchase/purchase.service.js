@@ -15,11 +15,12 @@ const { createAuditLog } = require('../../middlewares/audit.middleware');
 const createPurchase = async (purchaseData, userId) => {
     return await withTransaction(async (session) => {
         // Handle field name variations between frontend and backend
-        const items = purchaseData.items || purchaseData.products || [];
-        const storeId = purchaseData.storeId || purchaseData.warehouseId;
-        const invoiceNumber = (purchaseData.invoiceNumber || purchaseData.billNumber || '').trim();
-        const invoiceDate = purchaseData.invoiceDate || purchaseData.billDate;
-        const notes = purchaseData.notes || purchaseData.remarks;
+        // Handle field name variations between frontend and backend
+        const items = purchaseData.products || [];
+        const storeId = purchaseData.warehouseId;
+        const invoiceNumber = (purchaseData.invoiceNumber || '').trim();
+        const invoiceDate = purchaseData.invoiceDate;
+        const notes = purchaseData.notes || '';
         const { supplierId } = purchaseData;
 
         // 1. Validate Supplier
@@ -42,6 +43,7 @@ const createPurchase = async (purchaseData, userId) => {
         // 3. Initialize totals
         let subTotal = 0;
         let totalTax = 0;
+        const otherCharges = toNumber(purchaseData.otherCharges);
         const processedProducts = [];
 
         // 4. Process items
@@ -49,36 +51,50 @@ const createPurchase = async (purchaseData, userId) => {
             const product = await Product.findById(item.productId).session(session);
             if (!product) throw new Error(`Product ${item.productId} not found`);
 
-            const taxableAmount = item.rate * item.quantity;
-            let gstPercent = 0;
-            let gstAmount = 0;
+            const quantity = toNumber(item.quantity);
+            const rate = toNumber(item.rate);
+            const discPercent = toNumber(item.discountPercentage);
+            
+            // Calculate taxable amount after line-item discount
+            const grossValue = rate * quantity;
+            const discountAmount = (grossValue * discPercent) / 100;
+            const taxableAmount = grossValue - discountAmount;
 
-            if (product.gstSlabId) {
+            let taxPercent = toNumber(item.taxPercentage);
+            let taxAmount = 0;
+
+            // If taxPercent is 0 or not provided, try to fetch from Slab (Default Logic)
+            // But if it's explicitly provided (Override), we use it.
+            if (taxPercent === 0 && product.gstSlabId) {
                 const slab = await GstSlab.findById(product.gstSlabId).session(session);
                 if (slab) {
-                    gstPercent = slab.percentage;
-                    const gstData = calculateGST(taxableAmount, slab.percentage, slab.type);
-                    gstAmount = gstData.totalTax;
+                    taxPercent = slab.percentage;
                 }
             }
 
-            const total = taxableAmount + gstAmount;
+            // Calculate GST
+            const gstData = calculateGST(taxableAmount, taxPercent);
+            taxAmount = gstData.totalTax;
+
+            const total = taxableAmount + taxAmount;
 
             processedProducts.push({
                 productId: item.productId,
-                quantity: item.quantity,
-                rate: item.rate,
+                quantity,
+                rate,
+                discountPercentage: discPercent,
+                taxPercentage: taxPercent,
                 taxableAmount,
-                gstPercent,
-                gstAmount,
+                gstPercent: taxPercent,
+                gstAmount: taxAmount,
                 total
             });
 
             subTotal += taxableAmount;
-            totalTax += gstAmount;
+            totalTax += taxAmount;
         }
 
-        const grandTotal = subTotal + totalTax;
+        const grandTotal = subTotal + totalTax + otherCharges;
 
         // 6. Save Purchase Record
         const purchase = new Purchase({
@@ -90,7 +106,9 @@ const createPurchase = async (purchaseData, userId) => {
             products: processedProducts,
             subTotal,
             totalTax,
+            otherCharges,
             grandTotal,
+            finalAmount: grandTotal, // for now, matches grandTotal
             status: PurchaseStatus.PENDING_QC,
             createdBy: userId,
             notes

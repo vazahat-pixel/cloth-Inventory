@@ -1,17 +1,6 @@
 const storeService = require('./store.service');
-const { validationResult } = require('express-validator');
 const { sendSuccess, sendError, sendCreated, sendNotFound } = require('../../utils/response.handler');
 const { buildPaginationMeta } = require('../../utils/pagination.helper');
-
-/**
- * Handle validation errors
- */
-const validate = (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        return sendError(res, errors.array()[0].msg, 400);
-    }
-};
 
 /**
  * @desc    Create a new store
@@ -20,9 +9,6 @@ const validate = (req, res) => {
  */
 const createStore = async (req, res, next) => {
     try {
-        const error = validate(req, res);
-        if (error) return error;
-
         const store = await storeService.createStore(req.body, req.user._id);
         return sendCreated(res, { store }, 'Store created successfully');
     } catch (err) {
@@ -67,9 +53,6 @@ const getStoreById = async (req, res, next) => {
  */
 const updateStore = async (req, res, next) => {
     try {
-        const error = validate(req, res);
-        if (error) return error;
-
         const store = await storeService.updateStore(req.params.id, req.body);
         return sendSuccess(res, { store }, 'Store updated successfully');
     } catch (err) {

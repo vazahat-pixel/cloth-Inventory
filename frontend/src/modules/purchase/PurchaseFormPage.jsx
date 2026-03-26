@@ -42,16 +42,22 @@ const toNumber = (value, fallback = 0) => {
 };
 
 const calculateTotals = (items, otherCharges) => {
-  // Simple UX display total; backend is final authority
   return items.reduce((acc, item) => {
-    const gross = toNumber(item.quantity) * toNumber(item.rate);
-    const disc = (gross * toNumber(item.discount)) / 100;
-    const tax = ((gross - disc) * toNumber(item.tax)) / 100;
-    acc.totalQuantity += toNumber(item.quantity);
+    const qty = toNumber(item.quantity);
+    const rate = toNumber(item.rate);
+    const discPercent = toNumber(item.discount);
+    const taxPercent = toNumber(item.tax);
+
+    const gross = qty * rate;
+    const disc = Number(((gross * discPercent) / 100).toFixed(2));
+    const taxable = gross - disc;
+    const tax = Number(((taxable * taxPercent) / 100).toFixed(2));
+
+    acc.totalQuantity += qty;
     acc.grossAmount += gross;
     acc.totalDiscount += disc;
     acc.totalTax += tax;
-    acc.netAmount = acc.grossAmount - acc.totalDiscount + acc.totalTax + toNumber(otherCharges);
+    acc.netAmount = Number((acc.grossAmount - acc.totalDiscount + acc.totalTax + toNumber(otherCharges)).toFixed(2));
     return acc;
   }, { totalQuantity: 0, grossAmount: 0, totalDiscount: 0, totalTax: 0, otherCharges: toNumber(otherCharges), netAmount: 0 });
 };
@@ -167,9 +173,9 @@ function PurchaseFormPage() {
 
     reset({
       supplierId: existingPurchase.supplierId,
-      invoiceNumber: existingPurchase.invoiceNumber || existingPurchase.billNumber,
-      invoiceDate: existingPurchase.invoiceDate || (existingPurchase.billDate ? new Date(existingPurchase.billDate).toISOString().split('T')[0] : getTodayDate()),
-      warehouseId: existingPurchase.warehouseId || existingPurchase.storeId,
+      invoiceNumber: existingPurchase.invoiceNumber,
+      invoiceDate: existingPurchase.invoiceDate ? new Date(existingPurchase.invoiceDate).toISOString().split('T')[0] : getTodayDate(),
+      warehouseId: existingPurchase.warehouseId,
       notes: existingPurchase.notes || '',
       otherCharges: existingPurchase.otherCharges || 0,
     });
@@ -224,7 +230,7 @@ function PurchaseFormPage() {
         sku: product.barcode || product.sku || '',
         brand: product.brand || '',
         category: product.category || '',
-        mrp: product.salePrice || 0,
+        salePrice: product.salePrice || 0,
         status: product.isActive === false ? 'Inactive' : 'Active',
         defaultRate: product.salePrice || product.costPrice || 0,
       })),
@@ -380,11 +386,15 @@ function PurchaseFormPage() {
     const preparedItems = lines.map((line) => {
       const quantity = toNumber(line.quantity);
       const rate = toNumber(line.rate);
+      const discountPercentage = toNumber(line.discount);
+      const taxPercentage = toNumber(line.tax);
 
       return {
-        productId: line.variantId,   // variantId holds the product _id
+        productId: line.variantId,
         quantity,
         rate,
+        discountPercentage,
+        taxPercentage
       };
     });
 

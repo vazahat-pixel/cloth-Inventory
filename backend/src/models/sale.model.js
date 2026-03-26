@@ -104,14 +104,22 @@ const saleSchema = new mongoose.Schema(
             igst: { type: Number, default: 0 }
         },
         totalTax: { type: Number, default: 0 },
-        grandTotal: {
-            type: Number,
-            required: true
-        },
         paymentMode: {
             type: String,
             enum: Object.values(PaymentMethod),
             default: PaymentMethod.CASH
+        },
+        amountPaid: {
+            type: Number,
+            default: 0
+        },
+        dueAmount: {
+            type: Number,
+            default: 0
+        },
+        grandTotal: {
+            type: Number,
+            required: true
         },
         status: {
             type: String,

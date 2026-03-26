@@ -8,13 +8,15 @@ const router = express.Router();
 
 router.use(protect);
 
+const validate = require('../../middlewares/validate.middleware');
+
 router.route('/')
-    .post(requireAdmin, createStoreValidation, storeController.createStore)
+    .post(requireAdmin, createStoreValidation, validate, storeController.createStore)
     .get(storeController.getAllStores);
 
 router.route('/:id')
     .get(storeController.getStoreById)
-    .patch(requireAdmin, updateStoreValidation, storeController.updateStore)
+    .patch(requireAdmin, updateStoreValidation, validate, storeController.updateStore)
     .delete(requireAdmin, storeController.deleteStore);
 
 router.patch('/:id/status', requireAdmin, storeController.toggleStoreStatus);

@@ -21,10 +21,11 @@ import { addItem, updateItem } from './itemsSlice';
 import VariantTable from './VariantTable';
 import api from '../../services/api';
 import { fetchMasters } from '../masters/mastersSlice';
+import { fetchGstSlabs } from '../gst/gstSlice';
 
 const defaultValues = {
   name: '',
-  code: '',
+  sku: '',
   brand: '',
   category: '',
   description: '',
@@ -46,6 +47,7 @@ function ItemFormPage() {
   const items = useSelector((state) => state.items.records);
   const brands = useSelector((state) => state.masters?.brands || []);
   const itemGroups = useSelector((state) => state.masters?.itemGroups || []);
+  const gstSlabs = useSelector((state) => state.gst?.taxRates || []);
   const existingItem = useMemo(
     () => (isEditMode ? items.find((item) => item.id === id) : null),
     [id, isEditMode, items],
@@ -68,7 +70,8 @@ function ItemFormPage() {
   useEffect(() => {
     dispatch(fetchMasters('brands'));
     dispatch(fetchMasters('itemGroups'));
-    api.get('/hsn-codes').then(res => setHsnCodes(res.data.data.hsns || [])).catch(console.error);
+    dispatch(fetchGstSlabs());
+    api.get('/hsn-codes').then(res => setHsnCodes(res.data.hsnCodes || res.data.data?.hsnCodes || res.data.data || [])).catch(console.error);
   }, [dispatch]);
 
   const [imageData, setImageData] = useState(null);
@@ -81,16 +84,16 @@ function ItemFormPage() {
     if (existingItem) {
       reset({
         name: existingItem.name || '',
-        code: existingItem.code || '',
-        brand: existingItem.brand || '',
-        category: existingItem.category || '',
+        sku: existingItem.sku || existingItem.code || '',
+        brand: existingItem.brand?._id || existingItem.brand || '',
+        category: existingItem.category?._id || existingItem.category || '',
         description: existingItem.description || '',
         status: existingItem.status || 'Active',
         gender: existingItem.attributes?.gender || '',
         season: existingItem.attributes?.season || '',
         fabric: existingItem.attributes?.fabric || '',
         fabricType: existingItem.attributes?.fabricType || '',
-        hsnCodeId: existingItem.hsnCodeId || '',
+        hsnCodeId: existingItem.hsnCodeId?._id || existingItem.hsnCodeId || '',
       });
       setVariants(existingItem.variants || []);
       setImageData(existingItem.image || null);
@@ -102,10 +105,7 @@ function ItemFormPage() {
     setImageData(null);
   }, [existingItem, isEditMode, reset]);
 
-  const brandOptions = brands.map((brand) => brand.brandName);
-  const categoryOptions = itemGroups.map((group) => group.groupName);
-
-  const styleCode = watch('code');
+  const styleCode = watch('sku');
 
   const handleImageChange = (event) => {
     const file = event.target.files?.[0];
@@ -135,9 +135,9 @@ function ItemFormPage() {
 
     const payload = {
       name: values.name.trim(),
-      code: values.code.trim().toUpperCase(),
-      brand: values.brand,
-      category: values.category,
+      sku: values.sku.trim().toUpperCase(),
+      brand: values.brand, // Now sending ID
+      category: values.category, // Now sending ID
       description: values.description.trim(),
       attributes: {
         gender: values.gender,
@@ -148,7 +148,12 @@ function ItemFormPage() {
       hsnCodeId: values.hsnCodeId,
       image: imageData,
       status: values.status,
-      variants,
+      variants: variants.map(v => ({
+        ...v,
+        salePrice: Number(v.salePrice),
+        costPrice: Number(v.costPrice),
+        factoryStock: Number(v.stock || v.factoryStock || 0),
+      })),
     };
 
     if (isEditMode) {
@@ -223,12 +228,12 @@ function ItemFormPage() {
 
           <Grid item xs={12} md={6}>
             <TextField
-              label="Style Code / Item Code"
+              label="Style Code / SKU"
               fullWidth
               size="small"
-              {...register('code', { required: 'Style code is required.' })}
-              error={Boolean(errors.code)}
-              helperText={errors.code?.message || ' '}
+              {...register('sku', { required: 'SKU is required.' })}
+              error={Boolean(errors.sku)}
+              helperText={errors.sku?.message || ' '}
             />
           </Grid>
 
@@ -242,9 +247,9 @@ function ItemFormPage() {
               error={Boolean(errors.brand)}
               helperText={errors.brand?.message || ' '}
             >
-              {brandOptions.map((option) => (
-                <MenuItem key={option} value={option}>
-                  {option}
+              {brands.map((b) => (
+                <MenuItem key={b._id || b.id} value={b._id || b.id}>
+                  {b.brandName || b.name}
                 </MenuItem>
               ))}
             </TextField>
@@ -260,9 +265,9 @@ function ItemFormPage() {
               error={Boolean(errors.category)}
               helperText={errors.category?.message || ' '}
             >
-              {categoryOptions.map((option) => (
-                <MenuItem key={option} value={option}>
-                  {option}
+              {itemGroups.map((g) => (
+                <MenuItem key={g._id || g.id} value={g._id || g.id}>
+                  {g.groupName || g.name}
                 </MenuItem>
               ))}
             </TextField>

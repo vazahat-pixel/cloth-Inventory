@@ -177,35 +177,72 @@ const deleteProduct = async (id) => {
 };
 
 /**
- * Create a product manually
+ * Create a product (or multiple variants) manually
  */
-const createProduct = async (productData, userId) => {
+const createProduct = async (data, userId) => {
     return await withTransaction(async (session) => {
-        if (!productData.sku) productData.sku = await generateSKU(session);
-        if (!productData.barcode) productData.barcode = await generateBarcode(session);
+        const { variants, ...parentData } = data;
 
-        const product = new Product({
-            ...productData,
-            createdBy: userId,
-            isActive: true
-        });
+        // If no variants array is provided, create a single product document
+        if (!variants || !Array.isArray(variants) || variants.length === 0) {
+            if (!parentData.sku) parentData.sku = await generateSKU(session);
+            if (!parentData.barcode) parentData.barcode = await generateBarcode(session);
 
-        await product.save({ session });
+            const product = new Product({
+                ...parentData,
+                createdBy: userId,
+                isActive: true
+            });
 
-        // Record stock history
-        if (product.factoryStock > 0) {
-            await StockHistory.create([{
-                productId: product._id,
-                type: StockHistoryType.IN,
-                quantityBefore: 0,
-                quantityChange: product.factoryStock,
-                quantityAfter: product.factoryStock,
-                notes: 'Manual initial stock entry',
-                performedBy: userId
-            }], { session });
+            await product.save({ session });
+
+            if (product.factoryStock > 0) {
+                await StockHistory.create([{
+                    productId: product._id,
+                    type: StockHistoryType.IN,
+                    quantityBefore: 0,
+                    quantityChange: product.factoryStock,
+                    quantityAfter: product.factoryStock,
+                    notes: 'Manual initial stock entry',
+                    performedBy: userId
+                }], { session });
+            }
+            return product;
         }
 
-        return product;
+        // Handle variants: create one document per variant
+        const createdProducts = [];
+        for (const variant of variants) {
+            const sku = variant.sku || await generateSKU(session);
+            const barcode = variant.barcode || await generateBarcode(session);
+
+            const product = new Product({
+                ...parentData,
+                ...variant,
+                sku,
+                barcode,
+                createdBy: userId,
+                isActive: parentData.status !== 'Inactive'
+            });
+
+            await product.save({ session });
+
+            const initialStock = Number(variant.stock || variant.factoryStock || 0);
+            if (initialStock > 0) {
+                await StockHistory.create([{
+                    productId: product._id,
+                    type: StockHistoryType.IN,
+                    quantityBefore: 0,
+                    quantityChange: initialStock,
+                    quantityAfter: initialStock,
+                    notes: `Manual initial stock entry for variant ${variant.size}/${variant.color}`,
+                    performedBy: userId
+                }], { session });
+            }
+            createdProducts.push(product);
+        }
+
+        return createdProducts;
     });
 };
 

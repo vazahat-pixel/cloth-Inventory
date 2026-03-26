@@ -232,29 +232,41 @@ const createSale = async (saleData, cashierId) => {
         const finalGrandTotal = calculatedSubTotal + totalTax - discount - loyaltyRedemptionAmount - creditNoteAppliedAmount;
 
         // 3. Create Sale Record
+        const subTotalCalculated = products.reduce((sum, p) => sum + (p.price * p.quantity), 0);
+        const grandTotalCalculated = subTotalCalculated + totalTax - (discount || 0) - loyaltyRedemptionAmount - creditNoteAppliedAmount;
+
+        const amountPaid = toNumber(saleData.amountPaid);
+        const dueAmount = grandTotalCalculated - amountPaid;
+
+        // 5. Save Sale Record
         const sale = new Sale({
             saleNumber,
             storeId,
-            cashierId,
-            customerId,
-            type,
+            cashierId: cashierId,
+            customerId: saleData.customerId,
+            type: saleData.type || 'RETAIL',
             parentSaleId,
-            products,
-            subTotal: calculatedSubTotal,
+            products: products.map(p => ({
+                ...p,
+                total: (p.price * p.quantity) // The per-item tax calculation is complex and usually handled by the overall totalTax.
+            })),
+            subTotal: subTotalCalculated,
             discount,
             loyaltyRedeemed: loyaltyRedemptionAmount,
             creditNoteId,
             creditNoteApplied: creditNoteAppliedAmount,
-            tax,
+            tax: totalTax, // Use the calculated totalTax
             taxBreakup: {
                 cgst: totalCGST,
                 sgst: totalSGST,
                 igst: totalIGST
             },
-            totalTax: totalTax,
-            grandTotal: finalGrandTotal,
-            paymentMode,
-            status: SaleStatus.COMPLETED,
+            totalTax,
+            grandTotal: grandTotalCalculated,
+            amountPaid,
+            dueAmount,
+            paymentMode: saleData.paymentMode || 'CASH',
+            status: dueAmount > 0 ? SaleStatus.PARTIAL : SaleStatus.COMPLETED,
             saleDate: Date.now()
         });
         await sale.save({ session });

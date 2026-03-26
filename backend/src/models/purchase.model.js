@@ -49,6 +49,14 @@ const purchaseSchema = new mongoose.Schema(
                     type: Number,
                     default: 0
                 },
+                discountPercentage: {
+                    type: Number,
+                    default: 0
+                },
+                taxPercentage: {
+                    type: Number,
+                    default: 0
+                },
                 gstAmount: {
                     type: Number,
                     default: 0
@@ -67,9 +75,17 @@ const purchaseSchema = new mongoose.Schema(
             type: Number,
             required: true
         },
+        otherCharges: {
+            type: Number,
+            default: 0
+        },
         grandTotal: {
             type: Number,
             required: true
+        },
+        finalAmount: {
+            type: Number,
+            required: false // Calculated after discounts/charges
         },
         status: {
             type: String,

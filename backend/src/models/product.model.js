@@ -36,12 +36,14 @@ const productSchema = new mongoose.Schema(
             trim: true
         },
         category: {
-            type: String,
-            trim: true
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Category',
+            required: [true, 'Category is required']
         },
         brand: {
-            type: String,
-            trim: true
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Brand',
+            required: [true, 'Brand is required']
         },
         costPrice: {
             type: Number,

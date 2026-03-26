@@ -5,23 +5,24 @@
  * @param {String} type - GstType enum (CGST_SGST or IGST)
  */
 function calculateGST(amount, gstPercent, type) {
-    const taxAmount = (Number(amount) * Number(gstPercent)) / 100;
+    const totalTax = Number(((Number(amount) * Number(gstPercent)) / 100).toFixed(2));
 
     if (type === "CGST_SGST") {
-        const half = taxAmount / 2;
+        const cgst = Number((totalTax / 2).toFixed(2));
+        const sgst = Number((totalTax - cgst).toFixed(2));
         return {
-            cgst: Number(half.toFixed(2)),
-            sgst: Number(half.toFixed(2)),
+            cgst,
+            sgst,
             igst: 0,
-            totalTax: Number(taxAmount.toFixed(2))
+            totalTax
         };
     }
 
     return {
         cgst: 0,
         sgst: 0,
-        igst: Number(taxAmount.toFixed(2)),
-        totalTax: Number(taxAmount.toFixed(2))
+        igst: totalTax,
+        totalTax
     };
 }
 
