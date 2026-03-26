@@ -18,8 +18,8 @@ export const reportsQueriesNavItems = [
   {
     key: 'financial-reports',
     label: 'Financial Reports',
-    path: '/reports/financial',
-    matchPaths: ['/reports/financial'],
+    path: '/reports/financial-reports',
+    matchPaths: ['/reports/financial-reports'],
     icon: AccountBalanceOutlinedIcon,
   },
   {

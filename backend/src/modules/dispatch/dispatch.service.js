@@ -120,7 +120,7 @@ const getDispatches = async (query = {}) => {
 
 module.exports = {
     createDispatch,
-    completeDispatch,
+    updateDispatchStatus,
     getDispatchById,
     getDispatches
 };

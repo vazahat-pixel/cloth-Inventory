@@ -1,11 +1,3 @@
-import {
-  inventoryNavigationItems,
-  purchaseNavigationItems,
-  salesNavigationItems,
-  reportsNavigationItems,
-  settingsNavigationItems,
-  itemsNavigationItems,
-} from './navigation';
 import HomeIcon from '@mui/icons-material/Home';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
@@ -22,20 +14,33 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import BuildOutlinedIcon from '@mui/icons-material/BuildOutlined';
 import PeopleIcon from '@mui/icons-material/People';
 import FileUploadOutlinedIcon from '@mui/icons-material/FileUploadOutlined';
-import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
-import { setupMatchPaths } from '../modules/setup/setupNavConfig';
-import { accountsMatchPaths } from '../modules/accounts/accountsNavConfig';
-import { purchaseMatchPaths } from '../modules/purchase/purchaseNavConfig';
-import { orderProcessingMatchPaths } from '../modules/orders/orderProcessingNavConfig';
-import { inventoryMatchPaths } from '../modules/inventory/inventoryNavConfig';
-import { billingMatchPaths } from '../modules/sales/billingNavConfig';
-import { payrollSetupsMatchPaths } from '../modules/payroll/payrollSetupsNavConfig';
-import { productionMatchPaths } from '../modules/production/productionNavConfig';
-import { payrollEntryMatchPaths } from '../modules/payroll/payrollEntryNavConfig';
-import { payrollReportsMatchPaths } from '../modules/payroll/payrollReportsNavConfig';
-import { reportsQueriesMatchPaths } from '../modules/reports/reportsQueriesNavConfig';
-import { utilitiesMatchPaths } from '../modules/utilities/utilitiesNavConfig';
-import { userAccessMatchPaths } from '../modules/userAccess/userAccessNavConfig';
+
+import { setupMatchPaths, setupNavItems } from '../modules/setup/setupNavConfig';
+import { setupAccountsNavItems } from '../modules/setup/setupAccountsNavConfig';
+import { setupTaxesNavItems } from '../modules/setup/setupTaxesNavConfig';
+import { partyWiseNavItems } from '../modules/setup/partyWiseNavConfig';
+import { otherAccountNavItems } from '../modules/setup/otherAccountNavConfig';
+import { configurationsNavItems } from '../modules/setup/configurationsNavConfig';
+
+import { accountsMatchPaths, accountsNavItems } from '../modules/accounts/accountsNavConfig';
+import { acVouchersNavItems } from '../modules/accounts/acVouchersNavConfig';
+import { continuousPrintingNavItems } from '../modules/accounts/continuousPrintingNavConfig';
+import { accountsUtilitiesNavItems } from '../modules/accounts/accountsUtilitiesNavConfig';
+
+import { purchaseMatchPaths, purchaseNavItems } from '../modules/purchase/purchaseNavConfig';
+import { orderProcessingMatchPaths, orderProcessingNavItems } from '../modules/orders/orderProcessingNavConfig';
+import { inventoryMatchPaths, inventoryNavItems } from '../modules/inventory/inventoryNavConfig';
+import { billingMatchPaths, billingNavItems } from '../modules/sales/billingNavConfig';
+import { payrollSetupsMatchPaths, payrollSetupsNavItems } from '../modules/payroll/payrollSetupsNavConfig';
+import { payrollEntryMatchPaths, payrollEntryNavItems } from '../modules/payroll/payrollEntryNavConfig';
+import { payrollReportsMatchPaths, payrollReportsNavItems } from '../modules/payroll/payrollReportsNavConfig';
+import { reportsQueriesMatchPaths, reportsQueriesNavItems } from '../modules/reports/reportsQueriesNavConfig';
+import { financialReportsNavItems } from '../modules/reports/financialReportsNavConfig';
+import { utilitiesMatchPaths, utilitiesNavItems } from '../modules/utilities/utilitiesNavConfig';
+import { userAccessMatchPaths, userAccessNavItems, userAccessReportNavItems } from '../modules/userAccess/userAccessNavConfig';
+import { productionMatchPaths, productionNavItems } from '../modules/production/productionNavConfig';
+import { productionSetupsNavItems } from '../modules/production/productionSetupsNavConfig';
+import { dataImportMatchPaths, dataImportNavItems } from '../modules/data/dataImportNavConfig';
 
 export const ROLES = {
   admin: 'admin',
@@ -59,27 +64,21 @@ export const getRoleBasePath = (role) => {
 const adminSidebarItems = [
   { label: 'Search Home', path: '/', icon: HomeIcon },
   { label: 'My Messages', icon: DescriptionOutlinedIcon, disabled: true },
-  {
-    label: 'Setup',
-    path: '/setup',
-    icon: SettingsOutlinedIcon,
-    matchPaths: setupMatchPaths,
-  },
-  { label: 'Accounts', path: '/accounts', icon: AccountBalanceWalletIcon, matchPaths: accountsMatchPaths },
-  { label: 'Purchase', path: '/purchase', icon: ShoppingCartIcon, matchPaths: purchaseMatchPaths },
-  { label: 'Order Processing', path: '/orders', icon: ReceiptLongIcon, matchPaths: orderProcessingMatchPaths },
-  { label: 'Inventory', path: '/inventory', icon: Inventory2Icon, matchPaths: inventoryMatchPaths },
-  { label: 'Billing', path: '/sales', icon: PointOfSaleIcon, matchPaths: billingMatchPaths },
-  { label: 'Production', path: '/production', icon: InventoryIcon, matchPaths: productionMatchPaths },
-  { label: 'Payroll Setups', path: '/payroll-setups', icon: RequestQuoteIcon, matchPaths: payrollSetupsMatchPaths },
-  { label: 'Payroll Entry', path: '/payroll-entry', icon: ReceiptIcon, matchPaths: payrollEntryMatchPaths },
-  { label: 'Payroll Reports', path: '/payroll-reports', icon: AssessmentOutlinedIcon, matchPaths: payrollReportsMatchPaths },
-  { label: 'Reports/Queries', path: '/reports', icon: AssessmentOutlinedIcon, matchPaths: reportsQueriesMatchPaths },
+  { label: 'Setup', path: '/setup', icon: SettingsOutlinedIcon, matchPaths: setupMatchPaths, drilldown: true },
+  { label: 'Accounts', path: '/accounts', icon: AccountBalanceWalletIcon, matchPaths: accountsMatchPaths, drilldown: true },
+  { label: 'Purchase', path: '/purchase', icon: ShoppingCartIcon, matchPaths: purchaseMatchPaths, drilldown: true },
+  { label: 'Order Processing', path: '/orders', icon: ReceiptLongIcon, matchPaths: orderProcessingMatchPaths, drilldown: true },
+  { label: 'Inventory', path: '/inventory', icon: Inventory2Icon, matchPaths: inventoryMatchPaths, drilldown: true },
+  { label: 'Billing', path: '/sales', icon: PointOfSaleIcon, matchPaths: billingMatchPaths, drilldown: true },
+  { label: 'Production', path: '/production', icon: InventoryIcon, matchPaths: productionMatchPaths, drilldown: true },
+  { label: 'Payroll Setups', path: '/payroll-setups', icon: RequestQuoteIcon, matchPaths: payrollSetupsMatchPaths, drilldown: true },
+  { label: 'Payroll Entry', path: '/payroll-entry', icon: ReceiptIcon, matchPaths: payrollEntryMatchPaths, drilldown: true },
+  { label: 'Payroll Reports', path: '/payroll-reports', icon: AssessmentOutlinedIcon, matchPaths: payrollReportsMatchPaths, drilldown: true },
+  { label: 'Reports/Queries', path: '/reports', icon: AssessmentOutlinedIcon, matchPaths: reportsQueriesMatchPaths, drilldown: true },
   { label: 'Business Insights', path: '/reports/profit', icon: TrendingUpIcon },
-  { label: 'Utilities', path: '/utilities', icon: BuildOutlinedIcon, matchPaths: utilitiesMatchPaths },
-  { label: 'User Access', path: '/user-access', icon: PeopleIcon, matchPaths: userAccessMatchPaths },
-  { label: 'Export/Import Masters/Txns from Excel', path: '/data-import', icon: FileUploadOutlinedIcon },
-  { label: 'Export/Import Masters/Txns', icon: FileDownloadOutlinedIcon, disabled: true },
+  { label: 'Utilities', path: '/utilities', icon: BuildOutlinedIcon, matchPaths: utilitiesMatchPaths, drilldown: true },
+  { label: 'User Access', path: '/user-access', icon: PeopleIcon, matchPaths: userAccessMatchPaths, drilldown: true },
+  { label: 'Export/Import Masters/Txns', path: '/data-import', icon: FileUploadOutlinedIcon, matchPaths: dataImportMatchPaths, drilldown: true },
 ];
 
 export const adminNavConfig = {
@@ -87,7 +86,35 @@ export const adminNavConfig = {
   basePath: '/ho',
   label: 'HO Panel',
   mainNav: adminSidebarItems,
-  children: {},
+  children: {
+    '/setup': setupNavItems.map(i => ({ ...i, drilldown: ['/setup/accounts', '/setup/taxes', '/setup/party-wise', '/setup/other-account-details', '/setup/configurations'].includes(i.path) })),
+    '/accounts': accountsNavItems.map(i => ({ ...i, drilldown: ['/accounts/vouchers', '/accounts/printing', '/accounts/utilities'].includes(i.path) })),
+    '/purchase': purchaseNavItems,
+    '/orders': orderProcessingNavItems,
+    '/inventory': inventoryNavItems,
+    '/sales': billingNavItems,
+    '/production': productionNavItems.map(i => ({ ...i, drilldown: i.path === '/production/setups' })),
+    '/payroll-setups': payrollSetupsNavItems,
+    '/payroll-entry': payrollEntryNavItems,
+    '/payroll-reports': payrollReportsNavItems,
+    '/reports': reportsQueriesNavItems.map(i => ({ ...i, drilldown: i.path === '/reports/financial-reports' })),
+    '/utilities': utilitiesNavItems,
+    '/user-access': userAccessNavItems,
+    '/data-import': dataImportNavItems,
+    
+    // Level 2
+    '/setup/accounts': setupAccountsNavItems,
+    '/setup/taxes': setupTaxesNavItems,
+    '/setup/party-wise': partyWiseNavItems,
+    '/setup/other-account-details': otherAccountNavItems,
+    '/setup/configurations': configurationsNavItems,
+    '/accounts/vouchers': acVouchersNavItems,
+    '/accounts/printing': continuousPrintingNavItems,
+    '/accounts/utilities': accountsUtilitiesNavItems,
+    '/reports/financial-reports': financialReportsNavItems,
+    '/production/setups': productionSetupsNavItems,
+    '/user-access/reports': userAccessReportNavItems,
+  },
 };
 
 export const staffNavConfig = {
@@ -97,17 +124,16 @@ export const staffNavConfig = {
   mainNav: [
     { label: 'Purchase', path: '/purchase' },
     { label: 'Inventory', path: '/inventory' },
-    { label: 'Data Import & Export', path: '/data-import' },
+    { label: 'Data Import & Export', path: '/data-import', matchPaths: dataImportMatchPaths, drilldown: true },
     { label: 'POS - Sales', path: '/sales' },
     { label: 'Reports', path: '/reports' },
   ],
   children: {
-    items: itemsNavigationItems.filter(i => i.label === 'Item List'),
-    purchase: purchaseNavigationItems.filter(i => i.label !== 'Purchase Orders'),
-    inventory: inventoryNavigationItems.filter(i => i.label === 'Stock Overview'),
-    sales: salesNavigationItems.filter(i => i.label !== 'Delivery Challans'),
-    reports: reportsNavigationItems,
-    dataImport: settingsNavigationItems.filter(i => i.label === 'Data Import'),
+    '/purchase': [],
+    '/inventory': [],
+    '/data-import': dataImportNavItems,
+    '/sales': [],
+    '/reports': [],
   },
 };
 

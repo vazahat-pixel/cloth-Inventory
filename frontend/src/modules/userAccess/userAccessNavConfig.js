@@ -68,10 +68,31 @@ export const userAccessNavItems = [
   {
     key: 'user-access-reports',
     label: 'User Access Reports',
-    path: '/user-access/user-access-reports',
+    path: '/user-access/reports',
     icon: SummarizeOutlinedIcon,
+    drilldown: true,
+    children: [
+      { key: 'user-log-book', label: 'User Log Book', path: '/user-access/reports/user-log-book' },
+      { key: 'audit-trail-report', label: 'Audit Trail Report', path: '/user-access/reports/audit-trail-report' },
+      { key: 'masters-modification-log', label: 'Masters Modification Log', path: '/user-access/reports/masters-modification-log' },
+      { key: 'document-modification-log', label: 'Document Modification Log', path: '/user-access/reports/document-modification-log' },
+      { key: 'accounts-doc-mod-log', label: 'Accounts Document Modification Log', path: '/user-access/reports/accounts-doc-mod-log' },
+      { key: 'purchase-return-mod-log', label: 'Purchase Return Modification Log', path: '/user-access/reports/purchase-return-mod-log' },
+      { key: 'logic-admin-mod-log', label: 'LOGIC Admin Modification Log', path: '/user-access/reports/logic-admin-mod-log' },
+      { key: 'user-menu-rights-report', label: 'User Wise Menu Rights Report', path: '/user-access/reports/user-menu-rights-report' },
+      { key: 'user-menu-rights-mod-log', label: 'User Wise Menu Rights Modification Log', path: '/user-access/reports/user-menu-rights-mod-log' },
+      { key: 'user-utilization-report', label: 'User Wise Utilization Report', path: '/user-access/reports/user-utilization-report' },
+      { key: 'approval-report', label: 'Approval Report', path: '/user-access/reports/approval-report' },
+      { key: 'party-item-defaults-log', label: 'Party + Item Group Defaults for PL Elements Log', path: '/user-access/reports/party-item-defaults-log' },
+      { key: 'sale-docs-entry-grid-log', label: 'Sale Documents - Data Entry Grid Log', path: '/user-access/reports/sale-docs-entry-grid-log' },
+      { key: 'user-access-rights-report', label: 'User Access Rights Report', path: '/user-access/reports/user-access-rights-report' },
+      { key: 'branch-access-rights-report', label: 'Branch Access Rights Report', path: '/user-access/reports/branch-access-rights-report' },
+      { key: 'config-modification-log', label: 'Configuration Modification Log', path: '/user-access/reports/config-modification-log' },
+    ],
   },
 ];
+
+export const userAccessReportNavItems = userAccessNavItems.find(i => i.key === 'user-access-reports')?.children || [];
 
 export const userAccessPlaceholderContent = {
   'allow-disallow-menu-template': {
@@ -97,7 +118,7 @@ export const userAccessPlaceholderContent = {
     ],
     actions: [
       { label: 'Open Roles', path: '/settings/roles', variant: 'contained' },
-      { label: 'Open User Access Reports', path: '/user-access/user-access-reports', variant: 'outlined' },
+      { label: 'Open User Access Reports', path: '/user-access/reports', variant: 'outlined' },
     ],
   },
   'branch-wise-back-date-locking': {

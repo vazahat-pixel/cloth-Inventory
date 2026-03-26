@@ -192,29 +192,7 @@ function RoleDashboardLayout() {
     >
       <RoleSidebar navConfig={navConfig} />
       <Box sx={{ width: 240, flexShrink: 0 }} aria-hidden />
-      {showSetupSubnav ? <SetupSubnav /> : null}
-      {showSetupAccountsSubnav ? <SetupAccountsSubnav /> : null}
-      {showSetupTaxesSubnav ? <SetupTaxesSubnav /> : null}
-      {showPartyWiseSubnav ? <PartyWiseSubnav /> : null}
-      {showOtherAccountSubnav ? <OtherAccountSubnav /> : null}
-      {showConfigurationsSubnav ? <ConfigurationsSubnav /> : null}
-      {showACVouchersSubnav ? <ACVouchersSubnav /> : null}
-      {showContinuousPrintingSubnav ? <ContinuousPrintingSubnav /> : null}
-      {showAccountsUtilitiesSubnav ? <AccountsUtilitiesSubnav /> : null}
-      {showAccountsSubnav ? <AccountsSubnav /> : null}
-      {showPurchaseSubnav ? <PurchaseSubnav /> : null}
-      {showOrderProcessingSubnav ? <OrderProcessingSubnav /> : null}
-      {showInventorySubnav ? <InventorySubnav /> : null}
-      {showBillingSubnav ? <BillingSubnav /> : null}
-      {showPayrollSetupsSubnav ? <PayrollSetupsSubnav /> : null}
-      {showPayrollEntrySubnav ? <PayrollEntrySubnav /> : null}
-      {showPayrollReportsSubnav ? <PayrollReportsSubnav /> : null}
-      {showReportsQueriesSubnav ? <ReportsQueriesSubnav /> : null}
-      {showFinancialReportsSubnav ? <FinancialReportsSubnav /> : null}
-      {showUtilitiesSubnav ? <UtilitiesSubnav /> : null}
-      {showUserAccessSubnav ? <UserAccessSubnav /> : null}
-      {showProductionSubnav ? <ProductionSubnav /> : null}
-      {showProductionSetupsSubnav ? <ProductionSetupsSubnav /> : null}
+      
       <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <Topbar />
         <Box

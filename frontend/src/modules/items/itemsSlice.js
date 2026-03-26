@@ -28,7 +28,8 @@ export const addItem = createAsyncThunk('items/add', async (itemData, { rejectWi
       // Let backend generate SKU/barcode; we still pass the user-facing SKU to keep a record if needed
       sku: null,
       barcode: null,
-      gstSlabId: itemData.hsnCodeId ? undefined : undefined, // optional mapping if you later link GST slabs at product level
+      images: (itemData.images || []).map(img => img.preview || img),
+      gstSlabId: itemData.hsnCodeId ? undefined : undefined, 
     }));
 
     if (!products.length) {

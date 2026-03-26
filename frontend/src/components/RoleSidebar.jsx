@@ -1,6 +1,5 @@
 import {
   Box,
-  Collapse,
   Divider,
   List,
   ListItem,
@@ -10,37 +9,22 @@ import {
   Typography,
 } from '@mui/material';
 import { NavLink, useLocation } from 'react-router-dom';
+import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
+import useAppNavigate from '../hooks/useAppNavigate';
 
 const sidebarWidth = 240;
 
-const pathMap = {
-  '/items': 'items',
-  '/masters': 'masters',
-  '/inventory': 'inventory',
-  '/purchase': 'purchase',
-  '/orders': 'sales',
-  '/sales': 'sales',
-  '/reports': 'reports',
-  '/setup': 'setup',
-  '/settings': 'settings',
-};
-
 function RoleSidebar({ navConfig }) {
   const location = useLocation();
-  const basePath = navConfig.basePath;
+  const navigate = useAppNavigate();
+  const basePath = navConfig.basePath || '/ho';
 
-  const toFullPath = (path) => {
-    if (!path) return undefined;
-    if (path === '/') return basePath;
-    return `${basePath}${path}`;
-  };
-
-  const stripBasePath = (pathname) => {
+  const getLocalPath = (pathname) => {
     if (pathname.startsWith(basePath)) return pathname.slice(basePath.length) || '/';
     return pathname;
   };
 
-  const localPath = stripBasePath(location.pathname);
+  const localPath = getLocalPath(location.pathname);
 
   const matchesPath = (item, pathname) => {
     const candidatePaths = item?.matchPaths?.length
@@ -56,130 +40,74 @@ function RoleSidebar({ navConfig }) {
     ));
   };
 
-  const getChildKey = (item) => (item?.path ? pathMap[item.path] : null);
-
-  const getChildItems = (item) => {
-    const childKey = getChildKey(item);
-    return childKey ? navConfig.children?.[childKey] || [] : [];
+  const toFullPath = (path) => {
+    if (!path) return undefined;
+    if (path === '/') return basePath;
+    if (path.startsWith(basePath)) return path;
+    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    return `${basePath}${cleanPath}`;
   };
 
-  const hasActiveChild = (item) => getChildItems(item).some((child) => !child?.exitsDrilldown && matchesPath(child, localPath));
+  // Improved recursive drilldown logic using paths as keys
+  const getNavContent = () => {
+    const mainNav = navConfig.mainNav;
+    const activeTopItem = mainNav.find(item => item.drilldown && matchesPath(item, localPath));
+    
+    if (activeTopItem) {
+      const level1Items = navConfig.children?.[activeTopItem.path] || [];
+      const activeMidItem = level1Items.find(item => item.drilldown && matchesPath(item, localPath));
+      
+      if (activeMidItem) {
+        const level2Items = navConfig.children?.[activeMidItem.path] || [];
+        return { 
+          items: level2Items, 
+          title: activeMidItem.label, 
+          parentTitle: activeTopItem.label,
+          backPath: toFullPath(activeTopItem.path)
+        };
+      }
 
-  const activeDrilldownItem = navConfig.mainNav.find((item) => (
-    item?.drilldown
-    && getChildItems(item).length
-    && (matchesPath(item, localPath) || hasActiveChild(item))
-  ));
+      return { 
+        items: level1Items, 
+        title: activeTopItem.label, 
+        parentTitle: 'Main Menu',
+        backPath: toFullPath('/')
+      };
+    }
+
+    return { items: mainNav, title: 'Cloth ERP', parentTitle: null, backPath: null };
+  };
+
+  const { items, title, parentTitle, backPath } = getNavContent();
+  const isDrilled = !!backPath;
 
   const linkStyle = {
     borderRadius: 1.5,
     px: 1.5,
-    py: 0.75,
-    color: '#CBD5E1',
+    py: 1,
+    color: '#94a3b8',
     alignItems: 'center',
-    gap: 1,
-    '&:hover': { backgroundColor: 'rgba(148, 163, 184, 0.12)' },
+    gap: 1.5,
+    transition: 'all 0.2s',
+    mb: 0.5,
+    '&:hover': { 
+      backgroundColor: 'rgba(51, 65, 85, 0.4)',
+      color: '#f8fafc' 
+    },
     '&.active': {
       backgroundColor: '#2563EB',
       color: '#FFFFFF',
-      boxShadow: '0 10px 20px rgba(37, 99, 235, 0.35)',
+      fontWeight: 800,
+      boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)',
     },
     '&.Mui-selected': {
       backgroundColor: '#2563EB',
       color: '#FFFFFF',
-      boxShadow: '0 10px 20px rgba(37, 99, 235, 0.35)',
     },
     '&.Mui-selected:hover': {
       backgroundColor: '#2563EB',
     },
-    '&.Mui-disabled': {
-      color: '#64748B',
-      opacity: 1,
-    },
-    '&.Mui-disabled .MuiListItemIcon-root': {
-      color: '#475569',
-    },
   };
-
-  const childLinkStyle = {
-    minHeight: 34,
-    borderRadius: 1.5,
-    pl: 2,
-    color: '#94a3b8',
-    '&:hover': { backgroundColor: '#1e293b' },
-    '&.active': { backgroundColor: '#172554', color: '#bfdbfe' },
-    '&.Mui-selected': { backgroundColor: '#172554', color: '#bfdbfe' },
-    '&.Mui-selected:hover': { backgroundColor: '#172554' },
-    '&.Mui-disabled': {
-      color: '#64748B',
-      opacity: 1,
-    },
-  };
-
-  const renderChildren = (parentPath, childKey) => {
-    const children = navConfig.children?.[childKey];
-    if (!children?.length) return null;
-    const isExpanded = localPath.startsWith(parentPath) || children.some((child) => matchesPath(child, localPath));
-    return (
-      <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-        <List disablePadding sx={{ pl: 1, pr: 0.5, pb: 0.5 }}>
-          {children.map((child) => {
-            const childFullPath = toFullPath(child.path);
-            const isChildDisabled = Boolean(child.disabled || !child.path);
-            const isChildSelected = !isChildDisabled && matchesPath(child, localPath);
-            const childButtonProps = isChildDisabled
-              ? { component: 'div', disabled: true }
-              : { component: NavLink, to: childFullPath, end: child.path === parentPath };
-
-            return (
-              <ListItem key={child.label} disablePadding sx={{ mb: 0.25 }}>
-                <ListItemButton
-                  {...childButtonProps}
-                  selected={isChildSelected}
-                  sx={childLinkStyle}
-                >
-                  <ListItemText
-                    primary={child.label}
-                    slotProps={{ primary: { fontSize: 12.5, fontWeight: 600 } }}
-                  />
-                </ListItemButton>
-              </ListItem>
-            );
-          })}
-        </List>
-      </Collapse>
-    );
-  };
-
-  const renderStandaloneChildren = (children) => (
-    children.map((child) => {
-      const childFullPath = toFullPath(child.path);
-      const isChildDisabled = Boolean(child.disabled || !child.path);
-      const isChildSelected = !isChildDisabled && !child?.exitsDrilldown && matchesPath(child, localPath);
-      const childButtonProps = isChildDisabled
-        ? { component: 'div', disabled: true }
-        : { component: NavLink, to: childFullPath, end: child.path === '/' };
-
-      return (
-        <ListItem key={child.label} disablePadding sx={{ mb: 0.5 }}>
-          <ListItemButton
-            {...childButtonProps}
-            selected={isChildSelected}
-            sx={{
-              ...childLinkStyle,
-              minHeight: 44,
-              px: 1.5,
-            }}
-          >
-            <ListItemText
-              primary={child.label}
-              slotProps={{ primary: { fontSize: 14, fontWeight: 600 } }}
-            />
-          </ListItemButton>
-        </ListItem>
-      );
-    })
-  );
 
   return (
     <Box
@@ -191,87 +119,90 @@ function RoleSidebar({ navConfig }) {
         width: sidebarWidth,
         height: '100vh',
         zIndex: 1100,
-        background: 'linear-gradient(180deg, #020617 0%, #0F172A 40%, #020617 100%)',
-        color: '#E2E8F0',
-        borderRight: '1px solid #1E293B',
+        background: 'linear-gradient(180deg, #0f172a 0%, #020617 100%)',
+        color: '#f1f5f9',
+        borderRight: '1px solid #1e293b',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
+        boxShadow: '4px 0 24px rgba(0,0,0,0.5)',
       }}
     >
-      <Box sx={{ px: 3, py: 2.5, flexShrink: 0 }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, letterSpacing: 0.3 }}>
-          Cloth ERP
-        </Typography>
-        <Typography variant="caption" sx={{ color: '#94A3B8' }}>
-          {navConfig.label}
-        </Typography>
+      <Box sx={{ p: 2.5, flexShrink: 0 }}>
+        {!isDrilled ? (
+          <>
+            <Typography variant="h6" sx={{ fontWeight: 900, color: '#f8fafc', letterSpacing: -0.5 }}>
+              Cloth ERP
+            </Typography>
+            <Typography variant="caption" sx={{ color: '#475569', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              {navConfig.label}
+            </Typography>
+          </>
+        ) : (
+          <Box>
+            <ListItemButton
+              onClick={() => navigate(backPath)}
+              sx={{
+                p: 0,
+                mb: 1,
+                borderRadius: 1,
+                '&:hover': { bgcolor: 'transparent', color: '#3b82f6' }
+              }}
+            >
+              <ArrowBackRoundedIcon sx={{ fontSize: 18, mr: 1, color: '#3b82f6' }} />
+              <Typography variant="caption" sx={{ fontWeight: 800, color: '#3b82f6', letterSpacing: 1 }}>
+                GO BACK
+              </Typography>
+            </ListItemButton>
+            <Typography variant="caption" sx={{ display: 'block', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>
+              {parentTitle}
+            </Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 900, color: '#f8fafc', mt: 0.25 }}>
+              {title}
+            </Typography>
+          </Box>
+        )}
       </Box>
-      <Divider sx={{ borderColor: '#1E293B', flexShrink: 0 }} />
-      <Box
-        sx={{
-          flex: 1,
-          minHeight: 0,
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          scrollbarWidth: 'thin',
-          scrollbarColor: '#475569 #020617',
-          '&::-webkit-scrollbar': { width: 6 },
-          '&::-webkit-scrollbar-track': {
-            backgroundColor: '#020617',
-            borderRadius: 3,
-          },
-          '&::-webkit-scrollbar-thumb': {
-            backgroundColor: '#1F2937',
-            borderRadius: 3,
-            '&:hover': { backgroundColor: '#4B5563' },
-          },
-        }}
-      >
-        <List sx={{ px: 1.5, py: 1.5 }}>
-          {activeDrilldownItem ? renderStandaloneChildren(getChildItems(activeDrilldownItem)) : navConfig.mainNav.map((item) => {
+
+      <Divider sx={{ borderColor: '#1e293b', flexShrink: 0 }} />
+
+      <Box sx={{ flex: 1, overflowY: 'auto', p: 1, scrollbarWidth: 'thin' }}>
+        <List disablePadding>
+          {items.map((item) => {
             const fullPath = toFullPath(item.path);
-            const childKey = getChildKey(item);
             const Icon = item.icon;
-            const isDisabled = Boolean(item.disabled || !item.path);
-            const isSelected = !isDisabled && (matchesPath(item, localPath) || hasActiveChild(item));
-            const buttonProps = isDisabled
-              ? { component: 'div', disabled: true }
+            const isSelected = matchesPath(item, localPath);
+            const buttonProps = !item.path 
+              ? { component: 'div', disabled: true } 
               : { component: NavLink, to: fullPath, end: item.path === '/' };
 
             return (
-              <Box key={item.label}>
-                <ListItem disablePadding sx={{ mb: 0.5 }}>
-                  <ListItemButton
-                    {...buttonProps}
-                    selected={isSelected}
-                    sx={linkStyle}
-                  >
-                    {Icon ? (
-                      <ListItemIcon
-                        sx={{
-                          minWidth: 30,
-                          color: 'inherit',
-                        }}
-                      >
-                        <Icon sx={{ fontSize: 18 }} />
-                      </ListItemIcon>
-                    ) : null}
-                    <ListItemText
-                      primary={item.label}
-                      slotProps={{ primary: { fontSize: 14, fontWeight: 600 } }}
-                    />
-                  </ListItemButton>
-                </ListItem>
-                {childKey === 'items' && renderChildren('/items', 'items')}
-                {childKey === 'masters' && renderChildren('/masters', 'masters')}
-                {childKey === 'inventory' && renderChildren('/inventory', 'inventory')}
-                {childKey === 'purchase' && renderChildren('/purchase', 'purchase')}
-                {childKey === 'sales' && renderChildren('/sales', 'sales')}
-                {childKey === 'reports' && renderChildren('/reports', 'reports')}
-                {childKey === 'setup' && renderChildren('/setup', 'setup')}
-                {childKey === 'settings' && renderChildren('/settings', 'settings')}
-              </Box>
+              <ListItem key={item.label} disablePadding>
+                <ListItemButton
+                  {...buttonProps}
+                  selected={isSelected}
+                  sx={linkStyle}
+                >
+                  {Icon && (
+                    <ListItemIcon sx={{ minWidth: 24, color: 'inherit' }}>
+                      <Icon sx={{ fontSize: 20 }} />
+                    </ListItemIcon>
+                  )}
+                  <ListItemText
+                    primary={item.label}
+                    slotProps={{ 
+                      primary: { 
+                        fontSize: 13, 
+                        fontWeight: isSelected ? 800 : 700,
+                        color: 'inherit' 
+                      } 
+                    }}
+                  />
+                  {item.drilldown && (
+                    <Typography variant="caption" sx={{ fontStyle: 'italic', opacity: 0.5 }}>></Typography>
+                  )}
+                </ListItemButton>
+              </ListItem>
             );
           })}
         </List>

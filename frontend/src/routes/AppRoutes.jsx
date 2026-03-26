@@ -93,6 +93,7 @@ import OrdersContinuousPrintingPage from '../modules/orders/OrdersContinuousPrin
 import DeliveryChallanPage from '../modules/dispatch/DeliveryChallanPage';
 import DeliveryChallanForm from '../modules/dispatch/DeliveryChallanForm';
 import DataImportExportPage from '../modules/data/DataImportExportPage';
+import DataImportPlaceholderPage from '../modules/data/DataImportPlaceholderPage';
 import PurchaseReturnPageStaff from '../modules/store/PurchaseReturnPage';
 import HSNCodePage from '../modules/setup/HSNCodePage';
 import AccountMasterPage from '../modules/setup/AccountMasterPage';
@@ -941,11 +942,19 @@ function AppRoutes() {
         <Route path="complaints-mgmt" element={<SetupGenericTablePage title="Complaints Management System Configuration" description="Global settings for the CRM system." columns={[{ key: 'sno', label: 'SNO.', width: 60 }, { key: 'setting', label: 'SETTING', width: 200 }, { key: 'value', label: 'VAL', width: 150 }, { key: 'autoAssign', label: 'AUTO ASSIGN', width: 120 }]} />} />
         <Route path="assembly-expenses" element={<SetupGenericTablePage title="Setup Assembly Expenses" description="Define expenses for kit assembly." columns={[{ key: 'sno', label: 'SNO.', width: 60 }, { key: 'expense', label: 'EXPENSE NAME', width: 180 }, { key: 'calcType', label: 'CALC TYPE', width: 120 }, { key: 'rate', label: 'RATE/PCT', width: 100 }]} />} />
       </Route>
-      <Route path="data-import" element={<DataImportExportPage />} />
+      <Route path="data-import">
+        <Route index element={<DataImportExportPage />} />
+        <Route path="export-purchase-text" element={<DataImportPlaceholderPage />} />
+        <Route path="export-stock-transfer-godown" element={<DataImportPlaceholderPage />} />
+        <Route path="export-item-master" element={<DataImportPlaceholderPage />} />
+        <Route path="import-purchase-challan-text" element={<DataImportPlaceholderPage />} />
+        <Route path="import-purchase-text" element={<DataImportPlaceholderPage />} />
+        <Route path="import-item-masters-text" element={<DataImportPlaceholderPage />} />
+      </Route>
       <Route path="reports" element={<ReportsQueriesPlaceholderPage pageKey="financial-reports" />} />
       <Route path="reports/dashboard" element={<ReportsDashboard />} />
-      <Route path="reports/financial" element={<ReportsQueriesPlaceholderPage pageKey="financial-reports" />} />
-      <Route path="reports/financial">
+      <Route path="reports/financial-reports" element={<ReportsQueriesPlaceholderPage pageKey="financial-reports" />} />
+      <Route path="reports/financial-reports">
         <Route path="trial-vertical" element={<FinancialReportPlaceholder title="Trial Balance with Vertical View of Fin Years" />} />
         <Route path="trial-horizontal" element={<FinancialReportPlaceholder title="Trial Balance with Horizontal View of Fin Years" />} />
         <Route path="trial-groups" element={<FinancialReportPlaceholder title="Trial Balance - Balance Sheet Groups" />} />
@@ -1027,7 +1036,8 @@ function AppRoutes() {
       <Route path="user-access/audit-system" element={<AuditLogPage />} />
       <Route path="user-access/setup-api-templates" element={<UserAccessPlaceholderPage pageKey="setup-api-templates" />} />
       <Route path="user-access/api-log-viewer" element={<UserAccessPlaceholderPage pageKey="api-log-viewer" />} />
-      <Route path="user-access/user-access-reports" element={<UserAccessPlaceholderPage pageKey="user-access-reports" />} />
+      <Route path="user-access/user-access-reports" element={<Navigate to="../reports" replace />} />
+      <Route path="user-access/reports/*" element={<UserAccessPlaceholderPage key="reports-view" />} />
       <Route path="production" element={<ProductionPlaceholderPage pageKey="production-dashboard" />} />
       <Route path="production/setups">
         <Route index element={<ProductionSetupPlaceholder title="Production Master Selection" />} />
@@ -1216,7 +1226,15 @@ function AppRoutes() {
       <Route path="reports/profit" element={<ProfitReportPage />} />
       <Route path="reports/ledger" element={<LedgerReportPage />} />
       <Route path="reports/collection" element={<CollectionReportPage />} />
-      <Route path="data-import" element={<DataImportExportPage />} />
+      <Route path="data-import">
+        <Route index element={<DataImportExportPage />} />
+        <Route path="export-purchase-text" element={<DataImportPlaceholderPage />} />
+        <Route path="export-stock-transfer-godown" element={<DataImportPlaceholderPage />} />
+        <Route path="export-item-master" element={<DataImportPlaceholderPage />} />
+        <Route path="import-purchase-challan-text" element={<DataImportPlaceholderPage />} />
+        <Route path="import-purchase-text" element={<DataImportPlaceholderPage />} />
+        <Route path="import-item-masters-text" element={<DataImportPlaceholderPage />} />
+      </Route>
       <Route path="profile" element={<ProfilePage />} />
       <Route path="*" element={<Navigate to="" replace />} />
         </Route>

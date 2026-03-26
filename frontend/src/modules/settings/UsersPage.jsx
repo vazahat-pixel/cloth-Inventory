@@ -76,10 +76,18 @@ function UsersPage() {
         <Stack spacing={2} sx={{ px: { xs: 2, sm: 3 }, pt: { xs: 2, sm: 3 }, pb: 2 }}>
           <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ md: 'center' }} spacing={2}>
             <Box>
-              <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a' }}>Users</Typography>
-              <Typography variant="body2" sx={{ color: '#64748b' }}>Manage system users and their roles.</Typography>
+              <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a' }}>User Administration</Typography>
+              <Typography variant="body2" sx={{ color: '#64748b' }}>Unlock accounts, reset passwords and monitor user login activity.</Typography>
             </Box>
-            <Button variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={handleOpenNew}>Add User</Button>
+            <Button variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={handleOpenNew} sx={{ borderRadius: 1.5, textTransform: 'none', fontWeight: 700 }}>Add User</Button>
+          </Stack>
+
+          {/* User Administration Toolbar */}
+          <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+            <Button variant="contained" size="small" sx={{ bgcolor: '#0ea5e9', fontSize: 12, fontWeight: 700, textTransform: 'none' }}>Unlock</Button>
+            <Button variant="contained" size="small" sx={{ bgcolor: '#0ea5e9', fontSize: 12, fontWeight: 700, textTransform: 'none' }}>Unblock Account</Button>
+            <Button variant="contained" size="small" sx={{ bgcolor: '#0ea5e9', fontSize: 12, fontWeight: 700, textTransform: 'none' }}>Reset Password</Button>
+            <Button variant="contained" size="small" sx={{ bgcolor: '#0ea5e9', fontSize: 12, fontWeight: 700, textTransform: 'none' }}>Clear Web Browser Finger Print</Button>
           </Stack>
         </Stack>
         {users.length ? (
@@ -87,28 +95,28 @@ function UsersPage() {
             <TableContainer>
               <Table size="small">
                 <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 700 }}>Name</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Email</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Mobile</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Role</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Actions</TableCell>
+                  <TableRow sx={{ bgcolor: '#f1f5f9' }}>
+                    <TableCell sx={{ fontWeight: 800, color: '#475569', fontSize: 12 }}>User Name</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: '#475569', fontSize: 12 }}>Account Blocked</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: '#475569', fontSize: 12 }}>Last Login From</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: '#475569', fontSize: 12 }}>Last Login Time</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: '#475569', fontSize: 12 }}>Last Login Info</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: '#475569', fontSize: 12, textAlign: 'right' }}>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {paginatedRows.map((row) => (
-                    <TableRow key={row.id} hover>
-                      <TableCell sx={{ fontWeight: 600 }}>{row.userName || 'No Name'}</TableCell>
-                      <TableCell>{row.email}</TableCell>
-                      <TableCell>{row.mobile || '-'}</TableCell>
-                      <TableCell>{getRoleName(row.roleId)}</TableCell>
-                      <TableCell>
-                        <Chip size="small" color={row.status === 'Active' ? 'success' : 'default'} variant="outlined" label={row.status || 'Active'} />
+                    <TableRow key={row.id} hover sx={{ '&:nth-of-type(even)': { bgcolor: '#f8fafc' } }}>
+                      <TableCell sx={{ fontWeight: 700, color: '#1e293b', fontSize: 13 }}>{row.userName || 'No Name'}</TableCell>
+                      <TableCell sx={{ fontSize: 13, color: '#64748b', fontWeight: 600 }}>
+                        {row.isBlocked ? 'BLOCKED' : 'NOT BLOCKED'}
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={{ fontSize: 13, color: '#64748b' }}>{row.lastLoginFrom || 'B1WEBSERVER'}</TableCell>
+                      <TableCell sx={{ fontSize: 13, color: '#64748b' }}>{row.lastLoginTime || '26/03/26 11:20:13 AM'}</TableCell>
+                      <TableCell sx={{ fontSize: 13, color: '#64748b' }}>{row.lastLoginInfo || 'Chrome'}</TableCell>
+                      <TableCell sx={{ textAlign: 'right' }}>
                         <IconButton size="small" color="primary" onClick={() => handleOpenEdit(row)}>
-                          <EditOutlinedIcon fontSize="small" />
+                          <EditOutlinedIcon fontSize="inherit" />
                         </IconButton>
                       </TableCell>
                     </TableRow>

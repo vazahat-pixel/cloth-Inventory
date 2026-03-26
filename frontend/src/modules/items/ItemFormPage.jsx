@@ -74,7 +74,7 @@ function ItemFormPage() {
     api.get('/hsn-codes').then(res => setHsnCodes(res.data.hsnCodes || res.data.data?.hsnCodes || res.data.data || [])).catch(console.error);
   }, [dispatch]);
 
-  const [imageData, setImageData] = useState(null);
+  const [images, setImages] = useState(Array(7).fill(null));
 
   useEffect(() => {
     if (isEditMode && !existingItem) {
@@ -96,18 +96,31 @@ function ItemFormPage() {
         hsnCodeId: existingItem.hsnCodeId?._id || existingItem.hsnCodeId || '',
       });
       setVariants(existingItem.variants || []);
-      setImageData(existingItem.image || null);
+      
+      // Load images into slots
+      const existingImages = existingItem.images || (existingItem.image ? [existingItem.image] : []);
+      const newImages = Array(7).fill(null);
+      existingImages.forEach((img, idx) => {
+        if (idx < 7) {
+          if (typeof img === 'string') {
+             newImages[idx] = { name: `Image ${idx + 1}`, preview: img };
+          } else {
+             newImages[idx] = img;
+          }
+        }
+      });
+      setImages(newImages);
       return;
     }
 
     reset(defaultValues);
     setVariants([]);
-    setImageData(null);
+    setImages(Array(7).fill(null));
   }, [existingItem, isEditMode, reset]);
 
   const styleCode = watch('sku');
 
-  const handleImageChange = (event) => {
+  const handleImageChange = (index) => (event) => {
     const file = event.target.files?.[0];
     if (!file) {
       return;
@@ -115,16 +128,20 @@ function ItemFormPage() {
 
     const reader = new FileReader();
     reader.onload = () => {
-      setImageData({
+      const newImages = [...images];
+      newImages[index] = {
         name: file.name,
         preview: String(reader.result),
-      });
+      };
+      setImages(newImages);
     };
     reader.readAsDataURL(file);
   };
 
-  const removeImage = () => {
-    setImageData(null);
+  const removeImage = (index) => {
+    const newImages = [...images];
+    newImages[index] = null;
+    setImages(newImages);
   };
 
   const onSubmit = (values) => {
@@ -146,7 +163,7 @@ function ItemFormPage() {
         fabricType: values.fabricType,
       },
       hsnCodeId: values.hsnCodeId,
-      image: imageData,
+      images: images.filter(img => img !== null).map(img => img.preview || img),
       status: values.status,
       variants: variants.map(v => ({
         ...v,
@@ -338,36 +355,88 @@ function ItemFormPage() {
 
       <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3, mb: 2 }}>
         <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a', mb: 2 }}>
-          Media
+          Media / Product Images (Max 7)
         </Typography>
 
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }}>
-          <Button component="label" variant="outlined" startIcon={<UploadFileIcon />}>
-            Upload Image
-            <input hidden type="file" accept="image/*" onChange={handleImageChange} />
-          </Button>
-
-          {imageData?.name && (
-            <Typography variant="body2" sx={{ color: '#334155', fontWeight: 600 }}>
-              {imageData.name}
-            </Typography>
-          )}
-
-          {imageData && (
-            <Button color="error" variant="text" onClick={removeImage}>
-              Remove
-            </Button>
-          )}
-        </Stack>
-
-        {imageData?.preview && (
-          <Box
-            component="img"
-            src={imageData.preview}
-            alt="Item Preview"
-            sx={{ mt: 2, width: 120, height: 120, objectFit: 'cover', borderRadius: 1.5 }}
-          />
-        )}
+        <Grid container spacing={2}>
+          {images.map((img, index) => (
+            <Grid item xs={6} sm={4} md={3} key={index}>
+              <Box
+                sx={{
+                  border: '1px dashed #cbd5e1',
+                  borderRadius: 2,
+                  p: 1,
+                  height: 160,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  bgcolor: '#f8fafc',
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}
+              >
+                {img?.preview ? (
+                  <>
+                    <Box
+                      component="img"
+                      src={img.preview}
+                      sx={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 1 }}
+                    />
+                    <Button
+                      size="small"
+                      color="error"
+                      variant="contained"
+                      onClick={() => removeImage(index)}
+                      sx={{
+                        position: 'absolute',
+                        top: 4,
+                        right: 4,
+                        minWidth: 0,
+                        p: 0.5,
+                        borderRadius: '50%',
+                        opacity: 0.8,
+                        '&:hover': { opacity: 1 }
+                      }}
+                    >
+                      ×
+                    </Button>
+                    <Typography 
+                      variant="caption" 
+                      sx={{ 
+                        position: 'absolute', 
+                        bottom: 0, 
+                        width: '100%', 
+                        bgcolor: 'rgba(0,0,0,0.5)', 
+                        color: 'white', 
+                        textAlign: 'center',
+                        fontSize: 10
+                      }}
+                    >
+                      Slot {index + 1}
+                    </Typography>
+                  </>
+                ) : (
+                  <Button
+                    component="label"
+                    sx={{
+                      width: '100%',
+                      height: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      textTransform: 'none',
+                      color: '#64748b'
+                    }}
+                  >
+                    <UploadFileIcon sx={{ mb: 1, fontSize: 32, opacity: 0.5 }} />
+                    <Typography variant="caption" fontWeight={600}>Image {index + 1}</Typography>
+                    <input hidden type="file" accept="image/*" onChange={handleImageChange(index)} />
+                  </Button>
+                )}
+              </Box>
+            </Grid>
+          ))}
+        </Grid>
       </Paper>
 
       {variantError && (
