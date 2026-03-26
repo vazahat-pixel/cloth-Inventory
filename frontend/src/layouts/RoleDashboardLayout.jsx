@@ -8,6 +8,20 @@ import SetupSubnav from '../modules/setup/SetupSubnav';
 import { setupMatchPaths } from '../modules/setup/setupNavConfig';
 import SetupAccountsSubnav from '../modules/setup/SetupAccountsSubnav';
 import { setupAccountsMatchPaths } from '../modules/setup/setupAccountsNavConfig';
+import SetupTaxesSubnav from '../modules/setup/SetupTaxesSubnav';
+import { setupTaxesMatchPaths } from '../modules/setup/setupTaxesNavConfig';
+import PartyWiseSubnav from '../modules/setup/PartyWiseSubnav';
+import { partyWiseMatchPaths } from '../modules/setup/partyWiseNavConfig';
+import OtherAccountSubnav from '../modules/setup/OtherAccountSubnav';
+import { otherAccountMatchPaths } from '../modules/setup/otherAccountNavConfig';
+import ConfigurationsSubnav from '../modules/setup/ConfigurationsSubnav';
+import { configurationsMatchPaths } from '../modules/setup/configurationsNavConfig';
+import ACVouchersSubnav from '../modules/accounts/ACVouchersSubnav';
+import { acVouchersMatchPaths } from '../modules/accounts/acVouchersNavConfig';
+import ContinuousPrintingSubnav from '../modules/accounts/ContinuousPrintingSubnav';
+import { continuousPrintingMatchPaths } from '../modules/accounts/continuousPrintingNavConfig';
+import AccountsUtilitiesSubnav from '../modules/accounts/AccountsUtilitiesSubnav';
+import { accountsUtilitiesMatchPaths } from '../modules/accounts/accountsUtilitiesNavConfig';
 import AccountsSubnav from '../modules/accounts/AccountsSubnav';
 import { accountsMatchPaths } from '../modules/accounts/accountsNavConfig';
 import PurchaseSubnav from '../modules/purchase/PurchaseSubnav';
@@ -26,10 +40,14 @@ import PayrollReportsSubnav from '../modules/payroll/PayrollReportsSubnav';
 import { payrollReportsMatchPaths } from '../modules/payroll/payrollReportsNavConfig';
 import ReportsQueriesSubnav from '../modules/reports/ReportsQueriesSubnav';
 import { reportsQueriesMatchPaths } from '../modules/reports/reportsQueriesNavConfig';
+import FinancialReportsSubnav from '../modules/reports/FinancialReportsSubnav';
+import { financialReportsMatchPaths } from '../modules/reports/financialReportsNavConfig';
 import UtilitiesSubnav from '../modules/utilities/UtilitiesSubnav';
 import { utilitiesMatchPaths } from '../modules/utilities/utilitiesNavConfig';
 import ProductionSubnav from '../modules/production/ProductionSubnav';
 import { productionMatchPaths } from '../modules/production/productionNavConfig';
+import ProductionSetupsSubnav from '../modules/production/ProductionSetupsSubnav';
+import { productionSetupsMatchPaths } from '../modules/production/productionSetupsNavConfig';
 import UserAccessSubnav from '../modules/userAccess/UserAccessSubnav';
 import { userAccessMatchPaths } from '../modules/userAccess/userAccessNavConfig';
 
@@ -41,17 +59,59 @@ function RoleDashboardLayout() {
     ? location.pathname.slice(navConfig.basePath.length) || '/'
     : location.pathname;
 
-  const showSetupSubnav = navConfig.role === 'admin' && setupMatchPaths.some((candidate) => (
-    candidate === '/'
-      ? localPath === '/'
-      : localPath === candidate || localPath.startsWith(`${candidate}/`)
-  ));
   const showSetupAccountsSubnav = navConfig.role === 'admin' && setupAccountsMatchPaths.some((candidate) => (
     candidate === '/'
       ? localPath === '/'
       : localPath === candidate || localPath.startsWith(`${candidate}/`)
   ));
-  const showAccountsSubnav = navConfig.role === 'admin' && accountsMatchPaths.some((candidate) => (
+  const showSetupTaxesSubnav = navConfig.role === 'admin' && setupTaxesMatchPaths.some((candidate) => (
+    candidate === '/'
+      ? localPath === '/'
+      : localPath === candidate || localPath.startsWith(`${candidate}/`)
+  ));
+  const showPartyWiseSubnav = navConfig.role === 'admin' && partyWiseMatchPaths.some((candidate) => (
+    candidate === '/'
+      ? localPath === '/'
+      : localPath === candidate || localPath.startsWith(`${candidate}/`)
+  ));
+  const showOtherAccountSubnav = navConfig.role === 'admin' && otherAccountMatchPaths.some((candidate) => (
+    candidate === '/'
+      ? localPath === '/'
+      : localPath === candidate || localPath.startsWith(`${candidate}/`)
+  ));
+  const showConfigurationsSubnav = navConfig.role === 'admin' && configurationsMatchPaths.some((candidate) => (
+    candidate === '/'
+      ? localPath === '/'
+      : localPath === candidate || localPath.startsWith(`${candidate}/`)
+  ));
+
+  const showSetupSubnav = navConfig.role === 'admin' && 
+    !showSetupAccountsSubnav && 
+    !showSetupTaxesSubnav && 
+    !showPartyWiseSubnav && 
+    !showOtherAccountSubnav && 
+    !showConfigurationsSubnav && 
+    setupMatchPaths.some((candidate) => (
+      candidate === '/'
+        ? localPath === '/'
+        : localPath === candidate || localPath.startsWith(`${candidate}/`)
+    ));
+  const showACVouchersSubnav = navConfig.role === 'admin' && acVouchersMatchPaths.some((candidate) => (
+    candidate === '/'
+      ? localPath === '/'
+      : localPath === candidate || localPath.startsWith(`${candidate}/`)
+  ));
+  const showContinuousPrintingSubnav = navConfig.role === 'admin' && continuousPrintingMatchPaths.some((candidate) => (
+    candidate === '/'
+      ? localPath === '/'
+      : localPath === candidate || localPath.startsWith(`${candidate}/`)
+  ));
+  const showAccountsUtilitiesSubnav = navConfig.role === 'admin' && accountsUtilitiesMatchPaths.some((candidate) => (
+    candidate === '/'
+      ? localPath === '/'
+      : localPath === candidate || localPath.startsWith(`${candidate}/`)
+  ));
+  const showAccountsSubnav = navConfig.role === 'admin' && !showACVouchersSubnav && !showContinuousPrintingSubnav && !showAccountsUtilitiesSubnav && accountsMatchPaths.some((candidate) => (
     candidate === '/'
       ? localPath === '/'
       : localPath === candidate || localPath.startsWith(`${candidate}/`)
@@ -96,6 +156,11 @@ function RoleDashboardLayout() {
       ? localPath === '/'
       : localPath === candidate || localPath.startsWith(`${candidate}/`)
   ));
+  const showFinancialReportsSubnav = navConfig.role === 'admin' && financialReportsMatchPaths.some((candidate) => (
+    candidate === '/'
+      ? localPath === '/'
+      : localPath === candidate || localPath.startsWith(`${candidate}/`)
+  ));
   const showUtilitiesSubnav = navConfig.role === 'admin' && utilitiesMatchPaths.some((candidate) => (
     candidate === '/'
       ? localPath === '/'
@@ -106,7 +171,12 @@ function RoleDashboardLayout() {
       ? localPath === '/'
       : localPath === candidate || localPath.startsWith(`${candidate}/`)
   ));
-  const showProductionSubnav = navConfig.role === 'admin' && productionMatchPaths.some((candidate) => (
+  const showProductionSubnav = navConfig.role === 'admin' && !showACVouchersSubnav && !showContinuousPrintingSubnav && !showAccountsUtilitiesSubnav && !showAccountsSubnav && productionMatchPaths.some((candidate) => (
+    candidate === '/'
+      ? localPath === '/'
+      : localPath === candidate || localPath.startsWith(`${candidate}/`)
+  ));
+  const showProductionSetupsSubnav = navConfig.role === 'admin' && productionSetupsMatchPaths.some((candidate) => (
     candidate === '/'
       ? localPath === '/'
       : localPath === candidate || localPath.startsWith(`${candidate}/`)
@@ -124,6 +194,13 @@ function RoleDashboardLayout() {
       <Box sx={{ width: 240, flexShrink: 0 }} aria-hidden />
       {showSetupSubnav ? <SetupSubnav /> : null}
       {showSetupAccountsSubnav ? <SetupAccountsSubnav /> : null}
+      {showSetupTaxesSubnav ? <SetupTaxesSubnav /> : null}
+      {showPartyWiseSubnav ? <PartyWiseSubnav /> : null}
+      {showOtherAccountSubnav ? <OtherAccountSubnav /> : null}
+      {showConfigurationsSubnav ? <ConfigurationsSubnav /> : null}
+      {showACVouchersSubnav ? <ACVouchersSubnav /> : null}
+      {showContinuousPrintingSubnav ? <ContinuousPrintingSubnav /> : null}
+      {showAccountsUtilitiesSubnav ? <AccountsUtilitiesSubnav /> : null}
       {showAccountsSubnav ? <AccountsSubnav /> : null}
       {showPurchaseSubnav ? <PurchaseSubnav /> : null}
       {showOrderProcessingSubnav ? <OrderProcessingSubnav /> : null}
@@ -133,9 +210,11 @@ function RoleDashboardLayout() {
       {showPayrollEntrySubnav ? <PayrollEntrySubnav /> : null}
       {showPayrollReportsSubnav ? <PayrollReportsSubnav /> : null}
       {showReportsQueriesSubnav ? <ReportsQueriesSubnav /> : null}
+      {showFinancialReportsSubnav ? <FinancialReportsSubnav /> : null}
       {showUtilitiesSubnav ? <UtilitiesSubnav /> : null}
       {showUserAccessSubnav ? <UserAccessSubnav /> : null}
       {showProductionSubnav ? <ProductionSubnav /> : null}
+      {showProductionSetupsSubnav ? <ProductionSetupsSubnav /> : null}
       <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <Topbar />
         <Box

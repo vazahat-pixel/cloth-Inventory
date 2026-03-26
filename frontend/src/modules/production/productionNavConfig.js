@@ -10,13 +10,14 @@ export const productionNavItems = [
   {
     key: 'production-setups',
     label: 'Production Setups',
-    path: '/production/production-setups',
+    path: '/production/setups',
+    matchPaths: ['/production/setups'],
     icon: SettingsOutlinedIcon,
   },
   {
     key: 'production-vouchers',
     label: 'Production Vouchers',
-    path: '/production/production-vouchers',
+    path: '/production/vouchers',
     icon: ReceiptLongOutlinedIcon,
   },
   {
@@ -28,13 +29,13 @@ export const productionNavItems = [
   {
     key: 'production-reports-queries',
     label: 'Production Reports/Queries',
-    path: '/production/production-reports-queries',
+    path: '/production/reports-queries',
     icon: AssessmentOutlinedIcon,
   },
   {
     key: 'production-utilities',
     label: 'Production Utilities',
-    path: '/production/production-utilities',
+    path: '/production/utilities',
     icon: BuildOutlinedIcon,
   },
 ];

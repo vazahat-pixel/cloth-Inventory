@@ -6,7 +6,16 @@ import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import ManageAccountsOutlinedIcon from '@mui/icons-material/ManageAccountsOutlined';
 import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
 
-export const setupMatchPaths = ['/setup', '/items', '/masters/item-groups', '/gst', '/settings/preferences'];
+export const setupMatchPaths = [
+  '/setup',
+  '/items',
+  '/masters/item-groups',
+  '/gst',
+  '/settings/preferences',
+  '/setup/party-wise',
+  '/setup/other-account-details',
+  '/setup/configurations'
+];
 
 export const setupNavItems = [
   {
@@ -32,27 +41,29 @@ export const setupNavItems = [
   {
     label: 'Setup Taxes',
     hint: 'GST setup',
-    path: '/gst/tax-rates',
-    matchPaths: ['/gst'],
+    path: '/setup/taxes',
+    matchPaths: ['/setup/taxes', '/gst'],
     icon: ReceiptLongOutlinedIcon,
   },
   {
     label: 'Party Wise Settings',
-    hint: 'Coming soon',
+    hint: 'Party masters',
+    path: '/setup/party-wise',
+    matchPaths: ['/setup/party-wise'],
     icon: GroupsOutlinedIcon,
-    disabled: true,
   },
   {
     label: 'Set Other Account Details',
-    hint: 'Coming soon',
+    hint: 'Advanced account settings',
+    path: '/setup/other-account-details',
+    matchPaths: ['/setup/other-account-details'],
     icon: ManageAccountsOutlinedIcon,
-    disabled: true,
   },
   {
     label: 'Configurations',
-    hint: 'Preferences',
-    path: '/settings/preferences',
-    matchPaths: ['/settings/preferences'],
+    hint: 'System behavior',
+    path: '/setup/configurations',
+    matchPaths: ['/setup/configurations'],
     icon: TuneOutlinedIcon,
   },
 ];

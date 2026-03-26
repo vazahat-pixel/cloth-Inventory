@@ -8,20 +8,22 @@ export const accountsNavItems = [
   {
     label: 'A/C Vouchers',
     hint: 'Bank payment and receipt vouchers',
-    path: '/accounts/a-c-vouchers',
-    matchPaths: ['/accounts/a-c-vouchers', '/accounts/bank-payment', '/accounts/bank-receipt'],
+    path: '/accounts/vouchers',
+    matchPaths: ['/accounts/vouchers'],
     icon: ReceiptLongOutlinedIcon,
   },
   {
     label: 'Continuous Printing',
     hint: 'Voucher print queue',
-    path: '/accounts/continuous-printing',
+    path: '/accounts/printing',
+    matchPaths: ['/accounts/printing'],
     icon: PrintOutlinedIcon,
   },
   {
     label: 'Utilities',
     hint: 'Accounts tools and shortcuts',
     path: '/accounts/utilities',
+    matchPaths: ['/accounts/utilities'],
     icon: BuildOutlinedIcon,
   },
 ];

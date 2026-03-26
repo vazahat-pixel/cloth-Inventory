@@ -25,6 +25,8 @@ function ReportFilterPanel({
   showSupplier = false,
   showSalesman = false,
   showPaymentStatus = false,
+  showReportType = false,
+  showAttendanceStatus = false,
   compact = false,
 }) {
   const [expanded, setExpanded] = useState(!compact);
@@ -73,7 +75,9 @@ function ReportFilterPanel({
       (f.customerId && f.customerId !== 'all') ||
       (f.supplierId && f.supplierId !== 'all') ||
       (f.salesmanId && f.salesmanId !== 'all') ||
-      (f.paymentStatus && f.paymentStatus !== 'all')
+      (f.paymentStatus && f.paymentStatus !== 'all') ||
+      (f.reportType && f.reportType !== 'all') ||
+      (f.attendanceStatus && f.attendanceStatus !== 'all')
     );
   }, [filters]);
 
@@ -90,6 +94,8 @@ function ReportFilterPanel({
     if (showSupplier) cleared.supplierId = 'all';
     if (showSalesman) cleared.salesmanId = 'all';
     if (showPaymentStatus) cleared.paymentStatus = 'all';
+    if (showReportType) cleared.reportType = 'all';
+    if (showAttendanceStatus) cleared.attendanceStatus = 'all';
     onFiltersChange?.(cleared);
   };
 
@@ -249,6 +255,44 @@ function ReportFilterPanel({
             <MenuItem value="Paid">Paid</MenuItem>
             <MenuItem value="Partial">Partial</MenuItem>
             <MenuItem value="Pending">Pending</MenuItem>
+          </TextField>
+        </Grid>
+      )}
+      {showReportType && (
+        <Grid item xs={12} sm={6} md={3}>
+          <TextField
+            fullWidth
+            size="small"
+            select
+            label="Report Type (Please Choose)"
+            value={filters?.reportType || 'all'}
+            onChange={(e) => update('reportType', e.target.value)}
+          >
+            <MenuItem value="all">-- Select Type --</MenuItem>
+            <MenuItem value="detailed">Detailed Report</MenuItem>
+            <MenuItem value="summary">Summary Report</MenuItem>
+            <MenuItem value="daily">Daily Status</MenuItem>
+            <MenuItem value="monthly">Monthly Register</MenuItem>
+          </TextField>
+        </Grid>
+      )}
+      {showAttendanceStatus && (
+        <Grid item xs={12} sm={6} md={3}>
+          <TextField
+            fullWidth
+            size="small"
+            select
+            label="Attendance Status"
+            value={filters?.attendanceStatus || 'all'}
+            onChange={(e) => update('attendanceStatus', e.target.value)}
+          >
+            <MenuItem value="all">All Status</MenuItem>
+            <MenuItem value="present">Present</MenuItem>
+            <MenuItem value="absent">Absent</MenuItem>
+            <MenuItem value="half_day">Half Day</MenuItem>
+            <MenuItem value="leave">On Leave</MenuItem>
+            <MenuItem value="holiday">Holiday</MenuItem>
+            <MenuItem value="weekly_off">Weekly Off</MenuItem>
           </TextField>
         </Grid>
       )}
