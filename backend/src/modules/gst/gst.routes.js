@@ -6,14 +6,21 @@ const { requireAdmin } = require('../../middlewares/role.middleware');
 const router = express.Router();
 
 router.use(protect);
-router.use(requireAdmin);
 
+// GST Slabs (Admin only)
 router.route('/')
     .get(gstController.getAllGstSlabs)
-    .post(gstController.createGstSlab);
+    .post(requireAdmin, gstController.createGstSlab);
 
 router.route('/:id')
-    .patch(gstController.updateGstSlab)
-    .delete(gstController.deleteGstSlab);
+    .patch(requireAdmin, gstController.updateGstSlab)
+    .delete(requireAdmin, gstController.deleteGstSlab);
+
+// GST Groups
+router.route('/groups')
+    .get(gstController.getAllGstGroups)
+    .post(requireAdmin, gstController.createGstGroup);
+
+router.patch('/groups/:id', requireAdmin, gstController.updateGstGroup);
 
 module.exports = router;

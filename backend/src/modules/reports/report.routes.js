@@ -32,4 +32,12 @@ router.get('/profit', requireAdmin, reportController.getProfitReport);
 // Inventory export (stock-by-store & warehouse) - HO only
 router.get('/inventory-export', protect, reportController.getInventoryExport);
 
+// NEW Report Endpoints
+router.get('/customer', reportController.getCustomerReport);
+router.get('/vendor', reportController.getVendorReport);
+router.get('/collection', reportController.getCollectionReport);
+router.get('/bank-book', reportController.getBankBookReport);
+router.get('/age-analysis', requireAdmin, reportController.getAgeAnalysisReport);
+
 module.exports = router;
+

@@ -6,8 +6,8 @@ const createCustomer = async (customerData) => {
 };
 
 const getAllCustomers = async (query) => {
-    const { page = 1, limit = 10, search } = query;
-    const filter = { isActive: true };
+    const { page = 1, limit = 100, search } = query;
+    const filter = {};
     if (search) {
         filter.$or = [
             { name: { $regex: search, $options: 'i' } },
@@ -23,13 +23,34 @@ const getAllCustomers = async (query) => {
 };
 
 const getCustomerById = async (id) => {
-    const customer = await Customer.findById(id).populate('purchaseHistory');
+    const customer = await Customer.findById(id);
     if (!customer) throw new Error('Customer not found');
     return customer;
 };
 
 const getCustomerByPhone = async (phone) => {
-    const customer = await Customer.findOne({ phone, isActive: true });
+    const customer = await Customer.findOne({ phone });
+    return customer;
+};
+
+const updateCustomer = async (id, updates) => {
+    const customer = await Customer.findByIdAndUpdate(
+        id,
+        { $set: updates },
+        { new: true, runValidators: true }
+    );
+    if (!customer) throw new Error('Customer not found');
+    return customer;
+};
+
+const deleteCustomer = async (id) => {
+    // Soft delete: set isActive to false
+    const customer = await Customer.findByIdAndUpdate(
+        id,
+        { $set: { isActive: false } },
+        { new: true }
+    );
+    if (!customer) throw new Error('Customer not found');
     return customer;
 };
 
@@ -37,5 +58,7 @@ module.exports = {
     createCustomer,
     getAllCustomers,
     getCustomerById,
-    getCustomerByPhone
+    getCustomerByPhone,
+    updateCustomer,
+    deleteCustomer
 };
