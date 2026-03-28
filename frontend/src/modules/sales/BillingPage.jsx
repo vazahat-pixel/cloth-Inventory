@@ -546,6 +546,8 @@ function BillingPage({
       discount: toNumber(billDiscount) + toNumber(couponDiscountAmount) + toNumber(schemeDiscountAmount),
       tax: totals.taxAmount,
       grandTotal: totals.netPayable,
+      amountPaid: payment.amountPaid,
+      dueAmount: payment.dueAmount,
       paymentMode: payment.method || 'CASH',
       redeemPoints: Math.max(0, toNumber(loyaltyRedeemed)),
       creditNoteId: creditNoteId || null,
@@ -588,7 +590,7 @@ function BillingPage({
         >
           <Box>
             <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
-              Invoice {existingSale.invoiceNumber}
+              Invoice {existingSale.saleNumber || existingSale.invoiceNumber}
             </Typography>
             <Typography variant="body2" sx={{ color: '#64748b' }}>
               Read-only invoice view

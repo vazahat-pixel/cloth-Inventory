@@ -50,10 +50,10 @@ function PurchaseDetailDialog({
         <DialogContent dividers>
           <Stack spacing={2}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-              <DetailField label="Bill Number" value={purchase.billNumber} />
-              <DetailField label="Supplier" value={supplierName || purchase.supplierId} />
-              <DetailField label="Bill Date" value={purchase.billDate} />
-              <DetailField label="Warehouse" value={warehouseName || purchase.warehouseId} />
+              <DetailField label="Invoice No." value={purchase.invoiceNumber || purchase.billNumber} />
+              <DetailField label="Supplier" value={supplierName || (purchase.supplierId?.name) || ''} />
+              <DetailField label="Invoice Date" value={purchase.invoiceDate || purchase.billDate} />
+              <DetailField label="Warehouse" value={warehouseName || (purchase.warehouseId?.name) || ''} />
             </Stack>
 
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>

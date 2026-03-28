@@ -5,6 +5,7 @@ const warehouseInventorySchema = new mongoose.Schema(
         warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', required: true },
         productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
         quantity: { type: Number, default: 0, min: 0 },
+        reservedQuantity: { type: Number, default: 0, min: 0 },
         damagedQuantity: { type: Number, default: 0, min: 0 },
         lastUpdated: { type: Date, default: Date.now },
     },

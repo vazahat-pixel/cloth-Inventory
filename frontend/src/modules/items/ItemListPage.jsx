@@ -60,12 +60,16 @@ function ItemListPage() {
     const query = searchText.trim().toLowerCase();
 
     return (items || []).filter((item) => {
+      const sku = item.sku || item.code || '';
+      const brandName = (item.brand?.brandName || item.brand?.name || item.brand || '').toLowerCase();
+      const categoryName = (item.category?.groupName || item.category?.name || item.category || '').toLowerCase();
+
       const matchesSearch = query
-        ? item.name.toLowerCase().includes(query) || item.code.toLowerCase().includes(query)
+        ? item.name.toLowerCase().includes(query) || sku.toLowerCase().includes(query)
         : true;
 
-      const matchesBrand = brandFilter === 'all' ? true : item.brand === brandFilter;
-      const matchesCategory = categoryFilter === 'all' ? true : item.category === categoryFilter;
+      const matchesBrand = brandFilter === 'all' ? true : brandName.includes(brandFilter.toLowerCase());
+      const matchesCategory = categoryFilter === 'all' ? true : categoryName.includes(categoryFilter.toLowerCase());
 
       return matchesSearch && matchesBrand && matchesCategory;
     });
@@ -118,7 +122,7 @@ function ItemListPage() {
                 setPage(0);
                 setSearchText(event.target.value);
               }}
-              placeholder="Search by item name or code"
+              placeholder="Search by item name or SKU"
               sx={{ flex: 1 }}
               InputProps={{
                 startAdornment: (
@@ -142,8 +146,8 @@ function ItemListPage() {
             >
               <MenuItem value="all">All Brands</MenuItem>
               {brands.map((brand) => (
-                <MenuItem key={brand.id} value={brand.brandName}>
-                  {brand.brandName}
+                <MenuItem key={brand.id || brand._id} value={brand.brandName || brand.name}>
+                  {brand.brandName || brand.name}
                 </MenuItem>
               ))}
             </TextField>
@@ -161,8 +165,8 @@ function ItemListPage() {
             >
               <MenuItem value="all">All Categories</MenuItem>
               {itemGroups.map((group) => (
-                <MenuItem key={group.id} value={group.groupName}>
-                  {group.groupName}
+                <MenuItem key={group.id || group._id} value={group.groupName || group.name}>
+                  {group.groupName || group.name}
                 </MenuItem>
               ))}
             </TextField>
@@ -176,7 +180,7 @@ function ItemListPage() {
                 <TableHead>
                   <TableRow>
                     <TableCell sx={{ fontWeight: 700, minWidth: 170 }}>Item Name</TableCell>
-                    <TableCell sx={{ fontWeight: 700, minWidth: 140 }}>Style Code</TableCell>
+                    <TableCell sx={{ fontWeight: 700, minWidth: 140 }}>SKU</TableCell>
                     <TableCell sx={{ fontWeight: 700, minWidth: 140 }}>Brand</TableCell>
                     <TableCell sx={{ fontWeight: 700, minWidth: 140 }}>Category</TableCell>
                     <TableCell sx={{ fontWeight: 700, minWidth: 110 }} align="right">
@@ -195,10 +199,10 @@ function ItemListPage() {
                       <TableCell>
                         <Typography sx={{ fontWeight: 700, color: '#0f172a' }}>{item.name}</Typography>
                       </TableCell>
-                      <TableCell>{item.code}</TableCell>
-                      <TableCell>{item.brand}</TableCell>
-                      <TableCell>{item.category}</TableCell>
-                      <TableCell align="right">1</TableCell>
+                      <TableCell>{item.sku || item.code}</TableCell>
+                      <TableCell>{item.brand?.brandName || item.brand?.name || item.brand || ''}</TableCell>
+                      <TableCell>{item.category?.groupName || item.category?.name || item.category || ''}</TableCell>
+                      <TableCell align="right">{(item.variants || []).length || 1}</TableCell>
                       <TableCell align="right">{getTotalStock(item)}</TableCell>
                       <TableCell>
                         <StatusChip value={item.status} />
@@ -281,13 +285,13 @@ function ItemListPage() {
               <strong>Name:</strong> {viewItem?.name}
             </Typography>
             <Typography variant="body2">
-              <strong>Style Code:</strong> {viewItem?.code}
+              <strong>SKU:</strong> {viewItem?.sku || viewItem?.code}
             </Typography>
             <Typography variant="body2">
-              <strong>Brand:</strong> {viewItem?.brand}
+              <strong>Brand:</strong> {viewItem?.brand?.brandName || viewItem?.brand?.name || viewItem?.brand || ''}
             </Typography>
             <Typography variant="body2">
-              <strong>Category:</strong> {viewItem?.category}
+              <strong>Category:</strong> {viewItem?.category?.groupName || viewItem?.category?.name || viewItem?.category || ''}
             </Typography>
             <Typography variant="body2">
               <strong>Total Variants:</strong> {viewItem?.variants?.length || 0}
