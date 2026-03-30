@@ -19,6 +19,15 @@ const getById = async (req, res, next) => {
     }
 };
 
+const getAll = async (req, res, next) => {
+    try {
+        const grns = await grnService.getAllGrns();
+        return sendSuccess(res, { grns }, 'All GRNs retrieved');
+    } catch (err) {
+        next(err);
+    }
+};
+
 const getByPurchase = async (req, res, next) => {
     try {
         const grns = await grnService.getGrnsByPurchase(req.params.purchaseId);
@@ -28,8 +37,19 @@ const getByPurchase = async (req, res, next) => {
     }
 };
 
+const approve = async (req, res, next) => {
+    try {
+        const grn = await grnService.approveGRN(req.params.id, req.user._id);
+        return sendSuccess(res, { grn }, 'GRN approved and stock posted');
+    } catch (err) {
+        next(err);
+    }
+};
+
 module.exports = {
     create,
     getById,
-    getByPurchase
+    getAll,
+    getByPurchase,
+    approve
 };

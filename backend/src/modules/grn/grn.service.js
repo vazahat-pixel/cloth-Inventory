@@ -5,6 +5,8 @@ const { withTransaction } = require('../../services/transaction.service');
 const { getNextSequence } = require('../../services/sequence.service');
 const workflowService = require('../workflow/workflow.service');
 
+const stockLedgerService = require('../inventory/stockLedger.service');
+
 /**
  * Generate unique GRN Number (GRN-YYYY-XXXXX)
  */
@@ -81,14 +83,50 @@ const createGRN = async (grnData, userId) => {
             remarks,
             items: processedItems,
             receivedBy: userId,
-            status: GrnStatus.COMPLETED
+            status: GrnStatus.DRAFT // Start as Draft
         });
 
         await grn.save({ session });
         
         // Link document and log transition
         await workflowService.linkDocuments(purchaseId, grn._id, DocumentType.PURCHASE, DocumentType.GRN);
-        await workflowService.updateStatus(grn._id, DocumentType.GRN, null, GrnStatus.COMPLETED, userId, `Created GRN ${grnNumber} (Partial Receipt) from Purchase ${purchase.purchaseNumber}`);
+        await workflowService.updateStatus(grn._id, DocumentType.GRN, null, GrnStatus.DRAFT, userId, `Created Draft GRN ${grnNumber} from Purchase ${purchase.purchaseNumber}`);
+        
+        return grn;
+    });
+};
+
+/**
+ * Step 2: Approve GRN & Post Stock
+ */
+const approveGRN = async (id, userId) => {
+    return await withTransaction(async (session) => {
+        const grn = await GRN.findOne({ _id: id, isDeleted: false }).session(session);
+        if (!grn) throw new Error('GRN not found');
+        if (grn.status !== GrnStatus.DRAFT) throw new Error(`GRN cannot be approved in ${grn.status} status`);
+
+        // 1. Update Status
+        const oldStatus = grn.status;
+        grn.status = GrnStatus.APPROVED;
+        await grn.save({ session });
+
+        // 2. Post to Stock Ledger for each item
+        for (const item of grn.items) {
+            await stockLedgerService.recordMovement({
+                itemId: item.productId,
+                barcode: `${item.productId}-${item.batchNumber}`, // Simplified barcode for demo
+                type: 'IN',
+                quantity: item.receivedQty,
+                source: 'GRN_RECEIPT',
+                referenceId: grn._id,
+                userId: userId,
+                locationId: grn.warehouseId || 'MAIN_WAREHOUSE',
+                locationType: 'WAREHOUSE',
+                batchNo: item.batchNumber
+            }, session);
+        }
+
+        await workflowService.updateStatus(grn._id, DocumentType.GRN, oldStatus, GrnStatus.APPROVED, userId, `Approved GRN ${grn.grnNumber} and posted stock to warehouse.`);
         
         return grn;
     });
@@ -104,8 +142,16 @@ const getGrnsByPurchase = async (purchaseId) => {
     return await GRN.find({ purchaseId, isDeleted: false }).sort({ createdAt: -1 });
 };
 
+const getAllGrns = async () => {
+    return await GRN.find({ isDeleted: false })
+        .populate('supplierId', 'name')
+        .sort({ createdAt: -1 });
+};
+
 module.exports = {
     createGRN,
+    approveGRN,
     getGRNById,
-    getGrnsByPurchase
+    getGrnsByPurchase,
+    getAllGrns
 };

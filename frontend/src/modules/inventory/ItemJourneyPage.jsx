@@ -13,7 +13,9 @@ import {
   Avatar,
   Chip,
   Divider,
-  Grid,
+  Grid
+} from '@mui/material';
+import {
   Timeline,
   TimelineItem,
   TimelineSeparator,
@@ -21,7 +23,7 @@ import {
   TimelineContent,
   TimelineDot,
   TimelineOppositeContent
-} from '@mui/material';
+} from '@mui/lab';
 import TimelineOutlinedIcon from '@mui/icons-material/TimelineOutlined';
 import ShoppingCartCheckoutIcon from '@mui/icons-material/ShoppingCartCheckout';
 import Inventory2Icon from '@mui/icons-material/Inventory2';

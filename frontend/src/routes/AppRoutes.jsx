@@ -116,6 +116,7 @@ import StoreMasterPage from '../modules/setup/StoreMasterPage';
 import DiscountSetupPage from '../modules/setup/DiscountSetupPage';
 import SetupGenericTablePage from '../modules/setup/SetupGenericTablePage';
 import CounterMasterPage from '../modules/setup/CounterMasterPage';
+import GRNListPage from '../modules/grn/GRNListPage';
 import GRNPage from '../modules/grn/GRNPage';
 import SetupCountryPage from '../modules/setup/SetupCountryPage';
 import SetupLandingPage from '../modules/setup/SetupLandingPage';
@@ -192,7 +193,9 @@ function AppRoutes() {
             <Route path="banks" element={<BanksListPage />} />
           </Route>
           <Route path="clothing-erp" element={<LogicERPManager />} />
-          <Route path="grn" element={<GRNPage />} />
+          <Route path="grn" element={<GRNListPage />} />
+          <Route path="grn/new" element={<GRNPage />} />
+          <Route path="grn/:id" element={<GRNPage />} />
           <Route path="items" element={<ItemListPage />} />
           <Route path="items/new" element={<ItemFormPage />} />
           <Route path="items/:id/edit" element={<ItemFormPage />} />
