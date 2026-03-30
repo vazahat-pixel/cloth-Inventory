@@ -60,7 +60,7 @@ class ErrorBoundary extends Component {
               <Typography variant="body2" sx={{ color: '#64748b' }}>
                 An unexpected error occurred. Please try refreshing the page or contact support if the problem persists.
               </Typography>
-              {process.env.NODE_ENV === 'development' && this.state.error && (
+              {import.meta.env.DEV && this.state.error && (
                 <Box
                   component="pre"
                   sx={{

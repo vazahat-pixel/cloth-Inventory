@@ -153,6 +153,9 @@ const createSale = async (saleData, cashierId) => {
             totalIGST += gstData.igst;
             totalTax += gstData.totalTax;
 
+            item.taxAmount = gstData.totalTax;
+            item.taxPercentage = product.gstSlabId ? (await GstSlab.findById(product.gstSlabId)).percentage : 0;
+
             stockMovements.push({
                 productId,
                 variantId: productId,
@@ -231,7 +234,9 @@ const createSale = async (saleData, cashierId) => {
             parentSaleId,
             products: products.map(p => ({
                 ...p,
-                total: (p.price * p.quantity) 
+                taxAmount: p.taxAmount || 0,
+                taxPercentage: p.taxPercentage || 0,
+                total: (p.price * p.quantity) + (p.taxAmount || 0)
             })),
             subTotal: subTotalCalculated,
             discount,

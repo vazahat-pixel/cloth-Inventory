@@ -2,39 +2,39 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
 import { normalizeResponse } from '../../services/normalization';
 
+const endpointMap = {
+  suppliers: '/suppliers',
+  customers: '/customers',
+  warehouses: '/warehouses',
+  stores: '/stores',
+  itemGroups: '/groups',
+  salesmen: '/auth/users',
+  brands: '/brands',
+  accountGroups: '/account-groups',
+  banks: '/banks',
+};
+
+const responseKeyMap = {
+  suppliers: 'suppliers',
+  customers: 'customers',
+  warehouses: 'warehouses',
+  stores: 'stores',
+  itemGroups: 'groups',
+  salesmen: 'users',
+  brands: 'brands',
+  accountGroups: 'accountGroups',
+  banks: 'banks',
+};
+
 // Async Thunks for different master entities
 export const fetchMasters = createAsyncThunk('masters/fetchAll', async (entityKey, { rejectWithValue }) => {
   try {
-    const endpointMap = {
-      suppliers: '/suppliers',
-      customers: '/customers',
-      warehouses: '/warehouses',
-      stores: '/stores',
-      itemGroups: '/groups',
-      salesmen: '/auth/users',
-      brands: '/brands',
-      accountGroups: '/account-groups',
-      banks: '/banks',
-    };
-
-    const responseKeyMap = {
-      suppliers: 'suppliers',
-      customers: 'customers',
-      warehouses: 'warehouses',
-      stores: 'stores',
-      itemGroups: 'groups',
-      salesmen: 'users',
-      brands: 'brands',
-      accountGroups: 'accountGroups',
-      banks: 'banks',
-    };
-
     const endpoint = endpointMap[entityKey];
     if (!endpoint) return rejectWithValue(`No endpoint defined for ${entityKey}`);
 
     const response = await api.get(endpoint);
     const key = responseKeyMap[entityKey];
-    const raw = response.data[key] || response.data.data || [];
+    const raw = response.data[key] || response.data.data?.[key] || response.data.data || [];
 
     const entityTypeMapping = {
       itemGroups: 'group',
@@ -51,18 +51,8 @@ export const fetchMasters = createAsyncThunk('masters/fetchAll', async (entityKe
 
 export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKey, record }, { rejectWithValue }) => {
   try {
-    const endpointMap = {
-      suppliers: '/suppliers',
-      customers: '/customers',
-      warehouses: '/warehouses',
-      stores: '/stores',
-      itemGroups: '/groups',
-      salesmen: '/auth/users',
-      brands: '/brands',
-      accountGroups: '/account-groups',
-      banks: '/banks',
-    };
     const endpoint = endpointMap[entityKey];
+    if (!endpoint) return rejectWithValue(`No endpoint defined for ${entityKey}`);
 
     // Map frontend fields to backend payloads for specific entities
     let payload = record;
@@ -73,6 +63,32 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
         groupType: record.groupType || record.type,
         parentId: record.parentId || record.parentGroup || null,
         isActive: record.isActive !== undefined ? record.isActive : record.status !== 'Inactive',
+      };
+    } else if (entityKey === 'suppliers') {
+      // Map frontend fields (supplierName, gstNo) to backend (name, gstNumber)
+      payload = {
+        name: record.supplierName,
+        supplierCode: record.supplierCode,
+        contactPerson: record.contactPerson,
+        phone: record.phone,
+        email: record.email,
+        address: record.addressLine1 || record.address,
+        addressLine1: record.addressLine1,
+        addressLine2: record.addressLine2,
+        city: record.city,
+        state: record.state,
+        pincode: record.pincode,
+        country: record.country,
+        bankDetails: record.bankDetails,
+        gstNumber: record.gstNo || record.gstNumber,
+        panNo: record.panNo,
+        openingBalance: record.openingBalance,
+        creditDays: record.creditDays,
+        supplierType: record.supplierType,
+        alternatePhone: record.alternatePhone,
+        notes: record.notes,
+        status: record.status,
+        groupId: record.groupId === '' ? null : record.groupId,
       };
     } else if (entityKey === 'customers') {
       // Customers: map UI fields to customer model fields
@@ -115,7 +131,8 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
     if (entityKey === 'itemGroups') {
       raw = response.data.group || response.data.data?.group;
     } else {
-      raw = response.data.data || response.data[entityKey.slice(0, -1)] || response.data[entityKey];
+      const key = responseKeyMap[entityKey];
+      raw = response.data[key] || response.data.data?.[key] || response.data.data;
     }
 
     const entityTypeMapping = {
@@ -133,18 +150,8 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
 
 export const updateMasterRecord = createAsyncThunk('masters/update', async ({ entityKey, id, updates }, { rejectWithValue }) => {
   try {
-    const endpointMap = {
-      suppliers: '/suppliers',
-      customers: '/customers',
-      warehouses: '/warehouses',
-      stores: '/stores',
-      itemGroups: '/groups',
-      salesmen: '/auth/users',
-      brands: '/brands',
-      accountGroups: '/account-groups',
-      banks: '/banks',
-    };
     const endpoint = `${endpointMap[entityKey]}/${id}`;
+    if (!endpoint) return rejectWithValue(`No endpoint defined for ${entityKey}`);
 
     // Map update payloads similar to addMasterRecord
     let payload = updates;
@@ -154,6 +161,31 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
         groupType: updates.groupType || updates.type,
         parentId: updates.parentId || updates.parentGroup || null,
         isActive: updates.isActive !== undefined ? updates.isActive : updates.status !== 'Inactive',
+      };
+    } else if (entityKey === 'suppliers') {
+      payload = {
+        name: updates.supplierName,
+        supplierCode: updates.supplierCode,
+        contactPerson: updates.contactPerson,
+        phone: updates.phone,
+        email: updates.email,
+        address: updates.addressLine1 || updates.address,
+        addressLine1: updates.addressLine1,
+        addressLine2: updates.addressLine2,
+        city: updates.city,
+        state: updates.state,
+        pincode: updates.pincode,
+        country: updates.country,
+        bankDetails: updates.bankDetails,
+        gstNumber: updates.gstNo || updates.gstNumber,
+        panNo: updates.panNo,
+        openingBalance: updates.openingBalance,
+        creditDays: updates.creditDays,
+        supplierType: updates.supplierType,
+        alternatePhone: updates.alternatePhone,
+        notes: updates.notes,
+        status: updates.status,
+        groupId: updates.groupId === '' ? null : updates.groupId,
       };
     } else if (entityKey === 'customers') {
       payload = {
@@ -193,7 +225,8 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
     if (entityKey === 'itemGroups') {
       raw = response.data.group || response.data.data?.group;
     } else {
-      raw = response.data.data || response.data[entityKey.slice(0, -1)] || response.data[entityKey];
+      const key = responseKeyMap[entityKey];
+      raw = response.data[key] || response.data.data?.[key] || response.data.data;
     }
 
     const entityTypeMapping = {
@@ -211,18 +244,8 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
 
 export const deleteMasterRecord = createAsyncThunk('masters/delete', async ({ entityKey, id }, { rejectWithValue }) => {
   try {
-    const endpointMap = {
-      suppliers: '/suppliers',
-      customers: '/customers',
-      warehouses: '/warehouses',
-      stores: '/stores',
-      itemGroups: '/groups',
-      salesmen: '/auth/users',
-      brands: '/brands',
-      accountGroups: '/account-groups',
-      banks: '/banks',
-    };
     const endpoint = `${endpointMap[entityKey]}/${id}`;
+    if (!endpoint) return rejectWithValue(`No endpoint defined for ${entityKey}`);
     await api.delete(endpoint);
     return { entityKey, id };
   } catch (error) {

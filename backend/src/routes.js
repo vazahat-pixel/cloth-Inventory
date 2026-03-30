@@ -9,6 +9,7 @@ const gstRoutes = require('./modules/gst/gst.routes');
 const setupRoutes = require('./modules/setup/setup.routes');
 const inventoryRoutes = require('./modules/inventory/inventory.routes');
 const { requireAdmin } = require('./middlewares/role.middleware');
+const { protect } = require('./middlewares/auth.middleware');
 const { activityLogger } = require('./middlewares/logger.middleware');
 
 const registerRoutes = (app) => {
@@ -19,10 +20,10 @@ const registerRoutes = (app) => {
     app.use('/api/auth', authRoutes);
 
     // Logic ERP Core Modules (Strict Admin only for critical setups)
-    app.use('/api/groups', requireAdmin, groupRoutes);    
-    app.use('/api/import', requireAdmin, importRoutes);  
-    app.use('/api/gst', requireAdmin, gstRoutes);        
-    app.use('/api/setup', requireAdmin, setupRoutes);    
+    app.use('/api/groups', protect, requireAdmin, groupRoutes);    
+    app.use('/api/import', protect, requireAdmin, importRoutes);  
+    app.use('/api/gst', protect, requireAdmin, gstRoutes);        
+    app.use('/api/setup', protect, requireAdmin, setupRoutes);    
     
     // Both roles (Filtered by controller internal logic)
     app.use('/api/items', itemRoutes);      
@@ -35,9 +36,10 @@ const registerRoutes = (app) => {
     app.use('/api/suppliers', require('./modules/suppliers/supplier.routes'));
     app.use('/api/supplier', require('./modules/suppliers/supplier.routes')); // Singular Alias for compatibility
     app.use('/api/production', require('./modules/production/production.routes'));
-    app.use('/api/products', itemRoutes); // Alias
+    app.use('/api/products', require('./modules/products/product.routes'));
     app.use('/api/delivery-challans', require('./modules/deliveryChallan/deliveryChallan.routes'));
     app.use('/api/purchase', require('./modules/purchase/purchase.routes'));
+    app.use('/api/purchase-orders', require('./modules/purchase/purchaseOrder.routes'));
     app.use('/api/reports', requireAdmin, require('./modules/reports/report.routes'));
     app.use('/api/grn', require('./modules/grn/grn.routes'));
     

@@ -37,8 +37,8 @@ import { useAppNavigate } from '../../hooks/useAppNavigate';
 import useRoleBasePath from '../../hooks/useRoleBasePath';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchItems } from '../items/itemsSlice';
-import { fetchPurchaseOrders } from './purchaseSlice';
-import { loadModuleRecords, upsertModuleRecord } from '../erp/erpLocalStore';
+import { fetchPurchaseOrders, addPurchaseOrder, updatePurchaseOrder } from './purchaseSlice';
+import { loadModuleRecords } from '../erp/erpLocalStore';
 import {
   buildFallbackSuppliers,
   buildFallbackVariantOptions,
@@ -221,6 +221,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
       ...previous,
       {
         id: `po-line-${Date.now()}`,
+        productId: option.id,
         itemCode: option.itemCode,
         itemName: option.itemName,
         size: option.size,
@@ -283,49 +284,44 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
     return true;
   };
 
-  const saveOrder = (status) => {
+  const saveOrder = async (status) => {
     setSuccessMessage('');
     if (!validateForm()) {
       return;
     }
 
-    const supplier = suppliers.find((item) => item.id === formValues.supplierId);
-    const now = new Date().toISOString();
-    const normalizedLines = lines.map((line, index) => ({
-      ...line,
-      id: line.id || `po-line-${index + 1}`,
-      qty: Number(line.qty || 0),
-      rate: Number(line.rate || 0),
-      discountPercent: Number(line.discountPercent || 0),
-      taxPercent: Number(line.taxPercent || 0),
-      amount: calculatePurchaseOrderLine(line).amount,
-    }));
-
-    const record = normalizePurchaseOrderRecord({
-      id: existingOrder?.id || `po-${Date.now()}`,
+    const payload = {
       poNumber: formValues.poNumber,
       poDate: formValues.poDate,
       supplierId: formValues.supplierId,
-      supplierName: supplier?.supplierName || '',
       expectedDeliveryDate: formValues.expectedDeliveryDate,
       billingAddress: formValues.billingAddress,
       deliveryAddress: formValues.deliveryAddress,
       paymentTerms: formValues.paymentTerms,
       notes: formValues.notes,
-      status,
-      createdBy: existingOrder?.createdBy || 'HO Admin',
-      createdAt: existingOrder?.createdAt || now,
-      updatedAt: now,
-      items: normalizedLines,
-      totals: calculatePurchaseOrderTotals(normalizedLines),
-    });
+      status: status || 'Draft',
+      items: lines.map((line) => ({
+        productId: line.productId || line.id || line._id,
+        qty: Number(line.qty || 0),
+        price: Number(line.rate || 0),
+        remarks: line.remarks || '',
+      })),
+    };
 
-    upsertModuleRecord(purchaseOrderStorageKey, record);
-    setFormValues((previous) => ({ ...previous, status }));
-    setSuccessMessage(status === 'Draft' ? 'Purchase order saved as draft.' : 'Purchase order submitted successfully.');
+    try {
+      if (isEditMode) {
+        await dispatch(updatePurchaseOrder({ id, orderData: payload })).unwrap();
+        setSuccessMessage('Purchase order updated successfully.');
+      } else {
+        await dispatch(addPurchaseOrder(payload)).unwrap();
+        setSuccessMessage(status === 'Draft' ? 'Purchase order saved as draft.' : 'Purchase order submitted successfully.');
+      }
 
-    if (status !== 'Draft') {
-      navigate(listPath);
+      if (status !== 'Draft') {
+        setTimeout(() => navigate(listPath), 1500);
+      }
+    } catch (err) {
+      setFormError(err.message || 'Failed to save purchase order.');
     }
   };
 

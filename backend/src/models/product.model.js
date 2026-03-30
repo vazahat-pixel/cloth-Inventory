@@ -64,6 +64,11 @@ const productSchema = new mongoose.Schema(
             required: [true, 'Sale price is required'],
             min: 0
         },
+        mrp: {
+            type: Number,
+            default: 0,
+            min: 0
+        },
         factoryStock: {
             type: Number,
             default: 0,
