@@ -10,12 +10,30 @@ export const fetchGrns = createAsyncThunk('grn/fetchGrns', async (_, { rejectWit
   }
 });
 
+export const fetchGrnById = createAsyncThunk('grn/fetchGrnById', async (id, { rejectWithValue }) => {
+  try {
+    const response = await api.get(`/grn/${id}`);
+    return response.data.grn || response.data.data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Failed to fetch GRN');
+  }
+});
+
 export const addGrn = createAsyncThunk('grn/addGrn', async (grnData, { rejectWithValue }) => {
   try {
     const response = await api.post('/grn', grnData);
     return response.data.grn || response.data.data;
   } catch (err) {
     return rejectWithValue(err.response?.data?.message || 'Failed to create GRN');
+  }
+});
+
+export const approveGrn = createAsyncThunk('grn/approveGrn', async (id, { rejectWithValue }) => {
+  try {
+    const response = await api.patch(`/grn/${id}/approve`);
+    return response.data.grn || response.data.data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Failed to approve GRN');
   }
 });
 

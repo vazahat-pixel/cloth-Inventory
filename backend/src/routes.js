@@ -29,16 +29,25 @@ const registerRoutes = (app) => {
     app.use('/api/inventory', inventoryRoutes); 
     app.use('/api/sales', require('./modules/sales/sales.routes'));
 
-    // Existing ERP Modules (Strict Admin)
-    app.use('/api/stores', requireAdmin, require('./modules/stores/store.routes'));
-    app.use('/api/warehouses', requireAdmin, require('./modules/warehouses/warehouse.routes'));
-    app.use('/api/suppliers', requireAdmin, require('./modules/suppliers/supplier.routes'));
-    app.use('/api/production', requireAdmin, require('./modules/production/production.routes'));
+    // Existing ERP Modules (Role validation inside routers)
+    app.use('/api/stores', require('./modules/stores/store.routes'));
+    app.use('/api/warehouses', require('./modules/warehouses/warehouse.routes'));
+    app.use('/api/suppliers', require('./modules/suppliers/supplier.routes'));
+    app.use('/api/supplier', require('./modules/suppliers/supplier.routes')); // Singular Alias for compatibility
+    app.use('/api/production', require('./modules/production/production.routes'));
     app.use('/api/products', itemRoutes); // Alias
-    app.use('/api/delivery-challans', requireAdmin, require('./modules/deliveryChallan/deliveryChallan.routes'));
-    app.use('/api/purchase', requireAdmin, require('./modules/purchase/purchase.routes'));
+    app.use('/api/delivery-challans', require('./modules/deliveryChallan/deliveryChallan.routes'));
+    app.use('/api/purchase', require('./modules/purchase/purchase.routes'));
     app.use('/api/reports', requireAdmin, require('./modules/reports/report.routes'));
-    app.use('/api/grn', requireAdmin, require('./modules/grn/grn.routes'));
+    app.use('/api/grn', require('./modules/grn/grn.routes'));
+    
+    // Financial & Accounting Modules
+    app.use('/api/account-groups', require('./modules/accountGroups/accountGroup.routes'));
+    app.use('/api/account-master', require('./modules/accountMaster/accountMaster.routes'));
+    app.use('/api/accounting', require('./modules/accounting/accounting.routes'));
+    app.use('/api/accounts', require('./modules/accounts/accounts.routes'));
+    app.use('/api/vouchers', require('./modules/vouchers/voucher.routes'));
+    app.use('/api/banks', require('./modules/banks/bank.routes'));
 };
 
 module.exports = registerRoutes;
