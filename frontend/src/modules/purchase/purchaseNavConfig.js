@@ -10,9 +10,16 @@ import SimCardOutlinedIcon from '@mui/icons-material/SimCardOutlined';
 import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 
-export const purchaseMatchPaths = ['/purchase'];
+export const purchaseMatchPaths = ['/purchase', '/grn'];
 
 export const purchaseNavItems = [
+  {
+    key: 'purchase-orders',
+    label: 'Purchase Orders',
+    path: '/purchase/orders',
+    matchPaths: ['/purchase/orders'],
+    icon: ReceiptLongOutlinedIcon,
+  },
   {
     key: 'purchase-voucher',
     label: 'Purchase Voucher',
@@ -29,7 +36,8 @@ export const purchaseNavItems = [
   {
     key: 'grn',
     label: 'Goods Receipt Note (GRN)',
-    path: '/ho/grn',
+    path: '/grn',
+    matchPaths: ['/grn'],
     icon: FactCheckOutlinedIcon,
   },
   {

@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchStockOverview } from './inventorySlice';
-import { fetchMasters } from '../masters/mastersSlice';
 import {
   Box,
-  Chip,
+  Button,
+  IconButton,
   InputAdornment,
   MenuItem,
   Paper,
@@ -20,262 +19,274 @@ import {
   Typography,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
-import StatusChip from '../masters/components/StatusChip';
+import TimelineOutlinedIcon from '@mui/icons-material/TimelineOutlined';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
+import PageHeader from '../../components/erp/PageHeader';
+import FilterBar from '../../components/erp/FilterBar';
+import ExportButton from '../../components/erp/ExportButton';
+import StatusBadge from '../../components/erp/StatusBadge';
+import SummaryCard from '../../components/erp/SummaryCard';
+import { useAppNavigate } from '../../hooks/useAppNavigate';
+import stockOverviewExportColumns from '../../config/exportColumns/stockOverview';
+import { fetchStockOverview } from './inventorySlice';
+import { fetchMasters } from '../masters/mastersSlice';
+import { stockOverviewSeed } from '../erp/erpUiMocks';
 
-const LOW_STOCK_THRESHOLD = 10;
+const normalizeStockRows = (rows = []) =>
+  rows.map((row, index) => ({
+    id: row.id || `stock-${index + 1}`,
+    itemCode: row.itemCode || row.styleCode || row.sku || '',
+    itemName: row.itemName || row.name || '',
+    size: row.size || '',
+    color: row.color || '',
+    warehouse: row.warehouse || row.warehouseName || row.storeName || '',
+    availableStock:
+      row.availableStock != null
+        ? Number(row.availableStock)
+        : Math.max(Number(row.quantity || 0) - Number(row.reserved || 0), 0),
+    reservedStock: Number(row.reservedStock != null ? row.reservedStock : row.reserved || 0),
+    inTransit: Number(row.inTransit || 0),
+    reorderLevel: Number(row.reorderLevel || 0),
+    status:
+      row.status ||
+      (Number(row.availableStock || row.quantity || 0) <= 0
+        ? 'Out_Of_Stock'
+        : Number(row.availableStock || row.quantity || 0) <= Number(row.reorderLevel || 0)
+          ? 'Low_Stock'
+          : 'Active'),
+  }));
+
+const toExportRows = (rows = []) =>
+  rows.map((row) => ({
+    item_code: row.itemCode,
+    item_name: row.itemName,
+    size: row.size,
+    color: row.color,
+    warehouse: row.warehouse,
+    available_stock: row.availableStock,
+    reserved_stock: row.reservedStock,
+    in_transit: row.inTransit,
+    reorder_level: row.reorderLevel,
+    status: row.status,
+  }));
 
 function StockOverviewPage() {
-  const stockRows = useSelector((state) => state.inventory.stock);
+  const dispatch = useDispatch();
+  const navigate = useAppNavigate();
+  const backendRows = useSelector((state) => state.inventory.stock || []);
   const warehouses = useSelector((state) => state.masters.warehouses || []);
-  const stores = useSelector((state) => state.masters.stores || []);
-  const user = useSelector((state) => state.auth.user);
 
   const [searchText, setSearchText] = useState('');
-  const [warehouseFilter, setWarehouseFilter] = useState(
-    user?.role === 'Staff' && user?.shopId ? user.shopId : 'all'
-  );
-  const [brandFilter, setBrandFilter] = useState('all');
-  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [warehouseFilter, setWarehouseFilter] = useState('all');
+  const [itemFilter, setItemFilter] = useState('all');
+  const [sizeFilter, setSizeFilter] = useState('all');
+  const [stockFilter, setStockFilter] = useState('all');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const dispatch = useDispatch();
 
   useEffect(() => {
     dispatch(fetchStockOverview());
     dispatch(fetchMasters('warehouses'));
-    dispatch(fetchMasters('stores'));
-    dispatch(fetchMasters('brands'));
-    dispatch(fetchMasters('itemGroups'));
   }, [dispatch]);
 
-  const masterBrands = useSelector((state) => state.masters.brands || []);
-  const masterCategories = useSelector((state) => state.masters.itemGroups || []);
+  const rows = useMemo(() => {
+    const merged = new Map();
+    [...normalizeStockRows(stockOverviewSeed), ...normalizeStockRows(backendRows)].forEach((row) => {
+      merged.set(`${row.itemCode}-${row.size}-${row.warehouse}`, row);
+    });
+    return Array.from(merged.values());
+  }, [backendRows]);
 
-  const brands = useMemo(() => {
-    const fromStock = stockRows.map((row) => row.brand).filter(Boolean);
-    const fromMaster = masterBrands.map((b) => b.brandName || b.name);
-    return Array.from(new Set([...fromStock, ...fromMaster]));
-  }, [stockRows, masterBrands]);
-
-  const categories = useMemo(() => {
-    const fromStock = stockRows.map((row) => row.category).filter(Boolean);
-    const fromMaster = masterCategories.map((c) => c.groupName || c.name);
-    return Array.from(new Set([...fromStock, ...fromMaster]));
-  }, [stockRows, masterCategories]);
-
-  const locationMap = useMemo(() => {
-    const map = {};
-    warehouses.forEach(w => { map[w.id || w._id] = w.warehouseName || w.name; });
-    stores.forEach(s => { map[s.id || s._id] = s.name; });
-    return map;
-  }, [warehouses, stores]);
+  const itemOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.itemCode).filter(Boolean))), [rows]);
+  const sizeOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.size).filter(Boolean))), [rows]);
+  const warehouseOptions = useMemo(
+    () => Array.from(new Set([...rows.map((row) => row.warehouse), ...warehouses.map((warehouse) => warehouse.warehouseName || warehouse.name)]).values()).filter(Boolean),
+    [rows, warehouses],
+  );
 
   const filteredRows = useMemo(() => {
     const query = searchText.trim().toLowerCase();
-
-    return stockRows.filter((row) => {
+    return rows.filter((row) => {
       const matchesSearch = query
-        ? row.itemName?.toLowerCase().includes(query) ||
-        row.sku?.toLowerCase().includes(query) ||
-        row.styleCode?.toLowerCase().includes(query) ||
-        (row.lotNumber && String(row.lotNumber).toLowerCase().includes(query))
+        ? [row.itemCode, row.itemName, row.color, row.warehouse]
+            .filter(Boolean)
+            .some((value) => String(value).toLowerCase().includes(query))
         : true;
-
-      const matchesWarehouse = warehouseFilter === 'all' ? true : row.warehouseId === warehouseFilter;
-      const matchesBrand = brandFilter === 'all' ? true : row.brand === brandFilter;
-      const matchesCategory = categoryFilter === 'all' ? true : row.category === categoryFilter;
-
-      return matchesSearch && matchesWarehouse && matchesBrand && matchesCategory;
+      const matchesWarehouse = warehouseFilter === 'all' ? true : row.warehouse === warehouseFilter;
+      const matchesItem = itemFilter === 'all' ? true : row.itemCode === itemFilter;
+      const matchesSize = sizeFilter === 'all' ? true : row.size === sizeFilter;
+      const matchesStock =
+        stockFilter === 'low'
+          ? row.availableStock <= row.reorderLevel
+          : stockFilter === 'out'
+            ? row.availableStock <= 0
+            : true;
+      return matchesSearch && matchesWarehouse && matchesItem && matchesSize && matchesStock;
     });
-  }, [brandFilter, categoryFilter, searchText, stockRows, warehouseFilter]);
+  }, [itemFilter, rows, searchText, sizeFilter, stockFilter, warehouseFilter]);
 
-  const paginatedRows = useMemo(() => {
-    const startIndex = page * rowsPerPage;
-    return filteredRows.slice(startIndex, startIndex + rowsPerPage);
-  }, [filteredRows, page, rowsPerPage]);
+  const paginatedRows = useMemo(
+    () => filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [filteredRows, page, rowsPerPage],
+  );
+
+  const summary = useMemo(
+    () => ({
+      totalRows: filteredRows.length,
+      lowStock: filteredRows.filter((row) => row.availableStock <= row.reorderLevel && row.availableStock > 0).length,
+      outOfStock: filteredRows.filter((row) => row.availableStock <= 0).length,
+      inTransit: filteredRows.reduce((sum, row) => sum + Number(row.inTransit || 0), 0),
+    }),
+    [filteredRows],
+  );
+
+  const exportRows = useMemo(() => toExportRows(filteredRows), [filteredRows]);
 
   return (
-    <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2 }}>
-      <Stack spacing={2} sx={{ px: { xs: 2, sm: 3 }, pt: { xs: 2, sm: 3 }, pb: 2 }}>
-        <Box>
-          <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
-            Stock Overview
-          </Typography>
-          <Typography variant="body2" sx={{ color: '#64748b' }}>
-            View variant-level stock across warehouses, with available and reserved quantities.
-          </Typography>
-        </Box>
+    <Box>
+      <PageHeader
+        title="Stock Overview"
+        subtitle="Review item, size, color, warehouse, reserve, transit, and reorder visibility before moving into audit or journey drilldowns."
+        breadcrumbs={[
+          { label: 'Inventory' },
+          { label: 'Stock Overview', active: true },
+        ]}
+        actions={[
+          <ExportButton key="export" rows={exportRows} columns={stockOverviewExportColumns} filename="stock-overview.xlsx" sheetName="Stock Overview" />,
+        ]}
+      />
 
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-          <TextField
-            size="small"
-            value={searchText}
-            onChange={(event) => {
-              setPage(0);
-              setSearchText(event.target.value);
-            }}
-            placeholder="Search by item, style code, or SKU"
-            sx={{ flex: 1 }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" />
-                </InputAdornment>
-              ),
-            }}
-          />
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' }, gap: 2, mb: 2 }}>
+        <SummaryCard label="Stock Rows" value={summary.totalRows} helper="Visible variant/location rows." />
+        <SummaryCard label="Low Stock" value={summary.lowStock} helper="Rows at or below reorder level." tone="warning" />
+        <SummaryCard label="Out Of Stock" value={summary.outOfStock} helper="Rows requiring urgent replenishment." tone="warning" />
+        <SummaryCard label="In Transit" value={summary.inTransit} helper="Units moving between locations." tone="info" />
+      </Box>
 
-          <TextField
-            select
-            size="small"
-            label="Location"
-            value={warehouseFilter}
-            onChange={(event) => {
-              setPage(0);
-              setWarehouseFilter(event.target.value);
-            }}
-            sx={{ minWidth: 200 }}
-          >
-            {user?.role !== 'Staff' && <MenuItem value="all">All Locations</MenuItem>}
-            {warehouses.length > 0 && (
-              <>
-                <Typography variant="overline" sx={{ px: 2, fontWeight: 700, color: 'primary.main' }}>Warehouses</Typography>
-                {warehouses.map((w) => (
-                  <MenuItem key={w.id || w._id} value={w.id || w._id}>
-                    {w.warehouseName || w.name}
-                  </MenuItem>
-                ))}
-              </>
-            )}
-            {stores.length > 0 && <Typography variant="overline" sx={{ px: 2, fontWeight: 700, color: 'secondary.main' }}>Stores</Typography>}
-            {stores.map((s) => (
-              <MenuItem key={s.id || s._id} value={s.id || s._id}>
-                {s.name}
-              </MenuItem>
-            ))}
-          </TextField>
+      <FilterBar sx={{ mb: 2 }}>
+        <TextField
+          size="small"
+          value={searchText}
+          onChange={(event) => {
+            setPage(0);
+            setSearchText(event.target.value);
+          }}
+          placeholder="Search item code, item name, color, or warehouse"
+          sx={{ flex: 1 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon fontSize="small" />
+              </InputAdornment>
+            ),
+          }}
+        />
+        <TextField size="small" select label="Warehouse" value={warehouseFilter} onChange={(event) => setWarehouseFilter(event.target.value)} sx={{ minWidth: 180 }}>
+          <MenuItem value="all">All Warehouses</MenuItem>
+          {warehouseOptions.map((option) => (
+            <MenuItem key={option} value={option}>
+              {option}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField size="small" select label="Item" value={itemFilter} onChange={(event) => setItemFilter(event.target.value)} sx={{ minWidth: 170 }}>
+          <MenuItem value="all">All Items</MenuItem>
+          {itemOptions.map((option) => (
+            <MenuItem key={option} value={option}>
+              {option}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField size="small" select label="Size" value={sizeFilter} onChange={(event) => setSizeFilter(event.target.value)} sx={{ minWidth: 120 }}>
+          <MenuItem value="all">All Sizes</MenuItem>
+          {sizeOptions.map((option) => (
+            <MenuItem key={option} value={option}>
+              {option}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField size="small" select label="Stock State" value={stockFilter} onChange={(event) => setStockFilter(event.target.value)} sx={{ minWidth: 160 }}>
+          <MenuItem value="all">All Rows</MenuItem>
+          <MenuItem value="low">Low stock only</MenuItem>
+          <MenuItem value="out">Out of stock only</MenuItem>
+        </TextField>
+      </FilterBar>
 
-          <TextField
-            select
-            size="small"
-            label="Brand"
-            value={brandFilter}
-            onChange={(event) => {
-              setPage(0);
-              setBrandFilter(event.target.value);
-            }}
-            sx={{ minWidth: 180 }}
-          >
-            <MenuItem value="all">All Brands</MenuItem>
-            {brands.map((brand) => (
-              <MenuItem key={brand} value={brand}>
-                {brand}
-              </MenuItem>
-            ))}
-          </TextField>
-
-          <TextField
-            select
-            size="small"
-            label="Category"
-            value={categoryFilter}
-            onChange={(event) => {
-              setPage(0);
-              setCategoryFilter(event.target.value);
-            }}
-            sx={{ minWidth: 180 }}
-          >
-            <MenuItem value="all">All Categories</MenuItem>
-            {categories.map((category) => (
-              <MenuItem key={category} value={category}>
-                {category}
-              </MenuItem>
-            ))}
-          </TextField>
-        </Stack>
-      </Stack>
-
-      {filteredRows.length ? (
-        <>
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 700, minWidth: 170 }}>Item Name</TableCell>
-                  <TableCell sx={{ fontWeight: 700, minWidth: 120 }}>Brand</TableCell>
-                  <TableCell sx={{ fontWeight: 700, minWidth: 130 }}>Style Code</TableCell>
-                  <TableCell sx={{ fontWeight: 700, minWidth: 120 }}>Variant</TableCell>
-                  <TableCell sx={{ fontWeight: 700, minWidth: 90 }}>Lot</TableCell>
-                  <TableCell sx={{ fontWeight: 700, minWidth: 170 }}>SKU</TableCell>
-                  <TableCell sx={{ fontWeight: 700, minWidth: 160 }}>Location</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }} align="right">
-                    Qty
+      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, overflow: 'hidden' }}>
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 700 }}>Item Code</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Item Name</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Size</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Color</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Warehouse</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Available Stock</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Reserved Stock</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">In Transit</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Reorder Level</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {paginatedRows.map((row) => (
+                <TableRow key={row.id} hover>
+                  <TableCell sx={{ fontWeight: 700 }}>{row.itemCode}</TableCell>
+                  <TableCell>{row.itemName}</TableCell>
+                  <TableCell>{row.size || '--'}</TableCell>
+                  <TableCell>{row.color || '--'}</TableCell>
+                  <TableCell>{row.warehouse}</TableCell>
+                  <TableCell align="right">{row.availableStock}</TableCell>
+                  <TableCell align="right">{row.reservedStock}</TableCell>
+                  <TableCell align="right">{row.inTransit}</TableCell>
+                  <TableCell align="right">{row.reorderLevel}</TableCell>
+                  <TableCell>
+                    <StatusBadge value={row.status} />
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 700 }} align="right">
-                    Rsv
+                  <TableCell align="right">
+                    <Stack direction="row" spacing={0.25} sx={{ justifyContent: 'flex-end' }}>
+                      <IconButton size="small" color="info" onClick={() => navigate('/inventory/audit-view')}>
+                        <VisibilityOutlinedIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton size="small" color="primary" onClick={() => navigate(`/inventory/item-journey?item=${row.itemCode}`)}>
+                        <TimelineOutlinedIcon fontSize="small" />
+                      </IconButton>
+                    </Stack>
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 700 }} align="right">
-                    Avail
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
                 </TableRow>
-              </TableHead>
-              <TableBody>
-                {paginatedRows.map((row) => {
-                  const availableQty = Number(row.quantity) - Number(row.reserved || 0);
-                  const isLowStock = availableQty <= LOW_STOCK_THRESHOLD;
+              ))}
+              {!paginatedRows.length ? (
+                <TableRow>
+                  <TableCell colSpan={11} sx={{ py: 6, textAlign: 'center' }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
+                      No stock rows available
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: '#64748b' }}>
+                      Adjust filters to review location-wise stock or inward activity.
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ) : null}
+            </TableBody>
+          </Table>
+        </TableContainer>
 
-                  return (
-                    <TableRow key={row.id} hover sx={isLowStock ? { backgroundColor: '#fff7ed' } : undefined}>
-                      <TableCell sx={{ fontWeight: 700, color: '#0f172a' }}>{row.itemName}</TableCell>
-                      <TableCell>{row.brand || '-'}</TableCell>
-                      <TableCell>{row.styleCode}</TableCell>
-                      <TableCell>{`${row.size} / ${row.color}`}</TableCell>
-                      <TableCell>{row.lotNumber || '-'}</TableCell>
-                      <TableCell>{row.sku}</TableCell>
-                      <TableCell>{row.warehouseName || row.storeName || locationMap[row.warehouseId] || locationMap[row.storeId] || '-'}</TableCell>
-                      <TableCell align="right">{row.quantity}</TableCell>
-                      <TableCell align="right">{row.reserved}</TableCell>
-                      <TableCell align="right">
-                        <Stack direction="row" spacing={1} justifyContent="flex-end">
-                          <Typography variant="body2">{availableQty}</Typography>
-                          {isLowStock && <Chip size="small" color="warning" label="Low" />}
-                        </Stack>
-                      </TableCell>
-                      <TableCell>
-                        <StatusChip value={row.status} />
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
-
-          <TablePagination
-            component="div"
-            count={filteredRows.length}
-            page={page}
-            onPageChange={(_, nextPage) => setPage(nextPage)}
-            rowsPerPage={rowsPerPage}
-            rowsPerPageOptions={[5, 10, 20]}
-            onRowsPerPageChange={(event) => {
-              setRowsPerPage(Number(event.target.value));
-              setPage(0);
-            }}
-          />
-        </>
-      ) : (
-        <Box sx={{ py: 7, px: 3, textAlign: 'center' }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0f172a', mb: 1 }}>
-            No stock records found.
-          </Typography>
-          <Typography variant="body2" sx={{ color: '#64748b' }}>
-            Try adjusting filters to view warehouse stock.
-          </Typography>
-        </Box>
-      )}
-    </Paper>
+        <TablePagination
+          component="div"
+          count={filteredRows.length}
+          page={page}
+          onPageChange={(_, nextPage) => setPage(nextPage)}
+          rowsPerPage={rowsPerPage}
+          rowsPerPageOptions={[5, 10, 20]}
+          onRowsPerPageChange={(event) => {
+            setRowsPerPage(Number(event.target.value));
+            setPage(0);
+          }}
+        />
+      </Paper>
+    </Box>
   );
 }
 

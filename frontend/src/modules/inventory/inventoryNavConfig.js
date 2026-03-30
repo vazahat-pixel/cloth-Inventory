@@ -19,10 +19,17 @@ export const inventoryMatchPaths = ['/inventory'];
 
 export const inventoryNavItems = [
   {
-    key: 'audit-dashboard',
-    label: 'Client Demo Dashboard',
-    path: '/inventory/demo-dashboard',
-    icon: DashboardOutlinedIcon,
+    key: 'stock-overview',
+    label: 'Stock Overview',
+    path: '/inventory/stock-overview',
+    icon: Inventory2OutlinedIcon,
+  },
+  {
+    key: 'stock-audit-view',
+    label: 'Stock Audit View',
+    path: '/inventory/audit-view',
+    matchPaths: ['/inventory/audit-view', '/inventory/batch-breakdown'],
+    icon: SearchOutlinedIcon,
   },
   {
     key: 'item-journey',
@@ -31,22 +38,36 @@ export const inventoryNavItems = [
     icon: TimelineOutlinedIcon,
   },
   {
-    key: 'stock-audit-view',
-    label: 'Stock Audit View',
-    path: '/inventory/audit-view',
-    icon: SearchOutlinedIcon,
+    key: 'stock-transfer',
+    label: 'Stock Transfer',
+    path: '/inventory/transfer',
+    matchPaths: ['/inventory/transfer'],
+    icon: SyncAltOutlinedIcon,
+  },
+  {
+    key: 'batch-breakdown',
+    label: 'Batch Breakdown',
+    path: '/inventory/batch-breakdown',
+    icon: ArchiveOutlinedIcon,
+  },
+  {
+    key: 'system-logs',
+    label: 'System Logs',
+    path: '/inventory/system-logs',
+    matchPaths: ['/inventory/system-logs', '/inventory/logs'],
+    icon: ReceiptLongOutlinedIcon,
+  },
+  {
+    key: 'audit-dashboard',
+    label: 'Client Demo Dashboard',
+    path: '/inventory/demo-dashboard',
+    icon: DashboardOutlinedIcon,
   },
   {
     key: 'validation-dashboard',
     label: 'Validation Dashboard',
     path: '/inventory/validation',
     icon: MonitorHeartOutlinedIcon,
-  },
-  {
-    key: 'system-logs',
-    label: 'System Logs',
-    path: '/inventory/logs',
-    icon: ReceiptLongOutlinedIcon,
   },
   {
     key: 'error-monitoring',

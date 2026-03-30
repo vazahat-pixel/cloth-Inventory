@@ -1,307 +1,346 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useMemo, useState } from 'react';
 import {
-    Box,
-    Button,
-    Card,
-    CardContent,
-    Grid,
-    Paper,
-    Stack,
-    TextField,
-    Typography,
-    Alert,
-    CircularProgress,
-    Autocomplete,
-    Divider
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Grid,
+  InputAdornment,
+  MenuItem,
+  Paper,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
+  Typography,
 } from '@mui/material';
-import {
-    PrintOutlined as PrintIcon,
-    QrCodeScannerOutlined as ScannerIcon,
-} from '@mui/icons-material';
-import JsBarcode from 'jsbarcode';
-import api from '../../services/api';
+import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
+import LocalPrintshopOutlinedIcon from '@mui/icons-material/LocalPrintshopOutlined';
+import QrCode2OutlinedIcon from '@mui/icons-material/QrCode2Outlined';
+import SearchIcon from '@mui/icons-material/Search';
+import ViewModuleOutlinedIcon from '@mui/icons-material/ViewModuleOutlined';
+import ViewListOutlinedIcon from '@mui/icons-material/ViewListOutlined';
+import PageHeader from '../../components/erp/PageHeader';
+import FilterBar from '../../components/erp/FilterBar';
+import ExportButton from '../../components/erp/ExportButton';
+import StatusBadge from '../../components/erp/StatusBadge';
+import SummaryCard from '../../components/erp/SummaryCard';
+import barcodeExportColumns from '../../config/exportColumns/barcode';
+import { barcodeSeed } from '../erp/erpUiMocks';
+import itemsData from '../items/data';
 
-const BarcodePrintingPage = () => {
-    const [products, setProducts] = useState([]);
-    const [selectedProduct, setSelectedProduct] = useState(null);
-    const [quantity, setQuantity] = useState(1);
-    const [loading, setLoading] = useState(false);
-    
-    // Additional fields to match the image format
-    const [type, setType] = useState('REGULAR PLAIN');
-    const [design, setDesign] = useState('BAN COLLAR');
-    const [qtyInfo, setQtyInfo] = useState('1N CASUAL');
-    const [mfgLine1, setMfgLine1] = useState('Rebel Mass Export Pvt. Ltd');
-    const [mfgLine2, setMfgLine2] = useState('Plot No 418, Sector-53, Phase 3');
-    const [mfgLine3, setMfgLine3] = useState('Kundli, Sonipat (Haryana)');
-    const [email, setEmail] = useState('info.dapolo@gmail.com');
+const barcodeFormats = ['CODE128', 'EAN13', 'QR-LIKE'];
 
-    const canvasRef = useRef(null);
+const variantOptions = itemsData.flatMap((item) =>
+  (item.variants || []).map((variant) => ({
+    id: variant.id,
+    itemCode: item.code,
+    itemName: item.name,
+    size: variant.size,
+    color: variant.color,
+    sku: variant.sku,
+    batchOptions: barcodeSeed
+      .filter((row) => row.itemCode === item.code && row.size === variant.size)
+      .map((row) => row.batchNo),
+  })),
+);
 
-    useEffect(() => {
-        const fetchProducts = async () => {
-            try {
-                const res = await api.get('/products');
-                const data = res.data;
-                setProducts(data.products || data.data?.products || []);
-            } catch (err) {
-                console.error('Failed to load products for barcode printing', err);
-            }
-        };
-        fetchProducts();
-    }, []);
+const toExportRows = (rows = []) =>
+  rows.map((row) => ({
+    barcode: row.barcode,
+    item_code: row.itemCode,
+    item_name: row.itemName,
+    size: row.size,
+    batch_no: row.batchNo,
+    warehouse: row.warehouse,
+    generated_on: row.generatedOn,
+    print_status: row.printStatus,
+  }));
 
-    const generateBarcodeDataUrl = (text) => {
-        const canvas = document.createElement('canvas');
-        JsBarcode(canvas, text, {
-            format: "CODE128",
-            width: 2,
-            height: 50,
-            displayValue: false,
-            margin: 0
-        });
-        return canvas.toDataURL("image/png");
-    };
+function BarcodePrintingPage() {
+  const [searchText, setSearchText] = useState('');
+  const [selectedVariantId, setSelectedVariantId] = useState(variantOptions[0]?.id || '');
+  const [selectedBatch, setSelectedBatch] = useState('');
+  const [selectedWarehouse, setSelectedWarehouse] = useState('Main Warehouse');
+  const [quantityToPrint, setQuantityToPrint] = useState(12);
+  const [barcodeFormat, setBarcodeFormat] = useState(barcodeFormats[0]);
+  const [startingSerial, setStartingSerial] = useState(1);
+  const [generatedRows, setGeneratedRows] = useState([]);
+  const [viewMode, setViewMode] = useState('grid');
 
-    const handlePrint = () => {
-        if (!selectedProduct) return;
+  const selectedVariant = useMemo(
+    () => variantOptions.find((variant) => variant.id === selectedVariantId) || null,
+    [selectedVariantId],
+  );
 
-        const barcodeImgData = generateBarcodeDataUrl(selectedProduct.barcode);
-        const printWindow = window.open('', '_blank');
-        
-        const labelHtml = `
-            <div class="label-container" style="
-                width: 280px; 
-                padding: 15px; 
-                border: 1px solid #000; 
-                font-family: 'Arial', sans-serif; 
-                text-transform: uppercase;
-                margin-bottom: 20px;
-                page-break-inside: avoid;
-                background: #fff;
-            ">
-                <!-- Barcode Section -->
-                <div style="text-align: center; margin-bottom: 5px;">
-                    <img src="${barcodeImgData}" style="width: 100%; max-height: 45px;" />
-                    <div style="font-weight: bold; font-size: 14px; letter-spacing: 2px;">${selectedProduct.barcode}</div>
-                </div>
+  const batchOptions = useMemo(() => Array.from(new Set(selectedVariant?.batchOptions || ['DEFAULT'])), [selectedVariant]);
 
-                <!-- Product Details -->
-                <div style="font-size: 11px; line-height: 1.4;">
-                    <div style="display: flex; margin-bottom: 3px;">
-                        <span style="width: 80px; font-weight: bold;">ARTICLE :</span>
-                        <span>${selectedProduct.sku}</span>
-                    </div>
-                    <div style="display: flex; margin-bottom: 3px;">
-                        <span style="width: 80px; font-weight: bold;">GROUP :</span>
-                        <span>${selectedProduct.category || 'CLOTHING'}</span>
-                        <span style="margin-left: auto; font-size: 10px;">0015</span>
-                    </div>
-                    <div style="display: flex; margin-bottom: 3px;">
-                        <span style="width: 80px; font-weight: bold;">TYPE :</span>
-                        <span>${type}</span>
-                    </div>
-                    <div style="display: flex; margin-bottom: 15px;">
-                        <span style="width: 80px; font-weight: bold;">DESIGN :</span>
-                        <span>${design}</span>
-                    </div>
+  const filteredRows = useMemo(() => {
+    const query = searchText.trim().toLowerCase();
+    return generatedRows.filter((row) => {
+      if (!query) {
+        return true;
+      }
+      return [row.barcode, row.itemCode, row.itemName, row.batchNo]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query));
+    });
+  }, [generatedRows, searchText]);
 
-                    <div style="display: flex; margin-bottom: 3px;">
-                        <span style="width: 80px; font-weight: bold;">SIZE :</span>
-                        <span style="font-weight: bold; font-size: 13px;">${selectedProduct.size}</span>
-                    </div>
-                    <div style="display: flex; margin-bottom: 3px;">
-                        <span style="width: 80px; font-weight: bold;">QTY: 1N</span>
-                        <span>${qtyInfo}</span>
-                    </div>
-                    <div style="display: flex; margin-bottom: 10px;">
-                        <span style="width: 80px; font-weight: bold;">COLOUR :</span>
-                        <span>${selectedProduct.color || 'NAVY'}</span>
-                    </div>
+  const generateRows = () => {
+    if (!selectedVariant) {
+      return;
+    }
 
-                    <!-- Price Section -->
-                    <div style="border-top: 1px dashed #000; padding-top: 5px; margin-bottom: 5px;">
-                        <div style="display: flex; align-items: baseline;">
-                            <span style="width: 80px; font-weight: bold; font-size: 14px;">MRP :</span>
-                            <span style="font-weight: bold; font-size: 18px;">${selectedProduct.salePrice}</span>
-                        </div>
-                        <div style="font-size: 10px; text-align: center; margin-top: 2px;">(INCL. OF ALL TAXES)</div>
-                    </div>
+    const rows = Array.from({ length: Number(quantityToPrint || 0) }).map((_, index) => {
+      const serial = Number(startingSerial || 1) + index;
+      const barcode = `${selectedVariant.itemCode}-${selectedVariant.size}-${String(serial).padStart(4, '0')}`;
+      const isDuplicate = barcodeSeed.some((row) => row.barcode === barcode);
+      return {
+        id: `generated-${serial}`,
+        srNo: index + 1,
+        barcode,
+        itemCode: selectedVariant.itemCode,
+        itemName: selectedVariant.itemName,
+        size: selectedVariant.size,
+        batchNo: selectedBatch || batchOptions[0] || 'DEFAULT',
+        warehouse: selectedWarehouse,
+        generatedOn: new Date().toLocaleString(),
+        printStatus: isDuplicate ? 'Duplicate' : 'Queued',
+        isDuplicate,
+      };
+    });
+    setGeneratedRows(rows);
+  };
 
-                    <!-- MFG Info -->
-                    <div style="font-size: 9px; line-height: 1.2; margin-top: 10px;">
-                        <div style="font-weight: bold;">MFG:</div>
-                        <div style="font-weight: bold;">MFG. & MARKETED BY</div>
-                        <div>${mfgLine1}</div>
-                        <div>${mfgLine2}</div>
-                        <div>${mfgLine3}</div>
-                        <div style="margin-top: 3px;">CUSTOMER CARE: +91 XXXXXXXXXX</div>
-                        <div>EMAIL: ${email}</div>
-                    </div>
-                </div>
+  const handlePrint = () => {
+    if (!filteredRows.length) {
+      return;
+    }
 
-                <!-- Bottom Stripe -->
-                <div style="height: 5px; border-top: 2px solid #555; border-bottom: 2px solid #333; margin-top: 10px;"></div>
-            </div>
-        `;
+    const printWindow = window.open('', '_blank', 'width=1000,height=800');
+    if (!printWindow) {
+      return;
+    }
 
-        const content = `
-            <html>
-                <head>
-                    <title>Barcode Labels</title>
-                    <style>
-                        @media print {
-                            body { margin: 0; padding: 0; }
-                            .no-print { display: none; }
-                        }
-                        body { 
-                            display: flex; 
-                            flex-wrap: wrap; 
-                            justify-content: center; 
-                            padding: 20px;
-                            background: #f0f0f0;
-                        }
-                    </style>
-                </head>
-                <body>
-                    ${Array.from({ length: quantity }).map(() => labelHtml).join('')}
-                    <script>
-                        window.onload = () => {
-                            window.print();
-                            // window.close(); 
-                        };
-                    </script>
-                </body>
-            </html>
-        `;
+    const cards = filteredRows
+      .map(
+        (row) => `
+          <div style="width:260px;border:1px solid #cbd5e1;border-radius:12px;padding:12px;margin:10px;display:inline-block;font-family:Arial,sans-serif;vertical-align:top;">
+            <div style="font-size:12px;color:#64748b;margin-bottom:4px;">${row.itemCode} | ${row.size}</div>
+            <div style="font-size:16px;font-weight:700;color:#0f172a;margin-bottom:8px;">${row.itemName}</div>
+            <div style="font-family:monospace;font-size:24px;letter-spacing:2px;margin:10px 0;">||||||||||||||||</div>
+            <div style="font-family:monospace;font-weight:700;font-size:14px;">${row.barcode}</div>
+            <div style="font-size:12px;color:#475569;margin-top:8px;">Batch: ${row.batchNo}</div>
+            <div style="font-size:12px;color:#475569;">Warehouse: ${row.warehouse}</div>
+          </div>
+        `,
+      )
+      .join('');
 
-        printWindow.document.write(content);
-        printWindow.document.close();
-    };
+    printWindow.document.write(`
+      <html>
+        <head><title>Barcode Labels</title></head>
+        <body style="padding:20px;font-family:Arial,sans-serif;">${cards}</body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
 
-    return (
-        <Box sx={{ p: 3 }}>
-            <Typography variant="h4" sx={{ fontWeight: 700, mb: 4 }}>Barcode Label Printing</Typography>
+  const exportRows = useMemo(() => toExportRows(filteredRows), [filteredRows]);
+  const duplicateCount = filteredRows.filter((row) => row.isDuplicate).length;
 
-            <Grid container spacing={3}>
-                <Grid item xs={12} md={5}>
-                    <Card sx={{ borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-                        <CardContent sx={{ p: 4 }}>
-                            <Stack spacing={3}>
-                                <Typography variant="h6" color="primary">Label Configuration</Typography>
-                                
-                                <Autocomplete
-                                    options={products}
-                                    getOptionLabel={(option) => `${option.name} (${option.sku})`}
-                                    value={selectedProduct}
-                                    onChange={(e, val) => setSelectedProduct(val)}
-                                    renderInput={(params) => <TextField {...params} label="Search Product" fullWidth />}
-                                />
+  return (
+    <Box>
+      <PageHeader
+        title="Barcode Print"
+        subtitle="Generate batch-wise garment label previews with item, size, warehouse, serial, duplicate check, and print-ready frontend controls."
+        breadcrumbs={[
+          { label: 'Setup' },
+          { label: 'Barcode Print', active: true },
+        ]}
+        actions={[
+          <Button key="generate" variant="contained" startIcon={<QrCode2OutlinedIcon />} onClick={generateRows}>
+            Generate
+          </Button>,
+          <Button key="print" variant="outlined" startIcon={<LocalPrintshopOutlinedIcon />} onClick={handlePrint} disabled={!filteredRows.length}>
+            Print
+          </Button>,
+          <ExportButton key="export" rows={exportRows} columns={barcodeExportColumns} filename="barcode-preview.xlsx" sheetName="Barcode Preview" />,
+        ]}
+      />
 
-                                <TextField
-                                    fullWidth
-                                    label="Type"
-                                    value={type}
-                                    onChange={(e) => setType(e.target.value)}
-                                    size="small"
-                                />
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' }, gap: 2, mb: 2 }}>
+        <SummaryCard label="Preview Rows" value={filteredRows.length} helper="Rows currently available for print/export preview." />
+        <SummaryCard label="Unique Codes" value={filteredRows.length - duplicateCount} helper="Freshly generated unique barcode values." tone="success" />
+        <SummaryCard label="Duplicate Alerts" value={duplicateCount} helper="Rows matching an existing barcode batch." tone="warning" />
+        <SummaryCard label="Format" value={barcodeFormat} helper="Selected frontend barcode format template." tone="info" />
+      </Box>
 
-                                <TextField
-                                    fullWidth
-                                    label="Design"
-                                    value={design}
-                                    onChange={(e) => setDesign(e.target.value)}
-                                    size="small"
-                                />
+      <FilterBar sx={{ mb: 2 }}>
+        <TextField
+          size="small"
+          select
+          label="Item / Size"
+          value={selectedVariantId}
+          onChange={(event) => setSelectedVariantId(event.target.value)}
+          sx={{ minWidth: 260 }}
+        >
+          {variantOptions.map((option) => (
+            <MenuItem key={option.id} value={option.id}>
+              {`${option.itemCode} | ${option.itemName} | ${option.size} | ${option.color}`}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField size="small" select label="GRN Batch" value={selectedBatch} onChange={(event) => setSelectedBatch(event.target.value)} sx={{ minWidth: 180 }}>
+          <MenuItem value="">Auto Batch</MenuItem>
+          {batchOptions.map((batch) => (
+            <MenuItem key={batch} value={batch}>
+              {batch}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField size="small" label="Warehouse" value={selectedWarehouse} onChange={(event) => setSelectedWarehouse(event.target.value)} sx={{ minWidth: 180 }} />
+        <TextField size="small" type="number" label="Quantity to Print" value={quantityToPrint} onChange={(event) => setQuantityToPrint(Math.max(1, Number(event.target.value)))} sx={{ minWidth: 150 }} />
+        <TextField size="small" select label="Barcode Format" value={barcodeFormat} onChange={(event) => setBarcodeFormat(event.target.value)} sx={{ minWidth: 150 }}>
+          {barcodeFormats.map((format) => (
+            <MenuItem key={format} value={format}>
+              {format}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField size="small" type="number" label="Starting Serial" value={startingSerial} onChange={(event) => setStartingSerial(Math.max(1, Number(event.target.value)))} sx={{ minWidth: 140 }} />
+      </FilterBar>
 
-                                <TextField
-                                    fullWidth
-                                    label="Quantity Note"
-                                    value={qtyInfo}
-                                    onChange={(e) => setQtyInfo(e.target.value)}
-                                    size="small"
-                                    placeholder="e.g. 1N CASUAL"
-                                />
+      <FilterBar sx={{ mb: 2 }}>
+        <TextField
+          size="small"
+          value={searchText}
+          onChange={(event) => setSearchText(event.target.value)}
+          placeholder="Search barcode, item, or batch"
+          sx={{ flex: 1 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon fontSize="small" />
+              </InputAdornment>
+            ),
+          }}
+        />
+        <ToggleButtonGroup size="small" value={viewMode} exclusive onChange={(_, value) => value && setViewMode(value)}>
+          <ToggleButton value="grid">
+            <ViewModuleOutlinedIcon fontSize="small" />
+          </ToggleButton>
+          <ToggleButton value="list">
+            <ViewListOutlinedIcon fontSize="small" />
+          </ToggleButton>
+        </ToggleButtonGroup>
+        <Button variant="outlined" startIcon={<FileDownloadOutlinedIcon />} onClick={() => setGeneratedRows([])} disabled={!generatedRows.length}>
+          Clear Preview
+        </Button>
+      </FilterBar>
 
-                                <Box sx={{ p: 2, bgcolor: '#f8fafc', borderRadius: '12px' }}>
-                                    <Typography variant="caption" sx={{ color: '#64748b' }}>Manufacturer Details:</Typography>
-                                    <TextField fullWidth value={mfgLine1} onChange={e => setMfgLine1(e.target.value)} size="small" sx={{ mb: 1, mt: 1 }} />
-                                    <TextField fullWidth value={mfgLine2} onChange={e => setMfgLine2(e.target.value)} size="small" sx={{ mb: 1 }} />
-                                    <TextField fullWidth value={mfgLine3} onChange={e => setMfgLine3(e.target.value)} size="small" sx={{ mb: 1 }} />
-                                    <TextField fullWidth value={email} onChange={e => setEmail(e.target.value)} size="small" label="Email" />
-                                </Box>
+      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 2, mb: 2, bgcolor: '#eff6ff' }}>
+        <Typography variant="body2" sx={{ fontWeight: 700, color: '#1d4ed8' }}>
+          {filteredRows.length ? `${filteredRows.length - duplicateCount} unique codes generated` : 'Generate barcode rows to preview labels.'}
+        </Typography>
+        <Typography variant="caption" sx={{ color: '#64748b' }}>
+          Duplicate detection is based on the existing frontend barcode register.
+        </Typography>
+      </Paper>
 
-                                <TextField
-                                    fullWidth
-                                    type="number"
-                                    label="Number of Labels"
-                                    value={quantity}
-                                    onChange={(e) => setQuantity(e.target.value)}
-                                    inputProps={{ min: 1, max: 100 }}
-                                />
-
-                                <Button
-                                    fullWidth
-                                    variant="contained"
-                                    size="large"
-                                    startIcon={<PrintIcon />}
-                                    disabled={!selectedProduct}
-                                    onClick={handlePrint}
-                                    sx={{ py: 1.5, borderRadius: '12px', fontWeight: 700 }}
-                                >
-                                    Generate & Print
-                                </Button>
-                            </Stack>
-                        </CardContent>
-                    </Card>
-                </Grid>
-
-                <Grid item xs={12} md={7}>
-                    <Box sx={{ p: 4, bgcolor: '#f1f5f9', borderRadius: '24px', textAlign: 'center', minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <Typography variant="h6" sx={{ color: '#334155', mb: 3 }}>Live Preview</Typography>
-                        
-                        {selectedProduct ? (
-                            <Paper elevation={4} sx={{ 
-                                width: '280px', 
-                                p: 2, 
-                                textAlign: 'left', 
-                                border: '1px solid #ddd',
-                                textTransform: 'uppercase',
-                                fontFamily: 'monospace'
-                            }}>
-                                <Box sx={{ textAlign: 'center', mb: 1 }}>
-                                    <Typography variant="h6" sx={{ fontWeight: 'bold', letterSpacing: 2 }}>|||||||||||||||</Typography>
-                                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{selectedProduct.barcode}</Typography>
-                                </Box>
-                                <Typography variant="body2"><strong>ARTICLE :</strong> {selectedProduct.sku}</Typography>
-                                <Typography variant="body2"><strong>GROUP :</strong> {selectedProduct.category || 'CLOTHING'}</Typography>
-                                <Typography variant="body2"><strong>TYPE :</strong> {type}</Typography>
-                                <Typography variant="body2"><strong>DESIGN :</strong> {design}</Typography>
-                                <Typography variant="body2" sx={{ mt: 1 }}><strong>SIZE :</strong> {selectedProduct.size}</Typography>
-                                <Typography variant="body2"><strong>QTY: 1N</strong> {qtyInfo}</Typography>
-                                <Typography variant="body2"><strong>COLOUR :</strong> {selectedProduct.color}</Typography>
-                                <Divider sx={{ my: 1, borderStyle: 'dashed' }} />
-                                <Box sx={{ display: 'flex', alignItems: 'baseline' }}>
-                                    <Typography variant="h6"><strong>MRP :</strong></Typography>
-                                    <Typography variant="h5" sx={{ fontWeight: 'bold', ml: 1 }}>{selectedProduct.salePrice}</Typography>
-                                </Box>
-                                <Typography variant="caption" display="block" align="center">(Incl. of all taxes)</Typography>
-                            </Paper>
-                        ) : (
-                            <Stack alignItems="center" spacing={2}>
-                                <ScannerIcon sx={{ fontSize: 60, color: '#cbd5e1' }} />
-                                <Typography variant="body2" sx={{ color: '#64748b' }}>Select a product to see the preview</Typography>
-                            </Stack>
-                        )}
-                        
-                        <Typography variant="caption" sx={{ mt: 4, color: '#94a3b8' }}>
-                            The printed label will include actual barcode bars and manufacturer branding.
-                        </Typography>
-                    </Box>
-                </Grid>
+      {viewMode === 'grid' ? (
+        <Grid container spacing={2}>
+          {filteredRows.map((row) => (
+            <Grid item xs={12} sm={6} md={4} lg={3} key={row.id}>
+              <Card elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, height: '100%' }}>
+                <CardContent>
+                  <Stack spacing={1.25}>
+                    <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 700 }}>
+                        Sr No {row.srNo}
+                      </Typography>
+                      <StatusBadge value={row.printStatus} sx={{ minWidth: 74 }} />
+                    </Stack>
+                    <Typography sx={{ fontWeight: 700, color: '#0f172a' }}>{row.itemName}</Typography>
+                    <Typography variant="caption" sx={{ color: '#64748b' }}>
+                      {row.itemCode} • Size {row.size} • Batch {row.batchNo}
+                    </Typography>
+                    <Paper elevation={0} sx={{ borderRadius: 2, bgcolor: '#f8fafc', p: 1.5, textAlign: 'center' }}>
+                      <Typography sx={{ fontFamily: 'monospace', letterSpacing: 2, fontSize: 20 }}>||||||||||||||||</Typography>
+                      <Typography sx={{ fontFamily: 'monospace', fontWeight: 700 }}>{row.barcode}</Typography>
+                    </Paper>
+                    {row.isDuplicate ? <Chip size="small" color="error" variant="outlined" label="Duplicate Detected" /> : null}
+                  </Stack>
+                </CardContent>
+              </Card>
             </Grid>
-        </Box>
-    );
-};
+          ))}
+          {!filteredRows.length ? (
+            <Grid item xs={12}>
+              <Paper elevation={0} sx={{ border: '1px dashed #cbd5e1', borderRadius: 2, p: 6, textAlign: 'center' }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
+                  No barcode previews yet
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#64748b' }}>
+                  Choose an item and quantity, then generate a preview batch.
+                </Typography>
+              </Paper>
+            </Grid>
+          ) : null}
+        </Grid>
+      ) : (
+        <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, overflow: 'hidden' }}>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 700 }}>Sr No</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Barcode</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Item Code</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Item Name</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Size</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Batch No</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Print Status</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {filteredRows.map((row) => (
+                  <TableRow key={row.id}>
+                    <TableCell>{row.srNo}</TableCell>
+                    <TableCell sx={{ fontFamily: 'monospace', fontWeight: 700 }}>{row.barcode}</TableCell>
+                    <TableCell>{row.itemCode}</TableCell>
+                    <TableCell>{row.itemName}</TableCell>
+                    <TableCell>{row.size}</TableCell>
+                    <TableCell>{row.batchNo}</TableCell>
+                    <TableCell>
+                      <StatusBadge value={row.printStatus} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {!filteredRows.length ? (
+                  <TableRow>
+                    <TableCell colSpan={7} sx={{ py: 5, textAlign: 'center', color: '#64748b' }}>
+                      No barcode previews available.
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+      )}
+    </Box>
+  );
+}
 
 export default BarcodePrintingPage;

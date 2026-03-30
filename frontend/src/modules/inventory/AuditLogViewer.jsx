@@ -1,158 +1,184 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Box, 
-  Paper, 
-  Typography, 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableContainer, 
-  TableHead, 
+import { useMemo, useState } from 'react';
+import {
+  Box,
+  MenuItem,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
   TableRow,
-  Chip,
-  Avatar,
   TextField,
-  InputAdornment,
-  CircularProgress,
-  IconButton,
-  Tooltip
+  Typography,
 } from '@mui/material';
-import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
-import BugReportIcon from '@mui/icons-material/BugReport';
-import SearchIcon from '@mui/icons-material/Search';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import AccountCircleIcon from '@mui/icons-material/AccountCircle';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import api from '../../services/api';
+import PageHeader from '../../components/erp/PageHeader';
+import FilterBar from '../../components/erp/FilterBar';
+import ExportButton from '../../components/erp/ExportButton';
+import StatusBadge from '../../components/erp/StatusBadge';
+import SummaryCard from '../../components/erp/SummaryCard';
+import systemLogsExportColumns from '../../config/exportColumns/systemLogs';
+import { systemLogSeed } from '../erp/erpUiMocks';
 
-/**
- * AuditLogViewer — Reusable monitor for System Logs and Error Logs.
- */
-const AuditLogViewer = ({ type = 'system' }) => {
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+const errorSeed = [
+  {
+    id: 'err-1',
+    dateTime: '2026-03-27 17:30',
+    module: 'Barcode',
+    action: 'GENERATE_FAIL',
+    referenceType: 'BARCODE_BATCH',
+    referenceNumber: 'BT-2026-007',
+    user: 'Inventory Clerk',
+    status: 'Rejected',
+    remarks: 'Duplicate serial range used in preview generation',
+  },
+];
 
+const toExportRows = (rows = []) =>
+  rows.map((row) => ({
+    log_id: row.id,
+    date_time: row.dateTime,
+    module: row.module,
+    action: row.action,
+    reference_type: row.referenceType,
+    reference_number: row.referenceNumber,
+    user: row.user,
+    status: row.status,
+    remarks: row.remarks,
+  }));
+
+function AuditLogViewer({ type = 'system' }) {
   const isErrorMode = type === 'error';
+  const [moduleFilter, setModuleFilter] = useState('all');
+  const [actionFilter, setActionFilter] = useState('all');
+  const [userFilter, setUserFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
-  useEffect(() => {
-    fetchLogs();
-  }, [type]);
+  const rows = isErrorMode ? errorSeed : systemLogSeed;
 
-  const fetchLogs = async () => {
-    setLoading(true);
-    try {
-      const endpoint = isErrorMode ? '/inventory/error-logs' : '/inventory/system-logs';
-      const res = await api.get(endpoint);
-      setData(isErrorMode ? res.data.data.errors : res.data.data.logs);
-    } catch (err) {
-      console.error(`Log fetch failed [${type}]:`, err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const moduleOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.module).filter(Boolean))), [rows]);
+  const actionOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.action).filter(Boolean))), [rows]);
+  const userOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.user).filter(Boolean))), [rows]);
 
-  const filtered = data.filter(item => 
-    (item.action || item.message || '').toLowerCase().includes(search.toLowerCase()) ||
-    (item.module || item.path || '').toLowerCase().includes(search.toLowerCase())
+  const filteredRows = useMemo(
+    () =>
+      rows.filter((row) => {
+        const matchesModule = moduleFilter === 'all' ? true : row.module === moduleFilter;
+        const matchesAction = actionFilter === 'all' ? true : row.action === actionFilter;
+        const matchesUser = userFilter === 'all' ? true : row.user === userFilter;
+        const matchesDateFrom = dateFrom ? String(row.dateTime).slice(0, 10) >= dateFrom : true;
+        const matchesDateTo = dateTo ? String(row.dateTime).slice(0, 10) <= dateTo : true;
+        return matchesModule && matchesAction && matchesUser && matchesDateFrom && matchesDateTo;
+      }),
+    [actionFilter, dateFrom, dateTo, moduleFilter, rows, userFilter],
   );
-
-  const getLogColor = (action) => {
-    if (!action) return 'default';
-    if (action.includes('REJECT') || action.includes('ERROR') || action.includes('CANCEL')) return 'error';
-    if (action.includes('APPROVE') || action.includes('CREATE') || action.includes('POST')) return 'success';
-    if (action.includes('PAYMENT') || action.includes('ACCOUNT')) return 'info';
-    return 'default';
-  };
 
   return (
-    <Box sx={{ p: 1 }}>
-      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box>
-          <Typography variant="h4" sx={{ fontWeight: 800, color: '#1e293b', mb: 1 }}>
-            {isErrorMode ? 'Error Monitoring Panel' : 'System Logs Auditor'}
-          </Typography>
-          <Typography variant="body1" sx={{ color: '#64748b' }}>
-            {isErrorMode 
-              ? 'Tracking API failures, validation errors, and system exceptions for development and QA monitoring.' 
-              : 'Real-time record of every garment ERP action—purchases, receipts, stock moves, and sales.'
-            }
-          </Typography>
-        </Box>
-        <Paper sx={{ p: 0.5, px: 2, display: 'flex', alignItems: 'center', borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: 'none' }}>
-           <SearchIcon sx={{ color: '#94a3b8', mr: 1 }} />
-           <TextField 
-             variant="standard" 
-             placeholder={isErrorMode ? "Search errors..." : "Search logs..."} 
-             value={search}
-             onChange={(e) => setSearch(e.target.value)}
-             InputProps={{ disableUnderline: true, style: { fontSize: 13, fontWeight: 700 } }} 
-             sx={{ width: 250 }}
-           />
-        </Paper>
+    <Box>
+      <PageHeader
+        title={isErrorMode ? 'Error Monitoring' : 'System Logs'}
+        subtitle={
+          isErrorMode
+            ? 'Monitor frontend-visible exceptions and validation failures while keeping the existing error route intact.'
+            : 'Review user, module, action, reference, and status activity across barcode, GRN, transfer, and inventory events.'
+        }
+        breadcrumbs={[
+          { label: 'Inventory' },
+          { label: isErrorMode ? 'Error Monitoring' : 'System Logs', active: true },
+        ]}
+        actions={[
+          <ExportButton
+            key="export"
+            rows={toExportRows(filteredRows)}
+            columns={systemLogsExportColumns}
+            filename={isErrorMode ? 'error-logs.xlsx' : 'system-logs.xlsx'}
+            sheetName={isErrorMode ? 'Error Logs' : 'System Logs'}
+          />,
+        ]}
+      />
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' }, gap: 2, mb: 2 }}>
+        <SummaryCard label="Log Rows" value={filteredRows.length} helper="Visible log entries after filters." />
+        <SummaryCard label="Modules" value={moduleOptions.length} helper="Distinct modules in the current result set." tone="info" />
+        <SummaryCard label="Actions" value={actionOptions.length} helper="Unique actions available for review." tone="warning" />
+        <SummaryCard label="Users" value={userOptions.length} helper="Users represented in the selected date range." tone="success" />
       </Box>
 
-      <TableContainer component={Paper} sx={{ borderRadius: 4, overflow: 'hidden', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
-        <Table stickyHeader>
-          <TableHead>
-            <TableRow>
-              <TableCell sx={{ bgcolor: isErrorMode ? '#7f1d1d' : '#1e293b', color: '#fff', fontWeight: 800, py: 2 }}>TIMESTAMP</TableCell>
-              <TableCell sx={{ bgcolor: isErrorMode ? '#7f1d1d' : '#1e293b', color: '#fff', fontWeight: 800 }}>{isErrorMode ? 'MESSAGE' : 'ACTION'}</TableCell>
-              <TableCell sx={{ bgcolor: isErrorMode ? '#7f1d1d' : '#1e293b', color: '#fff', fontWeight: 800 }}>{isErrorMode ? 'METHOD/PATH' : 'MODULE'}</TableCell>
-              <TableCell sx={{ bgcolor: isErrorMode ? '#7f1d1d' : '#1e293b', color: '#fff', fontWeight: 800 }}>USER</TableCell>
-              <TableCell sx={{ bgcolor: isErrorMode ? '#7f1d1d' : '#1e293b', color: '#fff', fontWeight: 800, textAlign: 'right' }}>DETAILS</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {loading ? (
-              <TableRow><TableCell colSpan={5} align="center" sx={{ py: 8 }}><CircularProgress /></TableCell></TableRow>
-            ) : filtered.length === 0 ? (
+      <FilterBar sx={{ mb: 2 }}>
+        <TextField size="small" select label="Module" value={moduleFilter} onChange={(event) => setModuleFilter(event.target.value)} sx={{ minWidth: 180 }}>
+          <MenuItem value="all">All Modules</MenuItem>
+          {moduleOptions.map((option) => (
+            <MenuItem key={option} value={option}>
+              {option}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField size="small" select label="Action" value={actionFilter} onChange={(event) => setActionFilter(event.target.value)} sx={{ minWidth: 180 }}>
+          <MenuItem value="all">All Actions</MenuItem>
+          {actionOptions.map((option) => (
+            <MenuItem key={option} value={option}>
+              {option}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField size="small" select label="User" value={userFilter} onChange={(event) => setUserFilter(event.target.value)} sx={{ minWidth: 180 }}>
+          <MenuItem value="all">All Users</MenuItem>
+          {userOptions.map((option) => (
+            <MenuItem key={option} value={option}>
+              {option}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField size="small" type="date" label="From" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} InputLabelProps={{ shrink: true }} />
+        <TextField size="small" type="date" label="To" value={dateTo} onChange={(event) => setDateTo(event.target.value)} InputLabelProps={{ shrink: true }} />
+      </FilterBar>
+
+      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, overflow: 'hidden' }}>
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
               <TableRow>
-                <TableCell colSpan={5} align="center" sx={{ py: 8 }}>
-                  <Typography variant="body2" sx={{ color: '#94a3b8' }}>No records match your scan criteria.</Typography>
-                </TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Log ID</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Date Time</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Module</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Action</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Reference Type</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Reference Number</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>User</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Remarks</TableCell>
               </TableRow>
-            ) : (
-              filtered.map((log) => (
-                <TableRow key={log._id} hover>
-                  <TableCell sx={{ fontSize: 11, color: '#64748b' }}>{new Date(log.createdAt || log.timestamp).toLocaleString()}</TableCell>
+            </TableHead>
+            <TableBody>
+              {filteredRows.map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell sx={{ fontWeight: 700 }}>{row.id}</TableCell>
+                  <TableCell>{row.dateTime}</TableCell>
+                  <TableCell>{row.module}</TableCell>
+                  <TableCell>{row.action}</TableCell>
+                  <TableCell>{row.referenceType}</TableCell>
+                  <TableCell>{row.referenceNumber}</TableCell>
+                  <TableCell>{row.user}</TableCell>
                   <TableCell>
-                    {isErrorMode ? (
-                      <Typography variant="body2" sx={{ fontWeight: 800, color: '#f43f5e' }}>{log.message}</Typography>
-                    ) : (
-                      <Chip label={log.action} size="small" color={getLogColor(log.action)} sx={{ height: 20, fontSize: 10, fontWeight: 900 }} />
-                    )}
+                    <StatusBadge value={row.status} />
                   </TableCell>
-                  <TableCell>
-                    {isErrorMode ? (
-                      <Chip label={`${log.method || 'GET'} ${log.path}`} size="small" variant="outlined" sx={{ borderStyle: 'dashed', height: 20, fontSize: 10, bgcolor: '#fdf2f2' }} />
-                    ) : (
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{log.module}</Typography>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Avatar sx={{ width: 24, height: 24, bgcolor: '#e2e8f0', color: '#475569' }}>
-                        <AccountCircleIcon sx={{ fontSize: 16 }} />
-                      </Avatar>
-                      <Typography variant="body2" sx={{ fontWeight: 700, fontSize: 11 }}>{log.userId?.name || log.userId || 'Guest'}</Typography>
-                    </Box>
-                  </TableCell>
-                  <TableCell align="right">
-                    <Tooltip title={JSON.stringify(log.details || log.stack || {}, null, 2)}>
-                      <IconButton size="small" color="primary">
-                        <InfoOutlinedIcon sx={{ fontSize: 18 }} />
-                      </IconButton>
-                    </Tooltip>
+                  <TableCell>{row.remarks}</TableCell>
+                </TableRow>
+              ))}
+              {!filteredRows.length ? (
+                <TableRow>
+                  <TableCell colSpan={9} sx={{ py: 6, textAlign: 'center', color: '#64748b' }}>
+                    No log records match the selected filters.
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+              ) : null}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
     </Box>
   );
-};
+}
 
 export default AuditLogViewer;

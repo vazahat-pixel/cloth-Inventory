@@ -52,14 +52,16 @@ const createVariantPayload = (overrides = {}) => ({
   size: '',
   color: '',
   sku: '',
+  barcodePrefix: '',
   costPrice: 0,
   salePrice: 0,
+  mrp: 0,
   stock: 0,
   status: 'Active',
   ...overrides,
 });
 
-function VariantTable({ variants, onChange, styleCode }) {
+function VariantTable({ variants, onChange, styleCode, readOnly = false }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingVariant, setEditingVariant] = useState(null);
   const [autoGenerateSku, setAutoGenerateSku] = useState(true);
@@ -104,17 +106,24 @@ function VariantTable({ variants, onChange, styleCode }) {
   };
 
   const openAddDialog = () => {
+    if (readOnly) {
+      return;
+    }
     setEditingVariant(null);
     setAutoGenerateSku(true);
     reset(
       createVariantPayload({
         sku: generateSku(styleCode, '', ''),
+        barcodePrefix: sanitizeSkuPart(styleCode, 'BAR'),
       }),
     );
     setDialogOpen(true);
   };
 
   const openEditDialog = (variant) => {
+    if (readOnly) {
+      return;
+    }
     setEditingVariant(variant);
     const generatedSku = generateSku(styleCode, variant.size, variant.color);
     setAutoGenerateSku(variant.sku === generatedSku);
@@ -123,6 +132,9 @@ function VariantTable({ variants, onChange, styleCode }) {
   };
 
   const handleDeleteVariant = (variantId) => {
+    if (readOnly) {
+      return;
+    }
     onChange(variants.filter((variant) => variant.id !== variantId));
   };
 
@@ -132,6 +144,7 @@ function VariantTable({ variants, onChange, styleCode }) {
       id: editingVariant?.id || createVariantId(),
       costPrice: Number(formValues.costPrice),
       salePrice: Number(formValues.salePrice),
+      mrp: Number(formValues.mrp),
       stock: Number(formValues.stock),
     });
 
@@ -270,16 +283,20 @@ function VariantTable({ variants, onChange, styleCode }) {
         </Stack>
 
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 1.5 }}>
-          <Button
-            variant="contained"
-            startIcon={<AutoFixHighIcon />}
-            onClick={handleGenerateVariants}
-          >
-            Generate Combinations
-          </Button>
-          <Button variant="outlined" startIcon={<AddCircleOutlineIcon />} onClick={openAddDialog}>
-            Add Variant Manually
-          </Button>
+          {!readOnly ? (
+            <>
+              <Button
+                variant="contained"
+                startIcon={<AutoFixHighIcon />}
+                onClick={handleGenerateVariants}
+              >
+                Generate Combinations
+              </Button>
+              <Button variant="outlined" startIcon={<AddCircleOutlineIcon />} onClick={openAddDialog}>
+                Add Variant Manually
+              </Button>
+            </>
+          ) : null}
         </Stack>
 
         {generatorFeedback && (
@@ -305,6 +322,9 @@ function VariantTable({ variants, onChange, styleCode }) {
                     Sale Price
                   </TableCell>
                   <TableCell sx={{ fontWeight: 700 }} align="right">
+                    MRP
+                  </TableCell>
+                  <TableCell sx={{ fontWeight: 700 }} align="right">
                     Stock
                   </TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
@@ -319,6 +339,7 @@ function VariantTable({ variants, onChange, styleCode }) {
                     <TableCell>{variant.sku}</TableCell>
                     <TableCell align="right">{variant.costPrice}</TableCell>
                     <TableCell align="right">{variant.salePrice}</TableCell>
+                    <TableCell align="right">{variant.mrp}</TableCell>
                     <TableCell align="right">{variant.stock}</TableCell>
                     <TableCell>
                       <Chip
@@ -329,18 +350,24 @@ function VariantTable({ variants, onChange, styleCode }) {
                       />
                     </TableCell>
                     <TableCell>
-                      <Stack direction="row" spacing={0.5}>
-                        <IconButton size="small" color="primary" onClick={() => openEditDialog(variant)}>
-                          <EditOutlinedIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => handleDeleteVariant(variant.id)}
-                        >
-                          <DeleteOutlineIcon fontSize="small" />
-                        </IconButton>
-                      </Stack>
+                      {!readOnly ? (
+                        <Stack direction="row" spacing={0.5}>
+                          <IconButton size="small" color="primary" onClick={() => openEditDialog(variant)}>
+                            <EditOutlinedIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleDeleteVariant(variant.id)}
+                          >
+                            <DeleteOutlineIcon fontSize="small" />
+                          </IconButton>
+                        </Stack>
+                      ) : (
+                        <Typography variant="caption" sx={{ color: '#64748b' }}>
+                          Read only
+                        </Typography>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -355,9 +382,11 @@ function VariantTable({ variants, onChange, styleCode }) {
             <Typography variant="body2" sx={{ color: '#64748b', mb: 2 }}>
               Generate combinations or add variants manually to continue.
             </Typography>
-            <Button variant="contained" onClick={openAddDialog} startIcon={<AddCircleOutlineIcon />}>
-              Add First Variant
-            </Button>
+            {!readOnly ? (
+              <Button variant="contained" onClick={openAddDialog} startIcon={<AddCircleOutlineIcon />}>
+                Add First Variant
+              </Button>
+            ) : null}
           </Box>
         )}
       </Paper>
@@ -442,6 +471,20 @@ function VariantTable({ variants, onChange, styleCode }) {
                 )}
               />
 
+              <Controller
+                name="barcodePrefix"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    size="small"
+                    fullWidth
+                    label="Barcode Prefix"
+                    helperText="Used in label printing and SKU preview."
+                  />
+                )}
+              />
+
               <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
                 <Controller
                   name="costPrice"
@@ -494,6 +537,23 @@ function VariantTable({ variants, onChange, styleCode }) {
                   )}
                 />
               </Stack>
+
+              <Controller
+                name="mrp"
+                control={control}
+                rules={{ required: 'MRP is required.' }}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    type="number"
+                    size="small"
+                    fullWidth
+                    label="MRP"
+                    error={Boolean(errors.mrp)}
+                    helperText={errors.mrp?.message || ' '}
+                  />
+                )}
+              />
 
               <Controller
                 name="status"

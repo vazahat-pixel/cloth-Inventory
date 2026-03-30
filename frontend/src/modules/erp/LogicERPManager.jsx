@@ -11,16 +11,14 @@ import {
   LayoutDashboard, 
   Box, 
   Layers, 
-  List, 
   Tag, 
-  UploadCloud, 
+  Upload, 
   ShoppingCart, 
   ShoppingBag, 
   Settings, 
   ChevronRight,
   Activity,
   History,
-  ShieldCheck,
   FileText
 } from 'lucide-react';
 import './erp.css';
@@ -36,7 +34,7 @@ const LogicERPManager = () => {
     { id: 'items', label: 'Item Master', icon: <Box size={18} /> },
     { id: 'groups', label: 'Setup Groups', icon: <Layers size={18} /> },
     { id: 'hsn', label: 'HS Code Master', icon: <Tag size={18} /> },
-    { id: 'import', label: 'Excel Import', icon: <UploadCloud size={18} /> },
+    { id: 'import', label: 'Excel Import', icon: <Upload size={18} /> },
     { id: 'purchase', label: 'Purchase/GRN', icon: <ShoppingCart size={18} /> },
     { id: 'sales', label: 'Sales/Billing', icon: <ShoppingBag size={18} /> },
     { id: 'settings', label: 'Formula Master', icon: <Settings size={18} /> }

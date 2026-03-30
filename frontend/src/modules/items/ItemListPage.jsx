@@ -1,54 +1,40 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useAppNavigate } from '../../hooks/useAppNavigate';
-import {
-  Box,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  IconButton,
-  InputAdornment,
-  MenuItem,
-  Paper,
-  Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TablePagination,
-  TableRow,
-  TextField,
-  Typography,
-} from '@mui/material';
+import { Box, Button, Card, CardContent, Grid, IconButton, InputAdornment, MenuItem, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import SearchIcon from '@mui/icons-material/Search';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import StatusChip from '../masters/components/StatusChip';
+import GridViewRoundedIcon from '@mui/icons-material/GridViewRounded';
+import TableRowsRoundedIcon from '@mui/icons-material/TableRowsRounded';
+import PageHeader from '../../components/erp/PageHeader';
+import FilterBar from '../../components/erp/FilterBar';
+import ExportButton from '../../components/erp/ExportButton';
+import StatusBadge from '../../components/erp/StatusBadge';
+import { useAppNavigate } from '../../hooks/useAppNavigate';
 import { deleteItem, fetchItems } from './itemsSlice';
 import { fetchMasters } from '../masters/mastersSlice';
+import itemsExportColumns from '../../config/exportColumns/items';
 
-const getTotalStock = (item) => Number(item.factoryStock || 0);
+const toExportRows = (rows) => rows.map((row) => ({
+  item_code: row.itemCode, item_name: row.itemName, brand: row.brand, hsn_code: row.hsnCode, gst_rate: row.gstRate, color: row.color, fabric: row.fabric, type: row.type, pattern: row.pattern, fit: row.fit, sleeve_type: row.sleeveType, neck_type: row.neckType, gender: row.gender, season: row.season, occasion: row.occasion, material_composition: row.materialComposition, main_group: row.mainGroup, sub_group: row.subGroup, category_path: row.categoryPath, size: row.size, cost_price: row.costPrice, sale_price: row.salePrice, mrp: row.mrp, sku: row.sku, default_warehouse: row.defaultWarehouse, reorder_level: row.reorderLevel, reorder_qty: row.reorderQty, opening_stock: row.openingStock, opening_stock_rate: row.openingStockRate, status: row.status,
+}));
 
 function ItemListPage() {
   const navigate = useAppNavigate();
   const dispatch = useDispatch();
-
   const items = useSelector((state) => state.items.records);
   const brands = useSelector((state) => state.masters?.brands || []);
-  const itemGroups = useSelector((state) => state.masters?.itemGroups || []);
-
+  const groups = useSelector((state) => state.masters?.itemGroups || []);
   const [searchText, setSearchText] = useState('');
   const [brandFilter, setBrandFilter] = useState('all');
-  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [groupFilter, setGroupFilter] = useState('all');
+  const [hsnFilter, setHsnFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [viewMode, setViewMode] = useState('table');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(8);
-  const [itemToDelete, setItemToDelete] = useState(null);
-  const [viewItem, setViewItem] = useState(null);
 
   useEffect(() => {
     dispatch(fetchItems());
@@ -56,271 +42,135 @@ function ItemListPage() {
     dispatch(fetchMasters('itemGroups'));
   }, [dispatch]);
 
-  const filteredItems = useMemo(() => {
+  const rows = useMemo(() => items.map((item) => ({
+    id: item.id || item._id,
+    itemCode: item.code || item.sku || '',
+    itemName: item.name || item.itemName || '',
+    brand: item.brand?.brandName || item.brand?.name || item.brand || '',
+    mainGroup: item.category?.groupName || item.category?.name || item.category || '',
+    subGroup: item.subGroup || '',
+    categoryPath: item.categoryPath || '',
+    hsnCode: item.hsnCodeId?.code || item.hsnCodeId?.hsnCode || item.hsnCode || '',
+    gstRate: item.gstSlabId?.percentage || item.gstRate || '',
+    color: item.color || item.shadeColor || '',
+    fabric: item.fabric || item.attributes?.fabric || '',
+    type: item.fabricType || item.type || '',
+    pattern: item.pattern || '',
+    fit: item.fit || '',
+    sleeveType: item.sleeveType || '',
+    neckType: item.neckType || '',
+    gender: item.gender || item.attributes?.gender || '',
+    season: item.season || item.attributes?.season || '',
+    occasion: item.occasion || '',
+    materialComposition: item.materialComposition || '',
+    size: item.size || '',
+    costPrice: item.costPrice || 0,
+    salePrice: item.salePrice || item.sellingPrice || 0,
+    mrp: item.mrp || item.salePrice || 0,
+    sku: item.sku || '',
+    defaultWarehouse: item.defaultWarehouse || '',
+    reorderLevel: item.reorderLevel || 0,
+    reorderQty: item.reorderQty || 0,
+    openingStock: item.openingStock || item.factoryStock || 0,
+    openingStockRate: item.openingStockRate || 0,
+    variantCount: item.variants?.length || 1,
+    status: item.status || 'Active',
+  })), [items]);
+
+  const hsnOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.hsnCode).filter(Boolean))), [rows]);
+
+  const filteredRows = useMemo(() => {
     const query = searchText.trim().toLowerCase();
-
-    return (items || []).filter((item) => {
-      const sku = item.sku || item.code || '';
-      const brandName = (item.brand?.brandName || item.brand?.name || item.brand || '').toLowerCase();
-      const categoryName = (item.category?.groupName || item.category?.name || item.category || '').toLowerCase();
-
-      const matchesSearch = query
-        ? item.name.toLowerCase().includes(query) || sku.toLowerCase().includes(query)
-        : true;
-
-      const matchesBrand = brandFilter === 'all' ? true : brandName.includes(brandFilter.toLowerCase());
-      const matchesCategory = categoryFilter === 'all' ? true : categoryName.includes(categoryFilter.toLowerCase());
-
-      return matchesSearch && matchesBrand && matchesCategory;
+    return rows.filter((row) => {
+      const matchesSearch = query ? [row.itemCode, row.itemName, row.brand, row.color].some((value) => String(value).toLowerCase().includes(query)) : true;
+      const matchesBrand = brandFilter === 'all' ? true : row.brand === brandFilter;
+      const matchesGroup = groupFilter === 'all' ? true : row.mainGroup === groupFilter;
+      const matchesHsn = hsnFilter === 'all' ? true : row.hsnCode === hsnFilter;
+      const matchesStatus = statusFilter === 'all' ? true : row.status === statusFilter;
+      return matchesSearch && matchesBrand && matchesGroup && matchesHsn && matchesStatus;
     });
-  }, [brandFilter, categoryFilter, items, searchText]);
+  }, [brandFilter, groupFilter, hsnFilter, rows, searchText, statusFilter]);
 
-  const paginatedItems = useMemo(() => {
-    const startIndex = page * rowsPerPage;
-    return filteredItems.slice(startIndex, startIndex + rowsPerPage);
-  }, [filteredItems, page, rowsPerPage]);
-
-  const handleDeleteItem = () => {
-    if (itemToDelete) {
-      dispatch(deleteItem(itemToDelete.id));
-    }
-    setItemToDelete(null);
-  };
+  const paginatedRows = useMemo(() => filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage), [filteredRows, page, rowsPerPage]);
+  const exportRows = useMemo(() => toExportRows(filteredRows), [filteredRows]);
 
   return (
-    <>
-      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2 }}>
-        <Stack spacing={2} sx={{ px: { xs: 2, sm: 3 }, pt: { xs: 2, sm: 3 }, pb: 2 }}>
-          <Stack
-            direction={{ xs: 'column', md: 'row' }}
-            spacing={2}
-            sx={{ alignItems: { md: 'center' }, justifyContent: 'space-between' }}
-          >
-            <Box>
-              <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
-                Items
-              </Typography>
-              <Typography variant="body2" sx={{ color: '#64748b' }}>
-                Manage apparel parent styles and their variant-level pricing and stock.
-              </Typography>
-            </Box>
+    <div>
+      <PageHeader
+        title="Items"
+        subtitle="Manage garment styles, group allocation, HSN mapping, variant pricing, and inventory-ready item defaults."
+        breadcrumbs={[{ label: 'Items', active: true }]}
+        actions={[
+          <ExportButton key="export" rows={exportRows} columns={itemsExportColumns} filename="items.xlsx" sheetName="Items" />,
+          <Button key="add" variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={() => navigate('/items/new')}>Add Item</Button>,
+        ]}
+      />
+      <FilterBar sx={{ mb: 2 }}>
+        <TextField size="small" value={searchText} onChange={(e) => { setPage(0); setSearchText(e.target.value); }} placeholder="Search item code, name, brand, or color" sx={{ flex: 1 }} InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }} />
+        <TextField size="small" select label="Brand" value={brandFilter} onChange={(e) => { setPage(0); setBrandFilter(e.target.value); }} sx={{ minWidth: 160 }}><MenuItem value="all">All Brands</MenuItem>{brands.map((brand) => <MenuItem key={brand.id || brand._id} value={brand.brandName || brand.name}>{brand.brandName || brand.name}</MenuItem>)}</TextField>
+        <TextField size="small" select label="Group" value={groupFilter} onChange={(e) => { setPage(0); setGroupFilter(e.target.value); }} sx={{ minWidth: 180 }}><MenuItem value="all">All Groups</MenuItem>{groups.map((group) => <MenuItem key={group.id || group._id} value={group.groupName || group.name}>{group.groupName || group.name}</MenuItem>)}</TextField>
+        <TextField size="small" select label="HSN" value={hsnFilter} onChange={(e) => { setPage(0); setHsnFilter(e.target.value); }} sx={{ minWidth: 140 }}><MenuItem value="all">All HSN</MenuItem>{hsnOptions.map((hsn) => <MenuItem key={hsn} value={hsn}>{hsn}</MenuItem>)}</TextField>
+        <TextField size="small" select label="Status" value={statusFilter} onChange={(e) => { setPage(0); setStatusFilter(e.target.value); }} sx={{ minWidth: 140 }}><MenuItem value="all">All Statuses</MenuItem><MenuItem value="Active">Active</MenuItem><MenuItem value="Draft">Draft</MenuItem><MenuItem value="Pending">Pending</MenuItem><MenuItem value="Inactive">Inactive</MenuItem></TextField>
+        <ToggleButtonGroup size="small" value={viewMode} exclusive onChange={(_, value) => value && setViewMode(value)}>
+          <ToggleButton value="table"><TableRowsRoundedIcon fontSize="small" /></ToggleButton>
+          <ToggleButton value="cards"><GridViewRoundedIcon fontSize="small" /></ToggleButton>
+        </ToggleButtonGroup>
+      </FilterBar>
 
-            <Button
-              variant="contained"
-              startIcon={<AddCircleOutlineIcon />}
-              onClick={() => navigate('/items/new')}
-            >
-              Add Item
-            </Button>
-          </Stack>
-
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-            <TextField
-              size="small"
-              value={searchText}
-              onChange={(event) => {
-                setPage(0);
-                setSearchText(event.target.value);
-              }}
-              placeholder="Search by item name or SKU"
-              sx={{ flex: 1 }}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon fontSize="small" />
-                  </InputAdornment>
-                ),
-              }}
-            />
-
-            <TextField
-              size="small"
-              select
-              label="Brand"
-              value={brandFilter}
-              onChange={(event) => {
-                setPage(0);
-                setBrandFilter(event.target.value);
-              }}
-              sx={{ minWidth: 180 }}
-            >
-              <MenuItem value="all">All Brands</MenuItem>
-              {brands.map((brand) => (
-                <MenuItem key={brand.id || brand._id} value={brand.brandName || brand.name}>
-                  {brand.brandName || brand.name}
-                </MenuItem>
-              ))}
-            </TextField>
-
-            <TextField
-              size="small"
-              select
-              label="Category"
-              value={categoryFilter}
-              onChange={(event) => {
-                setPage(0);
-                setCategoryFilter(event.target.value);
-              }}
-              sx={{ minWidth: 200 }}
-            >
-              <MenuItem value="all">All Categories</MenuItem>
-              {itemGroups.map((group) => (
-                <MenuItem key={group.id || group._id} value={group.groupName || group.name}>
-                  {group.groupName || group.name}
-                </MenuItem>
-              ))}
-            </TextField>
-          </Stack>
-        </Stack>
-
-        {filteredItems.length ? (
-          <>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 700, minWidth: 170 }}>Item Name</TableCell>
-                    <TableCell sx={{ fontWeight: 700, minWidth: 140 }}>SKU</TableCell>
-                    <TableCell sx={{ fontWeight: 700, minWidth: 140 }}>Brand</TableCell>
-                    <TableCell sx={{ fontWeight: 700, minWidth: 140 }}>Category</TableCell>
-                    <TableCell sx={{ fontWeight: 700, minWidth: 110 }} align="right">
-                      Variants
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 700, minWidth: 120 }} align="right">
-                      Total Stock
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 700, minWidth: 110 }}>Status</TableCell>
-                    <TableCell sx={{ fontWeight: 700, minWidth: 140 }}>Actions</TableCell>
+      {viewMode === 'cards' ? (
+        <Grid container spacing={2}>
+          {paginatedRows.map((row) => (
+            <Grid item xs={12} md={6} lg={4} key={row.id}>
+              <Card elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2 }}>
+                <CardContent>
+                  <Stack spacing={1.25}>
+                    <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <Box><Typography sx={{ fontWeight: 700, color: '#0f172a' }}>{row.itemName}</Typography><Typography variant="caption" sx={{ color: '#64748b' }}>{row.itemCode}</Typography></Box>
+                      <StatusBadge value={row.status} />
+                    </Stack>
+                    <Typography variant="body2" sx={{ color: '#475569' }}>{row.brand} • {row.mainGroup || 'Unassigned'}</Typography>
+                    <Typography variant="caption" sx={{ color: '#64748b' }}>HSN {row.hsnCode || '--'} • GST {row.gstRate || '--'}% • Variants {row.variantCount}</Typography>
+                    <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
+                      <IconButton size="small" color="info" onClick={() => navigate(`/items/${row.id}/view`)}><VisibilityOutlinedIcon fontSize="small" /></IconButton>
+                      <IconButton size="small" color="primary" onClick={() => navigate(`/items/${row.id}/edit`)}><EditOutlinedIcon fontSize="small" /></IconButton>
+                      <IconButton size="small" color="error" onClick={() => dispatch(deleteItem(row.id))}><DeleteOutlineIcon fontSize="small" /></IconButton>
+                    </Stack>
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      ) : (
+        <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, overflow: 'hidden' }}>
+          <TableContainer>
+            <Table size="small">
+              <TableHead><TableRow>
+                <TableCell sx={{ fontWeight: 700 }}>Item Code</TableCell><TableCell sx={{ fontWeight: 700 }}>Item Name</TableCell><TableCell sx={{ fontWeight: 700 }}>Brand</TableCell><TableCell sx={{ fontWeight: 700 }}>Group</TableCell><TableCell sx={{ fontWeight: 700 }}>HSN</TableCell><TableCell sx={{ fontWeight: 700 }}>GST</TableCell><TableCell sx={{ fontWeight: 700 }}>Base Color</TableCell><TableCell sx={{ fontWeight: 700 }}>Variants</TableCell><TableCell sx={{ fontWeight: 700 }}>Status</TableCell><TableCell sx={{ fontWeight: 700 }} align="right">Actions</TableCell>
+              </TableRow></TableHead>
+              <TableBody>
+                {paginatedRows.map((row) => (
+                  <TableRow key={row.id} hover>
+                    <TableCell sx={{ fontWeight: 700 }}>{row.itemCode}</TableCell>
+                    <TableCell>{row.itemName}</TableCell>
+                    <TableCell>{row.brand}</TableCell>
+                    <TableCell>{row.mainGroup || '--'}</TableCell>
+                    <TableCell>{row.hsnCode || '--'}</TableCell>
+                    <TableCell>{row.gstRate || '--'}</TableCell>
+                    <TableCell>{row.color || '--'}</TableCell>
+                    <TableCell>{row.variantCount}</TableCell>
+                    <TableCell><StatusBadge value={row.status} /></TableCell>
+                    <TableCell align="right"><IconButton size="small" color="info" onClick={() => navigate(`/items/${row.id}/view`)}><VisibilityOutlinedIcon fontSize="small" /></IconButton><IconButton size="small" color="primary" onClick={() => navigate(`/items/${row.id}/edit`)}><EditOutlinedIcon fontSize="small" /></IconButton><IconButton size="small" color="error" onClick={() => dispatch(deleteItem(row.id))}><DeleteOutlineIcon fontSize="small" /></IconButton></TableCell>
                   </TableRow>
-                </TableHead>
-                <TableBody>
-                  {paginatedItems.map((item) => (
-                    <TableRow key={item.id} hover>
-                      <TableCell>
-                        <Typography sx={{ fontWeight: 700, color: '#0f172a' }}>{item.name}</Typography>
-                      </TableCell>
-                      <TableCell>{item.sku || item.code}</TableCell>
-                      <TableCell>{item.brand?.brandName || item.brand?.name || item.brand || ''}</TableCell>
-                      <TableCell>{item.category?.groupName || item.category?.name || item.category || ''}</TableCell>
-                      <TableCell align="right">{(item.variants || []).length || 1}</TableCell>
-                      <TableCell align="right">{getTotalStock(item)}</TableCell>
-                      <TableCell>
-                        <StatusChip value={item.status} />
-                      </TableCell>
-                      <TableCell>
-                        <Stack direction="row" spacing={0.25}>
-                          <IconButton size="small" color="info" onClick={() => setViewItem(item)}>
-                            <VisibilityOutlinedIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            color="primary"
-                            onClick={() => navigate(`/items/${item.id}/edit`)}
-                          >
-                            <EditOutlinedIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton size="small" color="error" onClick={() => setItemToDelete(item)}>
-                            <DeleteOutlineIcon fontSize="small" />
-                          </IconButton>
-                        </Stack>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-
-            <TablePagination
-              component="div"
-              count={filteredItems.length}
-              page={page}
-              onPageChange={(_, nextPage) => setPage(nextPage)}
-              rowsPerPage={rowsPerPage}
-              onRowsPerPageChange={(event) => {
-                setRowsPerPage(Number(event.target.value));
-                setPage(0);
-              }}
-              rowsPerPageOptions={[5, 8, 10, 20]}
-            />
-          </>
-        ) : (
-          <Box sx={{ py: 7, px: 3, textAlign: 'center' }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0f172a', mb: 1 }}>
-              No items found.
-            </Typography>
-            <Typography variant="body2" sx={{ color: '#64748b', mb: 2 }}>
-              Add your first parent item style to begin variant-based inventory management.
-            </Typography>
-            <Button
-              variant="contained"
-              startIcon={<AddCircleOutlineIcon />}
-              onClick={() => navigate('/items/new')}
-            >
-              Create Item
-            </Button>
-          </Box>
-        )}
-      </Paper>
-
-      <Dialog open={Boolean(itemToDelete)} onClose={() => setItemToDelete(null)} fullWidth maxWidth="xs">
-        <DialogTitle>Delete Item</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" sx={{ color: '#475569' }}>
-            Are you sure you want to delete "{itemToDelete?.name}"?
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setItemToDelete(null)}>Cancel</Button>
-          <Button variant="contained" color="error" onClick={handleDeleteItem}>
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={Boolean(viewItem)} onClose={() => setViewItem(null)} fullWidth maxWidth="sm">
-        <DialogTitle>Item Details</DialogTitle>
-        <DialogContent dividers>
-          <Stack spacing={1.25}>
-            <Typography variant="body2">
-              <strong>Name:</strong> {viewItem?.name}
-            </Typography>
-            <Typography variant="body2">
-              <strong>SKU:</strong> {viewItem?.sku || viewItem?.code}
-            </Typography>
-            <Typography variant="body2">
-              <strong>Brand:</strong> {viewItem?.brand?.brandName || viewItem?.brand?.name || viewItem?.brand || ''}
-            </Typography>
-            <Typography variant="body2">
-              <strong>Category:</strong> {viewItem?.category?.groupName || viewItem?.category?.name || viewItem?.category || ''}
-            </Typography>
-            <Typography variant="body2">
-              <strong>Total Variants:</strong> {viewItem?.variants?.length || 0}
-            </Typography>
-            <Typography variant="body2">
-              <strong>Total Stock:</strong> {viewItem ? getTotalStock(viewItem) : 0}
-            </Typography>
-            <Typography variant="body2">
-              <strong>Status:</strong> {viewItem?.status}
-            </Typography>
-          </Stack>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={() => setViewItem(null)}>Close</Button>
-          {viewItem && (
-            <Button
-              variant="contained"
-              onClick={() => {
-                const itemId = viewItem.id;
-                setViewItem(null);
-                navigate(`/items/${itemId}/edit`);
-              }}
-            >
-              Edit
-            </Button>
-          )}
-        </DialogActions>
-      </Dialog>
-    </>
+                ))}
+                {!paginatedRows.length ? <TableRow><TableCell colSpan={10} sx={{ py: 5, textAlign: 'center', color: '#64748b' }}>No items found for the current filters.</TableCell></TableRow> : null}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <TablePagination component="div" count={filteredRows.length} page={page} rowsPerPage={rowsPerPage} onPageChange={(_, nextPage) => setPage(nextPage)} onRowsPerPageChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(0); }} rowsPerPageOptions={[6, 8, 12, 20]} />
+        </Paper>
+      )}
+    </div>
   );
 }
 

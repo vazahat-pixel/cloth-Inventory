@@ -1,399 +1,678 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useParams } from 'react-router-dom';
-import { useLocation } from 'react-router-dom';
-import { useAppNavigate } from '../../hooks/useAppNavigate';
+import { useLocation, useParams } from 'react-router-dom';
 import {
-    Autocomplete,
-    Box,
-    Button,
-    IconButton,
-    MenuItem,
-    Paper,
-    Stack,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    TextField,
-    Typography,
+  Alert,
+  Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Grid,
+  IconButton,
+  MenuItem,
+  Paper,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
 } from '@mui/material';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
-import { addPurchaseOrder, updatePurchaseOrder, fetchPurchaseOrders } from './purchaseSlice';
+import SendOutlinedIcon from '@mui/icons-material/SendOutlined';
+import PageHeader from '../../components/erp/PageHeader';
+import FilterBar from '../../components/erp/FilterBar';
+import FormSection from '../../components/erp/FormSection';
+import StatusBadge from '../../components/erp/StatusBadge';
+import SummaryCard from '../../components/erp/SummaryCard';
+import { useAppNavigate } from '../../hooks/useAppNavigate';
+import useRoleBasePath from '../../hooks/useRoleBasePath';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchItems } from '../items/itemsSlice';
-import useRoleBasePath from '../../hooks/useRoleBasePath';
+import { fetchPurchaseOrders } from './purchaseSlice';
+import { loadModuleRecords, upsertModuleRecord } from '../erp/erpLocalStore';
+import {
+  buildFallbackSuppliers,
+  buildFallbackVariantOptions,
+  calculatePurchaseOrderLine,
+  calculatePurchaseOrderTotals,
+  fallbackPurchaseOrders,
+  formatCurrency,
+  mergePurchaseOrders,
+  normalizePurchaseOrderRecord,
+  purchaseOrderStorageKey,
+} from './purchaseOrderUi';
 
-const getTodayDate = () => new Date().toISOString().slice(0, 10);
+const today = () => new Date().toISOString().slice(0, 10);
 
-const toNumber = (v, def = 0) => (Number.isFinite(Number(v)) ? Number(v) : def);
-
-const calculateLine = (line) => {
-    const qty = toNumber(line.quantity);
-    const rate = toNumber(line.rate);
-    const disc = toNumber(line.discount);
-    const tax = toNumber(line.tax);
-    const gross = qty * rate;
-    const discAmt = (gross * disc) / 100;
-    const taxable = gross - discAmt;
-    const taxAmt = (taxable * tax) / 100;
-    return { gross, discAmt, taxAmt, amount: taxable + taxAmt };
+const defaultForm = {
+  poNumber: '',
+  poDate: today(),
+  supplierId: '',
+  expectedDeliveryDate: '',
+  billingAddress: '',
+  deliveryAddress: '',
+  paymentTerms: '',
+  notes: '',
+  status: 'Draft',
 };
 
-const calculateTotals = (items) => {
-    const s = items.reduce(
-        (acc, l) => {
-            const lt = calculateLine(l);
-            acc.totalQuantity += toNumber(l.quantity);
-            acc.grossAmount += lt.gross;
-            acc.lineDiscount += lt.discAmt;
-            acc.taxAmount += lt.taxAmt;
-            return acc;
-        },
-        { totalQuantity: 0, grossAmount: 0, lineDiscount: 0, taxAmount: 0 },
-    );
-    s.netAmount = s.grossAmount - s.lineDiscount + s.taxAmount;
-    return s;
-};
+function buildVariantOptions(records = []) {
+  const options = [
+    ...buildFallbackVariantOptions(),
+    ...(records || []).map((item) => ({
+      id: item.id || item._id || item.sku,
+      itemCode: item.code || item.itemCode || item.sku || '',
+      itemName: item.name || item.itemName || '',
+      size: item.size || '',
+      color: item.color || item.shadeColor || '',
+      sku: item.sku || '',
+      rate: Number(item.costPrice || item.salePrice || item.sellingPrice || 0),
+      mrp: Number(item.mrp || item.salePrice || item.sellingPrice || 0),
+      uom: item.uom || 'PCS',
+      status: item.status || 'Active',
+    })),
+  ];
 
-function PurchaseOrderFormPage() {
-    const { id } = useParams();
-    const isEdit = Boolean(id);
-    const dispatch = useDispatch();
-    const navigate = useAppNavigate();
-    const location = useLocation();
-    const basePath = useRoleBasePath();
+  const merged = new Map();
+  options.forEach((option) => {
+    merged.set(option.sku || option.id, option);
+  });
+  return Array.from(merged.values());
+}
 
-    const purchaseOrders = useSelector((state) => state.purchase.orders || []);
-    const suppliers = useSelector((state) => state.masters.suppliers || []);
-    const warehouses = useSelector((state) => state.masters.warehouses || []);
-    const items = useSelector((state) => state.items.records || []);
-    const localPath = location.pathname.startsWith(basePath)
-        ? location.pathname.slice(basePath.length) || '/'
-        : location.pathname;
-    const purchaseOrderListPath = localPath.startsWith('/orders/purchase-order')
-        ? '/orders/purchase-order'
-        : '/purchase/orders';
+function PurchaseOrderFormPage({ mode = 'edit' }) {
+  const dispatch = useDispatch();
+  const navigate = useAppNavigate();
+  const location = useLocation();
+  const basePath = useRoleBasePath();
+  const { id } = useParams();
+  const isViewMode = mode === 'view';
+  const isEditMode = Boolean(id);
 
-    const existing = useMemo(
-        () => (isEdit ? purchaseOrders.find((o) => o.id === id) : null),
-        [id, isEdit, purchaseOrders],
-    );
+  const backendOrders = useSelector((state) => state.purchase.orders || []);
+  const backendSuppliers = useSelector((state) => state.masters.suppliers || []);
+  const backendItems = useSelector((state) => state.items.records || []);
 
-    const [date, setDate] = useState(getTodayDate());
-    const [supplierId, setSupplierId] = useState('');
-    const [warehouseId, setWarehouseId] = useState('');
-    const [lines, setLines] = useState([]);
-    const [variantPickerValue, setVariantPickerValue] = useState(null);
-    const [formError, setFormError] = useState('');
+  const [formValues, setFormValues] = useState(defaultForm);
+  const [lines, setLines] = useState([]);
+  const [linePicker, setLinePicker] = useState('');
+  const [formError, setFormError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
 
-    const activeSuppliers = useMemo(
-        () => (suppliers || []).filter((s) => String(s.status).toLowerCase() === 'active'),
-        [suppliers],
-    );
+  useEffect(() => {
+    dispatch(fetchPurchaseOrders());
+    dispatch(fetchMasters('suppliers'));
+    dispatch(fetchItems());
+  }, [dispatch]);
 
-    const activeWarehouses = useMemo(
-        () => (warehouses || []).filter((w) => String(w.status).toLowerCase() === 'active'),
-        [warehouses],
-    );
+  const localPath = location.pathname.startsWith(basePath)
+    ? location.pathname.slice(basePath.length) || '/'
+    : location.pathname;
+  const listPath = localPath.startsWith('/orders/purchase-order')
+    ? '/orders/purchase-order'
+    : '/purchase/orders';
 
-    const variantOptions = useMemo(() => {
-        return (items || []).map((v) => ({
-            variantId: v.id,
-            itemName: v.name,
-            styleCode: v.sku || '',
-            size: v.size || '',
-            color: v.color || '',
-            sku: v.barcode || v.sku || '',
-            itemId: v.id,
-            category: v.category,
-            baseRate: v.salePrice ?? v.sellingPrice ?? v.mrp ?? 0
-        }));
-    }, [items]);
+  const suppliers = useMemo(() => {
+    const backend = (backendSuppliers || []).map((supplier) => ({
+      id: supplier.id || supplier._id,
+      supplierName: supplier.supplierName || supplier.name || '',
+      city: supplier.city || '',
+      state: supplier.state || '',
+      addressLine1: supplier.addressLine1 || supplier.address || '',
+      addressLine2: supplier.addressLine2 || '',
+      creditDays: supplier.creditDays || 0,
+      status: supplier.status || 'Active',
+    }));
+    const merged = new Map();
+    [...buildFallbackSuppliers(), ...backend].forEach((supplier) => {
+      merged.set(supplier.id, supplier);
+    });
+    return Array.from(merged.values());
+  }, [backendSuppliers]);
 
-    const filteredOptions = useMemo(() => {
-        const ids = new Set(lines.map((l) => l.variantId));
-        return variantOptions.filter((o) => !ids.has(o.variantId));
-    }, [lines, variantOptions]);
+  const variantOptions = useMemo(() => buildVariantOptions(backendItems), [backendItems]);
 
-    const totals = useMemo(() => calculateTotals(lines), [lines]);
+  const existingOrder = useMemo(() => {
+    if (!id) {
+      return null;
+    }
+    const orders = mergePurchaseOrders(loadModuleRecords(purchaseOrderStorageKey, fallbackPurchaseOrders), backendOrders);
+    return orders.find((order) => order.id === id);
+  }, [backendOrders, id]);
 
-    useEffect(() => {
-        dispatch(fetchPurchaseOrders());
-        dispatch(fetchMasters('suppliers'));
-        dispatch(fetchMasters('warehouses'));
-        dispatch(fetchItems());
-    }, [dispatch]);
+  useEffect(() => {
+    if (isEditMode && !existingOrder) {
+      return;
+    }
 
-    useEffect(() => {
-        if (!existing) {
-            setDate(getTodayDate());
-            setSupplierId('');
-            setWarehouseId(activeWarehouses.length === 1 ? activeWarehouses[0].id : (activeWarehouses.length > 0 ? activeWarehouses[0].id : ''));
-            setLines([]);
-            return;
+    if (existingOrder) {
+      setFormValues({
+        poNumber: existingOrder.poNumber,
+        poDate: existingOrder.poDate,
+        supplierId: existingOrder.supplierId,
+        expectedDeliveryDate: existingOrder.expectedDeliveryDate || '',
+        billingAddress: existingOrder.billingAddress || '',
+        deliveryAddress: existingOrder.deliveryAddress || '',
+        paymentTerms: existingOrder.paymentTerms || '',
+        notes: existingOrder.notes || '',
+        status: existingOrder.status || 'Draft',
+      });
+      setLines(existingOrder.items || []);
+      return;
+    }
+
+    const generatedNumber = `PO-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`;
+    setFormValues({
+      ...defaultForm,
+      poNumber: generatedNumber,
+    });
+    setLines([]);
+  }, [existingOrder, isEditMode]);
+
+  useEffect(() => {
+    const supplier = suppliers.find((item) => item.id === formValues.supplierId);
+    if (!supplier) {
+      return;
+    }
+
+    setFormValues((previous) => ({
+      ...previous,
+      billingAddress:
+        previous.billingAddress ||
+        [supplier.addressLine1, supplier.addressLine2, supplier.city, supplier.state].filter(Boolean).join(', '),
+      paymentTerms: previous.paymentTerms || (supplier.creditDays ? `${supplier.creditDays} days credit` : ''),
+    }));
+  }, [formValues.supplierId, suppliers]);
+
+  const updateFormValue = (key, value) => {
+    setFormError('');
+    setSuccessMessage('');
+    setFormValues((previous) => ({ ...previous, [key]: value }));
+  };
+
+  const availableOptions = useMemo(() => {
+    const selectedSkus = new Set(lines.map((line) => line.sku || `${line.itemCode}-${line.size}-${line.color}`));
+    return variantOptions.filter((option) => !selectedSkus.has(option.sku || option.id));
+  }, [lines, variantOptions]);
+
+  const totals = useMemo(() => calculatePurchaseOrderTotals(lines), [lines]);
+
+  const addLine = () => {
+    if (!linePicker) {
+      return;
+    }
+
+    const option = availableOptions.find((item) => (item.sku || item.id) === linePicker);
+    if (!option) {
+      return;
+    }
+
+    setLines((previous) => [
+      ...previous,
+      {
+        id: `po-line-${Date.now()}`,
+        itemCode: option.itemCode,
+        itemName: option.itemName,
+        size: option.size,
+        color: option.color,
+        sku: option.sku,
+        qty: 1,
+        rate: option.rate || 0,
+        discountPercent: 0,
+        taxPercent: 5,
+        remarks: '',
+        amount: option.rate || 0,
+      },
+    ]);
+    setLinePicker('');
+  };
+
+  const updateLineField = (lineId, key, value) => {
+    setFormError('');
+    setLines((previous) =>
+      previous.map((line) => {
+        if (line.id !== lineId) {
+          return line;
         }
-        setDate(existing.orderDate || existing.date || getTodayDate());
-        setSupplierId(existing.supplierId || '');
-        setWarehouseId(existing.warehouseId || '');
-        setLines(
-            (existing.items || []).map((it, idx) => ({
-                id: `${it.variantId}-${idx}`,
-                ...it,
-            })),
-        );
-    }, [existing, activeWarehouses]);
-
-    const addLine = () => {
-        if (!variantPickerValue) return;
-        const rate = toNumber(variantPickerValue.baseRate);
-        const line = {
-            id: `${variantPickerValue.variantId}-${Date.now()}`,
-            variantId: variantPickerValue.variantId,
-            itemName: variantPickerValue.itemName,
-            styleCode: variantPickerValue.styleCode,
-            size: variantPickerValue.size,
-            color: variantPickerValue.color,
-            sku: variantPickerValue.sku,
-            quantity: 1,
-            rate,
-            discount: 0,
-            tax: 0,
-            amount: rate,
+        const updated = {
+          ...line,
+          [key]: ['qty', 'rate', 'discountPercent', 'taxPercent'].includes(key) ? Number(value) : value,
         };
-        setLines((prev) => [...prev, line]);
-        setVariantPickerValue(null);
-    };
-
-    const updateLineField = (lineId, field, value) => {
-        setLines((prev) =>
-            prev.map((l) => {
-                if (l.id !== lineId) return l;
-                return { ...l, [field]: value };
-            }),
-        );
-    };
-
-    const removeLine = (lineId) => {
-        setLines((prev) => prev.filter((l) => l.id !== lineId));
-    };
-
-    const handleSave = () => {
-        setFormError('');
-        if (!supplierId) {
-            setFormError('Select a supplier.');
-            return;
-        }
-        if (!warehouseId) {
-            setFormError('Select a warehouse.');
-            return;
-        }
-        if (!lines.length) {
-            setFormError('Add at least one item.');
-            return;
-        }
-
-        const payload = {
-            poDate: date,
-            supplierId,
-            storeId: warehouseId,
-            items: lines.map((l) => ({
-                productId: l.variantId,
-                quantity: toNumber(l.quantity),
-                rate: toNumber(l.rate),
-            })),
-            notes: '', // Optional notes
-            status: existing?.status || 'DRAFT',
+        return {
+          ...updated,
+          amount: calculatePurchaseOrderLine(updated).amount,
         };
+      }),
+    );
+  };
 
-        if (isEdit) {
-            dispatch(updatePurchaseOrder({ id, orderData: payload }));
-            navigate(purchaseOrderListPath);
-        } else {
-            dispatch(addPurchaseOrder(payload));
-            navigate(purchaseOrderListPath);
-        }
-    };
+  const removeLine = (lineId) => {
+    setLines((previous) => previous.filter((line) => line.id !== lineId));
+  };
 
+  const validateForm = () => {
+    if (!formValues.supplierId) {
+      setFormError('Supplier is required.');
+      return false;
+    }
+    if (!formValues.poDate) {
+      setFormError('PO date is required.');
+      return false;
+    }
+    if (!lines.length) {
+      setFormError('Add at least one item line.');
+      return false;
+    }
+    const invalidLine = lines.find(
+      (line) => !line.itemCode || !line.itemName || Number(line.qty || 0) <= 0 || Number(line.rate || 0) < 0,
+    );
+    if (invalidLine) {
+      setFormError('Each item line must have item details, quantity, and rate.');
+      return false;
+    }
+    return true;
+  };
+
+  const saveOrder = (status) => {
+    setSuccessMessage('');
+    if (!validateForm()) {
+      return;
+    }
+
+    const supplier = suppliers.find((item) => item.id === formValues.supplierId);
+    const now = new Date().toISOString();
+    const normalizedLines = lines.map((line, index) => ({
+      ...line,
+      id: line.id || `po-line-${index + 1}`,
+      qty: Number(line.qty || 0),
+      rate: Number(line.rate || 0),
+      discountPercent: Number(line.discountPercent || 0),
+      taxPercent: Number(line.taxPercent || 0),
+      amount: calculatePurchaseOrderLine(line).amount,
+    }));
+
+    const record = normalizePurchaseOrderRecord({
+      id: existingOrder?.id || `po-${Date.now()}`,
+      poNumber: formValues.poNumber,
+      poDate: formValues.poDate,
+      supplierId: formValues.supplierId,
+      supplierName: supplier?.supplierName || '',
+      expectedDeliveryDate: formValues.expectedDeliveryDate,
+      billingAddress: formValues.billingAddress,
+      deliveryAddress: formValues.deliveryAddress,
+      paymentTerms: formValues.paymentTerms,
+      notes: formValues.notes,
+      status,
+      createdBy: existingOrder?.createdBy || 'HO Admin',
+      createdAt: existingOrder?.createdAt || now,
+      updatedAt: now,
+      items: normalizedLines,
+      totals: calculatePurchaseOrderTotals(normalizedLines),
+    });
+
+    upsertModuleRecord(purchaseOrderStorageKey, record);
+    setFormValues((previous) => ({ ...previous, status }));
+    setSuccessMessage(status === 'Draft' ? 'Purchase order saved as draft.' : 'Purchase order submitted successfully.');
+
+    if (status !== 'Draft') {
+      navigate(listPath);
+    }
+  };
+
+  if (isEditMode && !existingOrder && backendOrders.length) {
     return (
-        <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3 }}>
-            <Stack direction="row" spacing={2} sx={{ mb: 2, alignItems: 'center' }}>
-                <Button startIcon={<ArrowBackIcon />} onClick={() => navigate(purchaseOrderListPath)}>
-                    Back
-                </Button>
-                <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', flex: 1 }}>
-                    {isEdit ? 'Edit Purchase Order' : 'New Purchase Order'}
-                </Typography>
-            </Stack>
-
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 2 }}>
-                <TextField
-                    size="small"
-                    label="Order Date"
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    InputLabelProps={{ shrink: true }}
-                    sx={{ minWidth: 160 }}
-                />
-                <Autocomplete
-                    size="small"
-                    options={activeSuppliers}
-                    getOptionLabel={(o) => o.supplierName || o.name || ''}
-                    value={activeSuppliers.find((s) => s.id === supplierId) || null}
-                    onChange={(_, v) => setSupplierId(v?.id || '')}
-                    renderInput={(params) => <TextField {...params} label="Supplier" required />}
-                    sx={{ minWidth: 260 }}
-                />
-                <TextField
-                    size="small"
-                    select
-                    label="Warehouse"
-                    value={warehouseId}
-                    required
-                    onChange={(e) => setWarehouseId(e.target.value)}
-                    sx={{ minWidth: 180 }}
-                >
-                    {activeWarehouses.map((w) => (
-                        <MenuItem key={w.id} value={w.id}>
-                            {w.name}
-                        </MenuItem>
-                    ))}
-                </TextField>
-            </Stack>
-
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 2 }}>
-                <Autocomplete
-                    size="small"
-                    options={filteredOptions}
-                    getOptionLabel={(o) => `${o.sku} | ${o.itemName} ${o.size}/${o.color}`}
-                    value={variantPickerValue}
-                    onChange={(_, v) => setVariantPickerValue(v)}
-                    sx={{ minWidth: 320 }}
-                    renderInput={(params) => (
-                        <TextField {...params} label="Add item (search by SKU or name)" placeholder="Select variant" />
-                    )}
-                />
-                <Button
-                    variant="outlined"
-                    startIcon={<AddCircleOutlineIcon />}
-                    onClick={addLine}
-                    disabled={!variantPickerValue}
-                >
-                    Add Line
-                </Button>
-            </Stack>
-
-            {formError && (
-                <Typography variant="body2" color="error" sx={{ mb: 1 }}>
-                    {formError}
-                </Typography>
-            )}
-
-            <TableContainer sx={{ border: '1px solid #e2e8f0', borderRadius: 1.5, mb: 2 }}>
-                <Table size="small">
-                    <TableHead>
-                        <TableRow>
-                            <TableCell sx={{ fontWeight: 700 }}>Item</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>Size/Color</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }} align="right">
-                                Qty
-                            </TableCell>
-                            <TableCell sx={{ fontWeight: 700 }} align="right">
-                                Rate
-                            </TableCell>
-                            <TableCell sx={{ fontWeight: 700 }} align="right">
-                                Disc %
-                            </TableCell>
-                            <TableCell sx={{ fontWeight: 700 }} align="right">
-                                Tax %
-                            </TableCell>
-                            <TableCell sx={{ fontWeight: 700 }} align="right">
-                                Amount
-                            </TableCell>
-                            <TableCell sx={{ fontWeight: 700 }} width={56} />
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {lines.map((l) => {
-                            const lt = calculateLine(l);
-                            return (
-                                <TableRow key={l.id}>
-                                    <TableCell>{l.itemName}</TableCell>
-                                    <TableCell>{l.sku}</TableCell>
-                                    <TableCell>{`${l.size}/${l.color}`}</TableCell>
-                                    <TableCell>
-                                        <TextField
-                                            size="small"
-                                            type="number"
-                                            value={l.quantity}
-                                            onChange={(e) => updateLineField(l.id, 'quantity', Math.max(1, Number(e.target.value)))}
-                                            inputProps={{ min: 1, style: { textAlign: 'right', width: 60 } }}
-                                        />
-                                    </TableCell>
-                                    <TableCell>
-                                        <TextField
-                                            size="small"
-                                            type="number"
-                                            value={l.rate}
-                                            onChange={(e) => updateLineField(l.id, 'rate', Math.max(0, Number(e.target.value)))}
-                                            inputProps={{ min: 0, step: 0.01, style: { textAlign: 'right', width: 80 } }}
-                                        />
-                                    </TableCell>
-                                    <TableCell>
-                                        <TextField
-                                            size="small"
-                                            type="number"
-                                            value={l.discount}
-                                            onChange={(e) => updateLineField(l.id, 'discount', Math.max(0, Math.min(100, Number(e.target.value))))}
-                                            inputProps={{ min: 0, max: 100, style: { textAlign: 'right', width: 60 } }}
-                                        />
-                                    </TableCell>
-                                    <TableCell>
-                                        <TextField
-                                            size="small"
-                                            type="number"
-                                            value={l.tax}
-                                            onChange={(e) => updateLineField(l.id, 'tax', Math.max(0, Math.min(100, Number(e.target.value))))}
-                                            inputProps={{ min: 0, max: 100, style: { textAlign: 'right', width: 60 } }}
-                                        />
-                                    </TableCell>
-                                    <TableCell align="right">{lt.amount.toFixed(2)}</TableCell>
-                                    <TableCell>
-                                        <IconButton size="small" color="error" onClick={() => removeLine(l.id)}>
-                                            <DeleteOutlineIcon fontSize="small" />
-                                        </IconButton>
-                                    </TableCell>
-                                </TableRow>
-                            );
-                        })}
-                    </TableBody>
-                </Table>
-            </TableContainer>
-
-            <Stack direction="row" spacing={2} justifyContent="flex-end" sx={{ mb: 2 }}>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    Gross: ₹{totals.grossAmount.toFixed(2)} | Discount: ₹{totals.lineDiscount.toFixed(2)} | Tax:
-                    ₹{totals.taxAmount.toFixed(2)} | Net: ₹{totals.netAmount.toFixed(2)}
-                </Typography>
-            </Stack>
-
-            <Stack direction="row" spacing={1.5} justifyContent="flex-end">
-                <Button variant="outlined" onClick={() => navigate(purchaseOrderListPath)}>
-                    Cancel
-                </Button>
-                <Button variant="contained" startIcon={<SaveOutlinedIcon />} onClick={handleSave}>
-                    Save Purchase Order
-                </Button>
-            </Stack>
-        </Paper>
+      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3 }}>
+        <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
+          Purchase order not found
+        </Typography>
+        <Button variant="contained" onClick={() => navigate(listPath)}>
+          Back to Purchase Orders
+        </Button>
+      </Paper>
     );
+  }
+
+  return (
+    <Box>
+      <PageHeader
+        title={isViewMode ? 'Purchase Order Details' : isEditMode ? 'Edit Purchase Order' : 'New Purchase Order'}
+        subtitle="Manage supplier, expected delivery, address blocks, status, and garment line items in one purchase order workspace."
+        breadcrumbs={[
+          { label: 'Purchase' },
+          { label: 'Purchase Orders' },
+          { label: isViewMode ? 'View' : isEditMode ? 'Edit' : 'New', active: true },
+        ]}
+        actions={[
+          <Button key="back" variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate(listPath)}>
+            Back
+          </Button>,
+          !isViewMode ? (
+            <Button key="draft" variant="outlined" startIcon={<SaveOutlinedIcon />} onClick={() => saveOrder('Draft')}>
+              Save Draft
+            </Button>
+          ) : null,
+          !isViewMode ? (
+            <Button key="submit" variant="contained" startIcon={<SendOutlinedIcon />} onClick={() => saveOrder('Pending')}>
+              Submit
+            </Button>
+          ) : null,
+        ].filter(Boolean)}
+      />
+
+      {formError ? <Alert severity="error" sx={{ mb: 2 }}>{formError}</Alert> : null}
+      {successMessage ? <Alert severity="success" sx={{ mb: 2 }}>{successMessage}</Alert> : null}
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' }, gap: 2, mb: 2 }}>
+        <SummaryCard label="PO Number" value={formValues.poNumber || '--'} helper="Auto-generated reference placeholder." />
+        <SummaryCard label="Current Status" value={<StatusBadge value={formValues.status} />} helper="Drafts are editable and safe to revise." tone="warning" />
+        <SummaryCard label="Total Quantity" value={totals.totalQty} helper="Sum of all quantity lines in this PO." tone="info" />
+        <SummaryCard label="Grand Total" value={formatCurrency(totals.grandTotal)} helper="Discount and tax included." tone="success" />
+      </Box>
+
+      <FormSection title="PO Header" subtitle="Supplier details, dates, addresses, terms, and status." sx={{ mb: 2 }}>
+        <Grid container spacing={2}>
+          <Grid item xs={12} md={3}>
+            <TextField fullWidth size="small" label="PO Number" value={formValues.poNumber} disabled />
+          </Grid>
+          <Grid item xs={12} md={3}>
+            <TextField
+              fullWidth
+              size="small"
+              type="date"
+              label="PO Date"
+              value={formValues.poDate}
+              onChange={(event) => updateFormValue('poDate', event.target.value)}
+              InputLabelProps={{ shrink: true }}
+              disabled={isViewMode}
+            />
+          </Grid>
+          <Grid item xs={12} md={3}>
+            <TextField
+              fullWidth
+              size="small"
+              type="date"
+              label="Expected Delivery Date"
+              value={formValues.expectedDeliveryDate}
+              onChange={(event) => updateFormValue('expectedDeliveryDate', event.target.value)}
+              InputLabelProps={{ shrink: true }}
+              disabled={isViewMode}
+            />
+          </Grid>
+          <Grid item xs={12} md={3}>
+            <TextField
+              fullWidth
+              size="small"
+              select
+              label="Status"
+              value={formValues.status}
+              onChange={(event) => updateFormValue('status', event.target.value)}
+              disabled={isViewMode}
+            >
+              <MenuItem value="Draft">Draft</MenuItem>
+              <MenuItem value="Pending">Pending</MenuItem>
+              <MenuItem value="Approved">Approved</MenuItem>
+              <MenuItem value="Cancelled">Cancelled</MenuItem>
+            </TextField>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth
+              size="small"
+              select
+              label="Supplier"
+              value={formValues.supplierId}
+              onChange={(event) => updateFormValue('supplierId', event.target.value)}
+              disabled={isViewMode}
+            >
+              <MenuItem value="">Select Supplier</MenuItem>
+              {suppliers.map((supplier) => (
+                <MenuItem key={supplier.id} value={supplier.id}>
+                  {supplier.supplierName}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Billing Address"
+              value={formValues.billingAddress}
+              onChange={(event) => updateFormValue('billingAddress', event.target.value)}
+              disabled={isViewMode}
+            />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Delivery Address"
+              value={formValues.deliveryAddress}
+              onChange={(event) => updateFormValue('deliveryAddress', event.target.value)}
+              disabled={isViewMode}
+            />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Payment Terms"
+              value={formValues.paymentTerms}
+              onChange={(event) => updateFormValue('paymentTerms', event.target.value)}
+              disabled={isViewMode}
+            />
+          </Grid>
+          <Grid item xs={12} md={8}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Notes"
+              value={formValues.notes}
+              onChange={(event) => updateFormValue('notes', event.target.value)}
+              disabled={isViewMode}
+              placeholder="Internal notes, delivery instructions, or special vendor remarks"
+            />
+          </Grid>
+        </Grid>
+      </FormSection>
+
+      {!isViewMode ? (
+        <FilterBar sx={{ mb: 2 }}>
+          <TextField
+            fullWidth
+            size="small"
+            select
+            label="Item Search"
+            value={linePicker}
+            onChange={(event) => setLinePicker(event.target.value)}
+          >
+            <MenuItem value="">Select item / size / color</MenuItem>
+            {availableOptions.map((option) => (
+              <MenuItem key={option.sku || option.id} value={option.sku || option.id}>
+                {`${option.itemCode} | ${option.itemName} | ${option.size || '--'} | ${option.color || '--'}`}
+              </MenuItem>
+            ))}
+          </TextField>
+          <Button variant="outlined" startIcon={<AddCircleOutlineIcon />} onClick={addLine} disabled={!linePicker}>
+            Add Line
+          </Button>
+        </FilterBar>
+      ) : null}
+
+      <FormSection title="Item Lines" subtitle="Add garment variants with size, color, quantity, rate, discount, tax, and remarks." sx={{ mb: 2 }}>
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 700 }}>Item Code</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Item Name</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Size</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Color</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Qty</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Rate</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Discount %</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Tax %</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Amount</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Remarks</TableCell>
+                {!isViewMode ? <TableCell sx={{ fontWeight: 700 }} align="right">Remove</TableCell> : null}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {lines.map((line) => (
+                <TableRow key={line.id}>
+                  <TableCell sx={{ fontWeight: 700 }}>{line.itemCode}</TableCell>
+                  <TableCell>{line.itemName}</TableCell>
+                  <TableCell>{line.size || '--'}</TableCell>
+                  <TableCell>{line.color || '--'}</TableCell>
+                  <TableCell align="right">
+                    {isViewMode ? (
+                      line.qty
+                    ) : (
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={line.qty}
+                        onChange={(event) => updateLineField(line.id, 'qty', Math.max(1, Number(event.target.value)))}
+                        sx={{ width: 88 }}
+                      />
+                    )}
+                  </TableCell>
+                  <TableCell align="right">
+                    {isViewMode ? (
+                      formatCurrency(line.rate)
+                    ) : (
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={line.rate}
+                        onChange={(event) => updateLineField(line.id, 'rate', Math.max(0, Number(event.target.value)))}
+                        sx={{ width: 104 }}
+                      />
+                    )}
+                  </TableCell>
+                  <TableCell align="right">
+                    {isViewMode ? (
+                      line.discountPercent
+                    ) : (
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={line.discountPercent}
+                        onChange={(event) =>
+                          updateLineField(line.id, 'discountPercent', Math.min(100, Math.max(0, Number(event.target.value))))
+                        }
+                        sx={{ width: 92 }}
+                      />
+                    )}
+                  </TableCell>
+                  <TableCell align="right">
+                    {isViewMode ? (
+                      line.taxPercent
+                    ) : (
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={line.taxPercent}
+                        onChange={(event) =>
+                          updateLineField(line.id, 'taxPercent', Math.min(100, Math.max(0, Number(event.target.value))))
+                        }
+                        sx={{ width: 92 }}
+                      />
+                    )}
+                  </TableCell>
+                  <TableCell align="right">{formatCurrency(calculatePurchaseOrderLine(line).amount)}</TableCell>
+                  <TableCell>
+                    {isViewMode ? (
+                      line.remarks || '--'
+                    ) : (
+                      <TextField
+                        size="small"
+                        value={line.remarks || ''}
+                        onChange={(event) => updateLineField(line.id, 'remarks', event.target.value)}
+                        placeholder="Line remarks"
+                      />
+                    )}
+                  </TableCell>
+                  {!isViewMode ? (
+                    <TableCell align="right">
+                      <IconButton color="error" size="small" onClick={() => removeLine(line.id)}>
+                        <DeleteOutlineIcon fontSize="small" />
+                      </IconButton>
+                    </TableCell>
+                  ) : null}
+                </TableRow>
+              ))}
+              {!lines.length ? (
+                <TableRow>
+                  <TableCell colSpan={isViewMode ? 10 : 11} sx={{ py: 5, textAlign: 'center', color: '#64748b' }}>
+                    No item lines added yet.
+                  </TableCell>
+                </TableRow>
+              ) : null}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </FormSection>
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' }, gap: 2, mb: 2 }}>
+        <SummaryCard label="Subtotal" value={formatCurrency(totals.subtotal)} helper="Gross line value before discount and tax." />
+        <SummaryCard label="Discount Total" value={formatCurrency(totals.discountTotal)} helper="Total line discount applied on the PO." tone="warning" />
+        <SummaryCard label="Tax Total" value={formatCurrency(totals.taxTotal)} helper="GST and line tax impact across all rows." tone="info" />
+        <SummaryCard label="Grand Total" value={formatCurrency(totals.grandTotal)} helper="Final payable amount for supplier approval." tone="success" />
+      </Box>
+
+      {!isViewMode ? (
+        <Paper
+          elevation={0}
+          sx={{
+            position: 'sticky',
+            bottom: 0,
+            p: 2,
+            borderRadius: 2,
+            border: '1px solid #e2e8f0',
+            bgcolor: '#fff',
+          }}
+        >
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ justifyContent: 'flex-end' }}>
+            <Button variant="outlined" onClick={() => setCancelDialogOpen(true)}>
+              Cancel
+            </Button>
+            <Button variant="outlined" startIcon={<SaveOutlinedIcon />} onClick={() => saveOrder('Draft')}>
+              Save Draft
+            </Button>
+            <Button variant="contained" startIcon={<SendOutlinedIcon />} onClick={() => saveOrder('Pending')}>
+              Submit
+            </Button>
+          </Stack>
+        </Paper>
+      ) : null}
+
+      <Dialog open={cancelDialogOpen} onClose={() => setCancelDialogOpen(false)}>
+        <DialogTitle>Discard changes?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ color: '#475569' }}>
+            Any unsaved updates in this purchase order screen will be lost.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCancelDialogOpen(false)}>Continue Editing</Button>
+          <Button color="error" onClick={() => navigate(listPath)}>
+            Leave Page
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
 }
 
 export default PurchaseOrderFormPage;

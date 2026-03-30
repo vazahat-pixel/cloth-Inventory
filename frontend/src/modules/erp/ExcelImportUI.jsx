@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import * as XLSX from 'xlsx';
 import erpItemService from '../../services/erpItemService';
-import { UploadCloud, FileSpreadsheet, Play, CheckCircle, AlertTriangle, ArrowRight, Settings2, Table } from 'lucide-react';
+import { Upload, FileSpreadsheet, Play, CheckCircle, AlertTriangle, ArrowRight, Settings2, Table } from 'lucide-react';
 import './erp.css';
 
 const ExcelImportUI = () => {
@@ -67,7 +67,7 @@ const ExcelImportUI = () => {
       {/* Toolbar */}
       <div className="erp-toolbar">
          <div className="flex-1 font-bold text-[13px] tracking-tight text-slate-500 uppercase flex items-center gap-2">
-            <UploadCloud size={16} className="text-indigo-600" /> Excel Bulk Migration Process (Production-v2.x)
+            <Upload size={16} className="text-indigo-600" /> Excel Bulk Migration Process (Production-v2.x)
          </div>
          <button className="erp-tool-btn bg-indigo-600 text-white font-bold h-8" onClick={handleRunImport} disabled={!file || loading}>
            <Play size={14} /> Start Migration
@@ -147,7 +147,7 @@ const ExcelImportUI = () => {
                </div>
              ) : (
                <div className="flex-1 flex flex-col items-center justify-center opacity-10">
-                  <UploadCloud size={100} />
+                  <Upload size={100} />
                   <p className="font-black text-4xl uppercase tracking-tighter mt-4">Awaiting Data Source</p>
                </div>
              )}

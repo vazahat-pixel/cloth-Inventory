@@ -8,10 +8,14 @@ import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
 
 export const setupMatchPaths = [
   '/setup',
-  '/items',
   '/clothing-erp',
   '/masters/item-groups',
+  '/masters/suppliers',
   '/gst',
+  '/setup/groups',
+  '/setup/hsn-codes',
+  '/setup/sizes',
+  '/setup/barcode-print',
   '/settings/preferences',
   '/setup/party-wise',
   '/setup/other-account-details',
@@ -19,6 +23,48 @@ export const setupMatchPaths = [
 ];
 
 export const setupNavItems = [
+  {
+    label: 'Setup Overview',
+    hint: 'ERP setup workspace',
+    path: '/setup',
+    matchPaths: ['/setup'],
+    icon: TuneOutlinedIcon,
+  },
+  {
+    label: 'Groups',
+    hint: 'Hierarchy master',
+    path: '/setup/groups',
+    matchPaths: ['/setup/groups', '/masters/item-groups', '/clothing-erp'],
+    icon: CategoryOutlinedIcon,
+  },
+  {
+    label: 'HSN Codes',
+    hint: 'HSN and GST slabs',
+    path: '/setup/hsn-codes',
+    matchPaths: ['/setup/hsn-codes'],
+    icon: ReceiptLongOutlinedIcon,
+  },
+  {
+    label: 'Sizes',
+    hint: 'Size master',
+    path: '/setup/sizes',
+    matchPaths: ['/setup/sizes'],
+    icon: Inventory2OutlinedIcon,
+  },
+  {
+    label: 'Suppliers',
+    hint: 'Vendor master',
+    path: '/masters/suppliers',
+    matchPaths: ['/masters/suppliers'],
+    icon: GroupsOutlinedIcon,
+  },
+  {
+    label: 'Barcode Print',
+    hint: 'Label generation',
+    path: '/setup/barcode-print',
+    matchPaths: ['/setup/barcode-print'],
+    icon: ReceiptLongOutlinedIcon,
+  },
   {
     label: 'Setup Accounts',
     hint: 'Account masters',
@@ -29,7 +75,7 @@ export const setupNavItems = [
     label: 'Setup Items',
     hint: 'Item masters workspace',
     path: '/clothing-erp',
-    matchPaths: ['/items', '/clothing-erp'],
+    matchPaths: ['/clothing-erp'],
     icon: Inventory2OutlinedIcon,
   },
   {

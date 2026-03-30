@@ -1,297 +1,410 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
-import { useAppNavigate } from '../../hooks/useAppNavigate';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchPurchaseOrders } from './purchaseSlice';
-import { fetchMasters } from '../masters/mastersSlice';
+import { useLocation } from 'react-router-dom';
 import {
-    Box,
-    Button,
-    Chip,
-    IconButton,
-    InputAdornment,
-    MenuItem,
-    Paper,
-    Stack,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TablePagination,
-    TableRow,
-    TextField,
-    Typography,
+  Box,
+  Button,
+  IconButton,
+  InputAdornment,
+  MenuItem,
+  Paper,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TablePagination,
+  TableRow,
+  TextField,
+  Typography,
 } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
-import SearchIcon from '@mui/icons-material/Search';
+import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
-import ReceiptOutlinedIcon from '@mui/icons-material/ReceiptOutlined';
+import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
+import SearchIcon from '@mui/icons-material/Search';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
+import PageHeader from '../../components/erp/PageHeader';
+import FilterBar from '../../components/erp/FilterBar';
+import ExportButton from '../../components/erp/ExportButton';
+import StatusBadge from '../../components/erp/StatusBadge';
+import SummaryCard from '../../components/erp/SummaryCard';
+import { useAppNavigate } from '../../hooks/useAppNavigate';
 import useRoleBasePath from '../../hooks/useRoleBasePath';
+import purchaseOrdersExportColumns from '../../config/exportColumns/purchaseOrders';
+import { fetchMasters } from '../masters/mastersSlice';
+import { fetchPurchaseOrders } from './purchaseSlice';
+import { loadModuleRecords, upsertModuleRecord } from '../erp/erpLocalStore';
+import {
+  buildFallbackSuppliers,
+  fallbackPurchaseOrders,
+  formatCurrency,
+  mergePurchaseOrders,
+  normalizePurchaseOrderRecord,
+  purchaseOrderStorageKey,
+} from './purchaseOrderUi';
+
+const toExportRows = (rows = []) =>
+  rows.flatMap((row) =>
+    (row.items || []).map((line) => ({
+      po_number: row.poNumber,
+      po_date: row.poDate,
+      supplier_name: row.supplierName,
+      expected_delivery_date: row.expectedDeliveryDate,
+      item_code: line.itemCode,
+      item_name: line.itemName,
+      size: line.size,
+      color: line.color,
+      qty: line.qty,
+      rate: line.rate,
+      discount_percent: line.discountPercent,
+      tax_percent: line.taxPercent,
+      line_amount: line.amount,
+      subtotal: row.totals?.subtotal,
+      discount_total: row.totals?.discountTotal,
+      tax_total: row.totals?.taxTotal,
+      grand_total: row.totals?.grandTotal,
+      notes: row.notes,
+      status: row.status,
+      created_by: row.createdBy,
+      created_at: row.createdAt,
+    })),
+  );
 
 function PurchaseOrderListPage() {
-    const navigate = useAppNavigate();
-    const location = useLocation();
-    const basePath = useRoleBasePath();
-    const dispatch = useDispatch();
-    const orders = useSelector((state) => state.purchase.orders || []);
-    const suppliers = useSelector((state) => state.masters.suppliers || []);
-    const warehouses = useSelector((state) => state.masters.warehouses || []);
-    const localPath = location.pathname.startsWith(basePath)
-        ? location.pathname.slice(basePath.length) || '/'
-        : location.pathname;
-    const purchaseOrderListPath = localPath.startsWith('/orders/purchase-order')
-        ? '/orders/purchase-order'
-        : '/purchase/orders';
-    const purchaseOrderNewPath = `${purchaseOrderListPath}/new`;
-    const getPurchaseOrderEditPath = (orderId) => `${purchaseOrderListPath}/${orderId}`;
-    const pageTitle = purchaseOrderListPath === '/orders/purchase-order' ? 'Purchase Order' : '1. Purchase Orders';
+  const dispatch = useDispatch();
+  const navigate = useAppNavigate();
+  const location = useLocation();
+  const basePath = useRoleBasePath();
+  const backendOrders = useSelector((state) => state.purchase.orders || []);
+  const masterSuppliers = useSelector((state) => state.masters.suppliers || []);
 
-    const [searchText, setSearchText] = useState('');
-    const [warehouseFilter, setWarehouseFilter] = useState('all');
-    const [dateFrom, setDateFrom] = useState('');
-    const [dateTo, setDateTo] = useState('');
-    const [page, setPage] = useState(0);
-    const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [searchText, setSearchText] = useState('');
+  const [supplierFilter, setSupplierFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
-    useEffect(() => {
-        dispatch(fetchPurchaseOrders());
-        dispatch(fetchMasters('suppliers'));
-        dispatch(fetchMasters('warehouses'));
-    }, [dispatch]);
+  useEffect(() => {
+    dispatch(fetchPurchaseOrders());
+    dispatch(fetchMasters('suppliers'));
+  }, [dispatch]);
 
-    const supplierMap = useMemo(
-        () =>
-            suppliers.reduce((acc, supplier) => {
-                acc[supplier.id] = supplier.supplierName;
-                return acc;
-            }, {}),
-        [suppliers],
-    );
+  const localPath = location.pathname.startsWith(basePath)
+    ? location.pathname.slice(basePath.length) || '/'
+    : location.pathname;
+  const listPath = localPath.startsWith('/orders/purchase-order')
+    ? '/orders/purchase-order'
+    : '/purchase/orders';
 
-    const warehouseMap = useMemo(
-        () =>
-            warehouses.reduce((acc, warehouse) => {
-                acc[warehouse.id] = warehouse.name;
-                return acc;
-            }, {}),
-        [warehouses],
-    );
+  const suppliers = useMemo(() => {
+    const backend = (masterSuppliers || []).map((supplier) => ({
+      id: supplier.id || supplier._id,
+      supplierName: supplier.supplierName || supplier.name || '',
+      city: supplier.city || '',
+      state: supplier.state || '',
+      creditDays: supplier.creditDays || 0,
+      status: supplier.status || 'Active',
+      addressLine1: supplier.addressLine1 || supplier.address || '',
+      addressLine2: supplier.addressLine2 || '',
+    }));
 
-    const filteredRows = useMemo(() => {
-        const query = searchText.trim().toLowerCase();
+    const merged = new Map();
+    [...buildFallbackSuppliers(), ...backend].forEach((supplier) => {
+      merged.set(supplier.id, supplier);
+    });
+    return Array.from(merged.values());
+  }, [masterSuppliers]);
 
-        return orders.filter((row) => {
-            const supplierName = supplierMap[row.supplierId] || '';
-            const matchesSearch = query
-                ? (row.orderNumber || '').toLowerCase().includes(query) ||
-                supplierName.toLowerCase().includes(query)
-                : true;
+  const orders = useMemo(
+    () => mergePurchaseOrders(loadModuleRecords(purchaseOrderStorageKey, fallbackPurchaseOrders), backendOrders),
+    [backendOrders],
+  );
 
-            const matchesWarehouse =
-                warehouseFilter === 'all' ? true : row.warehouseId === warehouseFilter;
+  useEffect(() => {
+    if (backendOrders.length) {
+      orders.forEach((order) => upsertModuleRecord(purchaseOrderStorageKey, order));
+    }
+  }, [backendOrders.length, orders]);
 
-            const matchesDateFrom = dateFrom ? row.orderDate >= dateFrom : true;
-            const matchesDateTo = dateTo ? row.orderDate <= dateTo : true;
+  const supplierMap = useMemo(
+    () =>
+      suppliers.reduce((accumulator, supplier) => {
+        accumulator[supplier.id] = supplier;
+        return accumulator;
+      }, {}),
+    [suppliers],
+  );
 
-            return matchesSearch && matchesWarehouse && matchesDateFrom && matchesDateTo;
-        });
-    }, [dateFrom, dateTo, orders, searchText, supplierMap, warehouseFilter]);
+  const rows = useMemo(
+    () =>
+      orders.map((order) => {
+        const supplier = supplierMap[order.supplierId] || {};
+        return {
+          ...normalizePurchaseOrderRecord(order),
+          supplierName: order.supplierName || supplier.supplierName || 'Unassigned Supplier',
+        };
+      }),
+    [orders, supplierMap],
+  );
 
-    const paginatedRows = useMemo(() => {
-        const startIndex = page * rowsPerPage;
-        return filteredRows.slice(startIndex, startIndex + rowsPerPage);
-    }, [filteredRows, page, rowsPerPage]);
+  const filteredRows = useMemo(() => {
+    const query = searchText.trim().toLowerCase();
+    return rows.filter((row) => {
+      const matchesSearch = query
+        ? [row.poNumber, row.supplierName, row.notes]
+            .filter(Boolean)
+            .some((value) => String(value).toLowerCase().includes(query))
+        : true;
+      const matchesSupplier = supplierFilter === 'all' ? true : row.supplierId === supplierFilter;
+      const matchesStatus = statusFilter === 'all' ? true : row.status === statusFilter;
+      const matchesDateFrom = dateFrom ? row.poDate >= dateFrom : true;
+      const matchesDateTo = dateTo ? row.poDate <= dateTo : true;
+      return matchesSearch && matchesSupplier && matchesStatus && matchesDateFrom && matchesDateTo;
+    });
+  }, [dateFrom, dateTo, rows, searchText, statusFilter, supplierFilter]);
 
-    return (
-        <>
-            <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2 }}>
-                <Stack spacing={2} sx={{ px: { xs: 2, sm: 3 }, pt: { xs: 2, sm: 3 }, pb: 2 }}>
-                    <Stack
-                        direction={{ xs: 'column', md: 'row' }}
-                        spacing={2}
-                        sx={{ justifyContent: 'space-between', alignItems: { md: 'center' } }}
-                    >
-                        <Box>
-                            <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
-                                {pageTitle}
-                            </Typography>
-                            <Typography variant="body2" sx={{ color: '#64748b' }}>
-                                Create and manage orders to send to your suppliers.
-                            </Typography>
-                        </Box>
+  const paginatedRows = useMemo(
+    () => filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [filteredRows, page, rowsPerPage],
+  );
 
-                        <Button
-                            variant="contained"
-                            startIcon={<AddCircleOutlineIcon />}
-                            onClick={() => navigate(purchaseOrderNewPath)}
-                        >
-                            Add Purchase Order
-                        </Button>
+  const summary = useMemo(
+    () => ({
+      totalOrders: filteredRows.length,
+      draftOrders: filteredRows.filter((row) => row.status === 'Draft').length,
+      approvedOrders: filteredRows.filter((row) => row.status === 'Approved').length,
+      orderValue: filteredRows.reduce((sum, row) => sum + Number(row.totals?.grandTotal || 0), 0),
+    }),
+    [filteredRows],
+  );
+
+  const duplicateOrder = (row) => {
+    const now = new Date();
+    const duplicated = {
+      ...row,
+      id: `po-${now.getTime()}`,
+      poNumber: `PO-${String(now.getTime()).slice(-6)}`,
+      status: 'Draft',
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+      items: (row.items || []).map((line, index) => ({
+        ...line,
+        id: `po-line-${now.getTime()}-${index + 1}`,
+      })),
+    };
+    upsertModuleRecord(purchaseOrderStorageKey, duplicated);
+    navigate(`${listPath}/${duplicated.id}/edit`);
+  };
+
+  const exportRows = useMemo(() => toExportRows(filteredRows), [filteredRows]);
+
+  return (
+    <Box>
+      <PageHeader
+        title="Purchase Orders"
+        subtitle="Create garment purchase orders with supplier, delivery, item-line, and approval status tracking without disturbing the current purchase workflow."
+        breadcrumbs={[
+          { label: 'Purchase' },
+          { label: 'Purchase Orders', active: true },
+        ]}
+        actions={[
+          <ExportButton
+            key="export"
+            rows={exportRows}
+            columns={purchaseOrdersExportColumns}
+            filename="purchase-orders.xlsx"
+            sheetName="Purchase Orders"
+          />,
+          <Button key="new" variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={() => navigate(`${listPath}/new`)}>
+            New PO
+          </Button>,
+        ]}
+      />
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' }, gap: 2, mb: 2 }}>
+        <SummaryCard label="Purchase Orders" value={summary.totalOrders} helper="Filtered records in the current PO register." />
+        <SummaryCard label="Draft / Pending" value={`${summary.draftOrders} / ${filteredRows.filter((row) => row.status === 'Pending').length}`} helper="Drafts can be edited before approval." tone="warning" />
+        <SummaryCard label="Approved Orders" value={summary.approvedOrders} helper="Ready to convert into inward receipt / GRN." tone="success" />
+        <SummaryCard label="Total Order Value" value={formatCurrency(summary.orderValue)} helper="Grand total across visible purchase orders." tone="info" />
+      </Box>
+
+      <FilterBar sx={{ mb: 2 }}>
+        <TextField
+          size="small"
+          value={searchText}
+          onChange={(event) => {
+            setPage(0);
+            setSearchText(event.target.value);
+          }}
+          placeholder="Search PO number, supplier, or notes"
+          sx={{ flex: 1 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon fontSize="small" />
+              </InputAdornment>
+            ),
+          }}
+        />
+        <TextField
+          size="small"
+          select
+          label="Supplier"
+          value={supplierFilter}
+          onChange={(event) => {
+            setPage(0);
+            setSupplierFilter(event.target.value);
+          }}
+          sx={{ minWidth: 220 }}
+        >
+          <MenuItem value="all">All Suppliers</MenuItem>
+          {suppliers.map((supplier) => (
+            <MenuItem key={supplier.id} value={supplier.id}>
+              {supplier.supplierName}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          size="small"
+          select
+          label="Status"
+          value={statusFilter}
+          onChange={(event) => {
+            setPage(0);
+            setStatusFilter(event.target.value);
+          }}
+          sx={{ minWidth: 160 }}
+        >
+          <MenuItem value="all">All Statuses</MenuItem>
+          <MenuItem value="Draft">Draft</MenuItem>
+          <MenuItem value="Pending">Pending</MenuItem>
+          <MenuItem value="Approved">Approved</MenuItem>
+          <MenuItem value="Cancelled">Cancelled</MenuItem>
+        </TextField>
+        <TextField
+          size="small"
+          type="date"
+          label="From"
+          value={dateFrom}
+          onChange={(event) => {
+            setPage(0);
+            setDateFrom(event.target.value);
+          }}
+          InputLabelProps={{ shrink: true }}
+        />
+        <TextField
+          size="small"
+          type="date"
+          label="To"
+          value={dateTo}
+          onChange={(event) => {
+            setPage(0);
+            setDateTo(event.target.value);
+          }}
+          InputLabelProps={{ shrink: true }}
+        />
+      </FilterBar>
+
+      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, overflow: 'hidden' }}>
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 700 }}>PO Number</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>PO Date</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Supplier</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Expected Delivery</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">
+                  Total Qty
+                </TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">
+                  Total Amount
+                </TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Created By</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">
+                  Actions
+                </TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {paginatedRows.map((row) => (
+                <TableRow key={row.id} hover>
+                  <TableCell sx={{ fontWeight: 700, color: '#0f172a' }}>{row.poNumber}</TableCell>
+                  <TableCell>{row.poDate}</TableCell>
+                  <TableCell>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                      {row.supplierName}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: '#64748b' }}>
+                      {supplierMap[row.supplierId]?.city || '--'}{supplierMap[row.supplierId]?.state ? `, ${supplierMap[row.supplierId]?.state}` : ''}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>{row.expectedDeliveryDate || '--'}</TableCell>
+                  <TableCell align="right">{row.totals?.totalQty || 0}</TableCell>
+                  <TableCell align="right">{formatCurrency(row.totals?.grandTotal || 0)}</TableCell>
+                  <TableCell>
+                    <StatusBadge value={row.status} />
+                  </TableCell>
+                  <TableCell>{row.createdBy || 'HO Admin'}</TableCell>
+                  <TableCell align="right">
+                    <Stack direction="row" spacing={0.25} sx={{ justifyContent: 'flex-end' }}>
+                      <IconButton size="small" color="info" onClick={() => navigate(`${listPath}/${row.id}/view`)}>
+                        <VisibilityOutlinedIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton size="small" color="primary" onClick={() => navigate(`${listPath}/${row.id}/edit`)}>
+                        <EditOutlinedIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton size="small" color="secondary" onClick={() => duplicateOrder(row)}>
+                        <ContentCopyOutlinedIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        color="success"
+                        onClick={() => navigate(`/grn/new?poId=${row.id}`)}
+                        title="Create GRN"
+                      >
+                        <ReceiptLongOutlinedIcon fontSize="small" />
+                      </IconButton>
                     </Stack>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {!paginatedRows.length ? (
+                <TableRow>
+                  <TableCell colSpan={9} sx={{ py: 6, textAlign: 'center' }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
+                      No purchase orders found
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: '#64748b' }}>
+                      Adjust filters or create a fresh purchase order to continue the garment inward flow.
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ) : null}
+            </TableBody>
+          </Table>
+        </TableContainer>
 
-                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-                        <TextField
-                            size="small"
-                            value={searchText}
-                            onChange={(event) => {
-                                setPage(0);
-                                setSearchText(event.target.value);
-                            }}
-                            placeholder="Search by order no or supplier"
-                            sx={{ flex: 1 }}
-                            InputProps={{
-                                startAdornment: (
-                                    <InputAdornment position="start">
-                                        <SearchIcon fontSize="small" />
-                                    </InputAdornment>
-                                ),
-                            }}
-                        />
-
-                        <TextField
-                            size="small"
-                            select
-                            label="Warehouse"
-                            value={warehouseFilter}
-                            onChange={(event) => {
-                                setPage(0);
-                                setWarehouseFilter(event.target.value);
-                            }}
-                            sx={{ minWidth: 180 }}
-                        >
-                            <MenuItem value="all">All Warehouses</MenuItem>
-                            {warehouses.map((warehouse) => (
-                                <MenuItem key={warehouse.id} value={warehouse.id}>
-                                    {warehouse.name}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-
-                        <TextField
-                            size="small"
-                            type="date"
-                            label="From"
-                            value={dateFrom}
-                            onChange={(event) => {
-                                setPage(0);
-                                setDateFrom(event.target.value);
-                            }}
-                            InputLabelProps={{ shrink: true }}
-                        />
-                        <TextField
-                            size="small"
-                            type="date"
-                            label="To"
-                            value={dateTo}
-                            onChange={(event) => {
-                                setPage(0);
-                                setDateTo(event.target.value);
-                            }}
-                            InputLabelProps={{ shrink: true }}
-                        />
-                    </Stack>
-                </Stack>
-
-                {filteredRows.length ? (
-                    <>
-                        <TableContainer>
-                            <Table size="small">
-                                <TableHead>
-                                    <TableRow>
-                                        <TableCell sx={{ fontWeight: 700 }}>Order Number</TableCell>
-                                        <TableCell sx={{ fontWeight: 700 }}>Supplier</TableCell>
-                                        <TableCell sx={{ fontWeight: 700 }}>Order Date</TableCell>
-                                        <TableCell sx={{ fontWeight: 700 }}>Warehouse</TableCell>
-                                        <TableCell sx={{ fontWeight: 700 }} align="right">
-                                            Total Qty
-                                        </TableCell>
-                                        <TableCell sx={{ fontWeight: 700 }} align="right">
-                                            Net Amount
-                                        </TableCell>
-                                        <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                                        <TableCell sx={{ fontWeight: 700 }}>Actions</TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {paginatedRows.map((row) => (
-                                        <TableRow key={row.id} hover>
-                                            <TableCell sx={{ fontWeight: 700 }}>{row.orderNumber}</TableCell>
-                                            <TableCell>{supplierMap[row.supplierId] || row.supplierName || ''}</TableCell>
-                                            <TableCell>{row.orderDate}</TableCell>
-                                            <TableCell>{warehouseMap[row.warehouseId] || row.warehouseName || ''}</TableCell>
-                                            <TableCell align="right">{row.totals?.totalQuantity ?? '-'}</TableCell>
-                                            <TableCell align="right">{row.totals?.netAmount != null ? Number(row.totals.netAmount).toFixed(2) : '-'}</TableCell>
-                                            <TableCell>
-                                                <OrderStatusChip status={row.status} />
-                                            </TableCell>
-                                            <TableCell>
-                                                <Stack direction="row" spacing={0.5}>
-                                                    <IconButton
-                                                        size="small"
-                                                        color="info"
-                                                        onClick={() => navigate(getPurchaseOrderEditPath(row.id))}
-                                                        title="Edit / View"
-                                                    >
-                                                        <EditOutlinedIcon fontSize="small" />
-                                                    </IconButton>
-                                                    <IconButton
-                                                        size="small"
-                                                        color="primary"
-                                                        onClick={() => navigate(`/purchase/purchase-voucher/new?orderId=${row.id}`)}
-                                                        title="Convert to Bill"
-                                                    >
-                                                        <ReceiptOutlinedIcon fontSize="small" />
-                                                    </IconButton>
-                                                </Stack>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
-
-                        <TablePagination
-                            component="div"
-                            count={filteredRows.length}
-                            page={page}
-                            onPageChange={(_, nextPage) => setPage(nextPage)}
-                            rowsPerPage={rowsPerPage}
-                            onRowsPerPageChange={(event) => {
-                                setRowsPerPage(Number(event.target.value));
-                                setPage(0);
-                            }}
-                            rowsPerPageOptions={[5, 10, 20]}
-                        />
-                    </>
-                ) : (
-                    <Box sx={{ py: 7, textAlign: 'center' }}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0f172a', mb: 1 }}>
-                            No purchase orders found.
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: '#64748b', mb: 2 }}>
-                            Create your first purchase order for your suppliers.
-                        </Typography>
-                        <Button variant="contained" onClick={() => navigate(purchaseOrderNewPath)}>
-                            Add Purchase Order
-                        </Button>
-                    </Box>
-                )}
-            </Paper>
-        </>
-    );
-}
-
-function OrderStatusChip({ status }) {
-    const normalized = String(status || '').toLowerCase();
-    const color =
-        normalized === 'completed'
-            ? 'success'
-            : normalized === 'pending'
-                ? 'warning'
-                : 'default';
-
-    return <Chip size="small" color={color} variant="outlined" label={status || 'Pending'} />;
+        <TablePagination
+          component="div"
+          count={filteredRows.length}
+          page={page}
+          onPageChange={(_, nextPage) => setPage(nextPage)}
+          rowsPerPage={rowsPerPage}
+          rowsPerPageOptions={[5, 10, 20]}
+          onRowsPerPageChange={(event) => {
+            setRowsPerPage(Number(event.target.value));
+            setPage(0);
+          }}
+        />
+      </Paper>
+    </Box>
+  );
 }
 
 export default PurchaseOrderListPage;

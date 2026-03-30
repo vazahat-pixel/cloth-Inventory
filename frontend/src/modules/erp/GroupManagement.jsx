@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import erpGroupService from '../../services/erpGroupService';
-import { Plus, Edit2, Trash2, ChevronRight, ChevronDown, Folder, Type, Layout, Tag } from 'lucide-react';
+import { Plus, SquarePen, Trash2, ChevronRight, ChevronDown, Folder, Type, LayoutTemplate, Tag } from 'lucide-react';
 
 const GroupManagement = () => {
   const [tree, setTree] = useState([]);
@@ -70,7 +70,7 @@ const GroupManagement = () => {
 
   const GroupIcons = {
     category: <Folder size={18} className="text-blue-500" />,
-    brand: <Layout size={18} className="text-purple-500" />,
+    brand: <LayoutTemplate size={18} className="text-purple-500" />,
     fabric: <Tag size={18} className="text-green-500" />,
     type: <Type size={18} className="text-orange-500" />,
     other: <Tag size={18} />
@@ -93,7 +93,7 @@ const GroupManagement = () => {
           
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <button onClick={() => openAddModal(node._id)} className="p-1 hover:bg-white rounded-md text-slate-500"><Plus size={14} /></button>
-            <button onClick={() => openEditModal(node)} className="p-1 hover:bg-white rounded-md text-slate-500"><Edit2 size={14} /></button>
+            <button onClick={() => openEditModal(node)} className="p-1 hover:bg-white rounded-md text-slate-500"><SquarePen size={14} /></button>
             <button onClick={() => handleDelete(node._id)} className="p-1 hover:bg-white rounded-md text-red-500"><Trash2 size={14} /></button>
           </div>
         </div>

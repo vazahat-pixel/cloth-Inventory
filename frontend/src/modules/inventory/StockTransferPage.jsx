@@ -1,11 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useMemo, useState } from 'react';
 import {
-  Alert,
-  Autocomplete,
   Box,
   Button,
   IconButton,
+  InputAdornment,
   MenuItem,
   Paper,
   Stack,
@@ -14,461 +12,189 @@ import {
   TableCell,
   TableContainer,
   TableHead,
+  TablePagination,
   TableRow,
   TextField,
   Typography,
 } from '@mui/material';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
-import SendOutlinedIcon from '@mui/icons-material/SendOutlined';
-import { useForm } from 'react-hook-form';
-import { fetchStockOverview, transferStock } from './inventorySlice';
-import { fetchMasters } from '../masters/mastersSlice';
-import { parseTransferExcel } from './transferImportService';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import SearchIcon from '@mui/icons-material/Search';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
+import PageHeader from '../../components/erp/PageHeader';
+import FilterBar from '../../components/erp/FilterBar';
+import ExportButton from '../../components/erp/ExportButton';
+import StatusBadge from '../../components/erp/StatusBadge';
+import SummaryCard from '../../components/erp/SummaryCard';
+import { useAppNavigate } from '../../hooks/useAppNavigate';
+import stockTransferExportColumns from '../../config/exportColumns/stockTransfer';
+import { loadModuleRecords } from '../erp/erpLocalStore';
+import { fallbackStockTransfers, mergeStockTransfers, stockTransferStorageKey } from './stockTransferUi';
 
-const getTodayDate = () => new Date().toISOString().slice(0, 10);
-
-function StockTransferPage({
-  pageTitle = 'Stock Transfer',
-  pageDescription = 'Move variant stock between warehouses with quantity controls.',
-}) {
-  const dispatch = useDispatch();
-  const warehouses = useSelector((state) => state.masters.warehouses || []);
-  const stores = useSelector((state) => state.masters.stores || []);
-  const stockRows = useSelector((state) => state.inventory.stock || []);
-
-  const [lines, setLines] = useState([]);
-  const [variantPickerValue, setVariantPickerValue] = useState(null);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
-  const [importError, setImportError] = useState('');
-  const importInputRef = useRef(null);
-
-  const {
-    register,
-    handleSubmit,
-    reset,
-    watch,
-    formState: { errors },
-  } = useForm({
-    defaultValues: {
-      fromStoreId: '',
-      toStoreId: '',
-      transferDate: getTodayDate(),
-      remarks: '',
-    },
-  });
-
-  const fromStoreId = watch('fromStoreId');
-  const toStoreId = watch('toStoreId') || '';
-
-  useEffect(() => {
-    dispatch(fetchMasters('warehouses'));
-    dispatch(fetchMasters('stores'));
-    dispatch(fetchStockOverview());
-  }, [dispatch]);
-
-  useEffect(() => {
-    setLines([]);
-    setVariantPickerValue(null);
-  }, [fromStoreId]);
-
-  const availableRows = useMemo(() => {
-    if (!fromStoreId) {
-      return [];
-    }
-
-    const selectedIds = new Set(lines.map((line) => line.stockId));
-
-    return stockRows
-      .filter((row) => row.storeId === fromStoreId || row.warehouseId === fromStoreId)
-      .filter((row) => Number(row.quantity) - Number(row.reserved || 0) > 0)
-      .filter((row) => !selectedIds.has(row.id));
-  }, [fromStoreId, lines, stockRows]);
-
-  const locationMap = useMemo(() => {
-    const map = {};
-    warehouses.forEach(w => { map[w.id || w._id] = w.warehouseName || w.name; });
-    stores.forEach(s => { map[s.id || s._id] = s.name; });
-    return map;
-  }, [warehouses, stores]);
-
-  const lineRows = useMemo(
-    () =>
-      lines
-        .map((line) => {
-          const stockRow = stockRows.find((stock) => stock.id === line.stockId);
-          if (!stockRow) {
-            return null;
-          }
-
-          const availableQty = Number(stockRow.quantity) - Number(stockRow.reserved || 0);
-          return {
-            ...line,
-            stockRow,
-            availableQty,
-          };
-        })
-        .filter(Boolean),
-    [lines, stockRows],
+const toExportRows = (rows = []) =>
+  rows.flatMap((row) =>
+    (row.items || []).map((item) => ({
+      transfer_number: row.transferNumber,
+      transfer_date: row.transferDate,
+      from_location: row.fromLocation,
+      to_location: row.toLocation,
+      item_code: item.itemCode,
+      item_name: item.itemName,
+      size: item.size,
+      available_qty: item.availableQty,
+      transfer_qty: item.transferQty,
+      uom: item.uom,
+      remarks: item.remarks,
+      status: row.status,
+      created_by: row.createdBy,
+      created_at: row.createdAt,
+    })),
   );
 
-  const handleAddLine = () => {
-    if (!variantPickerValue) {
-      return;
-    }
+function StockTransferPage() {
+  const navigate = useAppNavigate();
+  const rows = useMemo(
+    () => mergeStockTransfers(loadModuleRecords(stockTransferStorageKey, fallbackStockTransfers)),
+    [],
+  );
 
-    setLines((previous) => [...previous, { stockId: variantPickerValue.id, transferQty: 1 }]);
-    setVariantPickerValue(null);
-    setErrorMessage('');
-  };
+  const [searchText, setSearchText] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  const handleUpdateQty = (stockId, transferQty) => {
-    setLines((previous) =>
-      previous.map((line) =>
-        line.stockId === stockId ? { ...line, transferQty: Number(transferQty) } : line,
-      ),
-    );
-  };
-
-  const handleRemoveLine = (stockId) => {
-    setLines((previous) => previous.filter((line) => line.stockId !== stockId));
-  };
-
-  const handleImportExcel = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file || !fromStoreId) return;
-    setImportError('');
-    setErrorMessage('');
-    try {
-      const { rows, errors } = await parseTransferExcel(file);
-      if (errors?.length) {
-        setImportError(errors.join(' '));
-        return;
-      }
-      const sourceStock = stockRows.filter(
-        (r) => (r.storeId === fromStoreId || r.warehouseId === fromStoreId) && Number(r.quantity) - Number(r.reserved || 0) > 0,
-      );
-      const skuToStock = sourceStock.reduce((acc, row) => {
-        if (!acc[row.sku]) acc[row.sku] = row;
-        return acc;
-      }, {});
-      const existingIds = new Set(lines.map((l) => l.stockId));
-      const seenStockIds = new Set();
-      const newLines = rows
-        .filter((r) => skuToStock[r.sku] && !existingIds.has(skuToStock[r.sku].id) && !seenStockIds.has(skuToStock[r.sku].id))
-        .map((r) => {
-          const stock = skuToStock[r.sku];
-          seenStockIds.add(stock.id);
-          const available = Number(stock.quantity) - Number(stock.reserved || 0);
-          const transferQty = Math.min(r.transferQty, available);
-          return { stockId: stock.id, transferQty };
-        })
-        .filter((l) => l.transferQty > 0);
-      setLines((prev) => [...prev, ...newLines]);
-      setImportError('');
-    } catch (err) {
-      setImportError(err?.message || 'Import failed.');
-    }
-    e.target.value = '';
-  };
-
-  const handleTransferAll = () => {
-    if (!fromStoreId) return;
-    const selectedIds = new Set(lines.map((l) => l.stockId));
-    const toAdd = availableRows
-      .filter((row) => !selectedIds.has(row.id))
-      .map((row) => {
-        const available = Number(row.quantity) - Number(row.reserved || 0);
-        return { stockId: row.id, transferQty: Math.max(1, available) };
-      });
-    setLines((prev) => [...prev, ...toAdd]);
-    setErrorMessage('');
-  };
-
-  const onSubmit = (values) => {
-    setErrorMessage('');
-    setSuccessMessage('');
-
-    if (values.fromStoreId === values.toStoreId) {
-      setErrorMessage('From and To warehouse must be different.');
-      return;
-    }
-
-    if (!lineRows.length) {
-      setErrorMessage('Add at least one variant to transfer.');
-      return;
-    }
-
-    const preparedProducts = lineRows.map((line) => {
-      if (line.transferQty <= 0) {
-        throw new Error('Transfer quantity must be greater than zero.');
-      }
-      if (line.transferQty > line.availableQty) {
-        throw new Error(`Transfer exceeds available quantity for ${line.stockRow.sku}.`);
-      }
-      return {
-        productId: line.stockRow.variantId || line.stockRow.productId,
-        quantity: Number(line.transferQty),
-      };
+  const filteredRows = useMemo(() => {
+    const query = searchText.trim().toLowerCase();
+    return rows.filter((row) => {
+      const matchesSearch = query
+        ? [row.transferNumber, row.fromLocation, row.toLocation]
+            .filter(Boolean)
+            .some((value) => String(value).toLowerCase().includes(query))
+        : true;
+      const matchesStatus = statusFilter === 'all' ? true : row.status === statusFilter;
+      return matchesSearch && matchesStatus;
     });
+  }, [rows, searchText, statusFilter]);
 
-    const payload = {
-      sourceWarehouseId: values.fromStoreId,
-      destinationStoreId: values.toStoreId,
-      products: preparedProducts,
-      notes: values.remarks,
-    };
-
-    console.log('[DEBUG] Submitting Dispatch Payload:', payload);
-
-    dispatch(transferStock(payload))
-      .unwrap()
-      .then(() => {
-        setSuccessMessage('Stock transfer saved successfully.');
-        setLines([]);
-        setVariantPickerValue(null);
-        reset({
-          ...values,
-          remarks: '',
-        });
-      })
-      .catch((err) => {
-        setErrorMessage(err || 'Failed to save transfer');
-      });
-  };
-
-  const totalTransferQty = lineRows.reduce((sum, line) => sum + Number(line.transferQty || 0), 0);
-
-  return (
-    <Box component="form" onSubmit={handleSubmit(onSubmit)}>
-      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3, mb: 2 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
-          {pageTitle}
-        </Typography>
-        <Typography variant="body2" sx={{ color: '#64748b', mb: 2 }}>
-          {pageDescription}
-        </Typography>
-
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-          <TextField
-            label="Source Warehouse (Admin)"
-            size="small"
-            select
-            fullWidth
-            {...register('fromStoreId', { required: 'Source warehouse is required.' })}
-            error={Boolean(errors.fromStoreId)}
-            helperText={errors.fromStoreId?.message || ' '}
-          >
-            {warehouses.map((w) => (
-              <MenuItem key={w.id || w._id} value={w.id || w._id}>
-                {w.warehouseName || w.name}
-              </MenuItem>
-            ))}
-          </TextField>
-
-          <TextField
-            label="Destination Store"
-            size="small"
-            select
-            fullWidth
-            {...register('toStoreId', { required: 'Destination store is required.' })}
-            error={Boolean(errors.toStoreId)}
-            helperText={errors.toStoreId?.message || ' '}
-          >
-            {stores.map((s) => (
-              <MenuItem key={s.id || s._id} value={s.id || s._id}>
-                {s.name}
-              </MenuItem>
-            ))}
-          </TextField>
-        </Stack>
-
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-          <TextField
-            label="Transfer Date"
-            type="date"
-            size="small"
-            fullWidth
-            InputLabelProps={{ shrink: true }}
-            {...register('transferDate', { required: true })}
-          />
-
-          <TextField
-            label="Remarks"
-            size="small"
-            fullWidth
-            {...register('remarks')}
-          />
-        </Stack>
-      </Paper>
-
-      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3 }}>
-        <Stack
-          direction={{ xs: 'column', md: 'row' }}
-          spacing={2}
-          sx={{ justifyContent: 'space-between', alignItems: { md: 'center' }, mb: 2 }}
-        >
-          <Box>
-            <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a' }}>
-              Transfer Items
-            </Typography>
-            <Typography variant="body2" sx={{ color: '#64748b' }}>
-              Add variants from source warehouse and enter transfer quantity.
-            </Typography>
-          </Box>
-
-          <Stack direction="row" spacing={1}>
-            <ChipLike label={`Lines: ${lineRows.length}`} />
-            <ChipLike label={`Qty: ${totalTransferQty}`} />
-          </Stack>
-        </Stack>
-
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mb: 2 }} alignItems="center">
-          <input
-            ref={importInputRef}
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            style={{ display: 'none' }}
-            onChange={handleImportExcel}
-          />
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={() => importInputRef.current?.click()}
-            disabled={!fromStoreId}
-          >
-            Import from Excel
-          </Button>
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={handleTransferAll}
-            disabled={!fromStoreId || availableRows.length === 0}
-          >
-            Transfer All Stock
-          </Button>
-          <Autocomplete
-            fullWidth
-            size="small"
-            value={variantPickerValue}
-            onChange={(_, value) => setVariantPickerValue(value)}
-            options={availableRows}
-            getOptionLabel={(option) => {
-              const avail = Number(option.quantity || 0) - Number(option.reserved || 0);
-              return `${option.itemName} (${option.size}/${option.color}) — SKU: ${option.sku || ''} — Avail: ${avail}`;
-            }}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Select Variant"
-                placeholder={fromStoreId ? 'Search variant...' : 'Select source warehouse first'}
-              />
-            )}
-          />
-          <Button
-            variant="outlined"
-            startIcon={<AddCircleOutlineIcon />}
-            onClick={handleAddLine}
-            disabled={!variantPickerValue}
-          >
-            Add
-          </Button>
-        </Stack>
-
-        {lineRows.length ? (
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 700 }}>Item / Variant</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Lot</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }} align="right">
-                    Available
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 700 }} align="right">
-                    Transfer Qty
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Remove</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {lineRows.map((line) => (
-                  <TableRow key={line.stockId}>
-                    <TableCell>{`${line.stockRow.itemName} (${line.stockRow.size}/${line.stockRow.color})`}</TableCell>
-                    <TableCell>{line.stockRow.lotNumber || '-'}</TableCell>
-                    <TableCell>{line.stockRow.sku}</TableCell>
-                    <TableCell align="right">{line.availableQty}</TableCell>
-                    <TableCell align="right">
-                      <TextField
-                        type="number"
-                        size="small"
-                        value={line.transferQty}
-                        onChange={(event) =>
-                          handleUpdateQty(line.stockId, Math.max(0, Number(event.target.value)))
-                        }
-                        sx={{ width: 120 }}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <IconButton color="error" size="small" onClick={() => handleRemoveLine(line.stockId)}>
-                        <DeleteOutlineIcon fontSize="small" />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        ) : (
-          <Box sx={{ py: 5, textAlign: 'center' }}>
-            <Typography variant="body2" sx={{ color: '#64748b' }}>
-              No variants selected for transfer.
-            </Typography>
-          </Box>
-        )}
-
-        <Typography variant="caption" sx={{ display: 'block', color: '#64748b', mt: 1.5 }}>
-          Transfer from: {locationMap[fromStoreId] || '-'} | Transfer to:{' '}
-          {locationMap[toStoreId] || '-'}
-        </Typography>
-      </Paper>
-
-      {(errorMessage || importError) && (
-        <Alert severity="error" sx={{ mt: 2 }}>
-          {errorMessage || importError}
-        </Alert>
-      )}
-      {successMessage && (
-        <Alert severity="success" sx={{ mt: 2 }}>
-          {successMessage}
-        </Alert>
-      )}
-
-      <Stack direction="row" justifyContent="flex-end" sx={{ mt: 2 }}>
-        <Button type="submit" variant="contained" startIcon={<SendOutlinedIcon />}>
-          Submit Transfer
-        </Button>
-      </Stack>
-    </Box>
+  const paginatedRows = useMemo(
+    () => filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [filteredRows, page, rowsPerPage],
   );
-}
 
-function ChipLike({ label }) {
+  const summary = useMemo(
+    () => ({
+      totalTransfers: filteredRows.length,
+      inTransit: filteredRows.filter((row) => row.status === 'In Transit').length,
+      completed: filteredRows.filter((row) => row.status === 'Completed').length,
+      totalQty: filteredRows.reduce((sum, row) => sum + Number(row.totalQty || 0), 0),
+    }),
+    [filteredRows],
+  );
+
   return (
-    <Box
-      sx={{
-        border: '1px solid #cbd5e1',
-        borderRadius: 10,
-        px: 1.5,
-        py: 0.5,
-        fontSize: 12,
-        fontWeight: 700,
-        color: '#334155',
-      }}
-    >
-      {label}
+    <Box>
+      <PageHeader
+        title="Stock Transfer"
+        subtitle="Track HO to store transfer drafts, in-transit dispatches, and completed stock movement with register and form routes."
+        breadcrumbs={[
+          { label: 'Inventory' },
+          { label: 'Stock Transfer', active: true },
+        ]}
+        actions={[
+          <ExportButton key="export" rows={toExportRows(filteredRows)} columns={stockTransferExportColumns} filename="stock-transfer.xlsx" sheetName="Stock Transfer" />,
+          <Button key="new" variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={() => navigate('/inventory/transfer/new')}>
+            New Transfer
+          </Button>,
+        ]}
+      />
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' }, gap: 2, mb: 2 }}>
+        <SummaryCard label="Transfers" value={summary.totalTransfers} helper="Visible transfer register rows." />
+        <SummaryCard label="In Transit" value={summary.inTransit} helper="Dispatches moving to store locations." tone="info" />
+        <SummaryCard label="Completed" value={summary.completed} helper="Transfers marked as completed." tone="success" />
+        <SummaryCard label="Total Qty" value={summary.totalQty} helper="Total transfer quantity across filtered records." tone="warning" />
+      </Box>
+
+      <FilterBar sx={{ mb: 2 }}>
+        <TextField
+          size="small"
+          value={searchText}
+          onChange={(event) => setSearchText(event.target.value)}
+          placeholder="Search transfer number or location"
+          sx={{ flex: 1 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon fontSize="small" />
+              </InputAdornment>
+            ),
+          }}
+        />
+        <TextField size="small" select label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} sx={{ minWidth: 160 }}>
+          <MenuItem value="all">All Statuses</MenuItem>
+          <MenuItem value="Draft">Draft</MenuItem>
+          <MenuItem value="In Transit">In Transit</MenuItem>
+          <MenuItem value="Completed">Completed</MenuItem>
+          <MenuItem value="Cancelled">Cancelled</MenuItem>
+        </TextField>
+      </FilterBar>
+
+      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, overflow: 'hidden' }}>
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 700 }}>Transfer No</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>From Location</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>To Location</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Total Qty</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Created By</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {paginatedRows.map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell sx={{ fontWeight: 700 }}>{row.transferNumber}</TableCell>
+                  <TableCell>{row.transferDate}</TableCell>
+                  <TableCell>{row.fromLocation}</TableCell>
+                  <TableCell>{row.toLocation}</TableCell>
+                  <TableCell align="right">{row.totalQty}</TableCell>
+                  <TableCell>
+                    <StatusBadge value={row.status} />
+                  </TableCell>
+                  <TableCell>{row.createdBy}</TableCell>
+                  <TableCell align="right">
+                    <Stack direction="row" spacing={0.25} sx={{ justifyContent: 'flex-end' }}>
+                      <IconButton size="small" color="info" onClick={() => navigate(`/inventory/transfer/${row.id}/view`)}>
+                        <VisibilityOutlinedIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton size="small" color="primary" onClick={() => navigate(`/inventory/transfer/${row.id}/edit`)}>
+                        <EditOutlinedIcon fontSize="small" />
+                      </IconButton>
+                    </Stack>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+
+        <TablePagination
+          component="div"
+          count={filteredRows.length}
+          page={page}
+          onPageChange={(_, nextPage) => setPage(nextPage)}
+          rowsPerPage={rowsPerPage}
+          rowsPerPageOptions={[5, 10, 20]}
+          onRowsPerPageChange={(event) => {
+            setRowsPerPage(Number(event.target.value));
+            setPage(0);
+          }}
+        />
+      </Paper>
     </Box>
   );
 }

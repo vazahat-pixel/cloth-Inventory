@@ -1,224 +1,128 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Box, 
-  Paper, 
-  Typography, 
-  TextField, 
-  Autocomplete, 
-  CircularProgress,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  Avatar,
-  Chip,
-  Divider,
-  Grid,
-  Timeline,
-  TimelineItem,
-  TimelineSeparator,
-  TimelineConnector,
-  TimelineContent,
-  TimelineDot,
-  TimelineOppositeContent
-} from '@mui/material';
-import TimelineOutlinedIcon from '@mui/icons-material/TimelineOutlined';
-import ShoppingCartCheckoutIcon from '@mui/icons-material/ShoppingCartCheckout';
-import Inventory2Icon from '@mui/icons-material/Inventory2';
-import LocalShippingIcon from '@mui/icons-material/LocalShipping';
-import ReceiptIcon from '@mui/icons-material/Receipt';
-import PaymentsIcon from '@mui/icons-material/Payments';
-import PostAddIcon from '@mui/icons-material/PostAdd';
-import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
-import api from '../../services/api';
+import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Box, MenuItem, Paper, TextField, Typography } from '@mui/material';
+import PageHeader from '../../components/erp/PageHeader';
+import FilterBar from '../../components/erp/FilterBar';
+import SummaryCard from '../../components/erp/SummaryCard';
+import TimelineView from '../../components/erp/TimelineView';
+import itemsData from '../items/data';
+import { stockAuditSeed } from '../erp/erpUiMocks';
 
-/**
- * ItemJourneyPage — The vertical trace of a garment's life cycle.
- * From PO creation to final payment settlement.
- */
-const ItemJourneyPage = () => {
-  const [items, setItems] = useState([]);
-  const [selectedItem, setSelectedItem] = useState(null);
-  const [journeyData, setJourneyData] = useState(null);
-  const [loadingItems, setLoadingItems] = useState(true);
-  const [loadingJourney, setLoadingJourney] = useState(false);
+const variants = itemsData.flatMap((item) =>
+  (item.variants || []).map((variant) => ({
+    id: variant.id,
+    itemCode: item.code,
+    itemName: item.name,
+    variantLabel: `${variant.size} / ${variant.color}`,
+    size: variant.size,
+    color: variant.color,
+  })),
+);
 
-  useEffect(() => {
-    fetchItems();
-  }, []);
+const sourceToEventType = {
+  PURCHASE_GRN: 'PURCHASE_GRN',
+  TRANSFER_OUT: 'TRANSFER_OUT',
+  TRANSFER_IN: 'TRANSFER_IN',
+  SALE: 'SALE',
+  RETURN: 'RETURN',
+  ADJUSTMENT: 'ADJUSTMENT',
+};
 
-  const fetchItems = async () => {
-    try {
-      const res = await api.get('/items');
-      setItems(res.data.data || []);
-    } catch (err) {
-      console.error('Fetch items failed:', err);
-    } finally {
-      setLoadingItems(false);
-    }
-  };
+const journeyEvents = stockAuditSeed.fullLedger.map((row, index) => ({
+  id: row.id || `journey-${index + 1}`,
+  itemCode: row.itemCode,
+  variantLabel: row.size,
+  dateTime: row.date,
+  eventType: sourceToEventType[row.source] || row.source,
+  quantity: row.qty,
+  fromLocation: row.movementType === 'OUT' ? row.warehouse : 'Supplier / External',
+  toLocation: row.movementType === 'IN' ? row.warehouse : 'Customer / External',
+  referenceNumber: row.referenceId,
+  doneBy: row.doneBy,
+  notes: `${row.source} moved ${row.qty} unit(s) for ${row.itemCode}.`,
+  status: row.movementType,
+}));
 
-  const handleSelect = async (event, newValue) => {
-    setSelectedItem(newValue);
-    if (!newValue) {
-      setJourneyData(null);
-      return;
-    }
+function ItemJourneyPage() {
+  const [searchParams] = useSearchParams();
+  const preselectedItem = searchParams.get('item') || 'all';
+  const [itemFilter, setItemFilter] = useState(preselectedItem);
+  const [variantFilter, setVariantFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
-    setLoadingJourney(true);
-    try {
-      const res = await api.get(`/inventory/trace/${newValue._id}`);
-      setJourneyData(res.data.data);
-    } catch (err) {
-      console.error('Fetch journey failed:', err);
-    } finally {
-      setLoadingJourney(false);
-    }
-  };
+  const itemOptions = useMemo(() => Array.from(new Set(variants.map((variant) => variant.itemCode))), []);
+  const variantOptions = useMemo(
+    () => variants.filter((variant) => itemFilter === 'all' || variant.itemCode === itemFilter),
+    [itemFilter],
+  );
 
-  const getStepIcon = (type) => {
-    switch (type) {
-      case 'PO': return <PostAddIcon />;
-      case 'GRN': return <Inventory2Icon />;
-      case 'STOCK': return <LocalShippingIcon />;
-      case 'SALE': return <ShoppingCartCheckoutIcon />;
-      case 'PAYMENT': return <PaymentsIcon />;
-      default: return <ReceiptIcon />;
-    }
-  };
-
-  const getStepColor = (type) => {
-    switch (type) {
-      case 'PO': return 'primary';
-      case 'GRN': return 'warning';
-      case 'STOCK': return 'info';
-      case 'SALE': return 'error';
-      case 'PAYMENT': return 'success';
-      default: return 'grey';
-    }
-  };
+  const filteredEvents = useMemo(
+    () =>
+      journeyEvents.filter((event) => {
+        const matchesItem = itemFilter === 'all' ? true : event.itemCode === itemFilter;
+        const matchesVariant = variantFilter === 'all' ? true : event.variantLabel === variantFilter;
+        const matchesDateFrom = dateFrom ? String(event.dateTime).slice(0, 10) >= dateFrom : true;
+        const matchesDateTo = dateTo ? String(event.dateTime).slice(0, 10) <= dateTo : true;
+        return matchesItem && matchesVariant && matchesDateFrom && matchesDateTo;
+      }),
+    [dateFrom, dateTo, itemFilter, variantFilter],
+  );
 
   return (
-    <Box sx={{ p: 1 }}>
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" sx={{ fontWeight: 800, color: '#1e293b', mb: 1 }}>
-          Item Journey Timeline
-        </Typography>
-        <Typography variant="body1" sx={{ color: '#64748b' }}>
-          Visualizing the full life cycle of a unique garment item—from PO to Final Payment.
-        </Typography>
+    <Box>
+      <PageHeader
+        title="Item Journey Timeline"
+        subtitle="Follow purchase receipt, transfer, sale, return, and adjustment events for a garment variant across locations and references."
+        breadcrumbs={[
+          { label: 'Inventory' },
+          { label: 'Item Journey Timeline', active: true },
+        ]}
+      />
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 2, mb: 2 }}>
+        <SummaryCard label="Journey Events" value={filteredEvents.length} helper="Visible timeline steps after filters." />
+        <SummaryCard label="Latest Reference" value={filteredEvents[0]?.referenceNumber || '--'} helper="Most recent event in the filtered timeline." tone="info" />
+        <SummaryCard label="Selected Item" value={itemFilter === 'all' ? 'All Items' : itemFilter} helper="Filter by style and variant when drilling into stock movement." tone="success" />
       </Box>
 
-      {/* Item Selection */}
-      <Paper sx={{ p: 4, borderRadius: 4, mb: 4, bgcolor: '#f8fafc', border: '1px dashed #cbd5e1' }}>
-        <Autocomplete
-          fullWidth
-          value={selectedItem}
-          onChange={handleSelect}
-          options={items}
-          getOptionLabel={(option) => `${option.item_code} | ${option.item_name}`}
-          loading={loadingItems}
-          renderInput={(params) => (
-            <TextField 
-              {...params} 
-              label="Search SKU or Item Name" 
-              placeholder="e.g. CAS-SH001"
-              sx={{ bgcolor: '#fff', borderRadius: 2 }}
-              InputProps={{
-                ...params.InputProps,
-                startAdornment: <TimelineOutlinedIcon sx={{ mr: 1, color: '#94a3b8' }} />,
-                endAdornment: (
-                  <React.Fragment>
-                    {loadingItems ? <CircularProgress color="inherit" size={20} /> : null}
-                    {params.InputProps.endAdornment}
-                  </React.Fragment>
-                ),
-              }}
-            />
-          )}
-        />
+      <FilterBar sx={{ mb: 2 }}>
+        <TextField size="small" select label="Item" value={itemFilter} onChange={(event) => setItemFilter(event.target.value)} sx={{ minWidth: 180 }}>
+          <MenuItem value="all">All Items</MenuItem>
+          {itemOptions.map((option) => (
+            <MenuItem key={option} value={option}>
+              {option}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField size="small" select label="Variant" value={variantFilter} onChange={(event) => setVariantFilter(event.target.value)} sx={{ minWidth: 180 }}>
+          <MenuItem value="all">All Variants</MenuItem>
+          {variantOptions.map((option) => (
+            <MenuItem key={option.id} value={option.variantLabel}>
+              {option.variantLabel}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField size="small" type="date" label="From" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} InputLabelProps={{ shrink: true }} />
+        <TextField size="small" type="date" label="To" value={dateTo} onChange={(event) => setDateTo(event.target.value)} InputLabelProps={{ shrink: true }} />
+      </FilterBar>
+
+      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3 }}>
+        {filteredEvents.length ? (
+          <TimelineView items={filteredEvents} />
+        ) : (
+          <Box sx={{ py: 6, textAlign: 'center' }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
+              No journey events found
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#64748b' }}>
+              Try changing the selected item, variant, or date range.
+            </Typography>
+          </Box>
+        )}
       </Paper>
-
-      {/* Timeline Rendering */}
-      {loadingJourney ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', p: 8 }}>
-          <CircularProgress />
-        </Box>
-      ) : journeyData ? (
-        <Grid container spacing={4}>
-          <Grid item xs={12} md={4}>
-            <Paper sx={{ p: 4, borderRadius: 4, border: '1px solid #e2e8f0' }}>
-              <Typography variant="overline" sx={{ color: '#94a3b8', fontWeight: 800 }}>Core Details</Typography>
-              <Typography variant="h5" sx={{ fontWeight: 900, mb: 2 }}>{journeyData.item.item_name}</Typography>
-              
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Box>
-                  <Typography variant="caption" sx={{ color: '#94a3b8' }}>Item Code</Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 700 }}>{journeyData.item.item_code}</Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" sx={{ color: '#94a3b8' }}>Brand / Category</Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 700 }}>{journeyData.item.brand || 'N/A'} - {journeyData.item.category || 'Garment'}</Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" sx={{ color: '#94a3b8' }}>Active Since</Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 700 }}>{new Date(journeyData.item.createdAt).toLocaleDateString()}</Typography>
-                </Box>
-              </Box>
-            </Paper>
-          </Grid>
-
-          <Grid item xs={12} md={8}>
-            <Paper sx={{ p: 4, borderRadius: 4, border: '1px solid #e2e8f0' }}>
-              <Timeline position="alternate">
-                {journeyData.timeline.length === 0 ? (
-                  <Box sx={{ textAlign: 'center', p: 4 }}>
-                    <Typography variant="body2" sx={{ color: '#94a3b8' }}>No activity records found for this item yet.</Typography>
-                  </Box>
-                ) : (
-                  journeyData.timeline.map((step, idx) => (
-                    <TimelineItem key={idx}>
-                      <TimelineOppositeContent
-                        sx={{ m: 'auto 0' }}
-                        align="right"
-                        variant="caption"
-                        color="#94a3b8"
-                      >
-                        {new Date(step.date).toLocaleString()}
-                      </TimelineOppositeContent>
-                      <TimelineSeparator>
-                        <TimelineConnector sx={{ bgcolor: `${getStepColor(step.type)}.light`, opacity: 0.2 }} />
-                        <TimelineDot color={getStepColor(step.type)} sx={{ boxShadow: 0 }}>
-                          {getStepIcon(step.type)}
-                        </TimelineDot>
-                        <TimelineConnector />
-                      </TimelineSeparator>
-                      <TimelineContent sx={{ py: '12px', px: 2 }}>
-                        <Typography variant="subtitle2" component="span" sx={{ fontWeight: 900 }}>
-                          {step.id}
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: '#64748b' }}>{step.detail}</Typography>
-                        <Chip label={step.status} size="small" variant="outlined" color={getStepColor(step.type)} sx={{ mt: 1, height: 20, fontSize: 9, fontWeight: 800 }} />
-                      </TimelineContent>
-                    </TimelineItem>
-                  ))
-                )}
-              </Timeline>
-            </Paper>
-          </Grid>
-        </Grid>
-      ) : selectedItem ? (
-        <Box sx={{ textAlign: 'center', p: 8 }}>
-          <Typography variant="body2" sx={{ color: '#94a3b8' }}>Trace logic completed. Waiting for server aggregation.</Typography>
-        </Box>
-      ) : (
-        <Paper sx={{ p: 8, textAlign: 'center', borderRadius: 4, border: '1px dashed #cbd5e1', bgcolor: 'rgba(59, 130, 246, 0.02)' }}>
-          <TimelineOutlinedIcon sx={{ fontSize: 64, color: '#e2e8f0', mb: 2 }} />
-          <Typography variant="h6" sx={{ color: '#94a3b8' }}>Select an item above to visualize its full system journey.</Typography>
-        </Paper>
-      )}
     </Box>
   );
-};
+}
 
 export default ItemJourneyPage;

@@ -3,7 +3,7 @@ import GroupManagement from './GroupManagement';
 import ItemFormWizard from './ItemFormWizard';
 import GroupAllocationUI from './GroupAllocationUI';
 import ExcelImportUI from './ExcelImportUI';
-import { Layers, Box, Share2, UploadCloud, ChevronRight, Home, LayoutList } from 'lucide-react';
+import { Layers, Box, Share2, Upload, ChevronRight, Home, LayoutList } from 'lucide-react';
 
 const ERPManager = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -13,7 +13,7 @@ const ERPManager = () => {
     { id: 'groups', label: 'Group Master', icon: <Layers size={18} /> },
     { id: 'items', label: 'Add New Item', icon: <Box size={18} /> },
     { id: 'allocation', label: 'Group Allocation', icon: <Share2 size={18} /> },
-    { id: 'import', label: 'Excel Import', icon: <UploadCloud size={18} /> }
+    { id: 'import', label: 'Excel Import', icon: <Upload size={18} /> }
   ];
 
   return (
@@ -82,7 +82,7 @@ const ERPOverview = ({ onNavigate }) => (
         { id: 'groups', title: 'Group Hierarchy', desc: 'Recursive category management for items.', icon: <Layers className="text-indigo-500" />, color: 'bg-indigo-50 border-indigo-100' },
         { id: 'items', title: 'Smart Item Wizard', desc: '4-step creation with pricing matrix.', icon: <Box className="text-brand-secondary" />, color: 'bg-purple-50 border-purple-100' },
         { id: 'allocation', title: 'Bulk Allocation', desc: 'Manage multi-group item mapping.', icon: <Share2 className="text-teal-500" />, color: 'bg-teal-50 border-teal-100' },
-        { id: 'import', title: 'Spreadsheet Sync', desc: 'Intelligent Excel import engine.', icon: <UploadCloud className="text-orange-500" />, color: 'bg-orange-50 border-orange-100' }
+        { id: 'import', title: 'Spreadsheet Sync', desc: 'Intelligent Excel import engine.', icon: <Upload className="text-orange-500" />, color: 'bg-orange-50 border-orange-100' }
       ].map(p => (
         <div key={p.id} onClick={() => onNavigate(p.id)} className={`erp-card group cursor-pointer hover:scale-[1.03] active:scale-[0.98] transition-all p-6 border-b-4 border-b-transparent hover:border-b-indigo-500 ${p.color}`}>
           <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-md mb-6 group-hover:rotate-6 transition-all">{p.icon}</div>

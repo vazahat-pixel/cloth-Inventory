@@ -28,6 +28,7 @@ import { continuousPrintingNavItems } from '../modules/accounts/continuousPrinti
 import { accountsUtilitiesNavItems } from '../modules/accounts/accountsUtilitiesNavConfig';
 
 import { purchaseMatchPaths, purchaseNavItems } from '../modules/purchase/purchaseNavConfig';
+import { itemsMatchPaths, itemsNavItems } from '../modules/items/itemsNavConfig';
 import { orderProcessingMatchPaths, orderProcessingNavItems } from '../modules/orders/orderProcessingNavConfig';
 import { inventoryMatchPaths, inventoryNavItems } from '../modules/inventory/inventoryNavConfig';
 import { billingMatchPaths, billingNavItems } from '../modules/sales/billingNavConfig';
@@ -65,6 +66,7 @@ const adminSidebarItems = [
   { label: 'Search Home', path: '/', icon: HomeIcon },
   { label: 'My Messages', icon: DescriptionOutlinedIcon, disabled: true },
   { label: 'Setup', path: '/setup', icon: SettingsOutlinedIcon, matchPaths: setupMatchPaths, drilldown: true },
+  { label: 'Items', path: '/items', icon: Inventory2Icon, matchPaths: itemsMatchPaths, drilldown: true },
   { label: 'Accounts', path: '/accounts', icon: AccountBalanceWalletIcon, matchPaths: accountsMatchPaths, drilldown: true },
   { label: 'Purchase', path: '/purchase', icon: ShoppingCartIcon, matchPaths: purchaseMatchPaths, drilldown: true },
   { label: 'Order Processing', path: '/orders', icon: ReceiptLongIcon, matchPaths: orderProcessingMatchPaths, drilldown: true },
@@ -88,6 +90,7 @@ export const adminNavConfig = {
   mainNav: adminSidebarItems,
   children: {
     '/setup': setupNavItems.map(i => ({ ...i, drilldown: ['/setup/accounts', '/setup/taxes', '/setup/party-wise', '/setup/other-account-details', '/setup/configurations'].includes(i.path) })),
+    '/items': itemsNavItems,
     '/accounts': accountsNavItems.map(i => ({ ...i, drilldown: ['/accounts/vouchers', '/accounts/printing', '/accounts/utilities'].includes(i.path) })),
     '/purchase': purchaseNavItems,
     '/orders': orderProcessingNavItems,

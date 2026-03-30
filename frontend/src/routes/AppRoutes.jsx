@@ -30,10 +30,13 @@ import BanksListPage from '../modules/masters/banks/ListPage';
 
 import ItemListPage from '../modules/items/ItemListPage';
 import ItemFormPage from '../modules/items/ItemFormPage';
+import GroupsPage from '../modules/setup/GroupsPage';
+import SizesPage from '../modules/setup/SizesPage';
 
 import StockOverviewPage from '../modules/inventory/StockOverviewPage';
 import StockInPage from '../modules/inventory/StockInPage';
 import StockTransferPage from '../modules/inventory/StockTransferPage';
+import StockTransferFormPage from '../modules/inventory/StockTransferFormPage';
 import StockAuditPage from '../modules/inventory/StockAuditPage';
 import StockAdjustmentPage from '../modules/inventory/StockAdjustmentPage';
 import MovementHistoryPage from '../modules/inventory/MovementHistoryPage';
@@ -117,6 +120,7 @@ import DiscountSetupPage from '../modules/setup/DiscountSetupPage';
 import SetupGenericTablePage from '../modules/setup/SetupGenericTablePage';
 import CounterMasterPage from '../modules/setup/CounterMasterPage';
 import GRNPage from '../modules/grn/GRNPage';
+import GRNFormPage from '../modules/grn/GRNFormPage';
 import SetupCountryPage from '../modules/setup/SetupCountryPage';
 import SetupLandingPage from '../modules/setup/SetupLandingPage';
 import ProfilePage from '../modules/profile/ProfilePage';
@@ -193,9 +197,13 @@ function AppRoutes() {
           </Route>
           <Route path="clothing-erp" element={<LogicERPManager />} />
           <Route path="grn" element={<GRNPage />} />
+          <Route path="grn/new" element={<GRNFormPage />} />
+          <Route path="grn/:id/view" element={<GRNFormPage mode="view" />} />
+          <Route path="grn/:id/edit" element={<GRNFormPage mode="edit" />} />
           <Route path="items" element={<ItemListPage />} />
           <Route path="items/new" element={<ItemFormPage />} />
-          <Route path="items/:id/edit" element={<ItemFormPage />} />
+          <Route path="items/:id/view" element={<ItemFormPage mode="view" />} />
+          <Route path="items/:id/edit" element={<ItemFormPage mode="edit" />} />
           <Route path="inventory" element={<Navigate to="stock-receipt-production" replace />} />
           <Route path="inventory/stock-receipt-production" element={<StockInPage pageTitle="Stock Receipt - Production" pageDescription="Record production-side stock receipts and inward quantities into the selected warehouse." submitLabel="Record Stock Receipt" defaultNotes="Production stock receipt" successMessage="Production stock receipt saved successfully." />} />
           <Route path="inventory/create-cartons" element={<InventoryPlaceholderPage pageKey="create-cartons" />} />
@@ -213,6 +221,9 @@ function AppRoutes() {
           <Route path="inventory/stock-overview" element={<StockOverviewPage />} />
           <Route path="inventory/stock-in" element={<StockInPage />} />
           <Route path="inventory/transfer" element={<StockTransferPage />} />
+          <Route path="inventory/transfer/new" element={<StockTransferFormPage />} />
+          <Route path="inventory/transfer/:id/view" element={<StockTransferFormPage mode="view" />} />
+          <Route path="inventory/transfer/:id/edit" element={<StockTransferFormPage mode="edit" />} />
           <Route path="inventory/transfer-receive" element={<StockTransferPage />} />
           <Route path="inventory/audit" element={<StockAuditPage />} />
           <Route path="inventory/adjustment" element={<StockAdjustmentPage />} />
@@ -222,7 +233,9 @@ function AppRoutes() {
           <Route path="inventory/demo-dashboard" element={<AuditDashboard />} />
           <Route path="inventory/item-journey" element={<ItemJourneyPage />} />
           <Route path="inventory/audit-view" element={<StockAuditView />} />
+          <Route path="inventory/batch-breakdown" element={<StockAuditView defaultTab={1} />} />
           <Route path="inventory/validation" element={<ValidationDashboard />} />
+          <Route path="inventory/system-logs" element={<AuditLogViewer type="system" />} />
           <Route path="inventory/logs" element={<AuditLogViewer type="system" />} />
           <Route path="inventory/errors" element={<AuditLogViewer type="error" />} />
 
@@ -246,14 +259,18 @@ function AppRoutes() {
           <Route path="purchase/generate-debit-notes" element={<PurchasePlaceholderPage pageKey="generate-debit-notes" />} />
           <Route path="purchase/orders" element={<PurchaseOrderListPage />} />
           <Route path="purchase/orders/new" element={<PurchaseOrderFormPage />} />
-          <Route path="purchase/orders/:id" element={<PurchaseOrderFormPage />} />
+          <Route path="purchase/orders/:id" element={<PurchaseOrderFormPage mode="edit" />} />
+          <Route path="purchase/orders/:id/view" element={<PurchaseOrderFormPage mode="view" />} />
+          <Route path="purchase/orders/:id/edit" element={<PurchaseOrderFormPage mode="edit" />} />
           <Route path="orders" element={<Navigate to="sale-order" replace />} />
           <Route path="orders/sale-order" element={<SaleOrderListPage />} />
           <Route path="orders/sale-order/new" element={<SaleOrderFormPage />} />
           <Route path="orders/sale-order/:id/edit" element={<SaleOrderFormPage />} />
           <Route path="orders/purchase-order" element={<PurchaseOrderListPage />} />
           <Route path="orders/purchase-order/new" element={<PurchaseOrderFormPage />} />
-          <Route path="orders/purchase-order/:id" element={<PurchaseOrderFormPage />} />
+          <Route path="orders/purchase-order/:id" element={<PurchaseOrderFormPage mode="edit" />} />
+          <Route path="orders/purchase-order/:id/view" element={<PurchaseOrderFormPage mode="view" />} />
+          <Route path="orders/purchase-order/:id/edit" element={<PurchaseOrderFormPage mode="edit" />} />
           <Route path="orders/continuous-printing-orders" element={<OrdersContinuousPrintingPage />} />
           <Route path="orders/delivery" element={<DeliveryOrderPage />} />
           <Route path="orders/delivery-challan" element={<DeliveryChallanPage />} />
@@ -281,7 +298,9 @@ function AppRoutes() {
           <Route path="setup/accounts/country" element={<SetupCountryPage />} />
           <Route path="setup/accounts/new-account" element={<AccountMasterPage />} />
           <Route path="setup/stores" element={<StoreMasterPage />} />
+          <Route path="setup/groups" element={<GroupsPage />} />
           <Route path="setup/hsn-codes" element={<HSNCodePage />} />
+          <Route path="setup/sizes" element={<SizesPage />} />
           <Route path="setup/formulas" element={<FormulaPage />} />
           <Route path="setup/barcode-print" element={<BarcodePrintingPage />} />
           <Route path="setup/discounts" element={<DiscountSetupPage />} />
