@@ -1,7 +1,7 @@
 const Product = require('../../models/product.model');
-const StockHistory = require('../../models/stockHistory.model');
+const StockMovement = require('../../models/stockMovement.model');
 const WarehouseInventory = require('../../models/warehouseInventory.model');
-const { StockHistoryType } = require('../../core/enums');
+const { StockMovementType } = require('../../core/enums');
 const { withTransaction } = require('../../services/transaction.service');
 
 /**
@@ -30,6 +30,50 @@ const generateSKU = async (session = null) => {
 
 const barcodeService = require('./barcode.service');
 
+const normalizeGroupIds = (category, groupIds = []) => {
+    const ids = [category, ...(Array.isArray(groupIds) ? groupIds : [groupIds])]
+        .filter(Boolean)
+        .map((value) => String(value));
+    return [...new Set(ids)];
+};
+
+const normalizeAttributes = (attributes) => {
+    if (!attributes) {
+        return {};
+    }
+
+    if (Array.isArray(attributes)) {
+        return attributes.reduce((accumulator, entry) => {
+            const key = String(entry?.key || entry?.name || '').trim();
+            if (!key) {
+                return accumulator;
+            }
+
+            accumulator[key] = entry?.value ?? '';
+            return accumulator;
+        }, {});
+    }
+
+    if (typeof attributes === 'object') {
+        return { ...attributes };
+    }
+
+    return {};
+};
+
+const generateVariantSku = (styleCode, size, color) => {
+    const sanitize = (value, fallback) => {
+        const normalized = String(value || '')
+            .trim()
+            .toUpperCase()
+            .replace(/[^A-Z0-9]/g, '');
+
+        return normalized || fallback;
+    };
+
+    return `${sanitize(styleCode, 'STYLE')}-${sanitize(size, 'SIZE')}-${sanitize(color, 'COLOR')}`;
+};
+
 /**
  * Generate unique numeric barcode
  */
@@ -42,39 +86,44 @@ const generateBarcode = async (session = null) => {
  */
 const createProductsFromBatch = async (batch, metadata, session) => {
     const { name, category, brand, costPrice, salePrice } = metadata;
+    const styleCode = String(metadata.styleCode || metadata.sku || metadata.batchNumber || name || '').trim().toUpperCase() || await generateSKU(session);
+    const groupIds = normalizeGroupIds(category, metadata.groupIds);
+    const attributes = normalizeAttributes(metadata.attributes);
     const createdProducts = [];
 
     for (const item of batch.sizeBreakdown) {
-        const sku = await generateSKU(session);
+        const sku = item.sku || generateVariantSku(styleCode, item.size, metadata.color);
         const barcode = await generateBarcode(session);
 
         const product = new Product({
             name,
             sku,
+            styleCode,
             barcode,
             batchId: batch._id,
             size: item.size,
             color: metadata.color || null,
             category,
+            groupIds,
             brand,
             costPrice,
             salePrice,
             factoryStock: item.quantity,
+            attributes,
             createdBy: batch.createdBy,
             isActive: true
         });
 
         await product.save({ session });
 
-        // Record stock history
-        await StockHistory.create([{
+        // Record stock movement for the finished batch output
+        await StockMovement.create([{
             productId: product._id,
-            type: StockHistoryType.IN,
-            quantityBefore: 0,
-            quantityChange: item.quantity,
-            quantityAfter: item.quantity,
+            variantId: product._id,
+            qty: item.quantity,
+            type: StockMovementType.ADJUSTMENT,
             referenceId: batch._id,
-            referenceModel: 'ProductionBatch',
+            referenceType: 'ProductionBatch',
             notes: `Initial stock from Production Batch ${batch.batchNumber}`,
             performedBy: batch.createdBy
         }], { session });
@@ -141,9 +190,24 @@ const getProductById = async (id) => {
  * Update product
  */
 const updateProduct = async (id, updateData) => {
+    const normalizedUpdateData = { ...updateData };
+
+    if (normalizedUpdateData.sku) {
+        normalizedUpdateData.sku = String(normalizedUpdateData.sku).trim().toUpperCase();
+    }
+    if (normalizedUpdateData.styleCode || normalizedUpdateData.sku) {
+        normalizedUpdateData.styleCode = String(normalizedUpdateData.styleCode || normalizedUpdateData.sku).trim().toUpperCase();
+    }
+    if (normalizedUpdateData.attributes !== undefined) {
+        normalizedUpdateData.attributes = normalizeAttributes(normalizedUpdateData.attributes);
+    }
+    if (normalizedUpdateData.category || normalizedUpdateData.groupIds) {
+        normalizedUpdateData.groupIds = normalizeGroupIds(normalizedUpdateData.category, normalizedUpdateData.groupIds);
+    }
+
     const product = await Product.findOneAndUpdate(
         { _id: id, isDeleted: false },
-        { $set: updateData },
+        { $set: normalizedUpdateData },
         { new: true, runValidators: true }
     );
     if (!product) throw new Error('Product not found');
@@ -182,14 +246,20 @@ const deleteProduct = async (id) => {
 const createProduct = async (data, userId) => {
     return await withTransaction(async (session) => {
         const { variants, ...parentData } = data;
+        const styleCode = String(parentData.sku || parentData.styleCode || '').trim().toUpperCase() || await generateSKU(session);
+        const groupIds = normalizeGroupIds(parentData.category, parentData.groupIds);
+        const attributes = normalizeAttributes(parentData.attributes);
 
         // If no variants array is provided, create a single product document
         if (!variants || !Array.isArray(variants) || variants.length === 0) {
-            if (!parentData.sku) parentData.sku = await generateSKU(session);
+            parentData.sku = styleCode;
+            parentData.styleCode = styleCode;
             if (!parentData.barcode) parentData.barcode = await generateBarcode(session);
 
             const product = new Product({
                 ...parentData,
+                groupIds,
+                attributes,
                 createdBy: userId,
                 isActive: true
             });
@@ -197,12 +267,12 @@ const createProduct = async (data, userId) => {
             await product.save({ session });
 
             if (product.factoryStock > 0) {
-                await StockHistory.create([{
-                    productId: product._id,
-                    type: StockHistoryType.IN,
-                    quantityBefore: 0,
-                    quantityChange: product.factoryStock,
-                    quantityAfter: product.factoryStock,
+                await StockMovement.create([{
+                    variantId: product._id,
+                    qty: product.factoryStock,
+                    type: StockMovementType.ADJUSTMENT,
+                    referenceId: product._id,
+                    referenceType: 'Adjustment',
                     notes: 'Manual initial stock entry',
                     performedBy: userId
                 }], { session });
@@ -213,13 +283,17 @@ const createProduct = async (data, userId) => {
         // Handle variants: create one document per variant
         const createdProducts = [];
         for (const variant of variants) {
-            const sku = variant.sku || await generateSKU(session);
+            const sku = variant.sku || generateVariantSku(styleCode, variant.size, variant.color);
             const barcode = variant.barcode || await generateBarcode(session);
+            const variantGroupIds = normalizeGroupIds(parentData.category, variant.groupIds || groupIds);
 
             const product = new Product({
                 ...parentData,
                 ...variant,
                 sku,
+                styleCode,
+                groupIds: variantGroupIds,
+                attributes,
                 barcode,
                 createdBy: userId,
                 isActive: parentData.status !== 'Inactive'
@@ -229,12 +303,12 @@ const createProduct = async (data, userId) => {
 
             const initialStock = Number(variant.stock || variant.factoryStock || 0);
             if (initialStock > 0) {
-                await StockHistory.create([{
-                    productId: product._id,
-                    type: StockHistoryType.IN,
-                    quantityBefore: 0,
-                    quantityChange: initialStock,
-                    quantityAfter: initialStock,
+                await StockMovement.create([{
+                    variantId: product._id,
+                    qty: initialStock,
+                    type: StockMovementType.ADJUSTMENT,
+                    referenceId: product._id,
+                    referenceType: 'Adjustment',
                     notes: `Manual initial stock entry for variant ${variant.size}/${variant.color}`,
                     performedBy: userId
                 }], { session });
@@ -260,12 +334,17 @@ const bulkImportProducts = async (productsData, warehouseId, userId) => {
                 throw new Error('Name, salePrice, and size are required for all grouped imported products.');
             }
 
-            const sku = pd.sku || await generateSKU(session);
+            const styleCode = String(pd.styleCode || pd.sku || '').trim().toUpperCase() || await generateSKU(session);
+            const sku = pd.sku || generateVariantSku(styleCode, pd.size, pd.color);
             const barcode = pd.barcode || await generateBarcode(session);
+            const groupIds = normalizeGroupIds(pd.category, pd.groupIds);
 
             const product = new Product({
                 ...pd,
                 sku,
+                styleCode,
+                groupIds,
+                attributes: normalizeAttributes(pd.attributes),
                 barcode,
                 createdBy: userId,
                 isActive: true
@@ -284,12 +363,12 @@ const bulkImportProducts = async (productsData, warehouseId, userId) => {
                     { session, upsert: true, new: true }
                 );
 
-                await StockHistory.create([{
-                    productId: product._id,
-                    type: StockHistoryType.IN,
-                    quantityBefore: 0,
-                    quantityChange: stockQty,
-                    quantityAfter: stockQty,
+                await StockMovement.create([{
+                    variantId: product._id,
+                    qty: stockQty,
+                    type: StockMovementType.ADJUSTMENT,
+                    referenceId: product._id,
+                    referenceType: 'Adjustment',
                     notes: 'Excel Bulk Import initialization',
                     performedBy: userId
                 }], { session });

@@ -84,10 +84,22 @@ const cancelSale = async (req, res, next) => {
     }
 };
 
+const applyCreditNote = async (req, res, next) => {
+    try {
+        const { creditNoteId } = req.body;
+        if (!creditNoteId) return sendError(res, 'creditNoteId is required', 400);
+        const result = await salesService.applyCreditNote(req.params.id, creditNoteId, req.user._id);
+        return sendSuccess(res, result, 'Credit note applied successfully');
+    } catch (err) {
+        return sendError(res, err.message, 400);
+    }
+};
+
 module.exports = {
     getProductByBarcode,
     createSale,
     getAllSales,
     getSaleById,
-    cancelSale
+    cancelSale,
+    applyCreditNote
 };

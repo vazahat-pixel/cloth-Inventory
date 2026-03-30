@@ -1,5 +1,6 @@
+const mongoose = require('mongoose');
 const { adjustStoreStock } = require('./stock.service');
-const { StockHistoryType } = require('../core/enums');
+const { StockMovementType } = require('../core/enums');
 const { withTransaction } = require('./transaction.service');
 const StoreInventory = require('../models/storeInventory.model');
 
@@ -12,6 +13,7 @@ const StoreInventory = require('../models/storeInventory.model');
 const reconcileStock = async (storeId, items, userId) => {
     return await withTransaction(async (session) => {
         const results = [];
+        const auditReferenceId = new mongoose.Types.ObjectId();
 
         for (const item of items) {
             const { productId, physicalQty } = item;
@@ -29,8 +31,10 @@ const reconcileStock = async (storeId, items, userId) => {
                     productId,
                     variantId: productId,
                     storeId,
-                    qty: difference,
-                    type: StockHistoryType.AUDIT,
+                    quantityChange: difference,
+                    type: StockMovementType.ADJUSTMENT,
+                    referenceId: auditReferenceId,
+                    referenceModel: 'Audit',
                     performedBy: userId,
                     notes: `Stock Audit Reconciliation (Physical: ${physicalQty}, Previous: ${currentQty})`,
                     session

@@ -1,7 +1,7 @@
 const Sale = require('../../models/sale.model');
 const StoreInventory = require('../../models/storeInventory.model');
 const Product = require('../../models/product.model');
-const { SaleStatus, MovementType, DocumentType } = require('../../core/enums');
+const { SaleStatus, StockMovementType, DocumentType } = require('../../core/enums');
 const workflowService = require('../workflow/workflow.service');
 const { withTransaction } = require('../../services/transaction.service');
 const { adjustStoreStock } = require('../../services/stock.service');
@@ -15,6 +15,9 @@ const Customer = require('../../models/customer.model');
 const LoyaltyTransaction = require('../../models/loyaltyTransaction.model');
 const CreditNote = require('../../models/creditNote.model');
 const { calculateGST } = require('../../services/gst.service');
+const { getNextSequence } = require('../../services/sequence.service');
+const stockLedgerService = require('../inventory/stockLedger.service');
+
 const {
     LoyaltyType,
     CreditNoteStatus
@@ -24,11 +27,7 @@ const {
     LOYALTY_POINT_VALUE,
     MIN_REDEEM_POINTS
 } = require('../../core/constants');
-const { getNextSequence } = require('../../services/sequence.service');
 
-/**
- * Generate unique Sale/Invoice Number (INV-2025-00001)
- */
 /**
  * Generate unique Sale/Invoice Number (INV-YYYY-XXXXX)
  */
@@ -48,13 +47,14 @@ const getProductForSale = async (barcode, storeId) => {
     const product = await Product.findOne({ barcode, isDeleted: false, isActive: true });
     if (!product) throw new Error('Product not found or inactive');
 
-    const inventory = await StoreInventory.findOne({ storeId, productId: product._id });
-    const availableQty = inventory ? (typeof inventory.quantityAvailable === 'number'
-        ? inventory.quantityAvailable
-        : inventory.quantity || 0) : 0;
+        // High Precision Ledger Search
+    const history = await stockLedgerService.getLedgerByItem(product._id);
+    // Filter by location and barcode to get latest balance
+    const lastMovement = history.find(h => h.barcode === barcode && h.locationId?.toString() === storeId?.toString());
+    const availableQty = lastMovement ? lastMovement.balanceAfter : 0;
 
-    if (!inventory || availableQty <= 0) {
-        throw new Error('Out of stock in this store');
+    if (availableQty <= 0) {
+        throw new Error(`Out of stock for barcode ${barcode} in this store (Ledger Verified)`);
     }
 
     return {
@@ -98,6 +98,7 @@ const createSale = async (saleData, cashierId) => {
         let totalIGST = 0;
         let totalTax = 0;
         let calculatedSubTotal = 0;
+        const stockMovements = [];
 
         for (const item of products) {
             const productId = item.productId || item.variantId;
@@ -152,26 +153,17 @@ const createSale = async (saleData, cashierId) => {
             totalIGST += gstData.igst;
             totalTax += gstData.totalTax;
 
-            // Reduce stock (negative item.quantity means return, so -- is +, properly increasing stock)
-            await adjustStoreStock({
+            stockMovements.push({
                 productId,
                 variantId: productId,
                 storeId,
                 quantityChange: -item.quantity,
-                type: (type || 'RETAIL').toUpperCase() === 'EXCHANGE' && item.quantity < 0 ? StockHistoryType.RETURN : StockHistoryType.SALE,
-                referenceId: null, // Will update after sale save
+                type: (type || 'RETAIL').toUpperCase() === 'EXCHANGE' && item.quantity < 0
+                    ? StockMovementType.RETURN
+                    : StockMovementType.SALE,
                 referenceModel: 'Sale',
-                performedBy: cashierId,
                 notes: `Sale ${saleNumber} ${(type || 'RETAIL').toUpperCase() === 'EXCHANGE' && item.quantity < 0 ? '(Exchange Return)' : ''}`,
-                session
             });
-
-            // Update quantitySold atomically (returns decrease sold quantity).
-            await StoreInventory.updateOne(
-                { storeId, productId },
-                { $inc: { quantitySold: item.quantity } },
-                { session }
-            );
             
             calculatedSubTotal += taxableAmount;
         }
@@ -187,23 +179,14 @@ const createSale = async (saleData, cashierId) => {
                 if (redeemPoints < MIN_REDEEM_POINTS) {
                     throw new Error(`Minimum ${MIN_REDEEM_POINTS} points required for redemption`);
                 }
-                if (customer.loyaltyPoints < redeemPoints) {
+                if (customer.loyaltyPoints < (Number(redeemPoints) || 0)) {
                     throw new Error('Insufficient loyalty points');
                 }
 
-                loyaltyRedemptionAmount = redeemPoints * LOYALTY_POINT_VALUE;
-                customer.loyaltyPoints -= redeemPoints;
-                customer.totalRedeemed += redeemPoints;
+                loyaltyRedemptionAmount = Number(redeemPoints) * LOYALTY_POINT_VALUE;
+                customer.loyaltyPoints -= Number(redeemPoints);
+                customer.totalRedeemed += Number(redeemPoints);
                 await customer.save({ session });
-
-                await LoyaltyTransaction.create([{
-                    customerId,
-                    type: LoyaltyType.REDEEM,
-                    points: redeemPoints,
-                    referenceNumber: saleNumber,
-                    createdBy: cashierId,
-                    date: Date.now()
-                }], { session });
             }
         }
 
@@ -235,7 +218,7 @@ const createSale = async (saleData, cashierId) => {
         const subTotalCalculated = products.reduce((sum, p) => sum + (p.price * p.quantity), 0);
         const grandTotalCalculated = subTotalCalculated + totalTax - (discount || 0) - loyaltyRedemptionAmount - creditNoteAppliedAmount;
 
-        const amountPaid = toNumber(saleData.amountPaid);
+        const amountPaid = Number(saleData.amountPaid || 0);
         const dueAmount = grandTotalCalculated - amountPaid;
 
         // 5. Save Sale Record
@@ -248,14 +231,14 @@ const createSale = async (saleData, cashierId) => {
             parentSaleId,
             products: products.map(p => ({
                 ...p,
-                total: (p.price * p.quantity) // The per-item tax calculation is complex and usually handled by the overall totalTax.
+                total: (p.price * p.quantity) 
             })),
             subTotal: subTotalCalculated,
             discount,
             loyaltyRedeemed: loyaltyRedemptionAmount,
             creditNoteId,
             creditNoteApplied: creditNoteAppliedAmount,
-            tax: totalTax, // Use the calculated totalTax
+            tax: totalTax, 
             taxBreakup: {
                 cgst: totalCGST,
                 sgst: totalSGST,
@@ -271,8 +254,45 @@ const createSale = async (saleData, cashierId) => {
         });
         await sale.save({ session });
 
+        // Now that the sale has an id, post all stock movements against it.
+        for (const movement of stockMovements) {
+            await adjustStoreStock({
+                productId: movement.productId,
+                variantId: movement.variantId,
+                storeId: movement.storeId,
+                quantityChange: movement.quantityChange,
+                type: movement.type,
+                referenceId: sale._id,
+                referenceModel: movement.referenceModel,
+                performedBy: cashierId,
+                notes: movement.notes,
+                session
+            });
+
+            await StoreInventory.updateOne(
+                { storeId, productId: movement.productId },
+                { $inc: { quantitySold: movement.quantityChange < 0 ? Math.abs(movement.quantityChange) : -movement.quantityChange } },
+                { session }
+            );
+        }
+
+        // Record Loyalty Transactions (both Redeem and Earn)
+        if (customerId) {
+            if (sale.loyaltyRedeemed > 0) {
+                await LoyaltyTransaction.create([{
+                    customerId,
+                    saleId: sale._id,
+                    type: LoyaltyType.REDEEM,
+                    points: Number(redeemPoints),
+                    referenceNumber: saleNumber,
+                    createdBy: cashierId,
+                    date: Date.now()
+                }], { session });
+            }
+        }
+
         // Log workflow transition from STOCK to SALE
-        await workflowService.updateStatus(sale._id, DocumentType.SALE, 'STOCK_UPDATE', SaleStatus.COMPLETED, cashierId, `Created Sale ${saleNumber}`);
+        await workflowService.updateStatus(sale._id, DocumentType.SALE, 'STOCK_UPDATE', sale.status, cashierId, `Created Sale ${saleNumber}`);
 
         // 3.1 Earn Points for Customer
         if (customer) {
@@ -357,18 +377,26 @@ const createSale = async (saleData, cashierId) => {
 
             // 5.2. Add Loyalty Redemption entry
             if (loyaltyRedemptionAmount > 0) {
-                const loyaltyAccount = await Account.findOne({ name: 'Loyalty Expense' }).session(session);
-                if (loyaltyAccount) {
-                    entries.push({
-                        voucherType: 'SALE',
-                        voucherId: sale._id,
-                        accountId: loyaltyAccount._id,
-                        debit: loyaltyRedemptionAmount,
-                        credit: 0,
-                        narration: `Loyalty Redemption ${sale.saleNumber}`,
-                        createdBy: cashierId
-                    });
+                let loyaltyAccount = await Account.findOne({ name: 'Loyalty Expense' }).session(session);
+                if (!loyaltyAccount) {
+                    const [newAcc] = await Account.create([{
+                        name: 'Loyalty Expense',
+                        type: 'EXPENSE',
+                        code: 'LOYALTY_EXP',
+                        isSystem: true
+                    }], { session });
+                    loyaltyAccount = newAcc;
                 }
+                
+                entries.push({
+                    voucherType: 'SALE',
+                    voucherId: sale._id,
+                    accountId: loyaltyAccount._id,
+                    debit: loyaltyRedemptionAmount,
+                    credit: 0,
+                    narration: `Loyalty Redemption ${sale.saleNumber}`,
+                    createdBy: cashierId
+                });
             }
             // 5.3. Add Credit Note Control entry
             if (creditNoteAppliedAmount > 0) {
@@ -402,9 +430,42 @@ const createSale = async (saleData, cashierId) => {
             }
 
             await ledgerService.createJournalEntries(entries, session);
-        } else {
-            console.error(`Missing accounting accounts for Sale ${sale.saleNumber}. Sales Account: ${!!salesAccount}, Receivable: ${!!receivableAccount}`);
-        }
+
+            // 5.4. Add Payment Receipt entry if paid immediately
+            if (sale.amountPaid > 0) {
+                const cashAccount = await Account.findOne({ name: 'Cash Account' }).session(session);
+                const bankAccount = await Account.findOne({ name: 'Bank Account' }).session(session);
+                
+                // Determine account based on paymentMode
+                let paymentAccount = cashAccount;
+                if (['CARD', 'UPI'].includes(sale.paymentMode)) {
+                    paymentAccount = bankAccount;
+                }
+
+                if (paymentAccount && receivableAccount) {
+                    await ledgerService.createJournalEntries([
+                        {
+                            voucherType: sale.paymentMode === 'CASH' ? 'CASH_RECEIPT' : 'BANK_RECEIPT',
+                            voucherId: sale._id,
+                            accountId: paymentAccount._id,
+                            debit: sale.amountPaid,
+                            credit: 0,
+                            narration: `Payment received for Sale ${sale.saleNumber}`,
+                            createdBy: cashierId
+                        },
+                        {
+                            voucherType: sale.paymentMode === 'CASH' ? 'CASH_RECEIPT' : 'BANK_RECEIPT',
+                            voucherId: sale._id,
+                            accountId: receivableAccount._id,
+                            debit: 0,
+                            credit: sale.amountPaid,
+                            narration: `Payment received for Sale ${sale.saleNumber}`,
+                            createdBy: cashierId
+                        }
+                    ], session);
+                }
+            }
+        } 
 
         return sale;
     });
@@ -494,7 +555,7 @@ const cancelSale = async (id, userId) => {
                 variantId: item.productId,
                 storeId: sale.storeId,
                 quantityChange: item.quantity,
-                type: StockHistoryType.SALE,
+                type: StockMovementType.RETURN,
                 referenceId: sale._id,
                 referenceModel: 'Sale',
                 performedBy: userId,
@@ -517,7 +578,7 @@ const cancelSale = async (id, userId) => {
                 // Claw back earned points
                 const pointsToClawback = Math.floor(sale.grandTotal / LOYALTY_EARNING_RATIO);
                 if (pointsToClawback > 0) {
-                    customer.points -= pointsToClawback;
+                    customer.loyaltyPoints -= pointsToClawback;
                     customer.totalEarned -= pointsToClawback;
 
                     await LoyaltyTransaction.create([{
@@ -534,7 +595,7 @@ const cancelSale = async (id, userId) => {
                 // Restore redeemed points if any
                 if (sale.loyaltyRedeemed > 0) {
                     const pointsRestored = sale.loyaltyRedeemed / LOYALTY_POINT_VALUE;
-                    customer.points += pointsRestored;
+                    customer.loyaltyPoints += pointsRestored;
                     customer.totalRedeemed -= pointsRestored;
 
                     await LoyaltyTransaction.create([{
@@ -634,10 +695,102 @@ const cancelSale = async (id, userId) => {
     });
 };
 
+/**
+ * Apply a Credit Note against an existing sale's dueAmount.
+ */
+const applyCreditNote = async (saleId, creditNoteId, userId) => {
+    return await withTransaction(async (session) => {
+        // 1. Load sale
+        const sale = await Sale.findById(saleId).session(session);
+        if (!sale || sale.isDeleted) throw new Error('Sale not found');
+        if (sale.dueAmount <= 0) throw new Error('Sale has no outstanding due amount');
+
+        // 2. Load & validate credit note
+        const creditNote = await CreditNote.findById(creditNoteId).session(session);
+        if (!creditNote) throw new Error('Credit note not found');
+        if (creditNote.status !== CreditNoteStatus.ACTIVE) throw new Error('Credit note is not active');
+        if (creditNote.customerId.toString() !== (sale.customerId || '').toString()) {
+            throw new Error('Credit note does not belong to the customer on this sale');
+        }
+        if (creditNote.remainingAmount <= 0) throw new Error('Credit note has zero remaining balance');
+
+        // 3. Calculate amount to apply (min of remaining and due)
+        const applyAmount = Math.min(creditNote.remainingAmount, sale.dueAmount);
+        const applyAmountFixed = Number(applyAmount.toFixed(2));
+
+        // 4. Update sale
+        sale.dueAmount = Number((sale.dueAmount - applyAmountFixed).toFixed(2));
+        sale.creditNoteApplied = Number(((sale.creditNoteApplied || 0) + applyAmountFixed).toFixed(2));
+        sale.creditNoteId = sale.creditNoteId || creditNoteId; 
+        if (sale.dueAmount <= 0) sale.status = SaleStatus.COMPLETED;
+        await sale.save({ session });
+
+        // 5. Drain credit note
+        creditNote.remainingAmount = Number((creditNote.remainingAmount - applyAmountFixed).toFixed(2));
+        if (creditNote.remainingAmount <= 0) {
+            creditNote.remainingAmount = 0;
+            creditNote.status = CreditNoteStatus.USED;
+        }
+        await creditNote.save({ session });
+
+        // 6. Post ledger entries 
+        const receivableAccount = await Account.findOne({ name: 'Accounts Receivable' }).session(session);
+        let creditNoteAccount = await Account.findOne({ name: 'Credit Note Control' }).session(session);
+
+        if (!creditNoteAccount) {
+            const [newAcc] = await Account.create([{
+                name: 'Credit Note Control',
+                type: 'LIABILITY',
+                code: 'CREDIT_NOTE_CTRL',
+                isSystem: true
+            }], { session });
+            creditNoteAccount = newAcc;
+        }
+
+        const ledgerEntries = [];
+        if (receivableAccount) {
+            ledgerEntries.push({
+                voucherType: 'CREDIT_NOTE',
+                voucherId: sale._id,
+                accountId: receivableAccount._id,
+                debit: 0,
+                credit: applyAmountFixed,
+                narration: `Credit Note ${creditNote.creditNoteNumber} applied on ${sale.saleNumber}`,
+                createdBy: userId
+            });
+        }
+        if (creditNoteAccount) {
+            ledgerEntries.push({
+                voucherType: 'CREDIT_NOTE',
+                voucherId: sale._id,
+                accountId: creditNoteAccount._id,
+                debit: applyAmountFixed,
+                credit: 0,
+                narration: `Credit Note ${creditNote.creditNoteNumber} applied on ${sale.saleNumber}`,
+                createdBy: userId
+            });
+        }
+        if (ledgerEntries.length > 0) {
+            await ledgerService.createJournalEntries(ledgerEntries, session);
+        }
+
+        return {
+            saleId: sale._id,
+            saleNumber: sale.saleNumber,
+            creditNoteNumber: creditNote.creditNoteNumber,
+            amountApplied: applyAmountFixed,
+            remainingDue: sale.dueAmount,
+            creditNoteRemainingBalance: creditNote.remainingAmount,
+            creditNoteStatus: creditNote.status
+        };
+    });
+};
+
 module.exports = {
     getProductForSale,
     createSale,
     getAllSales,
     getSaleById,
-    cancelSale
+    cancelSale,
+    applyCreditNote
 };

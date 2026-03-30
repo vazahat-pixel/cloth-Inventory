@@ -1,5 +1,5 @@
  const mongoose = require('mongoose');
-const { PurchaseStatus } = require('../core/enums');
+const { PurchaseStatus, GrnStatus } = require('../core/enums');
 
 const purchaseSchema = new mongoose.Schema(
     {
@@ -64,6 +64,14 @@ const purchaseSchema = new mongoose.Schema(
                 total: {
                     type: Number,
                     required: true
+                },
+                lotNumber: {
+                    type: String,
+                    trim: true
+                },
+                batchNo: {
+                    type: String,
+                    default: 'DEFAULT'
                 }
             }
         ],
@@ -90,7 +98,17 @@ const purchaseSchema = new mongoose.Schema(
         status: {
             type: String,
             enum: Object.values(PurchaseStatus),
-            default: PurchaseStatus.COMPLETED
+            default: PurchaseStatus.DRAFT
+        },
+        grnStatus: {
+            type: String,
+            enum: Object.values(GrnStatus),
+            default: GrnStatus.DRAFT
+        },
+        purchaseOrderId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'PurchaseOrder',
+            required: false // Optional if direct purchase
         },
         createdBy: {
             type: mongoose.Schema.Types.ObjectId,

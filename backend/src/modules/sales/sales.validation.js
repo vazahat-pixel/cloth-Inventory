@@ -28,6 +28,14 @@ const createSaleValidation = [
     body('subTotal').notEmpty().withMessage('Subtotal is required'),
     body('grandTotal').notEmpty().withMessage('Grand total is required'),
     
+    body('customerId')
+        .optional({ checkFalsy: true })
+        .isMongoId().withMessage('Invalid Customer ID'),
+        
+    body('redeemPoints')
+        .optional()
+        .isInt({ min: 0 }).withMessage('Redeem points must be a non-negative integer'),
+    
     body('paymentMode')
         .optional()
         .isIn(['CASH', 'CARD', 'UPI', 'GIFT_VOUCHER', 'SPLIT']).withMessage('Invalid payment mode'),

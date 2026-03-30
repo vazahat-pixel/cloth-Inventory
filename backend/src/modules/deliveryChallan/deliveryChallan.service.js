@@ -3,7 +3,7 @@ const { removeStock } = require('../../services/stock.service');
 const { withTransaction } = require('../../services/transaction.service');
 const { getNextSequence } = require('../../services/sequence.service');
 const workflowService = require('../workflow/workflow.service');
-const { DocumentType } = require('../../core/enums');
+const { DocumentType, StockMovementType } = require('../../core/enums');
 
 const generateChallanNumber = async (session = null) => {
     const year = new Date().getFullYear();
@@ -22,22 +22,6 @@ const createChallan = async (challanData, userId) => {
     return await withTransaction(async (session) => {
         const dcNumber = await generateChallanNumber(session);
 
-        // 1. REDUCE PHYSICAL STOCK
-        for (const item of challanData.items) {
-            await removeStock({
-                variantId: item.productId, // In this model referenced as productId but mapped to variant
-                locationId: challanData.storeId,
-                locationType: 'STORE',
-                qty: item.quantity,
-                type: 'SALE', // Logic ERP usually tracks this as OUT for Challan
-                referenceId: null,
-                referenceType: 'DeliveryChallan',
-                performedBy: userId,
-                session
-            });
-        }
-
-        // 2. SAVE CHALLAN
         const challan = new DeliveryChallan({
             ...challanData,
             dcNumber,
@@ -46,6 +30,21 @@ const createChallan = async (challanData, userId) => {
         });
 
         await challan.save({ session });
+
+        // 1. REDUCE PHYSICAL STOCK
+        for (const item of challanData.items) {
+            await removeStock({
+                variantId: item.productId, // In this model referenced as productId but mapped to variant
+                locationId: challanData.storeId,
+                locationType: 'STORE',
+                qty: item.quantity,
+                type: StockMovementType.TRANSFER,
+                referenceId: challan._id,
+                referenceType: 'DeliveryChallan',
+                performedBy: userId,
+                session
+            });
+        }
         
         // Update workflow
         await workflowService.updateStatus(challan._id, DocumentType.SALE, null, 'SENT', userId, `Challan ${dcNumber} issued for shipment`);

@@ -10,6 +10,7 @@ const baseSupplierFields = [
   { name: 'email', label: 'Email', type: 'email', required: true },
   { name: 'address', label: 'Address', multiline: true, minRows: 2, required: true },
   { name: 'bankDetails', label: 'Bank Details', required: true },
+  { name: 'notes', label: 'Notes', multiline: true, minRows: 2 },
   {
     name: 'status',
     label: 'Status',

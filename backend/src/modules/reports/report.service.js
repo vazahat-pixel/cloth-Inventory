@@ -7,6 +7,7 @@ const Account = require('../../models/account.model');
 const Ledger = require('../../models/ledger.model');
 const Purchase = require('../../models/purchase.model');
 const WarehouseInventory = require('../../models/warehouseInventory.model');
+const StockMovement = require('../../models/stockMovement.model');
 
 /**
  * Daily Sales Report
@@ -482,13 +483,18 @@ const getBalanceSheet = async (asOfDate) => {
 const getStockHistory = async (query = {}) => {
     const { productId, type, storeId } = query;
     const filter = {};
-    if (productId) filter.productId = productId;
+    if (productId) filter.variantId = productId;
     if (type) filter.type = type;
-    if (storeId) filter.storeId = storeId;
+    if (storeId) {
+        filter.$or = [
+            { fromLocation: storeId },
+            { toLocation: storeId }
+        ];
+    }
 
-    return await require('../../models/stockHistory.model').find(filter)
+    return await StockMovement.find(filter)
         .sort({ createdAt: -1 })
-        .populate('productId', 'name sku')
+        .populate('variantId', 'name sku')
         .populate('performedBy', 'name')
         .limit(100);
 };
@@ -759,13 +765,21 @@ const getMovementReport = async (startDate, endDate, variantId) => {
         {
             $project: {
                 date: "$createdAt",
+                itemName: "$product.name",
                 productName: "$product.name",
                 sku: "$product.sku",
+                styleCode: "$product.sku",
+                size: "$product.size",
+                color: "$product.color",
                 qty: 1,
+                quantityChange: "$qty",
                 type: 1,
                 fromLocation: 1,
                 toLocation: 1,
-                performedBy: "$user.name"
+                warehouseId: { $ifNull: ["$fromLocation", "$toLocation"] },
+                reference: "$referenceType",
+                performedBy: "$user.name",
+                user: "$user.name"
             }
         },
         { $sort: { date: -1 } }

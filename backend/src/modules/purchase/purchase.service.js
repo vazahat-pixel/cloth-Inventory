@@ -4,49 +4,38 @@ const Supplier = require('../../models/supplier.model');
 const Account = require('../../models/account.model');
 const GstSlab = require('../../models/gstSlab.model');
 const { calculateGST } = require('../../services/gst.service');
-const { adjustWarehouseStock } = require('../../services/stock.service');
+const { addStock, removeStock } = require('../../services/stock.service');
 const { createJournalEntries } = require('../../services/ledger.service');
 const { withTransaction } = require('../../services/transaction.service');
 const { getNextSequence } = require('../../services/sequence.service');
-const { PurchaseStatus, StockHistoryType, DocumentType } = require('../../core/enums');
+const { PurchaseStatus, StockMovementType, DocumentType, GrnStatus, PurchaseOrderStatus } = require('../../core/enums');
 const workflowService = require('../workflow/workflow.service');
 const { createAuditLog } = require('../../middlewares/audit.middleware');
+const barcodeService = require('../../services/barcode.service');
+const PurchaseOrder = require('../../models/purchaseOrder.model');
+
+const toNumber = (v) => Number(v) || 0;
 
 const createPurchase = async (purchaseData, userId) => {
     return await withTransaction(async (session) => {
-        // Handle field name variations between frontend and backend
-        // Handle field name variations between frontend and backend
         const items = purchaseData.products || [];
-        const storeId = purchaseData.warehouseId;
+        const storeId = purchaseData.storeId || purchaseData.warehouseId;
         const invoiceNumber = (purchaseData.invoiceNumber || '').trim();
         const invoiceDate = purchaseData.invoiceDate;
-        const notes = purchaseData.notes || '';
         const { supplierId } = purchaseData;
 
-        // 1. Validate Supplier
         const supplier = await Supplier.findOne({ _id: supplierId, isDeleted: false, isActive: true }).session(session);
         if (!supplier) throw new Error('Supplier not found or inactive');
 
-        // 2. Validate Store/Warehouse (if provided)
-        let store;
-        if (storeId) {
-            const Store = require('../../models/store.model');
-            store = await Store.findOne({ _id: storeId, isDeleted: false, isActive: true }).session(session);
-            if (!store) throw new Error('Warehouse not found or inactive');
-        }
-
-        // 3. Generate Purchase Number
         const year = new Date().getFullYear();
         const seq = await getNextSequence(`PURCHASE_${year}`, session);
         const purchaseNumber = `PUR-${year}-${seq.toString().padStart(6, '0')}`;
 
-        // 3. Initialize totals
         let subTotal = 0;
         let totalTax = 0;
         const otherCharges = toNumber(purchaseData.otherCharges);
         const processedProducts = [];
 
-        // 4. Process items
         for (const item of items) {
             const product = await Product.findById(item.productId).session(session);
             if (!product) throw new Error(`Product ${item.productId} not found`);
@@ -55,28 +44,18 @@ const createPurchase = async (purchaseData, userId) => {
             const rate = toNumber(item.rate);
             const discPercent = toNumber(item.discountPercentage);
             
-            // Calculate taxable amount after line-item discount
             const grossValue = rate * quantity;
             const discountAmount = (grossValue * discPercent) / 100;
             const taxableAmount = grossValue - discountAmount;
 
             let taxPercent = toNumber(item.taxPercentage);
-            let taxAmount = 0;
-
-            // If taxPercent is 0 or not provided, try to fetch from Slab (Default Logic)
-            // But if it's explicitly provided (Override), we use it.
             if (taxPercent === 0 && product.gstSlabId) {
                 const slab = await GstSlab.findById(product.gstSlabId).session(session);
-                if (slab) {
-                    taxPercent = slab.percentage;
-                }
+                if (slab) taxPercent = slab.percentage;
             }
 
-            // Calculate GST
             const gstData = calculateGST(taxableAmount, taxPercent);
-            taxAmount = gstData.totalTax;
-
-            const total = taxableAmount + taxAmount;
+            const total = taxableAmount + gstData.totalTax;
 
             processedProducts.push({
                 productId: item.productId,
@@ -86,17 +65,18 @@ const createPurchase = async (purchaseData, userId) => {
                 taxPercentage: taxPercent,
                 taxableAmount,
                 gstPercent: taxPercent,
-                gstAmount: taxAmount,
-                total
+                gstAmount: gstData.totalTax,
+                total,
+                lotNumber: item.lotNumber || '',
+                batchNo: item.batchNo || 'DEFAULT'
             });
 
             subTotal += taxableAmount;
-            totalTax += taxAmount;
+            totalTax += gstData.totalTax;
         }
 
         const grandTotal = subTotal + totalTax + otherCharges;
 
-        // 6. Save Purchase Record
         const purchase = new Purchase({
             purchaseNumber,
             supplierId,
@@ -108,52 +88,93 @@ const createPurchase = async (purchaseData, userId) => {
             totalTax,
             otherCharges,
             grandTotal,
-            finalAmount: grandTotal, // for now, matches grandTotal
-            status: PurchaseStatus.PENDING_QC,
+            status: PurchaseStatus.DRAFT,
+            grnStatus: 'DRAFT',
             createdBy: userId,
-            notes
+            notes: purchaseData.notes || ''
         });
 
         await purchase.save({ session });
 
-        // Audit Logging
         await createAuditLog({
             action: 'CREATE_PURCHASE',
             module: 'PURCHASE',
             performedBy: userId,
             targetId: purchase._id,
             targetModel: 'Purchase',
-            before: null,
-            after: purchase.toObject(),
             session
         });
 
-        // Workflow logging
-        await workflowService.updateStatus(purchase._id, DocumentType.PURCHASE, null, PurchaseStatus.PENDING_QC, userId, `Created Purchase ${purchaseNumber} - Pending QC`);
+        return purchase;
+    });
+};
 
-        // 7. Ledger integration
+const approveGRN = async (purchaseId, userId) => {
+    return await withTransaction(async (session) => {
+        const purchase = await Purchase.findById(purchaseId).session(session);
+        if (!purchase) throw new Error('Purchase record not found');
+        if (purchase.grnStatus === 'APPROVED') throw new Error('GRN already approved');
+
+        for (const item of purchase.products) {
+            await addStock({
+                variantId: item.productId,
+                locationId: purchase.storeId, 
+                locationType: 'STORE',
+                qty: item.quantity,
+                type: 'PURCHASE',
+                referenceId: purchase._id,
+                referenceType: 'GRN',
+                performedBy: userId,
+                session
+            });
+        }
+
+        // Generate Barcodes ONLY after GRN is approved
+        await barcodeService.createBarcodesForGrn(purchase, userId, session);
+
+        purchase.grnStatus = GrnStatus.APPROVED;
+        purchase.status = PurchaseStatus.COMPLETED;
+        await purchase.save({ session });
+
+        // Update PO Status if present
+        if (purchase.purchaseOrderId) {
+            const po = await PurchaseOrder.findById(purchase.purchaseOrderId).session(session);
+            if (po) {
+                let allReceived = true;
+                for (const item of purchase.products) {
+                    const poItem = po.items.find(i => i.productId.toString() === item.productId.toString());
+                    if (poItem) {
+                        poItem.receivedQty = (poItem.receivedQty || 0) + item.quantity;
+                        if (poItem.receivedQty < poItem.qty) allReceived = false;
+                    }
+                }
+                if (allReceived) po.status = PurchaseOrderStatus.COMPLETED;
+                else po.status = PurchaseOrderStatus.PENDING;
+                await po.save({ session });
+            }
+        }
+
+        await createAuditLog({
+            action: 'APPROVE_GRN',
+            module: 'GRN',
+            performedBy: userId,
+            details: { purchaseNumber: purchase.purchaseNumber, supplierId: purchase.supplierId },
+            session
+        });
+
+        // Accounting Trigger
         const inventoryAccount = await Account.findOne({ name: 'Inventory Account' }).session(session);
-        const gstReceivableAccount = await Account.findOne({ name: 'GST Receivable' }).session(session);
         const payableAccount = await Account.findOne({ name: 'Accounts Payable' }).session(session);
 
-        if (inventoryAccount && gstReceivableAccount && payableAccount) {
+        if (inventoryAccount && payableAccount) {
             await createJournalEntries([
                 {
                     voucherType: 'PURCHASE',
                     voucherId: purchase._id,
                     accountId: inventoryAccount._id,
-                    debit: subTotal,
+                    debit: purchase.subTotal,
                     credit: 0,
-                    narration: `Purchase ${purchaseNumber}`,
-                    createdBy: userId
-                },
-                {
-                    voucherType: 'PURCHASE',
-                    voucherId: purchase._id,
-                    accountId: gstReceivableAccount._id,
-                    debit: totalTax,
-                    credit: 0,
-                    narration: `GST on Purchase ${purchaseNumber}`,
+                    narration: `Purchase ${purchase.purchaseNumber} Approved`,
                     createdBy: userId
                 },
                 {
@@ -161,13 +182,11 @@ const createPurchase = async (purchaseData, userId) => {
                     voucherId: purchase._id,
                     accountId: payableAccount._id,
                     debit: 0,
-                    credit: grandTotal,
-                    narration: `Purchase ${purchaseNumber}`,
+                    credit: purchase.grandTotal,
+                    narration: `Purchase ${purchase.purchaseNumber} Approved`,
                     createdBy: userId
                 }
             ], session);
-        } else {
-            console.error(`Missing accounting accounts for Purchase ${purchaseNumber}. Inventory: ${!!inventoryAccount}, GST: ${!!gstReceivableAccount}, Payable: ${!!payableAccount}`);
         }
 
         return purchase;
@@ -180,95 +199,44 @@ const cancelPurchase = async (purchaseId, userId) => {
         if (!purchase) throw new Error('Purchase record not found');
         if (purchase.status === PurchaseStatus.CANCELLED) throw new Error('Purchase already cancelled');
 
-        // 1. Reverse Stock
-        for (const item of purchase.products) {
-            await adjustWarehouseStock({
-                productId: item.productId,
-                warehouseId: purchase.storeId, // storeId is treated as warehouseId
-                quantityChange: -item.quantity,
-                type: StockHistoryType.OUT,
-                referenceId: purchase._id,
-                referenceModel: 'Purchase',
-                performedBy: userId,
-                notes: `Reversal of purchase ${purchase.purchaseNumber}`,
-                session
-            });
+        if (purchase.grnStatus === 'APPROVED') {
+            for (const item of purchase.products) {
+                await removeStock({
+                    variantId: item.productId,
+                    locationId: purchase.storeId,
+                    locationType: 'STORE',
+                    qty: item.quantity,
+                    type: 'RETURN',
+                    referenceId: purchase._id,
+                    referenceType: 'Purchase',
+                    performedBy: userId,
+                    session
+                });
+            }
         }
 
-        // 2. Reverse Ledger Entries
-        const inventoryAccount = await Account.findOne({ name: 'Inventory Account' }).session(session);
-        const gstReceivableAccount = await Account.findOne({ name: 'GST Receivable' }).session(session);
-        const payableAccount = await Account.findOne({ name: 'Accounts Payable' }).session(session);
-
-        if (inventoryAccount && gstReceivableAccount && payableAccount) {
-            await createJournalEntries([
-                {
-                    voucherType: 'PURCHASE',
-                    voucherId: purchase._id,
-                    accountId: inventoryAccount._id,
-                    debit: 0,
-                    credit: purchase.subTotal,
-                    narration: `Reversal of purchase ${purchase.purchaseNumber}`,
-                    createdBy: userId
-                },
-                {
-                    voucherType: 'PURCHASE',
-                    voucherId: purchase._id,
-                    accountId: gstReceivableAccount._id,
-                    debit: 0,
-                    credit: purchase.totalTax,
-                    narration: `Reversal GST on purchase ${purchase.purchaseNumber}`,
-                    createdBy: userId
-                },
-                {
-                    voucherType: 'PURCHASE',
-                    voucherId: purchase._id,
-                    accountId: payableAccount._id,
-                    debit: purchase.grandTotal,
-                    credit: 0,
-                    narration: `Reversal of purchase ${purchase.purchaseNumber}`,
-                    createdBy: userId
-                }
-            ], session);
-        }
-
-        // 3. Update Status
         purchase.status = PurchaseStatus.CANCELLED;
         await purchase.save({ session });
-
         return purchase;
     });
 };
 
 const getAllPurchases = async (query) => {
-    const { page = 1, limit = 10, supplierId, storeId, startDate, endDate, status } = query;
+    const { page = 1, limit = 10, supplierId, storeId, status } = query;
     const filter = {};
-
     if (supplierId) filter.supplierId = supplierId;
     if (storeId) filter.storeId = storeId;
     if (status) filter.status = status;
 
-    if (startDate || endDate) {
-        filter.invoiceDate = {};
-        if (startDate) filter.invoiceDate.$gte = new Date(startDate);
-        if (endDate) {
-            const end = new Date(endDate);
-            end.setHours(23, 59, 59, 999);
-            filter.invoiceDate.$lte = end;
-        }
-    }
-
     const skip = (page - 1) * limit;
-
     const [purchases, total] = await Promise.all([
         Purchase.find(filter)
-            .sort({ invoiceDate: -1, createdAt: -1 })
+            .sort({ createdAt: -1 })
             .skip(skip)
             .limit(parseInt(limit))
-            .populate('supplierId', 'name contactPerson')
+            .populate('supplierId', 'name')
             .populate('storeId', 'name')
-            .populate('products.productId', 'name sku barcode size color category')
-            .populate('createdBy', 'name'),
+            .populate('products.productId', 'name barcode'),
         Purchase.countDocuments(filter)
     ]);
 
@@ -276,17 +244,12 @@ const getAllPurchases = async (query) => {
 };
 
 const getPurchaseById = async (id) => {
-    const purchase = await Purchase.findById(id)
-        .populate('supplierId')
-        .populate('storeId')
-        .populate('products.productId')
-        .populate('createdBy', 'name');
-    if (!purchase) throw new Error('Purchase record not found');
-    return purchase;
+    return await Purchase.findById(id).populate('supplierId storeId products.productId');
 };
 
 module.exports = {
     createPurchase,
+    approveGRN,
     cancelPurchase,
     getAllPurchases,
     getPurchaseById

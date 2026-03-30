@@ -41,6 +41,27 @@ const grnSchema = new mongoose.Schema(
             ref: 'Purchase',
             required: true
         },
+        supplierId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Supplier',
+            required: true
+        },
+        warehouseId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Warehouse',
+            required: true
+        },
+        invoiceNumber: {
+            type: String,
+            trim: true
+        },
+        invoiceDate: {
+            type: Date
+        },
+        remarks: {
+            type: String,
+            trim: true
+        },
         items: [grnItemSchema],
         status: {
             type: String,

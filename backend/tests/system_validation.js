@@ -366,7 +366,7 @@ const run = async () => {
             headers: { Authorization: `Bearer ${state.adminToken}` }
         });
         const historyCount = historyRes.data.history?.length || 0;
-        console.log('Total StockHistory entries:', historyCount);
+        console.log('Total StockMovement entries:', historyCount);
         if (historyCount > 0) {
             success(`Stock history entries verified: ${historyCount}`);
         } else {

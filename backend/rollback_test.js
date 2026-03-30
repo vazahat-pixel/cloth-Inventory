@@ -2,64 +2,81 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const { withTransaction } = require('./src/services/transaction.service');
 const Product = require('./src/models/product.model');
-const { StockHistoryType } = require('./src/core/enums');
-const { adjustStock } = require('./src/services/stock.service');
+const Warehouse = require('./src/models/warehouse.model');
+const WarehouseInventory = require('./src/models/warehouseInventory.model');
+const { StockMovementType } = require('./src/core/enums');
+const { adjustWarehouseStock } = require('./src/services/stock.service');
 
 const testRollback = async () => {
     try {
         await mongoose.connect(process.env.MONGODB_URI);
-        console.log("Connected to MongoDB");
+        console.log('Connected to MongoDB');
 
-        // 1. Get a product
         const product = await Product.findOne({ isDeleted: false });
         if (!product) {
-            console.log("No product found to test with");
+            console.log('No product found to test with');
             return;
         }
 
-        const initialStock = product.factoryStock;
+        const warehouse = await Warehouse.findOne({ isDeleted: false, isActive: true });
+        if (!warehouse) {
+            console.log('No warehouse found to test with');
+            return;
+        }
+
+        const initialInventory = await WarehouseInventory.findOne({
+            warehouseId: warehouse._id,
+            productId: product._id,
+        });
+        const initialStock = initialInventory ? initialInventory.quantity : 0;
         console.log(`Initial Stock: ${initialStock}`);
 
-        // 2. Run transaction that fails midway
         try {
             await withTransaction(async (session) => {
-                console.log("Starting transaction...");
+                console.log('Starting transaction...');
 
-                // Adjust stock
-                await adjustStock({
+                await adjustWarehouseStock({
                     productId: product._id,
+                    warehouseId: warehouse._id,
                     quantityChange: 10,
-                    type: StockHistoryType.ADJUSTMENT,
-                    performedBy: product._id, // dummy
-                    notes: "Rollback Test",
-                    session
+                    type: StockMovementType.ADJUSTMENT,
+                    referenceId: new mongoose.Types.ObjectId(),
+                    referenceModel: 'Adjustment',
+                    performedBy: product._id,
+                    notes: 'Rollback Test',
+                    session,
                 });
 
-                const updatedProduct = await Product.findById(product._id).session(session);
-                console.log(`Stock inside transaction: ${updatedProduct.factoryStock}`);
+                const updatedInventory = await WarehouseInventory.findOne({
+                    warehouseId: warehouse._id,
+                    productId: product._id,
+                }).session(session);
+                console.log(`Stock inside transaction: ${updatedInventory ? updatedInventory.quantity : 0}`);
 
-                throw new Error("FAIL_INTENTIONAL");
+                throw new Error('FAIL_INTENTIONAL');
             });
         } catch (err) {
-            if (err.message === "FAIL_INTENTIONAL") {
-                console.log("Caught intentional failure.");
+            if (err.message === 'FAIL_INTENTIONAL') {
+                console.log('Caught intentional failure.');
             } else {
                 throw err;
             }
         }
 
-        // 3. Verify stock is back to initial
-        const finalProduct = await Product.findById(product._id);
-        console.log(`Final Stock after rollback: ${finalProduct.factoryStock}`);
+        const finalInventory = await WarehouseInventory.findOne({
+            warehouseId: warehouse._id,
+            productId: product._id,
+        });
+        const finalStock = finalInventory ? finalInventory.quantity : 0;
+        console.log(`Final Stock after rollback: ${finalStock}`);
 
-        if (finalProduct.factoryStock === initialStock) {
-            console.log("✅ SUCCESS: Transaction rolled back correctly.");
+        if (finalStock === initialStock) {
+            console.log('SUCCESS: Transaction rolled back correctly.');
         } else {
-            console.error("❌ FAILURE: Transaction did NOT roll back.");
+            console.error('FAILURE: Transaction did NOT roll back.');
         }
-
     } catch (err) {
-        console.error("Test Error:", err);
+        console.error('Test Error:', err);
     } finally {
         await mongoose.disconnect();
     }

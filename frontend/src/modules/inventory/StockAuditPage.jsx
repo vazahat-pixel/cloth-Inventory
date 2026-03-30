@@ -33,7 +33,7 @@ function StockAuditPage({
   pageDescription = 'Verify physical quantity against system stock and apply audit corrections.',
 }) {
   const dispatch = useDispatch();
-  const warehouses = useSelector((state) => state.masters.warehouses || []);
+  const stores = useSelector((state) => state.masters.stores || []);
   const stockRows = useSelector((state) => state.inventory.stock || []);
   const audits = useSelector((state) => state.inventory.audits || []);
 
@@ -46,7 +46,7 @@ function StockAuditPage({
   const [resultMessage, setResultMessage] = useState('');
 
   useEffect(() => {
-    dispatch(fetchMasters('warehouses'));
+    dispatch(fetchMasters('stores'));
     dispatch(fetchStockOverview());
   }, [dispatch]);
 
@@ -60,7 +60,7 @@ function StockAuditPage({
   );
 
   const warehouseRows = useMemo(() => {
-    let rows = stockRows.filter((row) => row.warehouseId === warehouseId);
+    let rows = stockRows.filter((row) => row.locationType === 'STORE' && row.storeId === warehouseId);
     if (brandFilter !== 'all') rows = rows.filter((row) => row.brand === brandFilter);
     if (categoryFilter !== 'all') rows = rows.filter((row) => row.category === categoryFilter);
     return rows;
@@ -107,28 +107,32 @@ function StockAuditPage({
     }));
   };
 
-  const handleSaveAudit = () => {
+  const handleSaveAudit = async () => {
     if (!warehouseId) {
       return;
     }
 
-    dispatch(
-      applyStockAudit({
-        warehouseId,
-        date: auditDate,
-        entries: auditRows.map((row) => ({
-          stockId: row.id,
-          physicalQty: row.physicalQty,
-        })),
-        user: 'Admin',
-      }),
-    );
+    try {
+      await dispatch(
+        applyStockAudit({
+          storeId: warehouseId,
+          date: auditDate,
+          items: auditRows.map((row) => ({
+            productId: row.productId || row.id,
+            physicalQty: row.physicalQty,
+          })),
+          user: 'Admin',
+        }),
+      ).unwrap();
 
-    setResultMessage(
-      discrepancyRows.length
-        ? `Issue/Receive applied: ${shortageRows.length} shortage(s), ${excessRows.length} excess(es).`
-        : 'Audit saved. No discrepancy found.',
-    );
+      setResultMessage(
+        discrepancyRows.length
+          ? `Issue/Receive applied: ${shortageRows.length} shortage(s), ${excessRows.length} excess(es).`
+          : 'Audit saved. No discrepancy found.',
+      );
+    } catch (error) {
+      setResultMessage(error?.message || error || 'Audit failed.');
+    }
   };
 
   return (
@@ -145,7 +149,7 @@ function StockAuditPage({
           <TextField
             select
             size="small"
-            label="Warehouse"
+            label="Store"
             value={warehouseId}
             onChange={(event) => {
               setResultMessage('');
@@ -153,12 +157,12 @@ function StockAuditPage({
             }}
             sx={{ minWidth: 200 }}
           >
-            <MenuItem value="" disabled>
-              Select Warehouse
-            </MenuItem>
-            {warehouses.map((warehouse) => (
-              <MenuItem key={warehouse.id} value={warehouse.id}>
-                {warehouse.name}
+              <MenuItem value="" disabled>
+              Select Store
+              </MenuItem>
+            {stores.map((store) => (
+              <MenuItem key={store.id || store._id} value={store.id || store._id}>
+                {store.name}
               </MenuItem>
             ))}
           </TextField>

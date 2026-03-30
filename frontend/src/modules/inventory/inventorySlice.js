@@ -21,7 +21,8 @@ export const fetchMovements = createAsyncThunk(
   async (params, { rejectWithValue }) => {
     try {
       const response = await api.get('/reports/movement', { params });
-      return response.data.movements || response.data.data || [];
+      const raw = response.data.movements || response.data.report || response.data.data || [];
+      return normalizeResponse(raw, 'movement');
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || error.message);
     }
@@ -76,7 +77,14 @@ export const applyStockAudit = createAsyncThunk(
   'inventory/audit',
   async (auditData, { rejectWithValue }) => {
     try {
-      const response = await api.post('/store-inventory/audit', auditData);
+      const payload = {
+        storeId: auditData.storeId || auditData.warehouseId,
+        items: (auditData.items || auditData.entries || []).map((item) => ({
+          productId: item.productId || item.variantId || item.stockId || item.id,
+          physicalQty: Number(item.physicalQty ?? item.quantity ?? 0),
+        })),
+      };
+      const response = await api.post('/store-inventory/reconcile', payload);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || error.message);

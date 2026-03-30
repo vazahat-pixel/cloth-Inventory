@@ -66,6 +66,7 @@ export const setupNavigationItems = [
   { label: "Offer", path: "/pricing/coupons" },
   { label: "Tax GST", path: "/gst/tax-rates" },
   { label: "HSN Code", path: "/setup/hsn-codes" },
+  { label: "Formula Master", path: "/setup/formulas" },
   // Expose existing barcode printing screen in Setup menu
   { label: "Barcode Print", path: "/setup/barcode-print" },
 ];
@@ -94,6 +95,7 @@ export const getPageTitle = (pathname) => {
   ];
 
   const cleanPath = pathname.replace(/^\/(ho|store)/, "") || "/";
+  if (cleanPath === '/clothing-erp') return 'Item Master Workspace';
   const match = allItems.find(i => i.path === cleanPath);
   return match ? match.label : "Cloth ERP";
 };

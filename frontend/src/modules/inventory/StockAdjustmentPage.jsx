@@ -32,7 +32,7 @@ function StockAdjustmentPage({
   pageDescription = 'Apply manual stock increase or decrease with reason and date tracking.',
 }) {
   const dispatch = useDispatch();
-  const warehouses = useSelector((state) => state.masters.warehouses || []);
+  const stores = useSelector((state) => state.masters.stores || []);
   const stockRows = useSelector((state) => state.inventory.stock || []);
 
   const [lines, setLines] = useState([]);
@@ -59,7 +59,7 @@ function StockAdjustmentPage({
   const adjustmentType = watch('adjustmentType');
 
   useEffect(() => {
-    dispatch(fetchMasters('warehouses'));
+    dispatch(fetchMasters('stores'));
     dispatch(fetchStockOverview());
   }, [dispatch]);
 
@@ -69,7 +69,7 @@ function StockAdjustmentPage({
   }, [warehouseId]);
 
   const warehouseStock = useMemo(
-    () => stockRows.filter((row) => row.warehouseId === warehouseId),
+    () => stockRows.filter((row) => row.locationType === 'STORE' && row.storeId === warehouseId),
     [stockRows, warehouseId],
   );
 
@@ -127,7 +127,7 @@ function StockAdjustmentPage({
     setLines((previous) => previous.filter((line) => line.stockId !== stockId));
   };
 
-  const onSubmit = (values) => {
+  const onSubmit = async (values) => {
     setErrorMessage('');
     setSuccessMessage('');
 
@@ -148,24 +148,31 @@ function StockAdjustmentPage({
       }
     }
 
-    dispatch(
-      applyStockAdjustment({
-        warehouseId: values.warehouseId,
-        adjustmentType: values.adjustmentType,
-        reason: values.reason,
-        date: values.date,
-        lines,
-        user: 'Admin',
-      }),
-    );
+    try {
+      for (const line of lineRows) {
+        const quantityChange = values.adjustmentType === 'Increase' ? line.adjustmentQty : -line.adjustmentQty;
+        await dispatch(
+          applyStockAdjustment({
+            storeId: values.warehouseId,
+            productId: line.stockRow.productId || line.stockRow.variantId || line.stockId,
+            quantityChange,
+            notes: values.reason,
+            date: values.date,
+            user: 'Admin',
+          }),
+        ).unwrap();
+      }
 
-    setSuccessMessage('Stock adjustment saved successfully.');
-    setLines([]);
-    setPickerValue(null);
-    reset({
-      ...values,
-      reason: '',
-    });
+      setSuccessMessage('Stock adjustment saved successfully.');
+      setLines([]);
+      setPickerValue(null);
+      reset({
+        ...values,
+        reason: '',
+      });
+    } catch (error) {
+      setErrorMessage(error?.message || error || 'Stock adjustment failed.');
+    }
   };
 
   return (
@@ -181,16 +188,16 @@ function StockAdjustmentPage({
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
           <TextField
             select
-            label="Warehouse"
+            label="Store"
             size="small"
             fullWidth
             {...register('warehouseId', { required: 'Warehouse is required.' })}
             error={Boolean(errors.warehouseId)}
             helperText={errors.warehouseId?.message || ' '}
           >
-            {warehouses.map((warehouse) => (
-              <MenuItem key={warehouse.id} value={warehouse.id}>
-                {warehouse.name}
+            {stores.map((store) => (
+              <MenuItem key={store.id || store._id} value={store.id || store._id}>
+                {store.name}
               </MenuItem>
             ))}
           </TextField>

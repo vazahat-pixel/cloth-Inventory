@@ -27,6 +27,12 @@ export const purchaseNavItems = [
     icon: LocalShippingOutlinedIcon,
   },
   {
+    key: 'grn',
+    label: 'Goods Receipt Note (GRN)',
+    path: '/ho/grn',
+    icon: FactCheckOutlinedIcon,
+  },
+  {
     key: 'rejection-replacements',
     label: 'Enter Rejection/Replacements Items against Purchase',
     path: '/purchase/rejection-replacements',

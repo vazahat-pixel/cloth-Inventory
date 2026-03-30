@@ -17,4 +17,8 @@ router.route('/')
 router.get('/:id', requireAny, salesController.getSaleById);
 router.patch('/:id/cancel', requireAny, salesController.cancelSale);
 
+// Apply a credit note against an existing sale (post-billing redemption)
+// Body: { creditNoteId: string }
+router.post('/:id/apply-credit-note', requireAny, salesController.applyCreditNote);
+
 module.exports = router;

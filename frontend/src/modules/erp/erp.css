@@ -1,0 +1,171 @@
+/* Logic ERP Style Compact UI */
+
+.erp-compact-root {
+  font-size: 13px;
+  background-color: #f1f4f9;
+  height: 100vh;
+  display: flex;
+  overflow: hidden;
+}
+
+.erp-sidebar-legacy {
+  width: 200px;
+  background-color: #2b3a4a;
+  color: white;
+  display: flex;
+  flex-direction: column;
+}
+
+.erp-sidebar-btn {
+  width: 100%;
+  text-align: left;
+  padding: 8px 16px;
+  background: none;
+  border: none;
+  color: #aeb9c2;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: all 0.2s;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.erp-sidebar-btn:hover {
+  background-color: #354659;
+  color: white;
+}
+
+.erp-sidebar-btn.active {
+  background-color: #3d5066;
+  border-left-color: #007bff;
+  color: white;
+}
+
+.erp-main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: white;
+}
+
+.erp-toolbar {
+  height: 48px;
+  background-color: white;
+  border-bottom: 1px solid #dcdcdc;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 8px;
+}
+
+.erp-tool-btn {
+  padding: 4px 10px;
+  border: 1px solid #dcdcdc;
+  background: #fdfdfd;
+  font-size: 12px;
+  border-radius: 2px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.erp-tool-btn:hover { background-color: #f1f1f1; }
+.erp-tool-btn:active { background-color: #e9e9e9; }
+
+.erp-tab-header {
+  display: flex;
+  background: #f7f7f7;
+  border-bottom: 1px solid #e0e0e0;
+  padding: 0 12px;
+  height: 32px;
+  align-items: flex-end;
+}
+
+.erp-tab-item {
+  padding: 4px 16px;
+  background: #e0e0e0;
+  border: 1px solid #d0d0d0;
+  border-bottom: none;
+  margin-right: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  cursor: pointer;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+}
+
+.erp-tab-item.active {
+  background: white;
+  color: #007bff;
+  border-top-color: #007bff;
+  border-bottom: 1px solid white;
+  z-index: 2;
+  margin-bottom: -1px;
+}
+
+.erp-content-pane {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.erp-field-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.erp-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.erp-field label {
+  width: 100px;
+  text-align: right;
+  font-weight: 600;
+  color: #444;
+  white-space: nowrap;
+}
+
+.erp-field input, .erp-field select, .erp-field textarea {
+  flex: 1;
+  padding: 4px 6px;
+  border: 1px solid #ccc;
+  border-radius: 2px;
+  font-size: 13px;
+}
+
+.erp-field input:focus { border-color: #007bff; outline: none; box-shadow: 0 0 3px rgba(0,123,255,0.3); }
+
+/* Sizes Matrix - Compact */
+.erp-matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.erp-matrix-table th {
+  background: #f0f0f0;
+  padding: 6px;
+  border: 1px solid #ddd;
+  text-align: left;
+  font-size: 12px;
+}
+
+.erp-matrix-table td {
+  padding: 4px;
+  border: 1px solid #ddd;
+}
+
+.erp-matrix-table input {
+  width: 100%;
+  border: none;
+  padding: 4px;
+  background: transparent;
+}
+
+.erp-matrix-table tr:hover { background: #fdfdfd; }

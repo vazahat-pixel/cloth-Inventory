@@ -9,6 +9,7 @@ import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
 export const setupMatchPaths = [
   '/setup',
   '/items',
+  '/clothing-erp',
   '/masters/item-groups',
   '/gst',
   '/settings/preferences',
@@ -26,9 +27,9 @@ export const setupNavItems = [
   },
   {
     label: 'Setup Items',
-    hint: 'Item masters',
-    path: '/items',
-    matchPaths: ['/items'],
+    hint: 'Item masters workspace',
+    path: '/clothing-erp',
+    matchPaths: ['/items', '/clothing-erp'],
     icon: Inventory2OutlinedIcon,
   },
   {

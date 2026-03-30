@@ -1,10 +1,10 @@
 const QC = require('../../models/qc.model');
 const GRN = require('../../models/grn.model');
-const { QcStatus, StockHistoryType, DocumentType } = require('../../core/enums');
+const { QcStatus, StockMovementType, DocumentType } = require('../../core/enums');
 const { withTransaction } = require('../../services/transaction.service');
 const { getNextSequence } = require('../../services/sequence.service');
 const workflowService = require('../workflow/workflow.service');
-const { addStock } = require('../../services/stock.service');
+const { addStock, adjustWarehouseStockDamaged } = require('../../services/stock.service');
 const { createJournalEntries } = require('../../services/ledger.service');
 const Account = require('../../models/account.model');
 const { createAuditLog } = require('../../middlewares/audit.middleware');
@@ -97,7 +97,7 @@ const approveQC = async (id, userId) => {
                     locationId: warehouseId,
                     locationType: 'WAREHOUSE',
                     qty: item.approvedQty,
-                    type: 'QC_APPROVED',
+                    type: StockMovementType.QC_APPROVED,
                     referenceId: qc._id,
                     referenceType: 'QC',
                     performedBy: userId,
@@ -108,12 +108,12 @@ const approveQC = async (id, userId) => {
             // 2. Track Loss for Rejected in WAREHOUSE
             if (item.rejectedQty > 0) {
                 totalLossAmount += (item.rejectedQty * rate);
-                await addStock({
+                await adjustWarehouseStockDamaged({
+                    productId: item.productId,
                     variantId: item.variantId || item.productId,
-                    locationId: warehouseId,
-                    locationType: 'WAREHOUSE',
+                    warehouseId,
                     qty: item.rejectedQty,
-                    type: 'DAMAGED', 
+                    type: StockMovementType.DAMAGED, 
                     referenceId: qc._id,
                     referenceType: 'QC',
                     performedBy: userId,

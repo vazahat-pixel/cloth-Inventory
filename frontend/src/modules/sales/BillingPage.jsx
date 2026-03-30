@@ -408,6 +408,11 @@ function BillingPage({
       return;
     }
 
+    if (toNumber(selectedOption.available) <= 0) {
+      setErrorMessage(`${selectedOption.itemName} (${selectedOption.size}/${selectedOption.color}) is Out of Stock.`);
+      return;
+    }
+
     upsertLine(selectedOption);
     setSelectedOption(null);
     setErrorMessage('');

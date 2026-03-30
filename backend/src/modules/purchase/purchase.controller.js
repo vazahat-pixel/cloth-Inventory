@@ -44,9 +44,21 @@ const getPurchaseById = async (req, res, next) => {
     }
 };
 
+const approveGRN = async (req, res, next) => {
+    try {
+        const userId = req.user._id;
+        const purchaseId = req.params.id;
+        const purchase = await purchaseService.approveGRN(purchaseId, userId);
+        return sendSuccess(res, { purchase }, 'GRN approved and stock updated successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
 module.exports = {
     createPurchase,
     cancelPurchase,
     getAllPurchases,
-    getPurchaseById
+    getPurchaseById,
+    approveGRN
 };

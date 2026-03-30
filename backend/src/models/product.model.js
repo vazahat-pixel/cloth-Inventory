@@ -14,6 +14,11 @@ const productSchema = new mongoose.Schema(
             uppercase: true,
             trim: true
         },
+        styleCode: {
+            type: String,
+            trim: true,
+            index: true
+        },
         barcode: {
             type: String,
             required: true,
@@ -40,6 +45,10 @@ const productSchema = new mongoose.Schema(
             ref: 'Category',
             required: [true, 'Category is required']
         },
+        groupIds: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Category'
+        }],
         brand: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Brand',
@@ -81,7 +90,21 @@ const productSchema = new mongoose.Schema(
             ref: 'GstSlab',
             default: null
         },
+        image: { type: String }, // Backward compatibility
         images: [{ type: String }],
+        description: { type: String, trim: true },
+        attributes: {
+            type: mongoose.Schema.Types.Mixed,
+            default: {}
+        },
+        hsnCodeId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'HsnCode'
+        },
+        gender: { type: String },
+        season: { type: String },
+        fabric: { type: String },
+        fabricType: { type: String }
     },
     { timestamps: true }
 );

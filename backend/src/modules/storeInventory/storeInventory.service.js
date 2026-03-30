@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const StoreInventory = require('../../models/storeInventory.model');
 const WarehouseInventory = require('../../models/warehouseInventory.model');
 const Product = require('../../models/product.model');
@@ -83,18 +84,21 @@ const getProductInStore = async (storeId, productId) => {
 };
 
 const { adjustStoreStock } = require('../../services/stock.service');
-const { StockHistoryType } = require('../../core/enums');
+const { StockMovementType } = require('../../core/enums');
 const { withTransaction } = require('../../services/transaction.service');
 
 const adjustInventory = async (adjustmentData, userId) => {
     return await withTransaction(async (session) => {
         const { storeId, productId, quantityChange, notes } = adjustmentData;
+        const referenceId = adjustmentData.referenceId || new mongoose.Types.ObjectId();
         await adjustStoreStock({
             storeId,
             productId,
             variantId: productId,
             quantityChange,
-            type: StockHistoryType.ADJUSTMENT,
+            type: StockMovementType.ADJUSTMENT,
+            referenceId,
+            referenceModel: 'Adjustment',
             notes: notes || 'Manual Stock Adjustment',
             performedBy: userId,
             session

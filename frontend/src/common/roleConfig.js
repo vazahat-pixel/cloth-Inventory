@@ -120,20 +120,17 @@ export const adminNavConfig = {
 export const staffNavConfig = {
   role: ROLES.store_staff,
   basePath: '/store',
-  label: 'Store Panel',
+  label: 'Branch Panel',
   mainNav: [
-    { label: 'Purchase', path: '/purchase' },
-    { label: 'Inventory', path: '/inventory' },
-    { label: 'Data Import & Export', path: '/data-import', matchPaths: dataImportMatchPaths, drilldown: true },
-    { label: 'POS - Sales', path: '/sales' },
-    { label: 'Reports', path: '/reports' },
+    { label: 'Search Home', path: '/', icon: HomeIcon },
+    { label: 'Stock Overview', path: '/inventory/stock-overview', icon: Inventory2Icon },
+    { label: 'POS - Billing', path: '/sales/sale-bill/new', icon: PointOfSaleIcon },
+    { label: 'Sales Returns', path: '/sales/sales-return', icon: ReceiptLongIcon },
+    { label: 'Barcode Info', path: '/inventory/audit-view', icon: PointOfSaleIcon }, // For scanning/checking
   ],
   children: {
-    '/purchase': [],
-    '/inventory': [],
-    '/data-import': dataImportNavItems,
-    '/sales': [],
-    '/reports': [],
+    '/inventory': inventoryNavItems.filter(i => ['/inventory/stock-overview', '/inventory/audit-view'].includes(i.path)),
+    '/sales': billingNavItems.filter(i => ['/sales/sale-bill', '/sales/sales-return'].includes(i.path)),
   },
 };
 

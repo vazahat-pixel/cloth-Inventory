@@ -210,6 +210,7 @@ const normalizeItem = (item, entityType) => {
             const sId = item.storeId?._id || item.storeId?.id || item.storeId || item.warehouseId?._id || item.warehouseId?.id || item.warehouseId;
             normalized.storeId = sId;
             normalized.warehouseId = sId;
+            normalized.locationType = item.storeId ? 'STORE' : (item.warehouseId ? 'WAREHOUSE' : item.locationType || '');
 
             if (item.storeId && typeof item.storeId === 'object') {
                 normalized.storeName = item.storeId.name;
@@ -220,8 +221,11 @@ const normalizeItem = (item, entityType) => {
             }
 
             normalized.quantity = item.quantityAvailable ?? item.quantity ?? 0;
-            normalized.reserved = item.quantityReserved ?? 0;
-            normalized.status = (item.quantityAvailable <= 10) ? 'LOW_STOCK' : 'OK';
+            normalized.reserved = item.reservedQuantity ?? item.quantityReserved ?? 0;
+            normalized.reservedQuantity = normalized.reserved;
+            normalized.quantityReserved = normalized.reserved;
+            normalized.available = item.quantityAvailable ?? Math.max(Number(item.quantity ?? 0) - Number(normalized.reserved), 0);
+            normalized.status = normalized.available <= 10 ? 'LOW_STOCK' : 'OK';
             break;
 
         case 'product':
@@ -343,6 +347,14 @@ const normalizeItem = (item, entityType) => {
         case 'category':
             normalized.categoryName = item.name;
             normalized.groupName = item.name; // For components expecting groupName
+            normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
+            break;
+        case 'group':
+            normalized.groupName = item.name;
+            normalized.groupType = item.groupType || item.type || '';
+            normalized.parentId = item.parentId?._id || item.parentId?.id || item.parentId || null;
+            normalized.parentGroupName = item.parentId?.name || item.parentGroupName || '';
+            normalized.level = item.level ?? 0;
             normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
             break;
         case 'bank':

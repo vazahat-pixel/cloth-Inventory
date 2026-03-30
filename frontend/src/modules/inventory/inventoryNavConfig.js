@@ -8,10 +8,52 @@ import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined
 import SyncAltOutlinedIcon from '@mui/icons-material/SyncAltOutlined';
 import DifferenceOutlinedIcon from '@mui/icons-material/DifferenceOutlined';
 import QrCodeScannerOutlinedIcon from '@mui/icons-material/QrCodeScannerOutlined';
+import TimelineOutlinedIcon from '@mui/icons-material/TimelineOutlined';
+import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
+import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
+import BugReportOutlinedIcon from '@mui/icons-material/BugReportOutlined';
+import MonitorHeartOutlinedIcon from '@mui/icons-material/MonitorHeartOutlined';
+import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
 
 export const inventoryMatchPaths = ['/inventory'];
 
 export const inventoryNavItems = [
+  {
+    key: 'audit-dashboard',
+    label: 'Client Demo Dashboard',
+    path: '/inventory/demo-dashboard',
+    icon: DashboardOutlinedIcon,
+  },
+  {
+    key: 'item-journey',
+    label: 'Item Journey Timeline',
+    path: '/inventory/item-journey',
+    icon: TimelineOutlinedIcon,
+  },
+  {
+    key: 'stock-audit-view',
+    label: 'Stock Audit View',
+    path: '/inventory/audit-view',
+    icon: SearchOutlinedIcon,
+  },
+  {
+    key: 'validation-dashboard',
+    label: 'Validation Dashboard',
+    path: '/inventory/validation',
+    icon: MonitorHeartOutlinedIcon,
+  },
+  {
+    key: 'system-logs',
+    label: 'System Logs',
+    path: '/inventory/logs',
+    icon: ReceiptLongOutlinedIcon,
+  },
+  {
+    key: 'error-monitoring',
+    label: 'Error Monitoring',
+    path: '/inventory/errors',
+    icon: BugReportOutlinedIcon,
+  },
   {
     key: 'stock-receipt-production',
     label: 'Stock Receipt - Production',

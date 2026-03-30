@@ -15,6 +15,15 @@ const getAllCategories = async (req, res, next) => {
     }
 };
 
+const getCategoryTree = async (req, res, next) => {
+    try {
+        const tree = await categoryService.getCategoryTree();
+        return sendSuccess(res, { tree }, 'Category tree retrieved successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
 /**
  * @desc    Create a new category
  * @route   POST /api/categories
@@ -59,6 +68,7 @@ const deleteCategory = async (req, res, next) => {
 
 module.exports = {
     getAllCategories,
+    getCategoryTree,
     createCategory,
     updateCategory,
     deleteCategory

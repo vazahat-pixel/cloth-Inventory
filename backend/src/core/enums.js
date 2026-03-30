@@ -4,6 +4,8 @@
 
 const Roles = {
     ADMIN: 'admin',
+    STORE_MANAGER: 'store_manager',
+    ACCOUNTANT: 'accountant',
     STORE_STAFF: 'store_staff',
 };
 
@@ -11,12 +13,21 @@ const MovementType = {
     IN: 'IN',
     OUT: 'OUT',
     ADJUSTMENT: 'ADJUSTMENT',
-    RETURN: 'RETURN',
     DISPATCH: 'DISPATCH',
     SALE: 'SALE',
     AUDIT: 'AUDIT',
     PURCHASE: 'PURCHASE',
     QC_APPROVED: 'QC_APPROVED',
+};
+
+const StockMovementType = {
+    PURCHASE: 'PURCHASE',
+    QC_APPROVED: 'QC_APPROVED',
+    SALE: 'SALE',
+    TRANSFER: 'TRANSFER',
+    RETURN: 'RETURN',
+    DAMAGED: 'DAMAGED',
+    ADJUSTMENT: 'ADJUSTMENT',
 };
 
 const ProductionStatus = {
@@ -34,6 +45,7 @@ const ProductionStage = {
 
 const SaleStatus = {
     COMPLETED: 'COMPLETED',
+    PARTIAL: 'PARTIAL',
     CANCELLED: 'CANCELLED',
     REFUNDED: 'REFUNDED',
 };
@@ -70,23 +82,31 @@ const GstType = {
     IGST: "IGST"
 };
 
+const GrnStatus = {
+    DRAFT: 'DRAFT',
+    PENDING: 'PENDING',
+    APPROVED: 'APPROVED',
+    COMPLETED: 'COMPLETED',
+    CANCELLED: 'CANCELLED',
+};
+
 const PurchaseStatus = {
     DRAFT: 'DRAFT',
-    PENDING_QC: 'PENDING_QC',
     COMPLETED: 'COMPLETED',
-    CANCELLED: 'CANCELLED'
+    CANCELLED: 'CANCELLED',
 };
 
 const PurchaseOrderStatus = {
     DRAFT: 'DRAFT',
+    PENDING: 'PENDING',
     APPROVED: 'APPROVED',
-    SENT: 'SENT',
-    CLOSED: 'CLOSED'
+    COMPLETED: 'COMPLETED',
+    CANCELLED: 'CANCELLED',
 };
 
 const LoyaltyType = {
     EARN: 'EARN',
-    REDEEM: 'REDEEM'
+    REDEEM: 'REDEEM',
 };
 
 const CreditNoteStatus = {
@@ -100,6 +120,7 @@ const DocumentType = {
     GRN: 'GRN',
     QC: 'QC',
     SALE: 'SALE',
+    RETURN: 'RETURN',
     PURCHASE: 'PURCHASE',
     DISPATCH: 'DISPATCH',
 };
@@ -113,6 +134,7 @@ const DocumentStatus = {
 module.exports = {
     Roles,
     MovementType,
+    StockMovementType,
     ProductionStatus,
     ProductionStage,
     SaleStatus,
@@ -127,10 +149,7 @@ module.exports = {
     CreditNoteStatus,
     DocumentType,
     DocumentStatus,
-    GrnStatus: {
-        PENDING: 'PENDING',
-        COMPLETED: 'COMPLETED',
-    },
+    GrnStatus,
     QcStatus: {
         PENDING: 'PENDING',
         APPROVED: 'APPROVED',

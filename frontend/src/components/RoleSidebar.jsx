@@ -199,7 +199,7 @@ function RoleSidebar({ navConfig }) {
                     }}
                   />
                   {item.drilldown && (
-                    <Typography variant="caption" sx={{ fontStyle: 'italic', opacity: 0.5 }}>></Typography>
+                    <Typography variant="caption" sx={{ fontStyle: 'italic', opacity: 0.5 }}>{">"}</Typography>
                   )}
                 </ListItemButton>
               </ListItem>

@@ -196,7 +196,7 @@ const getMovementReport = async (req, res, next) => {
     try {
         const { startDate, endDate, variantId } = req.query;
         const report = await reportService.getMovementReport(startDate, endDate, variantId);
-        return sendSuccess(res, { report }, 'Movement report retrieved');
+        return sendSuccess(res, { report, movements: report }, 'Movement report retrieved');
     } catch (err) {
         next(err);
     }

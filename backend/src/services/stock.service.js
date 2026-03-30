@@ -6,11 +6,26 @@ const Store = require('../models/store.model');
 const Warehouse = require('../models/warehouse.model');
 const systemConfigService = require('../modules/systemConfig/systemConfig.service');
 const { createAuditLog } = require('../middlewares/audit.middleware');
+const { StockMovementType } = require('../core/enums');
+const stockLedgerService = require('../modules/inventory/stockLedger.service');
+const SystemLog = require('../models/systemLog.model');
+
+const resolveReferenceType = (referenceType, fallback = 'Adjustment') => referenceType || fallback;
+
+const toFiniteNumber = (value, label = 'quantity') => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+        throw new Error(`Invalid ${label}`);
+    }
+    return numeric;
+};
 
 /**
  * Core internal function to update inventory collection based on location type
  */
 const _updateInventory = async ({ variantId, locationId, locationType, qty, session }) => {
+    const delta = toFiniteNumber(qty);
+
     // 1. Strict ID Validation
     if (locationType === 'STORE') {
         const storeExists = await Store.exists({ _id: locationId });
@@ -46,10 +61,10 @@ const _updateInventory = async ({ variantId, locationId, locationType, qty, sess
 
     // 2. Negative Stock Control
     const allowNegative = await systemConfigService.getConfigByKey('allowNegativeStock', false);
-    const newQty = (inventory.quantity || 0) + qty;
+    const newQty = (inventory.quantity || 0) + delta;
     
     if (!allowNegative && newQty < 0) {
-        throw new Error(`Negative stock not allowed. Requested: ${qty}, Available: ${inventory.quantity}`);
+        throw new Error(`Negative stock not allowed. Requested: ${delta}, Available: ${inventory.quantity}`);
     }
 
     inventory.quantity = newQty;
@@ -66,7 +81,9 @@ const _updateInventory = async ({ variantId, locationId, locationType, qty, sess
  * Add stock to a location (Creation/Purchase/Return)
  */
 const addStock = async ({ variantId, locationId, locationType, qty, type, referenceId, referenceType, performedBy, session }) => {
-    if (qty <= 0) throw new Error('Quantity to add must be positive');
+    const movementQty = toFiniteNumber(qty);
+    if (movementQty <= 0) throw new Error('Quantity to add must be positive');
+    if (!referenceId) throw new Error('referenceId is required for stock movement');
 
     const filter = { productId: variantId };
     if (locationType === 'STORE') filter.storeId = locationId;
@@ -75,14 +92,14 @@ const addStock = async ({ variantId, locationId, locationType, qty, type, refere
     const beforeInv = await (locationType === 'STORE' ? StoreInventory : WarehouseInventory).findOne(filter).session(session);
     const before = beforeInv ? beforeInv.toObject() : null;
 
-    const inventory = await _updateInventory({ variantId, locationId, locationType, qty, session });
+    const inventory = await _updateInventory({ variantId, locationId, locationType, qty: movementQty, session });
 
     await StockMovement.create([{
         variantId,
-        qty,
-        type,
+        qty: movementQty,
+        type: type || StockMovementType.ADJUSTMENT,
         referenceId,
-        referenceType,
+        referenceType: resolveReferenceType(referenceType),
         toLocation: locationId,
         performedBy
     }], { session });
@@ -99,6 +116,27 @@ const addStock = async ({ variantId, locationId, locationType, qty, type, refere
         session
     });
 
+    // New: Record in Stock Ledger (Logic ERP Style)
+    try {
+        const product = await Product.findById(variantId).session(session);
+        if (product) {
+            await stockLedgerService.recordMovement({
+                itemId: variantId,
+                barcode: product.barcode || `SKU-${product.sku || variantId}`,
+                type: 'IN',
+                quantity: movementQty,
+                source: resolveReferenceType(referenceType).toUpperCase(),
+                referenceId: referenceId.toString(),
+                userId: performedBy,
+                locationId,
+                locationType,
+                batchNo: 'DEFAULT' // Default to start with, can be extended to pass actual batch
+            });
+        }
+    } catch (err) {
+        console.error('Stock Ledger Recording Error (ADD):', err.message);
+    }
+
     return inventory;
 };
 
@@ -106,7 +144,9 @@ const addStock = async ({ variantId, locationId, locationType, qty, type, refere
  * Remove stock from a location (Sale/Loss)
  */
 const removeStock = async ({ variantId, locationId, locationType, qty, type, referenceId, referenceType, performedBy, session }) => {
-    if (qty <= 0) throw new Error('Quantity to remove must be positive');
+    const movementQty = toFiniteNumber(qty);
+    if (movementQty <= 0) throw new Error('Quantity to remove must be positive');
+    if (!referenceId) throw new Error('referenceId is required for stock movement');
 
     const filter = { productId: variantId };
     if (locationType === 'STORE') filter.storeId = locationId;
@@ -115,14 +155,14 @@ const removeStock = async ({ variantId, locationId, locationType, qty, type, ref
     const beforeInv = await (locationType === 'STORE' ? StoreInventory : WarehouseInventory).findOne(filter).session(session);
     const before = beforeInv ? beforeInv.toObject() : null;
 
-    const inventory = await _updateInventory({ variantId, locationId, locationType, qty: -qty, session });
+    const inventory = await _updateInventory({ variantId, locationId, locationType, qty: -movementQty, session });
 
     await StockMovement.create([{
         variantId,
-        qty: -qty,
-        type,
+        qty: -movementQty,
+        type: type || StockMovementType.ADJUSTMENT,
         referenceId,
-        referenceType,
+        referenceType: resolveReferenceType(referenceType),
         fromLocation: locationId,
         performedBy
     }], { session });
@@ -139,6 +179,24 @@ const removeStock = async ({ variantId, locationId, locationType, qty, type, ref
         session
     });
 
+    // New: Record in Stock Ledger (Logic ERP Style)
+    // This will throw error if stock is insufficient (Business Rule Enforcement)
+    const product = await Product.findById(variantId).session(session);
+    if (product) {
+        await stockLedgerService.recordMovement({
+            itemId: variantId,
+            barcode: product.barcode || `SKU-${product.sku || variantId}`,
+            type: 'OUT',
+            quantity: movementQty,
+            source: resolveReferenceType(referenceType).toUpperCase(),
+            referenceId: referenceId.toString(),
+            userId: performedBy,
+            locationId,
+            locationType,
+            batchNo: 'DEFAULT'
+        });
+    }
+
     return inventory;
 };
 
@@ -146,25 +204,55 @@ const removeStock = async ({ variantId, locationId, locationType, qty, type, ref
  * Transfer stock between locations
  */
 const transferStock = async ({ variantId, fromLocationId, fromLocationType, toLocationId, toLocationType, qty, type = 'TRANSFER', referenceId, referenceType = 'Dispatch', performedBy, session }) => {
-    if (qty <= 0) throw new Error('Quantity to transfer must be positive');
+    const movementQty = toFiniteNumber(qty);
+    if (movementQty <= 0) throw new Error('Quantity to transfer must be positive');
+    if (!referenceId) throw new Error('referenceId is required for stock movement');
 
     // 1. Remove from source
-    await _updateInventory({ variantId, locationId: fromLocationId, locationType: fromLocationType, qty: -qty, session });
+    await _updateInventory({ variantId, locationId: fromLocationId, locationType: fromLocationType, qty: -movementQty, session });
 
     // 2. Add to destination
-    await _updateInventory({ variantId, locationId: toLocationId, locationType: toLocationType, qty, session });
+    await _updateInventory({ variantId, locationId: toLocationId, locationType: toLocationType, qty: movementQty, session });
 
     // 3. Log single movement record for transfer
     await StockMovement.create([{
         variantId,
-        qty,
-        type,
+        qty: movementQty,
+        type: type || StockMovementType.TRANSFER,
         referenceId,
-        referenceType,
+        referenceType: resolveReferenceType(referenceType, 'Dispatch'),
         fromLocation: fromLocationId,
         toLocation: toLocationId,
         performedBy
     }], { session });
+
+    // New: Record transfer in Stock Ledger
+    const product = await Product.findById(variantId).session(session);
+    if (product) {
+       await stockLedgerService.recordMovement({
+         itemId: variantId,
+         barcode: product.barcode || `SKU-${product.sku || variantId}`,
+         type: 'OUT',
+         quantity: movementQty,
+         source: 'TRANSFER_FROM',
+         referenceId: referenceId.toString(),
+         userId: performedBy,
+         locationId: fromLocationId,
+         locationType: fromLocationType
+       });
+
+       await stockLedgerService.recordMovement({
+         itemId: variantId,
+         barcode: product.barcode || `SKU-${product.sku || variantId}`,
+         type: 'IN',
+         quantity: movementQty,
+         source: 'TRANSFER_TO',
+         referenceId: referenceId.toString(),
+         userId: performedBy,
+         locationId: toLocationId,
+         locationType: toLocationType
+       });
+    }
 
     return true;
 };
@@ -173,15 +261,17 @@ const transferStock = async ({ variantId, fromLocationId, fromLocationType, toLo
  * Backward compatibility helpers
  */
 const adjustWarehouseStock = async ({ productId, variantId, warehouseId, quantityChange, type, referenceId, referenceModel, performedBy, notes, session }) => {
-    if (quantityChange > 0) {
+    const numericChange = toFiniteNumber(quantityChange);
+
+    if (numericChange > 0) {
         return addStock({
             variantId: variantId || productId,
             locationId: warehouseId,
             locationType: 'WAREHOUSE',
-            qty: quantityChange,
-            type: 'PURCHASE', // Mapping legacy type to movement type
+            qty: numericChange,
+            type: type || StockMovementType.ADJUSTMENT,
             referenceId,
-            referenceType: referenceModel === 'Purchase' ? 'Purchase' : 'Dispatch',
+            referenceType: referenceModel || 'Adjustment',
             performedBy,
             session
         });
@@ -190,10 +280,10 @@ const adjustWarehouseStock = async ({ productId, variantId, warehouseId, quantit
             variantId: variantId || productId,
             locationId: warehouseId,
             locationType: 'WAREHOUSE',
-            qty: Math.abs(quantityChange),
-            type: 'SALE', // Mapping legacy
+            qty: Math.abs(numericChange),
+            type: type || StockMovementType.ADJUSTMENT,
             referenceId,
-            referenceType: referenceModel === 'Sale' ? 'Sale' : 'Dispatch',
+            referenceType: referenceModel || 'Adjustment',
             performedBy,
             session
         });
@@ -201,20 +291,19 @@ const adjustWarehouseStock = async ({ productId, variantId, warehouseId, quantit
 };
 
 const adjustStoreStock = async ({ productId, variantId, storeId, quantityChange, type, referenceId, referenceModel, performedBy, notes, session }) => {
-    // Map existing StockHistoryType to StockMovement Type
-    let mType = 'SALE';
-    if (type === 'QC_APPROVED') mType = 'QC_APPROVED';
-    if (type === 'RETURN') mType = 'RETURN';
+    const numericChange = toFiniteNumber(quantityChange);
+    const mType = type || StockMovementType.ADJUSTMENT;
+    const resolvedReferenceType = referenceModel || 'Adjustment';
 
-    if (quantityChange > 0) {
+    if (numericChange > 0) {
         return addStock({
             variantId: variantId || productId,
             locationId: storeId,
             locationType: 'STORE',
-            qty: quantityChange,
+            qty: numericChange,
             type: mType,
             referenceId,
-            referenceType: referenceModel === 'Sale' ? 'Sale' : (referenceModel === 'QC' ? 'QC' : 'Return'),
+            referenceType: resolvedReferenceType,
             performedBy,
             session
         });
@@ -223,10 +312,10 @@ const adjustStoreStock = async ({ productId, variantId, storeId, quantityChange,
             variantId: variantId || productId,
             locationId: storeId,
             locationType: 'STORE',
-            qty: Math.abs(quantityChange),
+            qty: Math.abs(numericChange),
             type: mType,
             referenceId,
-            referenceType: referenceModel === 'Sale' ? 'Sale' : 'Return',
+            referenceType: resolvedReferenceType,
             performedBy,
             session
         });
@@ -237,22 +326,54 @@ const adjustStoreStock = async ({ productId, variantId, storeId, quantityChange,
  * Handle damaged stock adjusts (Separated for now as per current schema)
  */
 const adjustWarehouseStockDamaged = async ({ productId, variantId, warehouseId, qty, type, referenceId, referenceModel, performedBy, notes, session }) => {
+    const damagedQty = toFiniteNumber(qty, 'damaged quantity');
+    if (damagedQty <= 0) throw new Error('Quantity to damage must be positive');
+
     let inventory = await WarehouseInventory.findOne({ warehouseId, productId }).session(session);
     if (!inventory) {
         inventory = new WarehouseInventory({ warehouseId, productId, quantity: 0, damagedQuantity: 0 });
     }
-    inventory.damagedQuantity += qty;
+    inventory.damagedQuantity += damagedQty;
     await inventory.save({ session });
+
+    if (referenceId) {
+        await StockMovement.create([{
+            variantId: variantId || productId,
+            qty: -damagedQty,
+            type: type || StockMovementType.DAMAGED,
+            referenceId,
+            referenceType: referenceModel || 'Adjustment',
+            fromLocation: warehouseId,
+            performedBy
+        }], { session });
+    }
+
     return inventory;
 };
 
 const adjustStoreStockDamaged = async ({ productId, variantId, storeId, qty, type, referenceId, referenceModel, performedBy, notes, session }) => {
+    const damagedQty = toFiniteNumber(qty, 'damaged quantity');
+    if (damagedQty <= 0) throw new Error('Quantity to damage must be positive');
+
     let inventory = await StoreInventory.findOne({ storeId, productId }).session(session);
     if (!inventory) {
         inventory = new StoreInventory({ storeId, productId, quantity: 0, quantityAvailable: 0, damagedQuantity: 0 });
     }
-    inventory.damagedQuantity += qty;
+    inventory.damagedQuantity += damagedQty;
     await inventory.save({ session });
+
+    if (referenceId) {
+        await StockMovement.create([{
+            variantId: variantId || productId,
+            qty: -damagedQty,
+            type: type || StockMovementType.DAMAGED,
+            referenceId,
+            referenceType: referenceModel || 'Adjustment',
+            fromLocation: storeId,
+            performedBy
+        }], { session });
+    }
+
     return inventory;
 };
 

@@ -11,6 +11,8 @@ router.route('/')
     .get(categoryController.getAllCategories)
     .post(requireAdmin, categoryController.createCategory);
 
+router.get('/tree', categoryController.getCategoryTree);
+
 router.route('/:id')
     .patch(requireAdmin, categoryController.updateCategory)
     .delete(requireAdmin, categoryController.deleteCategory);

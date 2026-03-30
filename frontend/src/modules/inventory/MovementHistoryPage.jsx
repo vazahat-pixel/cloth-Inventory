@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useSelector } from 'react-redux';
+import { useEffect, useMemo, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
   InputAdornment,
@@ -17,12 +17,28 @@ import {
   Typography,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
+import { fetchMasters } from '../masters/mastersSlice';
 
-const MOVEMENT_TYPES = ['Purchase', 'Sale', 'Sale Return', 'Transfer', 'Adjustment', 'Audit'];
+const MOVEMENT_TYPES = [
+  { value: 'PURCHASE', label: 'Purchase' },
+  { value: 'SALE', label: 'Sale' },
+  { value: 'RETURN', label: 'Return' },
+  { value: 'TRANSFER', label: 'Transfer' },
+  { value: 'QC_APPROVED', label: 'QC Approved' },
+  { value: 'DAMAGED', label: 'Damaged' },
+  { value: 'ADJUSTMENT', label: 'Adjustment' },
+];
 
 function MovementHistoryPage() {
+  const dispatch = useDispatch();
   const movements = useSelector((state) => state.inventory.movements);
   const warehouses = useSelector((state) => state.masters.warehouses || []);
+  const stores = useSelector((state) => state.masters.stores || []);
+
+  useEffect(() => {
+    dispatch(fetchMasters('warehouses'));
+    dispatch(fetchMasters('stores'));
+  }, [dispatch]);
 
   const [searchText, setSearchText] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState('all');
@@ -34,11 +50,11 @@ function MovementHistoryPage() {
 
   const warehouseMap = useMemo(
     () =>
-      warehouses.reduce((accumulator, warehouse) => {
-        accumulator[warehouse.id] = warehouse.name;
+      [...warehouses, ...stores].reduce((accumulator, warehouse) => {
+        accumulator[String(warehouse.id || warehouse._id)] = warehouse.name;
         return accumulator;
       }, {}),
-    [warehouses],
+    [warehouses, stores],
   );
 
   const filteredMovements = useMemo(() => {
@@ -49,13 +65,16 @@ function MovementHistoryPage() {
       .sort((a, b) => String(b.date).localeCompare(String(a.date)))
       .filter((movement) => {
         const matchesSearch = query
-          ? movement.itemName.toLowerCase().includes(query) ||
-          movement.sku.toLowerCase().includes(query) ||
-          movement.styleCode.toLowerCase().includes(query)
+          ? (movement.itemName || '').toLowerCase().includes(query) ||
+          (movement.sku || '').toLowerCase().includes(query) ||
+          (movement.styleCode || '').toLowerCase().includes(query)
           : true;
 
+        const movementLocationIds = [movement.warehouseId, movement.fromLocation, movement.toLocation]
+          .filter(Boolean)
+          .map((value) => String(value));
         const matchesWarehouse =
-          warehouseFilter === 'all' ? true : movement.warehouseId === warehouseFilter;
+          warehouseFilter === 'all' ? true : movementLocationIds.includes(String(warehouseFilter));
 
         const matchesType =
           movementTypeFilter === 'all' ? true : movement.type === movementTypeFilter;
@@ -106,7 +125,7 @@ function MovementHistoryPage() {
           <TextField
             select
             size="small"
-            label="Warehouse"
+            label="Location"
             value={warehouseFilter}
             onChange={(event) => {
               setPage(0);
@@ -114,9 +133,9 @@ function MovementHistoryPage() {
             }}
             sx={{ minWidth: 180 }}
           >
-            <MenuItem value="all">All Warehouses</MenuItem>
-            {warehouses.map((warehouse) => (
-              <MenuItem key={warehouse.id} value={warehouse.id}>
+            <MenuItem value="all">All Locations</MenuItem>
+            {[...warehouses, ...stores].map((warehouse) => (
+              <MenuItem key={warehouse.id || warehouse._id} value={warehouse.id || warehouse._id}>
                 {warehouse.name}
               </MenuItem>
             ))}
@@ -135,8 +154,8 @@ function MovementHistoryPage() {
           >
             <MenuItem value="all">All Types</MenuItem>
             {MOVEMENT_TYPES.map((type) => (
-              <MenuItem key={type} value={type}>
-                {type}
+              <MenuItem key={type.value} value={type.value}>
+                {type.label}
               </MenuItem>
             ))}
           </TextField>
@@ -174,7 +193,7 @@ function MovementHistoryPage() {
                 <TableRow>
                   <TableCell sx={{ fontWeight: 700, minWidth: 110 }}>Date</TableCell>
                   <TableCell sx={{ fontWeight: 700, minWidth: 190 }}>Item / Variant</TableCell>
-                  <TableCell sx={{ fontWeight: 700, minWidth: 160 }}>Warehouse</TableCell>
+                  <TableCell sx={{ fontWeight: 700, minWidth: 160 }}>Location</TableCell>
                   <TableCell sx={{ fontWeight: 700, minWidth: 120 }}>Type</TableCell>
                   <TableCell sx={{ fontWeight: 700, minWidth: 130 }} align="right">
                     Qty Change
@@ -185,23 +204,23 @@ function MovementHistoryPage() {
               </TableHead>
               <TableBody>
                 {paginatedRows.map((movement) => (
-                  <TableRow key={movement.id} hover>
-                    <TableCell>{movement.date}</TableCell>
-                    <TableCell>{`${movement.itemName} (${movement.size}/${movement.color})`}</TableCell>
-                    <TableCell>{warehouseMap[movement.warehouseId] || movement.warehouseId}</TableCell>
-                    <TableCell>{movement.type}</TableCell>
-                    <TableCell
-                      align="right"
-                      sx={{
-                        fontWeight: 700,
+                  <TableRow key={movement.id || movement._id} hover>
+                      <TableCell>{movement.date}</TableCell>
+                      <TableCell>{`${movement.itemName || ''} (${movement.size || ''}/${movement.color || ''})`}</TableCell>
+                    <TableCell>{warehouseMap[String(movement.warehouseId)] || movement.warehouseId}</TableCell>
+                      <TableCell>{movement.type}</TableCell>
+                      <TableCell
+                        align="right"
+                        sx={{
+                          fontWeight: 700,
                         color: movement.quantityChange >= 0 ? '#15803d' : '#b91c1c',
-                      }}
-                    >
+                        }}
+                      >
                       {movement.quantityChange >= 0
                         ? `+${movement.quantityChange}`
                         : movement.quantityChange}
-                    </TableCell>
-                    <TableCell>{movement.reference}</TableCell>
+                      </TableCell>
+                      <TableCell>{movement.reference}</TableCell>
                     <TableCell>{movement.user || '-'}</TableCell>
                   </TableRow>
                 ))}

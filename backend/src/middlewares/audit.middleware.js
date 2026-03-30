@@ -1,26 +1,21 @@
-const AuditLog = require('../models/auditLog.model');
+const SystemLog = require('../models/systemLog.model');
 
 /**
- * createAuditLog — manual helper for creating audit entries in controllers.
+ * createAuditLog — manual helper for creating system-wide audit entries.
  */
-const createAuditLog = async ({ action, module, performedBy, targetId, targetModel, before, after, req, session }) => {
+const createAuditLog = async ({ action, module, performedBy, details, req, session }) => {
     try {
-        await AuditLog.create([{
+        await SystemLog.create([{
             action,
             module,
-            performedBy,
-            targetId,
-            targetModel,
-            before,
-            after,
+            userId: performedBy,
+            details,
             ipAddress: req?.ip,
-            userAgent: req?.headers?.['user-agent'],
-            storeId: performedBy?.shopId,
+            userAgent: req?.headers?.['user-agent']
         }], { session });
     } catch (err) {
-        // Audit log failure should never crash the main request unless we are in a transaction
-        console.error('AuditLog write failed:', err.message);
-        if (session) throw err; // Re-throw if in transaction to force rollback
+        console.error('SystemLog write failed:', err.message);
+        if (session) throw err; 
     }
 };
 

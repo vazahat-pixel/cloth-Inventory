@@ -22,9 +22,7 @@ import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
 import { SummaryChip } from './SalesReportPage';
 import { LOW_STOCK_THRESHOLD } from './data';
-import { fetchStockOverview } from '../inventory/inventorySlice';
-import { fetchSales } from '../sales/salesSlice';
-import { fetchPurchases } from '../purchase/purchaseSlice';
+import { fetchStockOverview, fetchMovements } from '../inventory/inventorySlice';
 
 const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
@@ -35,13 +33,11 @@ function StockReportPage() {
   const items = useSelector((state) => state.items?.records || []);
   const brands = useSelector((state) => state.masters?.brands || []);
   const itemGroups = useSelector((state) => state.masters?.itemGroups || []);
-  const purchases = useSelector((state) => state.purchase?.records || []);
-  const sales = useSelector((state) => state.sales?.records || []);
+  const movements = useSelector((state) => state.inventory?.movements || []);
 
   useEffect(() => {
     dispatch(fetchStockOverview());
-    dispatch(fetchSales());
-    dispatch(fetchPurchases());
+    dispatch(fetchMovements());
   }, [dispatch]);
 
   const [filters, setFilters] = useState({});
@@ -65,51 +61,95 @@ function StockReportPage() {
     [warehouses],
   );
 
-  // Calculate purchased and sold quantities per product from actual data
-  const productMovements = useMemo(() => {
-    const movements = {};
-    // Purchased: sum from purchase records
-    purchases.forEach((p) => {
-      (p.items || []).forEach((line) => {
-        const pid = line.productId || line.variantId;
-        if (!pid) return;
-        if (!movements[pid]) movements[pid] = { purchased: 0, sold: 0 };
-        movements[pid].purchased += toNum(line.quantity);
-      });
+  const movementBuckets = useMemo(() => {
+    const buckets = {};
+
+    const ensureBucket = (locationId) => {
+      const key = String(locationId);
+      if (!buckets[key]) {
+        buckets[key] = {
+          purchaseIn: 0,
+          qcIn: 0,
+          saleOut: 0,
+          returnIn: 0,
+          returnOut: 0,
+          transferIn: 0,
+          transferOut: 0,
+          adjustmentIn: 0,
+          adjustmentOut: 0,
+        };
+      }
+      return buckets[key];
+    };
+
+    movements.forEach((movement) => {
+      const qty = Math.abs(toNum(movement.qty));
+      const type = String(movement.type || '').toUpperCase();
+      const fromId = movement.fromLocation?._id || movement.fromLocation?.id || movement.fromLocation || '';
+      const toId = movement.toLocation?._id || movement.toLocation?.id || movement.toLocation || '';
+
+      if (type === 'DAMAGED') return;
+
+      if (toId) {
+        const bucket = ensureBucket(toId);
+        if (type === 'PURCHASE') bucket.purchaseIn += qty;
+        if (type === 'QC_APPROVED') bucket.qcIn += qty;
+        if (type === 'RETURN') bucket.returnIn += qty;
+        if (type === 'TRANSFER') bucket.transferIn += qty;
+        if (type === 'ADJUSTMENT') bucket.adjustmentIn += qty;
+      }
+
+      if (fromId) {
+        const bucket = ensureBucket(fromId);
+        if (type === 'SALE') bucket.saleOut += qty;
+        if (type === 'RETURN') bucket.returnOut += qty;
+        if (type === 'TRANSFER') bucket.transferOut += qty;
+        if (type === 'ADJUSTMENT') bucket.adjustmentOut += qty;
+      }
     });
-    // Sold: sum from sales records
-    sales.forEach((s) => {
-      (s.items || []).forEach((line) => {
-        const pid = line.productId || line.variantId;
-        if (!pid) return;
-        if (!movements[pid]) movements[pid] = { purchased: 0, sold: 0 };
-        movements[pid].sold += toNum(line.quantity);
-      });
-    });
-    return movements;
-  }, [purchases, sales]);
+
+    return buckets;
+  }, [movements]);
 
   const stockRows = useMemo(() => {
     return stock.map((s) => {
-      const prices = variantPriceMap[s.variantId] || {};
+      const prices = variantPriceMap[s.productId || s.variantId] || {};
       const closingStock = toNum(s.quantity);
       const value = closingStock * (prices.cost || prices.selling || 0);
-      const pid = s.variantId || s.productId;
-      const mov = productMovements[pid] || { purchased: 0, sold: 0 };
-      // Opening = closing + sold - purchased (rearranged: opening + purchased - sold = closing)
-      const openingStock = Math.max(0, closingStock + mov.sold - mov.purchased);
+      const locationId = s.storeId || s.warehouseId || s.id;
+      const mov = movementBuckets[String(locationId)] || {
+        purchaseIn: 0,
+        qcIn: 0,
+        saleOut: 0,
+        returnIn: 0,
+        returnOut: 0,
+        transferIn: 0,
+        transferOut: 0,
+        adjustmentIn: 0,
+        adjustmentOut: 0,
+      };
+
+      const added = mov.purchaseIn + mov.qcIn + mov.returnIn;
+      const removed = mov.saleOut + mov.returnOut;
+      const transferNet = mov.transferIn - mov.transferOut;
+      const adjustmentNet = mov.adjustmentIn - mov.adjustmentOut;
+      const movementNet = added - removed + transferNet + adjustmentNet;
+      const openingStock = Math.max(0, closingStock - movementNet);
       return {
         ...s,
-        warehouseName: warehouseMap[s.warehouseId],
+        warehouseName: warehouseMap[s.warehouseId] || warehouseMap[s.storeId],
         openingStock,
-        purchased: mov.purchased,
-        sold: mov.sold,
+        added,
+        removed,
+        transferNet,
+        adjustmentNet,
+        damaged: toNum(s.damagedQuantity || 0),
         closingStock,
         value,
         isLowStock: closingStock <= LOW_STOCK_THRESHOLD,
       };
     });
-  }, [stock, variantPriceMap, warehouseMap, productMovements]);
+  }, [stock, variantPriceMap, warehouseMap, movementBuckets]);
 
   const filteredRows = useMemo(() => {
     const query = searchText.trim().toLowerCase();
@@ -119,9 +159,17 @@ function StockReportPage() {
       const matchesWarehouse =
         !filters.warehouseId || filters.warehouseId === 'all' || row.warehouseId === filters.warehouseId;
       const matchesBrand =
-        !filters.brandId || filters.brandId === 'all' || row.brand === selectedBrand?.brandName;
+        !filters.brandId ||
+        filters.brandId === 'all' ||
+        row.brand === selectedBrand?.brandName ||
+        row.brand === selectedBrand?.id ||
+        row.brand === selectedBrand?._id;
       const matchesCategory =
-        !filters.categoryId || filters.categoryId === 'all' || row.category === selectedGroup?.groupName;
+        !filters.categoryId ||
+        filters.categoryId === 'all' ||
+        row.category === selectedGroup?.groupName ||
+        row.category === selectedGroup?.id ||
+        row.category === selectedGroup?._id;
       const matchesSearch =
         !query ||
         (row.itemName || '').toLowerCase().includes(query) ||
@@ -279,8 +327,11 @@ function StockReportPage() {
                     <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Warehouse</TableCell>
                     <TableCell sx={{ fontWeight: 700 }} align="right">Opening</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }} align="right">Purchased</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }} align="right">Sold</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">Added</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">Removed</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">Transfer</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">Adjust</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">Damaged</TableCell>
                     <TableCell sx={{ fontWeight: 700 }} align="right">Closing</TableCell>
                     <TableCell sx={{ fontWeight: 700 }} align="right">Value</TableCell>
                   </TableRow>
@@ -299,8 +350,11 @@ function StockReportPage() {
                       <TableCell sx={{ fontFamily: 'monospace' }}>{row.sku}</TableCell>
                       <TableCell>{row.warehouseName}</TableCell>
                       <TableCell align="right">{row.openingStock}</TableCell>
-                      <TableCell align="right">{row.purchased}</TableCell>
-                      <TableCell align="right">{row.sold}</TableCell>
+                      <TableCell align="right">{row.added}</TableCell>
+                      <TableCell align="right">{row.removed}</TableCell>
+                      <TableCell align="right">{row.transferNet}</TableCell>
+                      <TableCell align="right">{row.adjustmentNet}</TableCell>
+                      <TableCell align="right">{row.damaged}</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700 }}>
                         {row.closingStock}
                         {row.isLowStock && ' ⚠'}

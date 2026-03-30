@@ -23,7 +23,7 @@ const generateGrnNumber = async (session = null) => {
  */
 const createGRN = async (grnData, userId) => {
     return await withTransaction(async (session) => {
-        const { purchaseId, items } = grnData;
+        const { purchaseId, supplierId, warehouseId, invoiceNumber, invoiceDate, remarks, items } = grnData;
 
         // 1. Validate Purchase Document
         const purchase = await Purchase.findById(purchaseId).session(session);
@@ -42,11 +42,7 @@ const createGRN = async (grnData, userId) => {
                 p => p.productId.toString() === item.productId.toString()
             );
 
-            if (!originalPurchaseItem) {
-                throw new Error(`Product ${item.productId} was not part of original Purchase Order`);
-            }
-
-            const orderedQty = originalPurchaseItem.quantity;
+            const orderedQty = item.orderedQty || (originalPurchaseItem ? originalPurchaseItem.quantity : 0);
 
             // Calculate historical total received
             let totalPreviouslyReceived = 0;
@@ -59,9 +55,9 @@ const createGRN = async (grnData, userId) => {
 
             const currentTotalReceived = totalPreviouslyReceived + item.receivedQty;
 
-            // Validation: Ensure total receiving (historical + current) <= Ordered
+            // Overage Error Check
             if (currentTotalReceived > orderedQty) {
-                throw new Error(`Overage error for product ${item.productId}. Total received (${currentTotalReceived}) would exceed ordered (${orderedQty}). Previously received: ${totalPreviouslyReceived}`);
+                throw new Error(`Overage error for ${item.productId}. Total received (${currentTotalReceived}) exceeds ordered (${orderedQty}).`);
             }
 
             processedItems.push({
@@ -69,7 +65,7 @@ const createGRN = async (grnData, userId) => {
                 orderedQty,
                 receivedQty: item.receivedQty,
                 pendingQty: orderedQty - currentTotalReceived,
-                batchNumber: item.batchNumber || `BATCH-${Date.now()}`
+                batchNumber: item.lotNumber || item.batchNumber || `BATCH-${Date.now()}`
             });
         }
 
@@ -78,6 +74,11 @@ const createGRN = async (grnData, userId) => {
         const grn = new GRN({
             grnNumber,
             purchaseId,
+            supplierId,
+            warehouseId,
+            invoiceNumber,
+            invoiceDate,
+            remarks,
             items: processedItems,
             receivedBy: userId,
             status: GrnStatus.COMPLETED

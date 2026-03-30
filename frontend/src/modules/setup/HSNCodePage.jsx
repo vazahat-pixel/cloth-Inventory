@@ -50,12 +50,12 @@ const HSNCodePage = () => {
         setLoading(true);
         try {
             const [hsnRes, gstRes] = await Promise.all([
-                api.get('/hsn-codes'),
+                api.get('/setup/hsn'),
                 api.get('/gst')
             ]);
             const hsnData = hsnRes.data;
             const gstData = gstRes.data;
-            setHsns(hsnData.hsns || hsnData.data?.hsns || []);
+            setHsns(hsnData.data || hsnData.hsns || hsnData.data?.hsns || []);
             setGstSlabs(gstData.slabs || gstData.gstSlabs || gstData.data?.slabs || []);
         } catch (err) {
             const message = err.response?.data?.message || 'Failed to fetch data';
@@ -88,9 +88,9 @@ const HSNCodePage = () => {
     const handleSave = async () => {
         try {
             if (editId) {
-                await api.patch(`/hsn-codes/${editId}`, formData);
+                await api.patch(`/setup/hsn/${editId}`, formData);
             } else {
-                await api.post('/hsn-codes', formData);
+                await api.post('/setup/hsn', formData);
             }
             setOpen(false);
             fetchData();
@@ -103,7 +103,7 @@ const HSNCodePage = () => {
     const handleDelete = async (id) => {
         if (!window.confirm('Are you sure?')) return;
         try {
-            await api.delete(`/hsn-codes/${id}`);
+            await api.delete(`/setup/hsn/${id}`);
             fetchData();
         } catch (err) {
             const message = err.response?.data?.message || 'Delete failed';

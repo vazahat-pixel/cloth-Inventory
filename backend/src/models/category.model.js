@@ -12,6 +12,16 @@ const categorySchema = new mongoose.Schema(
             type: String,
             trim: true
         },
+        type: {
+            type: String,
+            trim: true,
+            default: 'Category'
+        },
+        parentId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Category',
+            default: null
+        },
         status: {
             type: String,
             enum: ['Active', 'Inactive'],
@@ -31,5 +41,6 @@ const categorySchema = new mongoose.Schema(
 );
 
 categorySchema.index({ name: 1 });
+categorySchema.index({ parentId: 1 });
 
 module.exports = mongoose.model('Category', categorySchema);

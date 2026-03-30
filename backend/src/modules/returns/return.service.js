@@ -2,7 +2,7 @@ const Return = require('../../models/return.model');
 const Purchase = require('../../models/purchase.model');
 const Sale = require('../../models/sale.model');
 const Account = require('../../models/account.model');
-const { ReturnType, ReturnStatus, DocumentType, MovementType } = require('../../core/enums');
+const { ReturnType, ReturnStatus, DocumentType, StockMovementType } = require('../../core/enums');
 const { withTransaction } = require('../../services/transaction.service');
 const { removeStock, addStock } = require('../../services/stock.service');
 const { createJournalEntries } = require('../../services/ledger.service');
@@ -56,19 +56,6 @@ const createPurchaseReturn = async (returnData, userId) => {
 
             totalReturnAmount += itemSubTotal;
             totalTaxAmount += itemTax;
-
-            // Reduce Warehouse Stock
-            await removeStock({
-                variantId: item.variantId,
-                locationId: locationId,
-                locationType: 'WAREHOUSE',
-                qty: item.quantity,
-                type: 'RETURN',
-                referenceId: null, // Update later
-                referenceType: 'Return',
-                performedBy: userId,
-                session
-            });
         }
 
         const grandTotal = totalReturnAmount + totalTaxAmount;
@@ -86,6 +73,21 @@ const createPurchaseReturn = async (returnData, userId) => {
             createdBy: userId
         });
         await returnDoc.save({ session });
+
+        // Reduce Warehouse Stock after the return document exists
+        for (const item of processedItems) {
+            await removeStock({
+                variantId: item.variantId,
+                locationId: locationId,
+                locationType: 'WAREHOUSE',
+                qty: item.quantity,
+                type: StockMovementType.RETURN,
+                referenceId: returnDoc._id,
+                referenceType: 'Return',
+                performedBy: userId,
+                session
+            });
+        }
 
         // 4. Reverse Ledger Entries
         const payableAccount = await Account.findOne({ name: 'Accounts Payable' }).session(session);
@@ -163,19 +165,6 @@ const createSalesReturn = async (returnData, userId) => {
 
             totalReturnAmount += itemSubTotal;
             totalTaxAmount += itemTax;
-
-            // Increase Store Stock
-            await addStock({
-                variantId: item.variantId,
-                locationId: locationId,
-                locationType: 'STORE',
-                qty: item.quantity,
-                type: 'RETURN',
-                referenceId: null,
-                referenceType: 'Return',
-                performedBy: userId,
-                session
-            });
         }
 
         const grandTotal = totalReturnAmount + totalTaxAmount;
@@ -192,6 +181,21 @@ const createSalesReturn = async (returnData, userId) => {
             createdBy: userId
         });
         await returnDoc.save({ session });
+
+        // Restore Store Stock after the return document exists
+        for (const item of processedItems) {
+            await addStock({
+                variantId: item.variantId,
+                locationId: locationId,
+                locationType: 'STORE',
+                qty: item.quantity,
+                type: StockMovementType.RETURN,
+                referenceId: returnDoc._id,
+                referenceType: 'Return',
+                performedBy: userId,
+                session
+            });
+        }
 
         // 2. Reverse Ledger (Debit: Sales Return, Credit: Receivable/Customer)
         const salesAccount = await Account.findOne({ name: 'Sales Account' }).session(session);

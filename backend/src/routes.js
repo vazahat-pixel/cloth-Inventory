@@ -1,54 +1,44 @@
 /**
- * routes.js — Central route loader
+ * routes.js — Central route loader for Logic ERP parity system
  */
-
 const authRoutes = require('./modules/auth/auth.routes');
+const groupRoutes = require('./modules/groups/group.routes');
+const itemRoutes = require('./modules/items/item.routes');
+const importRoutes = require('./modules/import/import.routes');
+const gstRoutes = require('./modules/gst/gst.routes');
+const setupRoutes = require('./modules/setup/setup.routes');
+const inventoryRoutes = require('./modules/inventory/inventory.routes');
+const { requireAdmin } = require('./middlewares/role.middleware');
+const { activityLogger } = require('./middlewares/logger.middleware');
 
 const registerRoutes = (app) => {
+    // Global Middlewares (Security & Logging)
+    app.use(activityLogger('ERP_SYSTEM')); // Global logger for activity audit
+
+    // Auth & Identity
     app.use('/api/auth', authRoutes);
-    app.use('/api/stores', require('./modules/stores/store.routes'));
-    app.use('/api/warehouses', require('./modules/warehouses/warehouse.routes'));
-    app.use('/api/suppliers', require('./modules/suppliers/supplier.routes'));
-    app.use('/api/fabrics', require('./modules/fabrics/fabric.routes'));
-    app.use('/api/production', require('./modules/production/production.routes'));
-    app.use('/api/products', require('./modules/products/product.routes'));
-    app.use('/api/barcodes', require('./modules/barcodes/barcode.routes'));
-    app.use('/api/dispatch', require('./modules/dispatch/dispatch.routes'));
-    app.use('/api/store-inventory', require('./modules/storeInventory/storeInventory.routes'));
+
+    // Logic ERP Core Modules (Strict Admin only for critical setups)
+    app.use('/api/groups', requireAdmin, groupRoutes);    
+    app.use('/api/import', requireAdmin, importRoutes);  
+    app.use('/api/gst', requireAdmin, gstRoutes);        
+    app.use('/api/setup', requireAdmin, setupRoutes);    
+    
+    // Both roles (Filtered by controller internal logic)
+    app.use('/api/items', itemRoutes);      
+    app.use('/api/inventory', inventoryRoutes); 
     app.use('/api/sales', require('./modules/sales/sales.routes'));
-    app.use('/api/returns', require('./modules/returns/return.routes'));
-    app.use('/api/customers', require('./modules/customers/customer.routes'));
-    app.use('/api/reports', require('./modules/reports/report.routes'));
-    app.use('/api/dashboard', require('./modules/dashboard/dashboard.routes'));
-    app.use('/api/categories', require('./modules/categories/category.routes'));
-    app.use('/api/gst', require('./modules/gst/gst.routes'));
-    app.use('/api/purchase', require('./modules/purchase/purchase.routes'));
-    app.use('/api/purchase-orders', require('./modules/purchaseOrder/purchaseOrder.routes'));
-    app.use('/api/pricing', require('./modules/pricing/pricing.routes'));
-    app.use('/api/schemes', require('./modules/schemes/scheme.routes'));
-    app.use('/api/coupons', require('./modules/coupons/coupon.routes'));
-    app.use('/api/vouchers', require('./modules/vouchers/voucher.routes'));
-    app.use('/api/accounts', require('./modules/accounts/accounts.routes'));
-    app.use('/api/settings', require('./modules/settings/settings.routes'));
-    app.use('/api/brands', require('./modules/brands/brand.routes'));
-    app.use('/api/banks', require('./modules/banks/bank.routes'));
-    app.use('/api/account-groups', require('./modules/accountGroups/accountGroup.routes'));
-    app.use('/api/hsn-codes', require('./modules/hsnCode/hsnCode.routes'));
-    app.use('/api/account-master', require('./modules/accountMaster/accountMaster.routes'));
-    app.use('/api/counters', require('./modules/billingCounter/billingCounter.routes'));
-    app.use('/api/documents', require('./modules/documents/document.routes'));
-    app.use('/api/grn', require('./modules/grn/grn.routes'));
-    app.use('/api/qc', require('./modules/qc/qc.routes'));
-    app.use('/api/stock', require('./modules/stock/stock.routes'));
-    app.use('/api/approval', require('./modules/approval/approval.routes'));
-    app.use('/api/config', require('./modules/systemConfig/systemConfig.routes'));
-    app.use('/api/notifications', require('./modules/notifications/notification.routes'));
-    app.use('/api/rbac', require('./modules/rbac/rbac.routes'));
-    app.use('/api/accounting', require('./modules/accounting/accounting.routes'));
-    app.use('/api/delivery-challans', require('./modules/deliveryChallan/deliveryChallan.routes'));
-    // NEW MODULES
-    app.use('/api/orders', require('./modules/orders/orders.routes'));
-    app.use('/api/credit-notes', require('./modules/creditNotes/creditNote.routes'));
+
+    // Existing ERP Modules (Strict Admin)
+    app.use('/api/stores', requireAdmin, require('./modules/stores/store.routes'));
+    app.use('/api/warehouses', requireAdmin, require('./modules/warehouses/warehouse.routes'));
+    app.use('/api/suppliers', requireAdmin, require('./modules/suppliers/supplier.routes'));
+    app.use('/api/production', requireAdmin, require('./modules/production/production.routes'));
+    app.use('/api/products', itemRoutes); // Alias
+    app.use('/api/delivery-challans', requireAdmin, require('./modules/deliveryChallan/deliveryChallan.routes'));
+    app.use('/api/purchase', requireAdmin, require('./modules/purchase/purchase.routes'));
+    app.use('/api/reports', requireAdmin, require('./modules/reports/report.routes'));
+    app.use('/api/grn', requireAdmin, require('./modules/grn/grn.routes'));
 };
 
 module.exports = registerRoutes;

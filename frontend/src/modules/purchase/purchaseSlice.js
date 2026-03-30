@@ -25,7 +25,8 @@ export const addPurchase = createAsyncThunk('purchase/add', async (purchaseData,
       products: (purchaseData.products || purchaseData.items || []).map(p => ({
         productId: p.productId || p.id || p.variantId,
         quantity: p.quantity,
-        rate: p.rate || p.price
+        rate: p.rate || p.price,
+        lotNumber: p.lotNumber || ''
       }))
     };
 
@@ -49,7 +50,8 @@ export const updatePurchase = createAsyncThunk('purchase/update', async ({ id, p
       products: (purchaseData.products || purchaseData.items || []).map(p => ({
         productId: p.productId || p.id || p.variantId,
         quantity: p.quantity,
-        rate: p.rate || p.price
+        rate: p.rate || p.price,
+        lotNumber: p.lotNumber || ''
       }))
     };
     const response = await api.patch(`/purchase/${id}`, payload);

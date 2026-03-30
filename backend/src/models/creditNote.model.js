@@ -17,6 +17,10 @@ const creditNoteSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Return'
         },
+        saleId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Sale'
+        },
         totalAmount: {
             type: Number,
             required: true,

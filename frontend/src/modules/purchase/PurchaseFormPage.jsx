@@ -394,7 +394,8 @@ function PurchaseFormPage() {
         quantity,
         rate,
         discountPercentage,
-        taxPercentage
+        taxPercentage,
+        lotNumber: line.lotNumber || '',
       };
     });
 

@@ -89,10 +89,10 @@ function ItemFormPage() {
         category: existingItem.category?._id || existingItem.category || '',
         description: existingItem.description || '',
         status: existingItem.status || 'Active',
-        gender: existingItem.attributes?.gender || '',
-        season: existingItem.attributes?.season || '',
-        fabric: existingItem.attributes?.fabric || '',
-        fabricType: existingItem.attributes?.fabricType || '',
+        gender: existingItem.gender || existingItem.attributes?.gender || '',
+        season: existingItem.season || existingItem.attributes?.season || '',
+        fabric: existingItem.fabric || existingItem.attributes?.fabric || '',
+        fabricType: existingItem.fabricType || existingItem.attributes?.fabricType || '',
         hsnCodeId: existingItem.hsnCodeId?._id || existingItem.hsnCodeId || '',
       });
       setVariants(existingItem.variants || []);
@@ -138,6 +138,17 @@ function ItemFormPage() {
     reader.readAsDataURL(file);
   };
 
+  const hsnCodeId = watch('hsnCodeId');
+  useEffect(() => {
+    if (hsnCodeId) {
+      const hsn = hsnCodes.find(h => h._id === hsnCodeId);
+      if (hsn?.gstSlabId) {
+        const slabId = typeof hsn.gstSlabId === 'object' ? hsn.gstSlabId._id : hsn.gstSlabId;
+        setValue('gstSlabId', slabId);
+      }
+    }
+  }, [hsnCodeId, hsnCodes, setValue]);
+
   const removeImage = (index) => {
     const newImages = [...images];
     newImages[index] = null;
@@ -156,13 +167,12 @@ function ItemFormPage() {
       brand: values.brand, // Now sending ID
       category: values.category, // Now sending ID
       description: values.description.trim(),
-      attributes: {
-        gender: values.gender,
-        season: values.season,
-        fabric: values.fabric,
-        fabricType: values.fabricType,
-      },
+      gender: values.gender,
+      season: values.season,
+      fabric: values.fabric,
+      fabricType: values.fabricType,
       hsnCodeId: values.hsnCodeId,
+      gstSlabId: values.gstSlabId,
       images: images.filter(img => img !== null).map(img => img.preview || img),
       status: values.status,
       variants: variants.map(v => ({
@@ -325,6 +335,23 @@ function ItemFormPage() {
               {hsnCodes.map((hsn) => (
                 <MenuItem key={hsn._id} value={hsn._id}>
                   {hsn.code} - {hsn.description}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField
+              label="Tax Rate (GST Slab)"
+              select
+              fullWidth
+              size="small"
+              {...register('gstSlabId', { required: 'Tax slab is required.' })}
+              error={Boolean(errors.gstSlabId)}
+              helperText={errors.gstSlabId?.message || ' '}
+            >
+              {gstSlabs.map((slab) => (
+                <MenuItem key={slab._id || slab.id} value={slab._id || slab.id}>
+                  {slab.name} ({slab.percentage}%)
                 </MenuItem>
               ))}
             </TextField>
