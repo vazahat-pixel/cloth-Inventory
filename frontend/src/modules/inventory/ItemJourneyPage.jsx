@@ -1,51 +1,55 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Box, 
-  Paper, 
-  Typography, 
-  TextField, 
-  Autocomplete, 
-  CircularProgress,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  Avatar,
-  Chip,
-  Divider,
-  Grid,
-  Timeline,
-  TimelineItem,
-  TimelineSeparator,
-  TimelineConnector,
-  TimelineContent,
-  TimelineDot,
-  TimelineOppositeContent
-} from '@mui/material';
-import TimelineOutlinedIcon from '@mui/icons-material/TimelineOutlined';
-import ShoppingCartCheckoutIcon from '@mui/icons-material/ShoppingCartCheckout';
-import Inventory2Icon from '@mui/icons-material/Inventory2';
-import LocalShippingIcon from '@mui/icons-material/LocalShipping';
-import ReceiptIcon from '@mui/icons-material/Receipt';
-import PaymentsIcon from '@mui/icons-material/Payments';
-import PostAddIcon from '@mui/icons-material/PostAdd';
-import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
-import api from '../../services/api';
+import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Box, MenuItem, Paper, TextField, Typography } from '@mui/material';
+import PageHeader from '../../components/erp/PageHeader';
+import FilterBar from '../../components/erp/FilterBar';
+import SummaryCard from '../../components/erp/SummaryCard';
+import TimelineView from '../../components/erp/TimelineView';
+import itemsData from '../items/data';
+import { stockAuditSeed } from '../erp/erpUiMocks';
 
-/**
- * ItemJourneyPage — The vertical trace of a garment's life cycle.
- * From PO creation to final payment settlement.
- */
-const ItemJourneyPage = () => {
-  const [items, setItems] = useState([]);
-  const [selectedItem, setSelectedItem] = useState(null);
-  const [journeyData, setJourneyData] = useState(null);
-  const [loadingItems, setLoadingItems] = useState(true);
-  const [loadingJourney, setLoadingJourney] = useState(false);
+const variants = itemsData.flatMap((item) =>
+  (item.variants || []).map((variant) => ({
+    id: variant.id,
+    itemCode: item.code,
+    itemName: item.name,
+    variantLabel: `${variant.size} / ${variant.color}`,
+    size: variant.size,
+    color: variant.color,
+  })),
+);
 
-  useEffect(() => {
-    fetchItems();
-  }, []);
+const sourceToEventType = {
+  PURCHASE_GRN: 'PURCHASE_GRN',
+  TRANSFER_OUT: 'TRANSFER_OUT',
+  TRANSFER_IN: 'TRANSFER_IN',
+  SALE: 'SALE',
+  RETURN: 'RETURN',
+  ADJUSTMENT: 'ADJUSTMENT',
+};
+
+const journeyEvents = stockAuditSeed.fullLedger.map((row, index) => ({
+  id: row.id || `journey-${index + 1}`,
+  itemCode: row.itemCode,
+  variantLabel: row.size,
+  dateTime: row.date,
+  eventType: sourceToEventType[row.source] || row.source,
+  quantity: row.qty,
+  fromLocation: row.movementType === 'OUT' ? row.warehouse : 'Supplier / External',
+  toLocation: row.movementType === 'IN' ? row.warehouse : 'Customer / External',
+  referenceNumber: row.referenceId,
+  doneBy: row.doneBy,
+  notes: `${row.source} moved ${row.qty} unit(s) for ${row.itemCode}.`,
+  status: row.movementType,
+}));
+
+function ItemJourneyPage() {
+  const [searchParams] = useSearchParams();
+  const preselectedItem = searchParams.get('item') || 'all';
+  const [itemFilter, setItemFilter] = useState(preselectedItem);
+  const [variantFilter, setVariantFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const itemOptions = useMemo(() => Array.from(new Set(variants.map((variant) => variant.itemCode))), []);
   const variantOptions = useMemo(

@@ -1,19 +1,26 @@
 import { Box, Paper, Tab, Tabs, Typography } from '@mui/material';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import masterNavigation from './config/masterNavigation';
 import useRoleBasePath from '../../hooks/useRoleBasePath';
 
 function MastersLayout() {
   const location = useLocation();
-  const navigate = useNavigate();
   const basePath = useRoleBasePath();
 
-  const activeTab = masterNavigation.findIndex((item) => location.pathname.includes(item.path));
-  const tabValue = activeTab >= 0 ? activeTab : 0;
-
-  const handleTabChange = (_, newValue) => {
-    navigate(`${basePath}${masterNavigation[newValue].path}`);
+  const getLocalPath = (pathname) => {
+    if (pathname.startsWith(basePath)) {
+      return pathname.slice(basePath.length) || '/';
+    }
+    return pathname;
   };
+
+  const localPath = getLocalPath(location.pathname);
+  const activeTab = masterNavigation.find(
+    (item) => localPath === item.path || localPath.startsWith(`${item.path}/`),
+  );
+  const tabValue = activeTab?.path || false;
+
+  const toFullPath = (path) => `${basePath}${path}`;
 
   return (
     <Box>
@@ -29,13 +36,29 @@ function MastersLayout() {
 
         <Tabs
           value={tabValue}
-          onChange={handleTabChange}
           variant="scrollable"
+          scrollButtons="auto"
           allowScrollButtonsMobile
-          sx={{ px: { xs: 1, sm: 2 } }}
+          sx={{
+            px: { xs: 1, sm: 2 },
+            '& .MuiTabs-scrollButtons.Mui-disabled': {
+              opacity: 0.3,
+            },
+          }}
         >
           {masterNavigation.map((item) => (
-            <Tab key={item.path} label={item.label} />
+            <Tab
+              key={item.path}
+              value={item.path}
+              label={item.label}
+              component={NavLink}
+              to={toFullPath(item.path)}
+              sx={{
+                textTransform: 'none',
+                fontWeight: 700,
+                minHeight: 52,
+              }}
+            />
           ))}
         </Tabs>
       </Paper>
