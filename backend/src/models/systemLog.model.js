@@ -8,12 +8,12 @@ const systemLogSchema = new mongoose.Schema({
   module: {
     type: String,
     required: true,
-    enum: ['Setup', 'Item', 'Purchase', 'GRN', 'Barcode', 'Inventory', 'Transfer', 'Sales', 'Accounting']
+    enum: ['ERP_SYSTEM', 'Setup', 'Item', 'Purchase', 'GRN', 'Barcode', 'Inventory', 'Transfer', 'Sales', 'Accounting', 'Groups', 'Import', 'GST', 'Stores', 'Warehouses', 'Suppliers', 'Production', 'Reports', 'Auth']
   },
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: false
   },
   details: {
     type: mongoose.Schema.Types.Mixed

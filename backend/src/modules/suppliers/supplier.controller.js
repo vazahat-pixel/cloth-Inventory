@@ -12,18 +12,25 @@ const validate = (req, res) => {
 
 const createSupplier = async (req, res, next) => {
     try {
+        console.log(`[DEBUG] Create Supplier Request - User: ${req.user?._id}, Role: ${req.user?.role}`);
+        console.log('[DEBUG] Request Body:', JSON.stringify(req.body, null, 2));
+
         const error = validate(req, res);
         if (error) return error;
 
         const bodyData = { ...req.body };
-        if (bodyData.groupId === '') delete bodyData.groupId;
+        // Defensive cleanup of empty strings for Mongoose ObjectId fields
+        if (!bodyData.groupId || bodyData.groupId === '') delete bodyData.groupId;
+        
         if (bodyData.status) {
             bodyData.isActive = bodyData.status === 'Active';
         }
 
         const supplier = await supplierService.createSupplier(bodyData, req.user._id);
+        console.log(`✅ Supplier Created Successfully: ${supplier._id}`);
         return sendCreated(res, { supplier }, 'Supplier created successfully');
     } catch (err) {
+        console.error(`❌ Create Supplier Failed: ${err.message}`);
         return sendError(res, err.message, 400);
     }
 };
