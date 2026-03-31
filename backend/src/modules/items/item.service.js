@@ -50,26 +50,62 @@ const ensureSizeBarcodes = async (sizes = []) => {
 };
 
 const populateItem = async (itemId) =>
-  Item.findById(itemId).populate('groupIds', 'name groupType level parentId isActive');
+  Item.findById(itemId)
+    .populate('groupIds', 'name groupType level parentId isActive')
+    .populate('brand', 'brandName name')
+    .populate('session', 'seasonName name')
+    .populate('hsCodeId', 'code hsnCode gstRate gstPercent');
 
 class ItemService {
-  async createItem(data = {}) {
-    const itemCode = normalizeString(data.itemCode).toUpperCase();
-    if (!itemCode) {
-      throw new Error('itemCode is required');
+  async normalizeItemData(data) {
+    if (data.itemCode) data.itemCode = data.itemCode.trim().toUpperCase();
+    
+    // Ensure all descriptors are top-level
+    const descriptors = ['fabric', 'pattern', 'fit', 'gender', 'occasion', 'uom', 'shade', 'description'];
+    descriptors.forEach(field => {
+      if (data[field]) data[field] = data[field].toString().trim();
+    });
+
+    // Handle Hierarchy
+    if (data.section || data.category || data.subCategory || data.styleType) {
+      data.groupIds = [data.section, data.category, data.subCategory, data.styleType].filter(Boolean);
     }
 
-    const existingItem = await Item.findOne({ itemCode });
-    if (existingItem) {
-      throw new Error(`Item with code ${itemCode} already exists`);
+    // Handle Images Array
+    data.images = Array.isArray(data.images) 
+      ? data.images.filter(img => typeof img === 'string' && img.length > 0) 
+      : [];
+
+    // Ensure Inventory Metrics are Numbers
+    data.reorderLevel = Number(data.reorderLevel || 0);
+    data.reorderQty = Number(data.reorderQty || 0);
+    data.openingStock = Number(data.openingStock || 0);
+    data.openingStockRate = Number(data.openingStockRate || 0);
+
+    // Normalize Sizes (Variants)
+    if (data.sizes && Array.isArray(data.sizes)) {
+      data.sizes = data.sizes.map(s => ({
+        ...s,
+        barcode: s.barcode || s.sku || null,
+        costPrice: Number(s.costPrice || 0),
+        salePrice: Number(s.salePrice || 0),
+        mrp: Number(s.mrp || 0),
+        stock: Number(s.stock || 0)
+      }));
     }
+  }
+
+  async createItem(data = {}) {
+    await this.normalizeItemData(data);
+
+    const itemCode = data.itemCode;
+    if (!itemCode) throw new Error('itemCode is required');
+
+    const existingItem = await Item.findOne({ itemCode });
+    if (existingItem) throw new Error(`Item with code ${itemCode} already exists`);
 
     const groupIds = normalizeGroupIds(data.groupIds);
     await ensureGroupsExist(groupIds);
-
-    if (data.autoGenerateName || !normalizeString(data.itemName)) {
-      data.itemName = await FormulaEngine.generateName({ ...data, itemCode }, data.formulaName || 'primary');
-    }
 
     if (!Array.isArray(data.sizes) || !data.sizes.length) {
       throw new Error('Garment Item must have at least one size pricing');
@@ -80,124 +116,79 @@ class ItemService {
     const item = new Item({
       ...data,
       itemCode,
-      itemName: normalizeString(data.itemName),
-      brand: normalizeString(data.brand),
-      shade: normalizeString(data.shade),
-      description: normalizeString(data.description),
+      itemName: data.itemName || data.itemCode,
+      brand: normalizeId(data.brand),
+      shade: data.shade,
+      description: data.description,
       groupIds,
-      session: normalizeString(data.session),
+      session: normalizeId(data.session),
+      hsCodeId: normalizeId(data.hsCodeId),
+      images: data.images || []
     });
 
-    const savedItem = await item.save();
-    return populateItem(savedItem._id);
+    await item.save();
+    return populateItem(item._id);
   }
 
-  async allocateGroup(itemId, groupIds) {
-    const item = await Item.findById(itemId);
-    if (!item) {
-      throw new Error('Item not found');
+  async updateItem(id, data = {}) {
+    const item = await Item.findById(id);
+    if (!item) return null;
+
+    await this.normalizeItemData(data);
+
+    // Update fields dynamically if they are provided in normalized data
+    const fieldsToUpdate = [
+      'itemName', 'itemCode', 'brand', 'shade', 'description', 'session', 'hsCodeId', 
+      'fabric', 'pattern', 'fit', 'gender', 'uom', 'images', 'groupIds', 'sizes',
+      'reorderLevel', 'reorderQty', 'openingStock', 'openingStockRate', 
+      'stockTrackingEnabled', 'barcodeEnabled', 'isActive', 'customFields'
+    ];
+
+    fieldsToUpdate.forEach(field => {
+      if (data[field] !== undefined) {
+        if (field === 'brand' || field === 'session' || field === 'hsCodeId') {
+          item[field] = normalizeId(data[field]);
+        } else if (field === 'groupIds') {
+          item.groupIds = normalizeGroupIds(data[field]);
+        } else {
+          item[field] = data[field];
+        }
+      }
+    });
+
+    // Special check for duplicate itemCode
+    if (data.itemCode && data.itemCode !== item.itemCode) {
+      const existing = await Item.findOne({ itemCode: data.itemCode, _id: { $ne: id } });
+      if (existing) throw new Error(`Style Code ${data.itemCode} is already used.`);
     }
 
-    const incomingGroupIds = normalizeGroupIds(groupIds);
-    await ensureGroupsExist(incomingGroupIds);
-
-    const currentGroupIds = normalizeGroupIds(item.groupIds);
-    item.groupIds = [...new Set([...currentGroupIds, ...incomingGroupIds])];
-    const savedItem = await item.save();
-    return populateItem(savedItem._id);
-  }
-
-  async deallocateGroup(itemId, groupIds) {
-    const item = await Item.findById(itemId);
-    if (!item) {
-      throw new Error('Item not found');
+    if (item.groupIds && item.groupIds.length > 0) {
+      await ensureGroupsExist(item.groupIds);
     }
 
-    const removeIds = normalizeGroupIds(groupIds);
-    const remaining = normalizeGroupIds(item.groupIds).filter((groupId) => !removeIds.includes(groupId));
-
-    if (!remaining.length) {
-      throw new Error('Item must belong to at least one Section/Group');
+    if (item.sizes) {
+      await ensureSizeBarcodes(item.sizes);
     }
 
-    item.groupIds = remaining;
-    const savedItem = await item.save();
-    return populateItem(savedItem._id);
+    await item.save();
+    return populateItem(item._id);
   }
 
   async getAllItems(query = {}) {
     return Item.find(query)
       .populate('groupIds', 'name groupType level parentId isActive')
+      .populate('brand', 'brandName name')
+      .populate('session', 'seasonName name')
+      .populate('hsCodeId', 'code hsnCode gstRate gstPercent')
       .sort({ createdAt: -1 });
   }
 
   async getItemById(id) {
-    return Item.findById(id).populate('groupIds', 'name groupType level parentId isActive');
-  }
-
-  async updateItem(id, data = {}) {
-    const item = await Item.findById(id);
-    if (!item) {
-      return null;
-    }
-
-    if (data.itemCode !== undefined) {
-      const itemCode = normalizeString(data.itemCode).toUpperCase();
-      if (!itemCode) {
-        throw new Error('itemCode is required');
-      }
-
-      const existingItem = await Item.findOne({ itemCode, _id: { $ne: id } });
-      if (existingItem) {
-        throw new Error(`Item with code ${itemCode} already exists`);
-      }
-
-      item.itemCode = itemCode;
-    }
-
-    if (data.autoGenerateName) {
-      item.itemName = await FormulaEngine.generateName(
-        { ...item.toObject(), ...data },
-        data.formulaName || item.formulaName || 'primary',
-      );
-    } else if (data.itemName !== undefined) {
-      const nextName = normalizeString(data.itemName);
-      if (nextName) {
-        item.itemName = nextName;
-      }
-    }
-
-    if (data.brand !== undefined) item.brand = normalizeString(data.brand);
-    if (data.shade !== undefined) item.shade = normalizeString(data.shade);
-    if (data.description !== undefined) item.description = normalizeString(data.description);
-    if (data.session !== undefined) item.session = normalizeString(data.session);
-    if (data.hsCodeId !== undefined) item.hsCodeId = data.hsCodeId || null;
-    if (data.gstTax !== undefined) item.gstTax = data.gstTax === '' || data.gstTax === null ? undefined : Number(data.gstTax);
-    if (data.vendorId !== undefined) item.vendorId = normalizeString(data.vendorId);
-    if (data.customFields !== undefined) item.customFields = data.customFields || {};
-    if (data.isActive !== undefined) item.isActive = Boolean(data.isActive);
-
-    if (data.groupIds !== undefined) {
-      const groupIds = normalizeGroupIds(data.groupIds);
-      await ensureGroupsExist(groupIds);
-      item.groupIds = groupIds;
-    }
-
-    if (data.attributes !== undefined) {
-      item.attributes = data.attributes || {};
-    }
-
-    if (data.sizes !== undefined) {
-      if (!Array.isArray(data.sizes) || !data.sizes.length) {
-        throw new Error('Garment Item must have at least one size pricing');
-      }
-
-      await ensureSizeBarcodes(data.sizes);
-      item.sizes = data.sizes;
-    }
-
-    const savedItem = await item.save();
-    return populateItem(savedItem._id);
+    return Item.findById(id)
+      .populate('groupIds', 'name groupType level parentId isActive')
+      .populate('brand', 'brandName name')
+      .populate('session', 'seasonName name')
+      .populate('hsCodeId', 'code hsnCode gstRate gstPercent');
   }
 
   async deleteItem(id) {
