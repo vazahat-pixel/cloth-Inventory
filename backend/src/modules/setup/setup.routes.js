@@ -10,12 +10,14 @@ router.use(protect);
 // HSN Routes
 router.get('/hsn', hsnController.getAll);
 router.put('/hsn/:id', hsnController.update);
+router.patch('/hsn/:id', hsnController.update);
 router.delete('/hsn/:id', hsnController.delete);
 router.post('/hsn', requireAdmin, hsnController.create);
 
 // Formula Routes
 router.get('/formula', formulaController.getAll);
 router.put('/formula/:id', formulaController.update);
+router.patch('/formula/:id', formulaController.update);
 router.delete('/formula/:id', formulaController.delete);
 router.post('/formula', requireAdmin, formulaController.create);
 

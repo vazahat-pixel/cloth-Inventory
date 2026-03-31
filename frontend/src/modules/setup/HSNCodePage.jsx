@@ -25,12 +25,13 @@ import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import InputAdornment from '@mui/material/InputAdornment';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchMasters, addMasterRecord, updateMasterRecord, deleteMasterRecord } from '../masters/mastersSlice';
 import PageHeader from '../../components/erp/PageHeader';
 import FilterBar from '../../components/erp/FilterBar';
 import ExportButton from '../../components/erp/ExportButton';
 import StatusBadge from '../../components/erp/StatusBadge';
 import hsnCodesExportColumns from '../../config/exportColumns/hsnCodes';
-import api from '../../services/api';
 import { hsnSeed } from '../erp/erpUiMocks';
 
 const defaultFormValues = {
@@ -52,7 +53,14 @@ const toExportRows = (rows) =>
   }));
 
 function HSNCodePage() {
-  const [rows, setRows] = useState(hsnSeed);
+  const dispatch = useDispatch();
+  const hsnFromRedux = useSelector((state) => state.masters.hsnCodes);
+  const { loading } = useSelector((state) => state.masters);
+
+  const rows = useMemo(() => {
+    return hsnFromRedux?.length ? hsnFromRedux : hsnSeed;
+  }, [hsnFromRedux]);
+
   const [searchText, setSearchText] = useState('');
   const [gstFilter, setGstFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -62,38 +70,8 @@ function HSNCodePage() {
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    let isMounted = true;
-
-    const loadRows = async () => {
-      try {
-        const response = await api.get('/setup/hsn');
-        const data = response.data?.data || response.data?.hsns || response.data?.data?.hsns || [];
-        if (!isMounted || !data.length) {
-          return;
-        }
-
-        setRows(
-          data.map((item) => ({
-            id: item._id || item.id,
-            hsnCode: item.code || item.hsnCode,
-            description: item.description || '',
-            gstRate: item.gstSlabId?.percentage || item.gstRate || 0,
-            status: item.status || (item.isActive === false ? 'Inactive' : 'Active'),
-            createdAt: item.createdAt || '',
-            updatedAt: item.updatedAt || '',
-          })),
-        );
-      } catch (error) {
-        console.error('Using frontend HSN fallback data.', error);
-      }
-    };
-
-    loadRows();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+    dispatch(fetchMasters('hsnCodes'));
+  }, [dispatch]);
 
   const gstOptions = useMemo(
     () => Array.from(new Set(rows.map((row) => Number(row.gstRate)).filter((value) => !Number.isNaN(value)))),
@@ -155,42 +133,29 @@ function HSNCodePage() {
       return;
     }
 
-    const timestamp = new Date().toISOString().slice(0, 10);
-    const payload = {
-      ...formValues,
-      hsnCode: formValues.hsnCode.trim(),
-      description: formValues.description.trim(),
-      gstRate: Number(formValues.gstRate),
-      updatedAt: timestamp,
-      createdAt: formValues.id ? rows.find((row) => row.id === formValues.id)?.createdAt || timestamp : timestamp,
-    };
-
     try {
       if (formValues.id) {
-        await api.patch(`/setup/hsn/${formValues.id}`, {
-          code: payload.hsnCode,
-          description: payload.description,
-          gstRate: payload.gstRate,
-          status: payload.status,
-        });
+        await dispatch(updateMasterRecord({
+          entityKey: 'hsnCodes',
+          id: formValues.id,
+          updates: {
+            ...formValues,
+            gstRate: Number(formValues.gstRate)
+          }
+        })).unwrap();
       } else {
-        await api.post('/setup/hsn', {
-          code: payload.hsnCode,
-          description: payload.description,
-          gstRate: payload.gstRate,
-          status: payload.status,
-        });
+        await dispatch(addMasterRecord({
+          entityKey: 'hsnCodes',
+          record: {
+            ...formValues,
+            gstRate: Number(formValues.gstRate)
+          }
+        })).unwrap();
       }
+      closeDialog();
     } catch (error) {
-      console.error('Saving HSN failed, retaining frontend state.', error);
+      setErrorMessage(error || 'Failed to save HSN');
     }
-
-    setRows((previous) => (
-      formValues.id
-        ? previous.map((row) => (row.id === formValues.id ? { ...row, ...payload } : row))
-        : [{ ...payload, id: `hsn-${Date.now()}` }, ...previous]
-    ));
-    closeDialog();
   };
 
   const deleteRow = async (row) => {
@@ -199,12 +164,13 @@ function HSNCodePage() {
     }
 
     try {
-      await api.delete(`/setup/hsn/${row.id}`);
+      await dispatch(deleteMasterRecord({
+        entityKey: 'hsnCodes',
+        id: row.id
+      })).unwrap();
     } catch (error) {
-      console.error('Deleting HSN failed, removing locally only.', error);
+      setErrorMessage(error || 'Failed to delete HSN');
     }
-
-    setRows((previous) => previous.filter((item) => item.id !== row.id));
   };
 
   return (

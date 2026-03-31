@@ -169,7 +169,7 @@ const normalizeItem = (item, entityType) => {
                     color: p.color || '',
                     returnQty: item.quantity || 0,
                     quantity: item.quantity || 0, // Fallback
-                    rate: item.rate || 0, 
+                    rate: item.rate || 0,
                     amount: item.amount || 0
                 }];
             } else if (item.items) {
@@ -233,10 +233,10 @@ const normalizeItem = (item, entityType) => {
             normalized.name = item.name;
             normalized.itemName = item.name;
             normalized.sku = item.sku;
-            normalized.code = item.sku; 
+            normalized.code = item.sku;
             normalized.styleCode = item.styleCode || item.skuPrefix;
             normalized.itemCode = item.styleCode || item.skuPrefix || item.sku;
-            
+
             // Populated Object handling
             normalized.brand = item.brand?._id || item.brand;
             normalized.category = item.category?._id || item.category;
@@ -252,14 +252,14 @@ const normalizeItem = (item, entityType) => {
             normalized.season = item.season || item.attributes?.season;
             normalized.color = item.color || item.shadeColor || item.attributes?.color;
             normalized.shadeColor = normalized.color;
-            
+
             // Pricing & Stock
             normalized.salePrice = item.salePrice;
             normalized.costPrice = item.costPrice;
             normalized.mrp = item.mrp;
             normalized.openingStock = item.factoryStock || 0;
             normalized.factoryStock = item.factoryStock || 0;
-            
+
             normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
             break;
         }
@@ -379,17 +379,20 @@ const normalizeItem = (item, entityType) => {
             break;
         case 'warehouse':
             normalized.warehouseName = item.name || item.warehouseName;
-            normalized.gstNumber = item.gstNumber;
             normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
             break;
         case 'store':
             normalized.storeName = item.name;
             normalized.warehouseName = item.name; // Backwards compat
-            normalized.gstNumber = item.gstNumber;
             normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
             break;
         case 'brand':
             normalized.brandName = item.name;
+            normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
+            break;
+        case 'season':
+            normalized.seasonName = item.name;
+            normalized.seasonLabel = item.name;
             normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
             break;
         case 'category':
@@ -403,6 +406,17 @@ const normalizeItem = (item, entityType) => {
             normalized.parentId = item.parentId?._id || item.parentId?.id || item.parentId || null;
             normalized.parentGroupName = item.parentId?.name || item.parentGroupName || '';
             normalized.level = item.level ?? 0;
+            normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
+            break;
+        case 'hsnCode':
+            normalized.hsnCode = item.code || '';
+            normalized.gstRate = item.gstPercent || item.gstRate || 0;
+            normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
+            break;
+        case 'size':
+            normalized.sizeCode = item.code || '';
+            normalized.sizeLabel = item.label || '';
+            normalized.sequence = item.sequence || 0;
             normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
             break;
         case 'bank':

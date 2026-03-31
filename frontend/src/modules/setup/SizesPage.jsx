@@ -1,19 +1,25 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchMasters, addMasterRecord, updateMasterRecord, deleteMasterRecord } from '../masters/mastersSlice';
 import {
+  Box,
   Button,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  Grid,
   IconButton,
   MenuItem,
   Paper,
+  Stack,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
+  Tabs,
   TextField,
   Typography,
 } from '@mui/material';
@@ -34,6 +40,7 @@ const defaultFormValues = {
   sizeCode: '',
   sizeLabel: '',
   sequence: '',
+  group: '',
   status: 'Active',
 };
 
@@ -46,12 +53,23 @@ const toExportRows = (rows) =>
   }));
 
 function SizesPage() {
-  const [rows, setRows] = useState(sizeMasterSeed);
+  const dispatch = useDispatch();
+  const sizesFromRedux = useSelector((state) => state.masters.sizes);
+  const { loading } = useSelector((state) => state.masters);
+
+  const rows = useMemo(() => {
+    return sizesFromRedux?.length ? sizesFromRedux : sizeMasterSeed;
+  }, [sizesFromRedux]);
+
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formValues, setFormValues] = useState(defaultFormValues);
   const [formErrors, setFormErrors] = useState({});
+
+  useEffect(() => {
+    dispatch(fetchMasters('sizes'));
+  }, [dispatch]);
 
   const filteredRows = useMemo(() => {
     const query = searchText.trim().toLowerCase();
@@ -73,10 +91,11 @@ function SizesPage() {
     setFormValues(
       row
         ? {
-            id: row.id,
+            id: row.id || row._id,
             sizeCode: row.sizeCode,
             sizeLabel: row.sizeLabel,
             sequence: row.sequence,
+            group: row.group || '',
             status: row.status,
           }
         : defaultFormValues,
@@ -104,24 +123,28 @@ function SizesPage() {
     return !Object.keys(nextErrors).length;
   };
 
-  const saveRow = () => {
+  const saveRow = async () => {
     if (!validate()) {
       return;
     }
 
-    const payload = {
-      ...formValues,
-      sizeCode: formValues.sizeCode.trim().toUpperCase(),
-      sizeLabel: formValues.sizeLabel.trim(),
-      sequence: Number(formValues.sequence),
-    };
-
-    setRows((previous) => (
-      formValues.id
-        ? previous.map((row) => (row.id === formValues.id ? { ...row, ...payload } : row))
-        : [{ ...payload, id: `size-${Date.now()}` }, ...previous]
-    ));
-    closeDialog();
+    try {
+      if (formValues.id) {
+        await dispatch(updateMasterRecord({
+          entityKey: 'sizes',
+          id: formValues.id,
+          updates: formValues
+        })).unwrap();
+      } else {
+        await dispatch(addMasterRecord({
+          entityKey: 'sizes',
+          record: formValues
+        })).unwrap();
+      }
+      closeDialog();
+    } catch (error) {
+      alert(error || 'Failed to save size');
+    }
   };
 
   const deleteRow = (row) => {
@@ -129,7 +152,10 @@ function SizesPage() {
       return;
     }
 
-    setRows((previous) => previous.filter((item) => item.id !== row.id));
+    dispatch(deleteMasterRecord({
+      entityKey: 'sizes',
+      id: row.id || row._id
+    }));
   };
 
   return (
@@ -191,6 +217,7 @@ function SizesPage() {
               <TableRow>
                 <TableCell sx={{ fontWeight: 700 }}>Size Code</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Size Label</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Group</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Sequence</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">Actions</TableCell>
@@ -203,6 +230,7 @@ function SizesPage() {
                     <Typography sx={{ fontWeight: 700, color: '#0f172a' }}>{row.sizeCode}</Typography>
                   </TableCell>
                   <TableCell>{row.sizeLabel}</TableCell>
+                  <TableCell>{row.group || '--'}</TableCell>
                   <TableCell>{row.sequence}</TableCell>
                   <TableCell><StatusBadge value={row.status} /></TableCell>
                   <TableCell align="right">
@@ -230,47 +258,67 @@ function SizesPage() {
       <Dialog open={dialogOpen} onClose={closeDialog} fullWidth maxWidth="sm">
         <DialogTitle>{formValues.id ? 'Edit Size' : 'Add Size'}</DialogTitle>
         <DialogContent dividers>
-          <FilterBar sx={{ boxShadow: 'none', p: 0, border: 'none' }}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Size Code *"
-              value={formValues.sizeCode}
-              onChange={(event) => setFormValues((previous) => ({ ...previous, sizeCode: event.target.value }))}
-              error={Boolean(formErrors.sizeCode)}
-              helperText={formErrors.sizeCode || ' '}
-            />
-            <TextField
-              fullWidth
-              size="small"
-              label="Size Label *"
-              value={formValues.sizeLabel}
-              onChange={(event) => setFormValues((previous) => ({ ...previous, sizeLabel: event.target.value }))}
-              error={Boolean(formErrors.sizeLabel)}
-              helperText={formErrors.sizeLabel || ' '}
-            />
-            <TextField
-              fullWidth
-              size="small"
-              type="number"
-              label="Sequence *"
-              value={formValues.sequence}
-              onChange={(event) => setFormValues((previous) => ({ ...previous, sequence: event.target.value }))}
-              error={Boolean(formErrors.sequence)}
-              helperText={formErrors.sequence || ' '}
-            />
-            <TextField
-              fullWidth
-              size="small"
-              select
-              label="Status"
-              value={formValues.status}
-              onChange={(event) => setFormValues((previous) => ({ ...previous, status: event.target.value }))}
-            >
-              <MenuItem value="Active">Active</MenuItem>
-              <MenuItem value="Inactive">Inactive</MenuItem>
-            </TextField>
-          </FilterBar>
+          <Grid container spacing={2}>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Size Code *"
+                placeholder="e.g. S, M, 32"
+                value={formValues.sizeCode}
+                onChange={(event) => setFormValues((previous) => ({ ...previous, sizeCode: event.target.value }))}
+                error={Boolean(formErrors.sizeCode)}
+                helperText={formErrors.sizeCode || ' '}
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Size Label *"
+                placeholder="e.g. Small, Waist 32"
+                value={formValues.sizeLabel}
+                onChange={(event) => setFormValues((previous) => ({ ...previous, sizeLabel: event.target.value }))}
+                error={Boolean(formErrors.sizeLabel)}
+                helperText={formErrors.sizeLabel || ' '}
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Size Group"
+                placeholder="e.g. Adult-Alpha"
+                value={formValues.group}
+                onChange={(event) => setFormValues((previous) => ({ ...previous, group: event.target.value }))}
+              />
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <TextField
+                fullWidth
+                size="small"
+                type="number"
+                label="Sequence *"
+                value={formValues.sequence}
+                onChange={(event) => setFormValues((previous) => ({ ...previous, sequence: event.target.value }))}
+                error={Boolean(formErrors.sequence)}
+                helperText={formErrors.sequence || ' '}
+              />
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <TextField
+                fullWidth
+                size="small"
+                select
+                label="Status"
+                value={formValues.status}
+                onChange={(event) => setFormValues((previous) => ({ ...previous, status: event.target.value }))}
+              >
+                <MenuItem value="Active">Active</MenuItem>
+                <MenuItem value="Inactive">Inactive</MenuItem>
+              </TextField>
+            </Grid>
+          </Grid>
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 2 }}>
           <Button onClick={closeDialog}>Cancel</Button>

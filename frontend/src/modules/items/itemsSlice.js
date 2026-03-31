@@ -5,9 +5,9 @@ import { normalizeResponse } from '../../services/normalization';
 // Async Thunks
 export const fetchItems = createAsyncThunk('items/fetchAll', async (_, { rejectWithValue }) => {
   try {
-    const response = await api.get('/products');
-    const raw = response.data.products || response.data.data || [];
-    return normalizeResponse(raw, 'product');
+    const response = await api.get('/items');
+    const raw = response.data.items || response.data.data || [];
+    return normalizeResponse(raw, 'item');
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -15,42 +15,32 @@ export const fetchItems = createAsyncThunk('items/fetchAll', async (_, { rejectW
 
 export const addItem = createAsyncThunk('items/add', async (itemData, { rejectWithValue }) => {
   try {
-    // Map style + variants into products array for bulk-import
-    const products = (itemData.variants || []).map((v) => ({
-      name: itemData.name,
-      category: itemData.category,
-      brand: itemData.brand,
-      styleCode: itemData.itemCode || itemData.styleCode,
-      fabric: itemData.fabric,
-      gender: itemData.gender,
-      season: itemData.season,
-      size: v.size,
-      color: v.color,
-      salePrice: Number(v.sellingPrice || v.salePrice || 0),
-      costPrice: Number(v.costPrice || 0),
-      mrp: Number(v.mrp || v.sellingPrice || 0),
-      factoryStock: Number(v.stock || v.factoryStock || 0),
-      sku: v.sku || null,
-      barcode: v.barcode || null,
-      images: (itemData.images || []).map(img => img.preview || img),
-      hsnCodeId: itemData.hsnCodeId || null,
-      gstSlabId: itemData.gstSlabId || null,
-      attributes: {
-        pattern: itemData.pattern,
-        fit: itemData.fit,
-        sleeveType: itemData.sleeveType,
-        neckType: itemData.neckType,
-        occasion: itemData.occasion,
-        materialComposition: itemData.materialComposition
-      }
-    }));
+    // Map data for single Item creation (matching backend Item model from remote branch)
+    const payload = {
+      itemName: itemData.itemName || itemData.name,
+      itemCode: (itemData.itemCode || itemData.code || '').trim().toUpperCase(),
+      brand: itemData.brandId || itemData.brand,
+      session: itemData.seasonId || itemData.season,
+      shade: itemData.shadeColor,
+      description: itemData.description,
+      hsCodeId: itemData.hsnCodeId,
+      gstSlabId: itemData.gstSlabId,
+      groupIds: [itemData.sectionId, itemData.categoryId, itemData.subCategoryId, itemData.subSubCategoryId].filter(Boolean),
+      sizes: (itemData.variants || []).map((v) => ({
+        size: v.size,
+        barcode: v.barcode || null,
+        costPrice: Number(v.costPrice || 0),
+        salePrice: Number(v.salePrice || v.sellingPrice || 0),
+        mrp: Number(v.mrp || 0),
+        isActive: true
+      })),
+      images: (itemData.images || []),
+      isActive: true,
+      status: itemData.status || 'Active'
+    };
 
-    if (!products.length) {
-      throw new Error('At least one variant is required to create products.');
-    }
-
-    const response = await api.post('/products/bulk-import', { products, warehouseId: null });
-    return response.data;
+    const response = await api.post('/items', payload);
+    return response.data.item || response.data.data;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -58,8 +48,8 @@ export const addItem = createAsyncThunk('items/add', async (itemData, { rejectWi
 
 export const updateItem = createAsyncThunk('items/update', async ({ id, item }, { rejectWithValue }) => {
   try {
-    const response = await api.patch(`/products/${id}`, item);
-    return response.data.product || response.data.data;
+    const response = await api.patch(`/items/${id}`, item);
+    return response.data.item || response.data.data;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -67,7 +57,7 @@ export const updateItem = createAsyncThunk('items/update', async ({ id, item }, 
 
 export const deleteItem = createAsyncThunk('items/delete', async (id, { rejectWithValue }) => {
   try {
-    await api.delete(`/products/${id}`);
+    await api.delete(`/items/${id}`);
     return id;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
@@ -108,9 +98,11 @@ const itemsSlice = createSlice({
         state.loading = true;
         state.error = null;
       })
-      .addCase(addItem.fulfilled, (state) => {
-        // Bulk import: rely on a fresh fetchItems instead of trying to infer created products here
+      .addCase(addItem.fulfilled, (state, action) => {
         state.loading = false;
+        if (action.payload) {
+          state.records.unshift(action.payload);
+        }
       })
       .addCase(addItem.rejected, (state, action) => {
         state.loading = false;

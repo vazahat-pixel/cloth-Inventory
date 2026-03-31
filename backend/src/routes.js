@@ -25,6 +25,7 @@ const registerRoutes = (app) => {
     app.use('/api/import', protect, requireAdmin, importRoutes);  
     app.use('/api/gst', protect, requireAdmin, gstRoutes);        
     app.use('/api/setup', protect, requireAdmin, setupRoutes);    
+    app.use('/api/sizes', protect, requireAdmin, require('./modules/sizes/size.routes.js'));    
     
     // Both roles (Filtered by controller internal logic)
     app.use('/api/items', itemRoutes);      
@@ -52,6 +53,7 @@ const registerRoutes = (app) => {
     app.use('/api/vouchers', require('./modules/vouchers/voucher.routes'));
     app.use('/api/banks', require('./modules/banks/bank.routes'));
     app.use('/api/brands', require('./modules/brands/brand.routes'));
+    app.use('/api/seasons', require('./modules/seasons/season.routes'));
     app.use('/api/customers', require('./modules/customers/customer.routes'));
     app.use('/api/returns', require('./modules/returns/return.routes'));
 };

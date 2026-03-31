@@ -161,7 +161,11 @@ const getAllProducts = async (query) => {
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(parseInt(limit))
-            .populate('batchId', 'batchNumber'),
+            .populate('batchId', 'batchNumber')
+            .populate('brand', 'name brandName')
+            .populate('category', 'name groupName')
+            .populate('hsnCodeId', 'code hsnCode description')
+            .populate('gstSlabId', 'name percentage'),
         Product.countDocuments(filter)
     ]);
 
@@ -181,7 +185,12 @@ const getProductByBarcode = async (barcode) => {
  * Get product by ID
  */
 const getProductById = async (id) => {
-    const product = await Product.findOne({ _id: id, isDeleted: false }).populate('batchId', 'batchNumber');
+    const product = await Product.findOne({ _id: id, isDeleted: false })
+        .populate('batchId', 'batchNumber')
+        .populate('brand', 'name brandName')
+        .populate('category', 'name groupName')
+        .populate('hsnCodeId', 'code hsnCode description')
+        .populate('gstSlabId', 'name percentage');
     if (!product) throw new Error('Product not found');
     return product;
 };
@@ -329,21 +338,40 @@ const bulkImportProducts = async (productsData, warehouseId, userId) => {
         let totalStockAdded = 0;
 
         for (const pd of productsData) {
+            console.log('📋 Processing Bulk Import Product:', { sku: pd.sku, name: pd.name, size: pd.size, category: pd.category });
+
             // Validate essential fields
-            if (!pd.name || !pd.salePrice || !pd.size) {
-                throw new Error('Name, salePrice, and size are required for all grouped imported products.');
+            if (!pd.name) throw new Error(`Product name is missing for variant ${pd.sku || 'unnamed'}`);
+            
+            // Only enforce strictly for Active products
+            if (pd.isActive !== false) {
+                if (pd.salePrice === undefined || pd.salePrice === null) throw new Error(`Sale Price is missing for ${pd.name} (${pd.size})`);
+                if (!pd.size) throw new Error(`Size is missing for product: ${pd.name}`);
+                if (!pd.category) throw new Error(`Category/Group is required for product: ${pd.name}`);
             }
 
             const styleCode = String(pd.styleCode || pd.sku || '').trim().toUpperCase() || await generateSKU(session);
             const sku = pd.sku || generateVariantSku(styleCode, pd.size, pd.color);
             const barcode = pd.barcode || await generateBarcode(session);
+            
+            // Sanitize IDs - only allow 24-char hex strings or valid ObjectIds
+            const sanitizeId = (id) => (typeof id === 'string' && id.length === 24) ? id : (id?._id || null);
+            
             const groupIds = normalizeGroupIds(pd.category, pd.groupIds);
+            const validCategory = sanitizeId(pd.category);
+            const validBrand = sanitizeId(pd.brand);
+            const validHSN = sanitizeId(pd.hsnCodeId);
+            const validGST = sanitizeId(pd.gstSlabId);
 
             const product = new Product({
                 ...pd,
                 sku,
                 styleCode,
                 groupIds,
+                category: validCategory,
+                brand: validBrand,
+                hsnCodeId: validHSN,
+                gstSlabId: validGST,
                 attributes: normalizeAttributes(pd.attributes),
                 barcode,
                 createdBy: userId,

@@ -12,6 +12,9 @@ const endpointMap = {
   brands: '/brands',
   accountGroups: '/account-groups',
   banks: '/banks',
+  sizes: '/sizes',
+  hsnCodes: '/setup/hsn',
+  seasons: '/seasons',
 };
 
 const responseKeyMap = {
@@ -24,6 +27,9 @@ const responseKeyMap = {
   brands: 'brands',
   accountGroups: 'accountGroups',
   banks: 'banks',
+  sizes: 'sizes',
+  hsnCodes: 'hsns',
+  seasons: 'seasons',
 };
 
 const singularKeyMap = {
@@ -36,6 +42,9 @@ const singularKeyMap = {
   brands: 'brand',
   accountGroups: 'accountGroup',
   banks: 'bank',
+  sizes: 'size',
+  hsnCodes: 'hsn',
+  seasons: 'season',
 };
 
 // Async Thunks for different master entities
@@ -137,6 +146,21 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
         gstNumber: record.gstNumber || record.gstNo,
         isActive: record.status !== 'Inactive',
       };
+    } else if (entityKey === 'sizes') {
+      payload = {
+        code: record.sizeCode,
+        label: record.sizeLabel,
+        sequence: record.sequence,
+        group: record.group,
+        isActive: record.status !== 'Inactive',
+      };
+    } else if (entityKey === 'hsnCodes') {
+      payload = {
+        code: record.hsnCode,
+        description: record.description,
+        gstRate: record.gstRate,
+        status: record.status,
+      };
     }
 
     const response = await api.post(endpoint, payload);
@@ -228,6 +252,21 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
         gstNumber: updates.gstNumber || updates.gstNo,
         isActive: updates.status !== 'Inactive',
       };
+    } else if (entityKey === 'sizes') {
+      payload = {
+        code: updates.sizeCode,
+        label: updates.sizeLabel,
+        sequence: updates.sequence,
+        group: updates.group,
+        isActive: updates.status !== 'Inactive',
+      };
+    } else if (entityKey === 'hsnCodes') {
+      payload = {
+        code: updates.hsnCode,
+        description: updates.description,
+        gstRate: updates.gstRate,
+        status: updates.status,
+      };
     }
 
     const response = await api.patch(endpoint, payload);
@@ -270,6 +309,9 @@ const initialState = {
   brands: [],
   accountGroups: [],
   banks: [],
+  sizes: [],
+  hsnCodes: [],
+  seasons: [],
   loading: false,
   error: null,
 };
