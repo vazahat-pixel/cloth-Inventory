@@ -17,6 +17,10 @@ const hsnCodeSchema = new mongoose.Schema(
             ref: 'GstSlab',
             default: null
         },
+        gstPercent: {
+            type: Number,
+            default: 0
+        },
         isActive: {
             type: Boolean,
             default: true

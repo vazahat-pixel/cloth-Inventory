@@ -27,6 +27,7 @@ import BrandsListPage from '../modules/masters/brands/ListPage';
 import ItemGroupsListPage from '../modules/masters/itemGroups/ListPage';
 import SalesmenListPage from '../modules/masters/salesmen/ListPage';
 import BanksListPage from '../modules/masters/banks/ListPage';
+import SeasonsListPage from '../modules/masters/seasons/ListPage';
 
 import ItemListPage from '../modules/items/ItemListPage';
 import ItemFormPage from '../modules/items/ItemFormPage';
@@ -194,6 +195,7 @@ function AppRoutes() {
             <Route path="item-groups" element={<ItemGroupsListPage />} />
             <Route path="salesmen" element={<SalesmenListPage />} />
             <Route path="banks" element={<BanksListPage />} />
+            <Route path="seasons" element={<SeasonsListPage />} />
           </Route>
           <Route path="clothing-erp" element={<LogicERPManager />} />
           <Route path="grn" element={<GRNListPage />} />

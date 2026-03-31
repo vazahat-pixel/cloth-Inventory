@@ -8,6 +8,7 @@ const masterNavigation = [
   { label: 'Item Groups', path: '/masters/item-groups' },
   { label: 'Salesmen', path: '/masters/salesmen' },
   { label: 'Bank Accounts', path: '/masters/banks' },
+  { label: 'Seasons', path: '/masters/seasons' },
 ];
 
 export default masterNavigation;

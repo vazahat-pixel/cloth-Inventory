@@ -38,14 +38,19 @@ import TreeViewGroup from '../../components/erp/TreeViewGroup';
 import groupsExportColumns from '../../config/exportColumns/groups';
 import { groupSeed } from '../erp/erpUiMocks';
 
-const groupTypeOptions = ['Sub Section', 'Section', 'Category', 'Sub Category', 'Type', 'Design', 'Fabric', 'Brand', 'Season', 'Vendor', 'Other'];
+const groupTypeOptions = [
+  'Section',
+  'Category',
+  'Sub Category',
+  'Style / Type',
+];
 
 const buildTree = (rows, parentId = null, level = 1) =>
   rows
     .filter((row) => (row.parentId || null) === parentId)
     .map((row) => ({
       ...row,
-      level: row.level || level,
+      level,
       children: buildTree(rows, row.id, level + 1),
     }));
 

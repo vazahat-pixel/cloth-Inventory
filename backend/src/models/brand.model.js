@@ -16,6 +16,13 @@ const brandSchema = new mongoose.Schema(
             type: String,
             trim: true
         },
+        slug: {
+            type: String,
+            unique: true,
+            sparse: true,
+            lowercase: true,
+            trim: true
+        },
         isActive: {
             type: Boolean,
             default: true
@@ -23,5 +30,17 @@ const brandSchema = new mongoose.Schema(
     },
     { timestamps: true }
 );
+
+brandSchema.pre('save', function (next) {
+    if (this.isModified('name') || !this.slug) {
+        this.slug = this.name
+            .toLowerCase()
+            .trim()
+            .replace(/[^\w\s-]/g, '')
+            .replace(/[\s_-]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+    }
+    next();
+});
 
 module.exports = mongoose.model('Brand', brandSchema);

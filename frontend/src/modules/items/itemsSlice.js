@@ -15,42 +15,29 @@ export const fetchItems = createAsyncThunk('items/fetchAll', async (_, { rejectW
 
 export const addItem = createAsyncThunk('items/add', async (itemData, { rejectWithValue }) => {
   try {
-    // Map style + variants into products array for bulk-import
-    const products = (itemData.variants || []).map((v) => ({
-      name: itemData.name,
-      category: itemData.category,
-      brand: itemData.brand,
-      styleCode: itemData.itemCode || itemData.styleCode,
-      fabric: itemData.fabric,
-      gender: itemData.gender,
-      season: itemData.season,
-      size: v.size,
-      color: v.color,
-      salePrice: Number(v.sellingPrice || v.salePrice || 0),
-      costPrice: Number(v.costPrice || 0),
-      mrp: Number(v.mrp || v.sellingPrice || 0),
-      factoryStock: Number(v.stock || v.factoryStock || 0),
-      sku: v.sku || null,
-      barcode: v.barcode || null,
-      images: (itemData.images || []).map(img => img.preview || img),
-      hsnCodeId: itemData.hsnCodeId || null,
-      gstSlabId: itemData.gstSlabId || null,
-      attributes: {
-        pattern: itemData.pattern,
-        fit: itemData.fit,
-        sleeveType: itemData.sleeveType,
-        neckType: itemData.neckType,
-        occasion: itemData.occasion,
-        materialComposition: itemData.materialComposition
-      }
-    }));
+    // Map data for single Item creation (matching backend Item model)
+    const payload = {
+      itemName: itemData.itemName || itemData.name,
+      itemCode: (itemData.itemCode || itemData.code || '').trim().toUpperCase(),
+      brand: itemData.brandId || itemData.brand,
+      session: itemData.seasonId || itemData.season,
+      shade: itemData.shadeColor,
+      description: itemData.description,
+      hsCodeId: itemData.hsnCodeId,
+      groupIds: [itemData.section, itemData.categoryId, itemData.subCategory, itemData.styleType].filter(Boolean),
+      sizes: (itemData.variants || []).map((v) => ({
+        size: v.size,
+        barcode: v.barcode || null,
+        costPrice: Number(v.costPrice || 0),
+        salePrice: Number(v.salePrice || v.sellingPrice || 0),
+        mrp: Number(v.mrp || 0),
+        isActive: true
+      })),
+      isActive: true,
+    };
 
-    if (!products.length) {
-      throw new Error('At least one variant is required to create products.');
-    }
-
-    const response = await api.post('/products/bulk-import', { products, warehouseId: null });
-    return response.data;
+    const response = await api.post('/items', payload);
+    return response.data.item || response.data.data;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
