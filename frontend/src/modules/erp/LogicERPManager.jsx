@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useSelector } from 'react-redux';
 import ItemMasterScreen from './ItemMasterScreen';
 import SetupGroupsScreen from './SetupGroupsScreen';
 import ExcelImportUI from './ExcelImportUI';
@@ -40,6 +41,8 @@ const LogicERPManager = () => {
     { id: 'settings', label: 'Formula Master', icon: <Settings size={18} /> }
   ];
 
+  const user = useSelector(state => state.auth.user);
+
   return (
     <div className="erp-compact-root">
       {/* Sidebar */}
@@ -68,9 +71,11 @@ const LogicERPManager = () => {
 
         <footer className="p-4 bg-black/10 border-t border-white/5">
           <div className="flex items-center gap-2">
-             <div className="w-8 h-8 rounded-full bg-sky-500 border-2 border-white/20 flex items-center justify-center font-bold text-xs">U</div>
+             <div className="w-8 h-8 rounded-full bg-sky-500 border-2 border-white/20 flex items-center justify-center font-bold text-xs">
+                {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
+             </div>
              <div className="overflow-hidden">
-                <p className="text-[10px] font-bold text-white truncate">Super Administrator</p>
+                <p className="text-[10px] font-bold text-white truncate">{user?.name || 'Administrator'}</p>
                 <div className="flex items-center gap-1">
                    <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
                    <p className="text-[8px] text-slate-400 uppercase font-black tracking-widest">Online</p>

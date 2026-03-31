@@ -37,7 +37,7 @@ function ProfitReportPage() {
     const map = {};
     items.forEach((item) => {
       item.variants?.forEach((v) => {
-        map[v.id] = toNum(v.costPrice) || toNum(v.sellingPrice) * 0.6;
+        map[v.id] = toNum(v.costPrice);
       });
     });
     return map;
@@ -49,7 +49,7 @@ function ProfitReportPage() {
       (sale.items || []).forEach((line, idx) => {
         const qty = toNum(line.quantity);
         const sellingPrice = toNum(line.rate);
-        const costPrice = variantCostMap[line.variantId] || sellingPrice * 0.6;
+        const costPrice = variantCostMap[line.variantId] || 0;
         const revenue = qty * sellingPrice;
         const cost = qty * costPrice;
         const profit = revenue - cost;

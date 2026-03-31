@@ -54,13 +54,13 @@ function BarcodePrintingPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
 
-  const [type, setType] = useState('REGULAR PLAIN');
-  const [design, setDesign] = useState('BAN COLLAR');
-  const [qtyInfo, setQtyInfo] = useState('1N CASUAL');
-  const [mfgLine1, setMfgLine1] = useState('Rebel Mass Export Pvt. Ltd');
-  const [mfgLine2, setMfgLine2] = useState('Plot No 418, Sector-53, Phase 3');
-  const [mfgLine3, setMfgLine3] = useState('Kundli, Sonipat (Haryana)');
-  const [email, setEmail] = useState('info.dapolo@gmail.com');
+  const [type, setType] = useState('REGULAR');
+  const [design, setDesign] = useState('');
+  const [qtyInfo, setQtyInfo] = useState('1N');
+  const [mfgLine1, setMfgLine1] = useState('');
+  const [mfgLine2, setMfgLine2] = useState('');
+  const [mfgLine3, setMfgLine3] = useState('');
+  const [email, setEmail] = useState('');
 
   useEffect(() => {
     const fetchProducts = async () => {

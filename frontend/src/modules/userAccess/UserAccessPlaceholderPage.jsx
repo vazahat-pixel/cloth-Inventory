@@ -71,19 +71,8 @@ function UserAccessPlaceholderPage({ pageKey }) {
   const isApiTemplate = pageKey === 'setup-api-templates';
   const isApiLogViewer = pageKey === 'api-log-viewer';
 
-  const companies = [
-    'BHOPAL', 'BHUCHO MANDI', 'FARIDABAD', 'FAZILKA', 'G T B NAGAR', 
-    'HANUMANGARH', 'HO/WAREHOUSE', 'KAROL BAGH', 'MUKTSAR', 
-    'PACIFIC MALL', 'PITAMPURA', 'RATLAM', 'REWA', 'SAHIBABAD', 
-    'SAROJINI NAGAR', 'SHAJAHANPUR', 'SONIPAT', 'TANK ROAD', 'UJJAIN'
-  ];
-
-  const userList = [
-    'Admin', 'ADMINISTRATOR', 'BHOPAL', 'BHUCHO MANDI', 'FARIDABAD', 
-    'FAZILKA', 'GTB STORE', 'HANUMANGARH', 'HAPUR', 'KAROL BAGH', 
-    'MUKTSAR', 'Neeraj', 'PACIFIC MALL', 'PITAMPURA', 'RATLAM', 
-    'REWA', 'SAROJNI', 'Sarvjeet', 'SHAJAHAPUR'
-  ];
+  const companies = [];
+  const userList = [];
 
   const currentList = pageKey.includes('user') ? userList : companies;
 
