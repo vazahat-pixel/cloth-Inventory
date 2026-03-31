@@ -15,11 +15,11 @@ const ROLE_LABELS = {
 };
 
 // Static branding text for login screen.
-// Update these strings to match your real company details.
-const COMPANY_NAME = 'Barcode Cloth ERP';
-const COMPANY_TAGLINE = 'Apparel & Retail Management Suite';
-const COMPANY_ADDRESS_LINE1 = 'Your Address Line 1';
-const COMPANY_ADDRESS_LINE2 = 'City, State, PIN';
+// Update these via Company Profile settings.
+const COMPANY_NAME = 'Inventory ERP';
+const COMPANY_TAGLINE = 'Management Suite';
+const COMPANY_ADDRESS_LINE1 = '';
+const COMPANY_ADDRESS_LINE2 = '';
 
 function LoginPage() {
   const dispatch = useDispatch();

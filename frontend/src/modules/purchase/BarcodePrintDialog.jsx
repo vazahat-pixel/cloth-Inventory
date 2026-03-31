@@ -16,11 +16,11 @@ import PrintIcon from '@mui/icons-material/Print';
 // Company details — edit these to match your company
 const COMPANY = {
   name: 'Mfg. & Marketed By',
-  fullName: 'Rebel Mass Export Pvt. Ltd',
-  address: 'Plot No 418, Sector-53, Phase3',
-  city: 'Kundli, Sonipat (Haryana)',
+  fullName: '',
+  address: '',
+  city: '',
   customerCare: 'Customer Care:',
-  email: 'Email: info.dapolo@gmail.com',
+  email: '',
 };
 
 /**
@@ -33,6 +33,13 @@ const COMPANY = {
 function BarcodePrintDialog({ open, onClose, purchase, lines = [], warehouseMap = {} }) {
   const printRef = useRef(null);
   const [selectedLines, setSelectedLines] = useState([]);
+  const [type, setType] = useState('REGULAR');
+  const [design, setDesign] = useState('');
+  const [qtyInfo, setQtyInfo] = useState('1N');
+  const [mfgLine1, setMfgLine1] = useState('');
+  const [mfgLine2, setMfgLine2] = useState('');
+  const [mfgLine3, setMfgLine3] = useState('');
+  const [email, setEmail] = useState('');
 
   useEffect(() => {
     if (open && lines.length) {
