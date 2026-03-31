@@ -64,8 +64,12 @@ const saleSchema = new mongoose.Schema(
         },
         type: {
             type: String,
-            enum: ['RETAIL', 'EXCHANGE'],
+            enum: ['RETAIL', 'EXCHANGE', 'INTERNAL_SALE'],
             default: 'RETAIL'
+        },
+        destinationStoreId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Store'
         },
         parentSaleId: {
             type: mongoose.Schema.Types.ObjectId,

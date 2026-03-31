@@ -72,8 +72,8 @@ const getProductForSale = async (barcode, storeId) => {
 /**
  * Create a new Sale
  */
-const createSale = async (saleData, cashierId) => {
-    const result = await withTransaction(async (session) => {
+const createSale = async (saleData, cashierId, sessionOuter = null) => {
+    const handle = async (session) => {
         const storeId = saleData.storeId || saleData.warehouseId;
         const products = saleData.products || saleData.items || [];
         const {
@@ -228,6 +228,7 @@ const createSale = async (saleData, cashierId) => {
         const sale = new Sale({
             saleNumber,
             storeId,
+            destinationStoreId: saleData.destinationStoreId,
             cashierId: cashierId,
             customerId: saleData.customerId,
             type: saleData.type || 'RETAIL',
@@ -473,7 +474,9 @@ const createSale = async (saleData, cashierId) => {
         } 
 
         return sale;
-    });
+    };
+
+    const result = sessionOuter ? await handle(sessionOuter) : await withTransaction(handle);
 
     // 5. Real-time update (OUTSIDE transaction - only if commit succeeds)
     if (result) {

@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import itemsData from '../items/data';
 import { purchasesData } from '../purchase/data';
 import suppliersSeed from '../masters/suppliers/data';
@@ -309,17 +308,6 @@ export const barcodeSeed = itemsData.flatMap((item, itemIndex) =>
   })),
 );
 
-=======
-export const sizeMasterSeed = [];
-export const hsnSeed = [];
-export const groupSeed = [];
-export const supplierSeed = [];
-export const purchaseOrderSeed = [];
-export const grnSeed = [];
-export const stockTransferSeed = [];
-export const systemLogSeed = [];
-export const barcodeSeed = [];
->>>>>>> 9c9e564667c824d8120f2db8e40813b79138e38d
 export const stockAuditSeed = {
   locationAnalytics: [],
   batchBreakdown: [],

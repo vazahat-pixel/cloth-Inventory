@@ -68,6 +68,19 @@ const grnSlice = createSlice({
       .addCase(addGrn.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
+      })
+      .addCase(fetchGrnById.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(fetchGrnById.fulfilled, (state, action) => {
+        state.loading = false;
+        const index = state.records.findIndex(r => (r._id || r.id) === (action.payload._id || action.payload.id));
+        if (index !== -1) state.records[index] = action.payload;
+        else state.records.push(action.payload);
+      })
+      .addCase(approveGrn.fulfilled, (state, action) => {
+        const index = state.records.findIndex(r => (r._id || r.id) === (action.payload._id || action.payload.id));
+        if (index !== -1) state.records[index] = action.payload;
       });
   },
 });

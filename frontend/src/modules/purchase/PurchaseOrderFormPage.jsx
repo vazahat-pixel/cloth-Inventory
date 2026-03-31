@@ -62,7 +62,7 @@ const defaultForm = {
   deliveryAddress: '',
   paymentTerms: '',
   notes: '',
-  status: 'Draft',
+  status: 'DRAFT',
 };
 
 function buildVariantOptions(records = []) {
@@ -164,7 +164,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
         deliveryAddress: existingOrder.deliveryAddress || '',
         paymentTerms: existingOrder.paymentTerms || '',
         notes: existingOrder.notes || '',
-        status: existingOrder.status || 'Draft',
+        status: existingOrder.status || 'DRAFT',
       });
       setLines(existingOrder.items || []);
       return;
@@ -298,7 +298,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
       deliveryAddress: formValues.deliveryAddress,
       paymentTerms: formValues.paymentTerms,
       notes: formValues.notes,
-      status: status || 'Draft',
+      status: status || 'DRAFT',
       items: lines.map((line) => ({
         productId: line.productId || line.id || line._id,
         qty: Number(line.qty || 0),
@@ -313,10 +313,10 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
         setSuccessMessage('Purchase order updated successfully.');
       } else {
         await dispatch(addPurchaseOrder(payload)).unwrap();
-        setSuccessMessage(status === 'Draft' ? 'Purchase order saved as draft.' : 'Purchase order submitted successfully.');
+        setSuccessMessage(status === 'DRAFT' ? 'Purchase order saved as draft.' : 'Purchase order submitted successfully.');
       }
 
-      if (status !== 'Draft') {
+      if (status !== 'DRAFT') {
         setTimeout(() => navigate(listPath), 1500);
       }
     } catch (err) {
@@ -352,12 +352,12 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
             Back
           </Button>,
           !isViewMode ? (
-            <Button key="draft" variant="outlined" startIcon={<SaveOutlinedIcon />} onClick={() => saveOrder('Draft')}>
+            <Button key="draft" variant="outlined" startIcon={<SaveOutlinedIcon />} onClick={() => saveOrder('DRAFT')}>
               Save Draft
             </Button>
           ) : null,
           !isViewMode ? (
-            <Button key="submit" variant="contained" startIcon={<SendOutlinedIcon />} onClick={() => saveOrder('Pending')}>
+            <Button key="submit" variant="contained" startIcon={<SendOutlinedIcon />} onClick={() => saveOrder('PENDING')}>
               Submit
             </Button>
           ) : null,
@@ -413,10 +413,10 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
               onChange={(event) => updateFormValue('status', event.target.value)}
               disabled={isViewMode}
             >
-              <MenuItem value="Draft">Draft</MenuItem>
-              <MenuItem value="Pending">Pending</MenuItem>
-              <MenuItem value="Approved">Approved</MenuItem>
-              <MenuItem value="Cancelled">Cancelled</MenuItem>
+              <MenuItem value="DRAFT">Draft</MenuItem>
+              <MenuItem value="PENDING">Pending</MenuItem>
+              <MenuItem value="APPROVED">Approved</MenuItem>
+              <MenuItem value="CANCELLED">Cancelled</MenuItem>
             </TextField>
           </Grid>
           <Grid item xs={12} md={4}>
@@ -642,10 +642,10 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
             <Button variant="outlined" onClick={() => setCancelDialogOpen(true)}>
               Cancel
             </Button>
-            <Button variant="outlined" startIcon={<SaveOutlinedIcon />} onClick={() => saveOrder('Draft')}>
+            <Button variant="outlined" startIcon={<SaveOutlinedIcon />} onClick={() => saveOrder('DRAFT')}>
               Save Draft
             </Button>
-            <Button variant="contained" startIcon={<SendOutlinedIcon />} onClick={() => saveOrder('Pending')}>
+            <Button variant="contained" startIcon={<SendOutlinedIcon />} onClick={() => saveOrder('PENDING')}>
               Submit
             </Button>
           </Stack>

@@ -10,8 +10,16 @@ const deliveryChallanSchema = new mongoose.Schema(
         },
         customerId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'Customer',
-            required: true
+            ref: 'Customer'
+        },
+        sourceId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Warehouse' // Can be Warehouse or Store
+        },
+        type: {
+            type: String,
+            enum: ['CUSTOMER_DISPATCH', 'STOCK_TRANSFER'],
+            default: 'CUSTOMER_DISPATCH'
         },
         storeId: {
             type: mongoose.Schema.Types.ObjectId,

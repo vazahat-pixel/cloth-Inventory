@@ -31,11 +31,11 @@ const createChallan = async (challanData, userId, sessionOuter = null) => {
 
         await challan.save({ session });
 
-        // 1. REDUCE PHYSICAL STOCK
+        // 1. REDUCE PHYSICAL STOCK FROM SOURCE
         for (const item of challanData.items) {
             await removeStock({
-                variantId: item.productId, // In this model referenced as productId but mapped to variant
-                locationId: challanData.storeId,
+                variantId: item.productId,
+                locationId: challanData.sourceId || challanData.storeId,
                 locationType: 'STORE',
                 qty: item.quantity,
                 type: StockMovementType.TRANSFER,
