@@ -20,7 +20,7 @@ const normalizeParentId = (value) => {
 
 const normalizeType = (value) => {
   const resolved = normalizeString(value || 'Type');
-  const allowed = ['Sub Section', 'Type', 'Design', 'Fabric', 'Vendor', 'Season', 'Brand', 'other'];
+  const allowed = ['Sub Section', 'Section', 'Category', 'Sub Category', 'Type', 'Design', 'Fabric', 'Brand', 'Season', 'Vendor', 'Other'];
 
   if (allowed.includes(resolved)) {
     return resolved;
