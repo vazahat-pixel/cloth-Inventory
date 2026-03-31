@@ -25,26 +25,35 @@ const generateGrnNumber = async (session = null) => {
  */
 const createGRN = async (grnData, userId) => {
     return await withTransaction(async (session) => {
-        const { purchaseId, supplierId, warehouseId, invoiceNumber, invoiceDate, remarks, items } = grnData;
+        const { purchaseId, purchaseOrderId, supplierId, warehouseId, invoiceNumber, invoiceDate, remarks, items } = grnData;
 
-        // 1. Validate Purchase Document
-        const purchase = await Purchase.findById(purchaseId).session(session);
-        if (!purchase) throw new Error(`Purchase record ${purchaseId} not found`);
+        // 1. Validate Parent Document
+        let parentDoc = null;
+        if (purchaseOrderId) {
+            const PurchaseOrder = require('../../models/purchaseOrder.model');
+            parentDoc = await PurchaseOrder.findById(purchaseOrderId).session(session);
+        } else if (purchaseId) {
+            parentDoc = await Purchase.findById(purchaseId).session(session);
+        }
+
+        if (!parentDoc) throw new Error('Parent document (PO or Voucher) not found');
 
         // 2. Fetch all existing GRNs to calculate total received history
         const existingGrns = await GRN.find({ 
-            purchaseId, 
+            $or: [{ purchaseId }, { purchaseOrderId }],
             isDeleted: false 
         }).session(session);
 
         const processedItems = [];
 
         for (const item of items) {
-            const originalPurchaseItem = purchase.products.find(
-                p => p.productId.toString() === item.productId.toString()
+            // Find in parent products
+            const parentItems = parentDoc.products || parentDoc.items || [];
+            const originalItem = parentItems.find(
+                p => (p.productId || p._id || p.id).toString() === (item.productId || item.variantId).toString()
             );
 
-            const orderedQty = item.orderedQty || (originalPurchaseItem ? originalPurchaseItem.quantity : 0);
+            const orderedQty = item.orderedQty || (originalItem ? (originalItem.quantity || originalItem.qty) : 0);
 
             // Calculate historical total received
             let totalPreviouslyReceived = 0;
@@ -75,7 +84,8 @@ const createGRN = async (grnData, userId) => {
 
         const grn = new GRN({
             grnNumber,
-            purchaseId,
+            purchaseId: purchaseId || null,
+            purchaseOrderId: purchaseOrderId || null,
             supplierId,
             warehouseId,
             invoiceNumber,
@@ -89,8 +99,11 @@ const createGRN = async (grnData, userId) => {
         await grn.save({ session });
         
         // Link document and log transition
-        await workflowService.linkDocuments(purchaseId, grn._id, DocumentType.PURCHASE, DocumentType.GRN);
-        await workflowService.updateStatus(grn._id, DocumentType.GRN, null, GrnStatus.DRAFT, userId, `Created Draft GRN ${grnNumber} from Purchase ${purchase.purchaseNumber}`);
+        const parentId = purchaseOrderId || purchaseId;
+        const parentType = purchaseOrderId ? DocumentType.PURCHASE_ORDER : DocumentType.PURCHASE;
+        
+        await workflowService.linkDocuments(parentId, grn._id, parentType, DocumentType.GRN);
+        await workflowService.updateStatus(grn._id, DocumentType.GRN, null, GrnStatus.DRAFT, userId, `Created Draft GRN ${grnNumber} from ${purchaseOrderId ? 'PO' : 'Purchase'}`);
         
         return grn;
     });

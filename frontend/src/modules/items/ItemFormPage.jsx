@@ -91,10 +91,37 @@ function ItemFormPage({ mode = 'edit' }) {
     if (selected?.gstSlabId && !watch('gstSlabId')) setValue('gstSlabId', selected.gstSlabId);
   }, [hsnCodes, setValue, watch]);
 
-  const handleImageChange = (index) => (event) => {
-    const file = event.target.files?.[0]; if (!file) return;
-    const reader = new FileReader(); reader.onload = () => setImages((prev) => { const next = [...prev]; next[index] = { name: file.name, preview: String(reader.result) }; return next; }); reader.readAsDataURL(file);
+  const [uploadingImage, setUploadingImage] = useState(null);
+
+  const handleImageChange = (index) => async (event) => {
+    const file = event.target.files?.[0]; 
+    if (!file) return;
+
+    setUploadingImage(index);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await api.post('/media/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      const url = response.data?.data?.url || response.data?.url;
+      if (url) {
+        setImages((prev) => {
+          const next = [...prev];
+          next[index] = { name: file.name, preview: url };
+          return next;
+        });
+      }
+    } catch (error) {
+      console.error('Upload failed:', error);
+      alert('Failed to upload image. Please try again.');
+    } finally {
+      setUploadingImage(null);
+    }
   };
+
   const removeImage = (index) => setImages((prev) => { const next = [...prev]; next[index] = null; return next; });
 
   const onSubmit = async (data, statusOverride = data.status || 'Active', stay = false) => {

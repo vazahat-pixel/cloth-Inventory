@@ -12,6 +12,8 @@ router.route('/')
     .get(poController.getAllPOs)
     .post(poController.createPO);
 
+router.post('/from-voucher/:voucherId', poController.createPOFromVoucher);
+
 router.route('/:id')
     .get(poController.getPOById)
     .patch(poController.updatePO);

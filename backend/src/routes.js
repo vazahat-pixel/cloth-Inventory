@@ -18,6 +18,7 @@ const registerRoutes = (app) => {
 
     // Auth & Identity
     app.use('/api/auth', authRoutes);
+    app.use('/api/media', require('./modules/media/media.routes'));
 
     // Logic ERP Core Modules (Strict Admin only for critical setups)
     app.use('/api/groups', protect, requireAdmin, groupRoutes);    
@@ -54,6 +55,7 @@ const registerRoutes = (app) => {
     app.use('/api/brands', require('./modules/brands/brand.routes'));
     app.use('/api/seasons', require('./modules/seasons/season.routes'));
     app.use('/api/customers', require('./modules/customers/customer.routes'));
+    app.use('/api/returns', require('./modules/returns/return.routes'));
 };
 
 module.exports = registerRoutes;

@@ -39,7 +39,12 @@ const grnSchema = new mongoose.Schema(
         purchaseId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Purchase',
-            required: true
+            required: false // Optional if PO is used
+        },
+        purchaseOrderId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'PurchaseOrder',
+            required: false
         },
         supplierId: {
             type: mongoose.Schema.Types.ObjectId,

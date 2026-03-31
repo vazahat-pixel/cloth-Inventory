@@ -43,7 +43,12 @@ const updateProduct = async (req, res, next) => {
         const error = validate(req, res);
         if (error) return error;
 
-        const product = await productService.updateProduct(req.params.id, req.body);
+        const updateData = { ...req.body };
+        if (req.file) {
+            updateData.image = req.file.path;
+        }
+
+        const product = await productService.updateProduct(req.params.id, updateData);
         return sendSuccess(res, { product }, 'Product updated successfully');
     } catch (err) {
         return sendError(res, err.message, 400);
@@ -73,7 +78,12 @@ const deleteProduct = async (req, res, next) => {
 
 const createProduct = async (req, res, next) => {
     try {
-        const product = await productService.createProduct(req.body, req.user._id);
+        const productData = { ...req.body };
+        if (req.file) {
+            productData.image = req.file.path;
+        }
+
+        const product = await productService.createProduct(productData, req.user._id);
         return sendSuccess(res, { product }, 'Product created successfully', 201);
     } catch (err) {
         return sendError(res, err.message, 400);
