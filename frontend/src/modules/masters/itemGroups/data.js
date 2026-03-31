@@ -1,6 +1,6 @@
 const itemGroupsData = [
   {
-    id: 'grp-1',
+    id: '65f1a2c3b4d5e6f7a8b9c101',
     groupName: 'Menswear',
     type: 'Gender',
     parentGroup: '',
@@ -8,15 +8,15 @@ const itemGroupsData = [
     status: 'Active',
   },
   {
-    id: 'grp-2',
+    id: '65f1a2c3b4d5e6f7a8b9c102',
     groupName: 'Denim Jackets',
     type: 'Category',
-    parentGroup: 'Menswear',
+    parentGroup: '65f1a2c3b4d5e6f7a8b9c101',
     description: 'Jackets crafted in denim fabric.',
     status: 'Active',
   },
   {
-    id: 'grp-3',
+    id: '65f1a2c3b4d5e6f7a8b9c103',
     groupName: 'Winter Collection',
     type: 'Season',
     parentGroup: '',

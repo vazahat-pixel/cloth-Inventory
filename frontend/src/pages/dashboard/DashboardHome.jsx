@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useSelector } from "react-redux";
-import { Box, Grid, Typography } from "@mui/material";
+import { Box, Button, Grid, Typography } from "@mui/material";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import LocalShippingIcon from "@mui/icons-material/LocalShipping";
@@ -17,6 +17,7 @@ function formatCurrency(v) {
     ? `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
     : "₹0";
 }
+
 
 function DashboardHome() {
   const sales = useSelector((state) => state.sales?.records ?? []);
@@ -82,49 +83,110 @@ function DashboardHome() {
   );
 
   return (
-    <Box sx={{ width: '100%', minWidth: 0 }}>
-      <Box sx={{ mb: 3.5 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary' }}>
-          Dashboard
-        </Typography>
-        <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-          Overview of sales, purchases, and inventory.
-        </Typography>
+    <Box sx={{ width: '100%', minWidth: 0, px: 2 }}>
+      <Box sx={{ mt: 2, mb: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+            <Box 
+              sx={{ 
+                width: 14, 
+                height: 14, 
+                borderRadius: '4px', 
+                background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.4)' 
+              }} 
+            />
+            <Typography 
+              variant="h4" 
+              sx={{ 
+                fontWeight: 900, 
+                color: '#1e293b', 
+                letterSpacing: '-0.03em',
+                fontSize: { xs: '1.75rem', md: '2.25rem' }
+              }}
+            >
+              Analytics Overview
+            </Typography>
+          </Box>
+          <Typography variant="body1" sx={{ color: '#64748b', fontWeight: 600, fontSize: 16, ml: 4 }}>
+            Proactive monitoring of business throughput and operational metrics.
+          </Typography>
+        </Box>
+        <Box 
+          sx={{ 
+            p: 0.75, 
+            borderRadius: '16px', 
+            bgcolor: 'rgba(255, 255, 255, 0.6)', 
+            border: '1px solid #f1f5f9', 
+            backdropFilter: 'blur(10px)',
+            display: 'flex',
+            gap: 0.5,
+            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)'
+          }}
+        >
+          <Button 
+            variant="text" 
+            sx={{ 
+              borderRadius: '12px', 
+              px: 3, 
+              fontWeight: 800, 
+              textTransform: 'none', 
+              color: '#6366f1',
+              background: '#f3f4ff',
+              '&:hover': { background: '#eef2ff' }
+            }}
+          >
+            Today
+          </Button>
+          <Button 
+            variant="text" 
+            sx={{ 
+              borderRadius: '12px', 
+              px: 3, 
+              fontWeight: 700, 
+              textTransform: 'none', 
+              color: '#94a3b8',
+              '&:hover': { background: '#f8fafc' }
+            }}
+          >
+            Month
+          </Button>
+        </Box>
       </Box>
 
-      <Grid container spacing={2.5} sx={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
-        <Grid item xs={12} sm={6} md={3}>
+      <Grid container spacing={3} sx={{ width: '100%', m: 0 }}>
+        <Grid item xs={12} sm={6} lg={3}>
           <KPICard
             title="Total Sales"
             value={formatCurrency(kpis.totalSales)}
-            subtitle="This period"
+            subtitle="Verified revenue stream"
             icon={TrendingUpIcon}
             color="primary"
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} lg={3}>
           <KPICard
             title="Total Purchase"
             value={formatCurrency(kpis.totalPurchase)}
-            subtitle="This period"
+            subtitle="Procurement total"
             icon={LocalShippingIcon}
             color="success"
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} lg={3}>
           <KPICard
             title="Stock Items"
             value={kpis.totalItems}
-            subtitle="SKU variants"
+            subtitle="Active SKU variants"
             icon={Inventory2Icon}
             color="info"
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} lg={3}>
           <KPICard
             title="Low Stock"
             value={kpis.lowStockCount}
-            subtitle={`≤ ${lowStockThreshold} qty`}
+            subtitle={`At threshold (≤ ${lowStockThreshold})`}
             icon={ShoppingCartIcon}
             color="warning"
           />

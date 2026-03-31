@@ -1,25 +1,45 @@
 import { Box } from '@mui/material';
 import { Outlet, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
+import { useState } from 'react';
 import RoleSidebar from '../components/RoleSidebar';
 import Topbar from '../components/Topbar';
 import { getNavConfigForRole } from '../common/roleConfig';
 
+const DRAWER_WIDTH = 280;
+const COLLAPSED_WIDTH = 88;
+
 function RoleDashboardLayout() {
   const role = useSelector((state) => state.auth.role);
   const location = useLocation();
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const navConfig = getNavConfigForRole(role);
+
+  const sidebarWidth = isCollapsed ? COLLAPSED_WIDTH : DRAWER_WIDTH;
 
   return (
     <Box
       sx={{
         minHeight: '100vh',
         display: 'flex',
-        background: 'linear-gradient(135deg, #F8FAFC 0%, #EFF6FF 40%, #F8FAFC 100%)',
+        background: 'linear-gradient(135deg, #f0f9ff 0%, #f5f3ff 50%, #f0fdf4 100%)',
       }}
     >
-      <RoleSidebar navConfig={navConfig} />
-      <Box sx={{ width: 240, flexShrink: 0 }} aria-hidden />
+      <RoleSidebar 
+        navConfig={navConfig} 
+        isCollapsed={isCollapsed} 
+        onToggle={() => setIsCollapsed(!isCollapsed)} 
+      />
+      
+      {/* Dynamic spacer for the fixed sidebar */}
+      <Box 
+        sx={{ 
+          width: sidebarWidth, 
+          flexShrink: 0, 
+          transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)' 
+        }} 
+        aria-hidden 
+      />
       
       <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <Topbar />

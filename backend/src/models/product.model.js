@@ -42,8 +42,7 @@ const productSchema = new mongoose.Schema(
         },
         category: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'Category',
-            required: [true, 'Category is required']
+            ref: 'Category'
         },
         groupIds: [{
             type: mongoose.Schema.Types.ObjectId,
@@ -51,8 +50,7 @@ const productSchema = new mongoose.Schema(
         }],
         brand: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'Brand',
-            required: [true, 'Brand is required']
+            ref: 'Brand'
         },
         costPrice: {
             type: Number,

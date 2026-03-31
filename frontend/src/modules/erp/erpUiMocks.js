@@ -11,7 +11,7 @@ export const sizeMasterSeed = [
 
 export const hsnSeed = [
   {
-    id: 'hsn-1',
+    id: '65f1a2c3b4d5e6f7a8b9c001',
     hsnCode: '6109',
     description: 'Knitted T-Shirts and singlets',
     gstRate: 5,
@@ -20,7 +20,7 @@ export const hsnSeed = [
     updatedAt: '2026-03-08',
   },
   {
-    id: 'hsn-2',
+    id: '65f1a2c3b4d5e6f7a8b9c002',
     hsnCode: '6201',
     description: 'Mens woven jackets and blazers',
     gstRate: 12,
@@ -29,7 +29,7 @@ export const hsnSeed = [
     updatedAt: '2026-03-16',
   },
   {
-    id: 'hsn-3',
+    id: '65f1a2c3b4d5e6f7a8b9c003',
     hsnCode: '6203',
     description: 'Mens shirts and trousers',
     gstRate: 12,
@@ -41,7 +41,7 @@ export const hsnSeed = [
 
 export const groupSeed = [
   {
-    id: 'grp-1',
+    id: '65f1a2c3b4d5e6f7a8b9c101',
     groupName: 'T-Shirt',
     groupType: 'Category',
     parentId: null,
@@ -52,10 +52,10 @@ export const groupSeed = [
     updatedAt: '2026-03-10',
   },
   {
-    id: 'grp-2',
+    id: '65f1a2c3b4d5e6f7a8b9c102',
     groupName: 'Cotton',
     groupType: 'Fabric',
-    parentId: 'grp-1',
+    parentId: '65f1a2c3b4d5e6f7a8b9c101',
     level: 2,
     description: 'Cotton fabric based t-shirts',
     status: 'Active',
@@ -63,10 +63,10 @@ export const groupSeed = [
     updatedAt: '2026-03-10',
   },
   {
-    id: 'grp-3',
+    id: '65f1a2c3b4d5e6f7a8b9c103',
     groupName: 'Oversized',
     groupType: 'Product Type',
-    parentId: 'grp-2',
+    parentId: '65f1a2c3b4d5e6f7a8b9c102',
     level: 3,
     description: 'Oversized fit tees',
     status: 'Active',
@@ -74,7 +74,7 @@ export const groupSeed = [
     updatedAt: '2026-03-11',
   },
   {
-    id: 'grp-4',
+    id: '65f1a2c3b4d5e6f7a8b9c104',
     groupName: 'Section Essentials',
     groupType: 'Section',
     parentId: null,

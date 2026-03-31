@@ -22,10 +22,11 @@ export const addItem = createAsyncThunk('items/add', async (itemData, { rejectWi
       brand: itemData.brand,
       styleCode: itemData.itemCode || itemData.styleCode,
       fabric: itemData.fabric,
+      fabricType: itemData.fabricType,
       gender: itemData.gender,
       season: itemData.season,
       size: v.size,
-      color: v.color,
+      color: v.color || itemData.shadeColor,
       salePrice: Number(v.sellingPrice || v.salePrice || 0),
       costPrice: Number(v.costPrice || 0),
       mrp: Number(v.mrp || v.sellingPrice || 0),
@@ -35,13 +36,16 @@ export const addItem = createAsyncThunk('items/add', async (itemData, { rejectWi
       images: (itemData.images || []).map(img => img.preview || img),
       hsnCodeId: itemData.hsnCodeId || null,
       gstSlabId: itemData.gstSlabId || null,
+      description: itemData.description,
+      isActive: itemData.status !== 'Inactive',
       attributes: {
         pattern: itemData.pattern,
         fit: itemData.fit,
         sleeveType: itemData.sleeveType,
         neckType: itemData.neckType,
         occasion: itemData.occasion,
-        materialComposition: itemData.materialComposition
+        materialComposition: itemData.materialComposition,
+        notes: itemData.notes
       }
     }));
 

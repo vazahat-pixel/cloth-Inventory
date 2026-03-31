@@ -45,7 +45,6 @@ const customerSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
-customerSchema.index({ phone: 1 });
 customerSchema.index({ name: 'text' });
 customerSchema.index({ purchaseHistory: 1 });
 

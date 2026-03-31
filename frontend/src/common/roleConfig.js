@@ -86,7 +86,7 @@ const adminSidebarItems = [
 export const adminNavConfig = {
   role: ROLES.admin,
   basePath: '/ho',
-  label: 'HO Panel',
+  label: 'Head Office',
   mainNav: adminSidebarItems,
   children: {
     '/setup': setupNavItems.map(i => ({ ...i, drilldown: ['/setup/accounts', '/setup/taxes', '/setup/party-wise', '/setup/other-account-details', '/setup/configurations'].includes(i.path) })),
@@ -123,7 +123,7 @@ export const adminNavConfig = {
 export const staffNavConfig = {
   role: ROLES.store_staff,
   basePath: '/store',
-  label: 'Branch Panel',
+  label: 'Store Portal',
   mainNav: [
     { label: 'Search Home', path: '/', icon: HomeIcon },
     { label: 'Stock Overview', path: '/inventory/stock-overview', icon: Inventory2Icon },

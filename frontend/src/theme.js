@@ -29,21 +29,30 @@ const theme = createTheme({
     },
   },
   typography: {
-    fontFamily: `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif`,
+    fontFamily: `'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`,
+    h1: { fontWeight: 800, letterSpacing: '-0.02em' },
+    h2: { fontWeight: 800, letterSpacing: '-0.02em' },
+    h3: { fontWeight: 700, letterSpacing: '-0.01em' },
     h4: {
       fontWeight: 700,
-      letterSpacing: 0.2,
+      letterSpacing: '-0.01em',
     },
     h5: {
       fontWeight: 700,
+      letterSpacing: '-0.01em',
     },
     h6: {
       fontWeight: 700,
+      letterSpacing: '-0.01em',
     },
+    subtitle1: { fontWeight: 600 },
+    subtitle2: { fontWeight: 600 },
+    body1: { fontWeight: 500 },
+    body2: { fontWeight: 500 },
     button: {
       textTransform: 'none',
       fontWeight: 600,
-      letterSpacing: 0.02,
+      letterSpacing: '0.01em',
     },
   },
   components: {
