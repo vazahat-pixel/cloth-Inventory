@@ -6,7 +6,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import TaskAltOutlinedIcon from '@mui/icons-material/TaskAltOutlined';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import PageHeader from '../../components/erp/PageHeader';
 import FormSection from '../../components/erp/FormSection';
@@ -16,6 +16,8 @@ import { fetchMasters } from '../masters/mastersSlice';
 import { fetchGstSlabs } from '../gst/gstSlice';
 import api from '../../services/api';
 import { groupSeed, hsnSeed } from '../erp/erpUiMocks';
+
+const createVariantId = () => `var-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 const tabs = [
   ['basic', 'Product Details'],
@@ -46,7 +48,18 @@ function ItemFormPage({ mode = 'edit' }) {
   const sizes = useSelector((state) => state.masters?.sizes || []);
   const gstSlabs = useSelector((state) => state.gst?.taxRates || []);
   const existingItem = useMemo(() => (isEditMode ? items.find((item) => item.id === id || item._id === id) : null), [id, isEditMode, items]);
-  const { register, handleSubmit, watch, reset, setValue, formState: { errors } } = useForm({ defaultValues });
+  const { register, handleSubmit, reset, watch, setValue, control, formState: { errors } } = useForm({
+    defaultValues: {
+      status: 'Active',
+      uom: 'PCS',
+      stockTrackingEnabled: true,
+      barcodeEnabled: true,
+      reorderLevel: 0,
+      reorderQty: 0,
+      openingStock: 0,
+      openingStockRate: 0
+    }
+  });
   const [activeTab, setActiveTab] = useState('basic');
   const [variants, setVariants] = useState([]);
   const [variantError, setVariantError] = useState('');
@@ -67,24 +80,73 @@ function ItemFormPage({ mode = 'edit' }) {
   useEffect(() => {
     if (isEditMode && !existingItem) return;
     if (existingItem) {
+      // Robust extraction: Handle both populated objects and raw IDs
+      const getId = (field) => {
+        if (!field) return '';
+        return typeof field === 'object' ? (field._id || field.id || '') : field;
+      };
+
+      const getGroupIdByType = (type) => {
+        // First try to find in populated object
+        let match = existingItem.groupIds?.find(g => typeof g === 'object' && g.groupType === type);
+        if (match) return String(match._id || match.id || '');
+        
+        // If not populated, lookup in the global itemGroups master list
+        const idMatches = existingItem.groupIds || [];
+        const masterMatch = itemGroups.find(g => idMatches.includes(g._id || g.id) && g.groupType === type);
+        return masterMatch ? String(masterMatch._id || masterMatch.id || '') : '';
+      };
+
       reset({
-        itemCode: existingItem.code || existingItem.sku || '', itemName: existingItem.name || '', brand: existingItem.brand?._id || existingItem.brand || '',
-        hsnCodeId: existingItem.hsnCodeId?._id || existingItem.hsnCodeId || '', gstSlabId: existingItem.gstSlabId?._id || existingItem.gstSlabId || '',
-        shadeColor: existingItem.color || '', uom: existingItem.uom || 'PCS', skuPrefix: existingItem.skuPrefix || existingItem.code || existingItem.sku || '',
-        description: existingItem.description || '', status: existingItem.status || 'Active', fabric: existingItem.fabric || existingItem.attributes?.fabric || '',
-        type: existingItem.fabricType || existingItem.type || '', pattern: existingItem.pattern || '', fit: existingItem.fit || '', sleeveType: existingItem.sleeveType || '',
-        neckType: existingItem.neckType || '', gender: existingItem.gender || existingItem.attributes?.gender || '', season: existingItem.season || existingItem.attributes?.season || '',
-        occasion: existingItem.occasion || '', materialComposition: existingItem.materialComposition || '', notes: existingItem.notes || '',
-        mainGroup: existingItem.category?._id || existingItem.category || '', subGroup: existingItem.subGroup || '', categoryPath: existingItem.categoryPath || '',
-        defaultWarehouse: existingItem.defaultWarehouse || '', reorderLevel: existingItem.reorderLevel || 0, reorderQty: existingItem.reorderQty || 0,
-        openingStock: existingItem.openingStock || existingItem.factoryStock || 0, openingStockRate: existingItem.openingStockRate || 0,
-        stockTrackingEnabled: existingItem.stockTrackingEnabled ?? true, barcodeEnabled: existingItem.barcodeEnabled ?? true,
+        itemCode: existingItem.itemCode || '', 
+        itemName: existingItem.itemName || '', 
+        brand: getId(existingItem.brand) ? String(getId(existingItem.brand)) : '',
+        season: getId(existingItem.session) ? String(getId(existingItem.session)) : '',
+        hsnCodeId: getId(existingItem.hsCodeId) ? String(getId(existingItem.hsCodeId)) : '', 
+        shadeColor: existingItem.shade || '', 
+        uom: existingItem.uom || 'PCS', 
+        description: existingItem.description || '', 
+        status: existingItem.status || 'Active', 
+        fabric: existingItem.fabric || '',
+        pattern: existingItem.pattern || '', 
+        fit: existingItem.fit || '', 
+        gender: existingItem.gender || '',
+        sectionId: getGroupIdByType('Section'),
+        categoryId: getGroupIdByType('Category'),
+        subCategoryId: getGroupIdByType('Sub Category'),
+        subSubCategoryId: getGroupIdByType('Style / Type'),
+        defaultWarehouse: existingItem.defaultWarehouse ? String(existingItem.defaultWarehouse) : '', 
+        reorderLevel: Number(existingItem.reorderLevel || 0), 
+        reorderQty: Number(existingItem.reorderQty || 0),
+        openingStock: Number(existingItem.openingStock || 0), 
+        openingStockRate: Number(existingItem.openingStockRate || 0),
+        stockTrackingEnabled: existingItem.stockTrackingEnabled ?? true, 
+        barcodeEnabled: existingItem.barcodeEnabled ?? true,
       });
-      setVariants(existingItem.variants?.length ? existingItem.variants : [{ id: existingItem.id, size: existingItem.size || '', color: existingItem.color || '', sku: existingItem.sku || '', barcodePrefix: existingItem.code || existingItem.sku || '', costPrice: Number(existingItem.costPrice || 0), salePrice: Number(existingItem.salePrice || 0), mrp: Number(existingItem.mrp || existingItem.salePrice || 0), stock: Number(existingItem.factoryStock || 0), status: existingItem.status || 'Active' }]);
-      const next = Array(5).fill(null); (existingItem.images || []).slice(0, 5).forEach((img, index) => { next[index] = typeof img === 'string' ? { preview: img, name: `Image ${index + 1}` } : img; }); setImages(next); return;
+
+      const mappedVariants = (existingItem.sizes || []).map(s => ({
+        id: s._id || s.id || createVariantId(),
+        size: s.size,
+        color: existingItem.shade || '',
+        sku: s.barcode || '',
+        costPrice: Number(s.costPrice || 0),
+        salePrice: Number(s.salePrice || 0),
+        mrp: Number(s.mrp || 0),
+        stock: Number(s.stock || 0),
+        status: s.isActive === false ? 'Inactive' : 'Active'
+      }));
+      
+      setVariants(mappedVariants);
+      
+      const next = Array(5).fill(null); 
+      (existingItem.images || []).slice(0, 5).forEach((img, index) => { 
+        next[index] = typeof img === 'string' ? { preview: img, name: `Image ${index+1}` } : img; 
+      }); 
+      setImages(next); 
+      return;
     }
     reset(defaultValues); setVariants([]); setImages(Array(5).fill(null));
-  }, [existingItem, isEditMode, reset]);
+  }, [existingItem, isEditMode, reset, brands.length, itemGroups.length, seasons.length, hsnCodes.length]);
 
   useEffect(() => {
     const selected = hsnCodes.find((item) => item.id === watch('hsnCodeId'));
@@ -180,11 +242,15 @@ function ItemFormPage({ mode = 'edit' }) {
       }))
     };
 
+    const finalData = {
+      ...payload
+    };
+
     try {
       if (isEditMode) {
-        await dispatch(updateItem({ id, item: payload })).unwrap();
+        await dispatch(updateItem({ id, item: finalData })).unwrap();
       } else {
-        await dispatch(addItem(payload)).unwrap();
+        await dispatch(addItem(finalData)).unwrap();
       }
       
       if (stay) {
@@ -228,28 +294,87 @@ function ItemFormPage({ mode = 'edit' }) {
             <Stack spacing={3}>
               <FormSection title="Core Information" subtitle="Item identity and classification.">
                 <Grid container spacing={2}>
-                  {fields.basic.map(([key, label]) => (
-                    <Grid key={key} item xs={12} md={key === 'itemName' ? 6 : 3}>
-                      <TextField fullWidth size="small" label={label} {...register(key, { required: key === 'itemCode' || key === 'itemName' ? `${label} is required.` : false })} error={Boolean(errors[key])} helperText={errors[key]?.message || ' '} disabled={isViewMode} />
-                    </Grid>
-                  ))}
+                  <Grid item xs={12} md={3}><TextField fullWidth size="small" label="Style Code *" {...register('itemCode', { required: 'Style Code is required' })} error={Boolean(errors.itemCode)} helperText={errors.itemCode?.message || ' '} disabled={isViewMode} /></Grid>
+                  <Grid item xs={12} md={3}><TextField fullWidth size="small" label="Item Name *" {...register('itemName', { required: 'Item Name is required' })} error={Boolean(errors.itemName)} helperText={errors.itemName?.message || ' '} disabled={isViewMode} /></Grid>
+                  <Grid item xs={12} md={3}><TextField fullWidth size="small" label="Color / Shade" {...register('shadeColor')} disabled={isViewMode} /></Grid>
+                  <Grid item xs={12} md={3}><TextField fullWidth size="small" label="UOM" {...register('uom')} disabled={isViewMode} /></Grid>
                   <Grid item xs={12} md={3}>
-                    <TextField fullWidth size="small" select label="HSN Code *" {...register('hsnCodeId', { required: 'HSN Code is required.' })} error={Boolean(errors.hsnCodeId)} helperText={errors.hsnCodeId?.message || ' '} disabled={isViewMode}>
-                      <MenuItem value="">Select HSN</MenuItem>
-                      {hsnCodes.map((hsn) => <MenuItem key={hsn.id || hsn._id} value={hsn.id || hsn._id}>{hsn.hsnCode || hsn.code} - {hsn.gstRate || hsn.gstPercent}%</MenuItem>)}
-                    </TextField>
+                    <Controller
+                      name="hsnCodeId"
+                      control={control}
+                      rules={{ required: 'HSN is required' }}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          select
+                          size="small"
+                          fullWidth
+                          label="HSN Code *"
+                          disabled={isViewMode}
+                          error={Boolean(errors.hsnCodeId)}
+                          helperText={
+                            errors.hsnCodeId?.message || 
+                            (field.value ? `Applied GST Slab: ${hsnCodes.find(h => String(h.id || h._id) === String(field.value))?.gstPercent || 0}%` : 'Select HSN to view tax slab.')
+                          }
+                        >
+                          <MenuItem value="">Select HSN</MenuItem>
+                          {hsnCodes.map((h) => (
+                            <MenuItem key={h.id || h._id} value={h.id || h._id}>
+                              {h.hsnCode || h.code} - {h.gstRate || h.gstPercent}%
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      )}
+                    />
                   </Grid>
                   <Grid item xs={12} md={3}>
-                    <TextField fullWidth size="small" select label="Brand" {...register('brand')} disabled={isViewMode}>
-                      <MenuItem value="">Select Brand</MenuItem>
-                      {brands.map((brand) => <MenuItem key={brand.id || brand._id} value={brand.id || brand._id}>{brand.brandName || brand.name}</MenuItem>)}
-                    </TextField>
+                    <Controller
+                      name="brand"
+                      control={control}
+                      rules={{ required: 'Brand is required' }}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          select
+                          size="small"
+                          fullWidth
+                          label="Brand"
+                          disabled={isViewMode}
+                          error={Boolean(errors.brand)}
+                          helperText={errors.brand?.message || ' '}
+                        >
+                          <MenuItem value="">Select Brand</MenuItem>
+                          {brands.map((b) => (
+                            <MenuItem key={b.id || b._id} value={b.id || b._id}>
+                              {b.brandName || b.name}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      )}
+                    />
                   </Grid>
                   <Grid item xs={12} md={3}>
-                    <TextField fullWidth size="small" select label="Season" {...register('season')} disabled={isViewMode}>
-                      <MenuItem value="">Select Season</MenuItem>
-                      {seasons.map((s) => <MenuItem key={s.id || s._id} value={s.id || s._id}>{s.seasonName || s.name}</MenuItem>)}
-                    </TextField>
+                    <Controller
+                      name="season"
+                      control={control}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          select
+                          size="small"
+                          fullWidth
+                          label="Season"
+                          disabled={isViewMode}
+                        >
+                          <MenuItem value="">Select Season</MenuItem>
+                          {seasons.map((s) => (
+                            <MenuItem key={s.id || s._id} value={s.id || s._id}>
+                              {s.seasonName || s.name}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      )}
+                    />
                   </Grid>
                   <Grid item xs={12} md={3}>
                     <TextField fullWidth size="small" select label="Status" {...register('status')} disabled={isViewMode}>
@@ -261,45 +386,94 @@ function ItemFormPage({ mode = 'edit' }) {
                 </Grid>
               </FormSection>
 
-              <FormSection title="Category Hierarchy" subtitle="Organize item in Section > Category > Sub Group > Style.">
+              <FormSection title="Category Hierarchy" subtitle="Organize item in Section > Category > Sub Category > Style / Type.">
                 <Grid container spacing={2}>
                   <Grid item xs={12} md={3}>
-                    <TextField fullWidth size="small" select label="Section / Gender *" {...register('sectionId', { required: 'Section is required.' })} error={Boolean(errors.sectionId)} helperText={errors.sectionId?.message || ' '} disabled={isViewMode}>
-                      <MenuItem value="">Select Section</MenuItem>
-                      {itemGroups.filter(g => (g.groupType === 'Section' || !g.parentId) && !['Brand', 'Season'].includes(g.groupType)).map(g => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}
-                    </TextField>
+                    <Controller
+                      name="sectionId"
+                      control={control}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          select
+                          size="small"
+                          fullWidth
+                          label="Section"
+                          disabled={isViewMode}
+                        >
+                          <MenuItem value="">Select Section</MenuItem>
+                          {itemGroups.filter(g => g.groupType === 'Section').map((g) => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}
+                        </TextField>
+                      )}
+                    />
                   </Grid>
                   <Grid item xs={12} md={3}>
-                    <TextField fullWidth size="small" select label="Category *" {...register('categoryId', { required: 'Category is required.' })} error={Boolean(errors.categoryId)} helperText={errors.categoryId?.message || ' '} disabled={isViewMode}>
-                      <MenuItem value="">Select Category</MenuItem>
-                      {itemGroups.filter(g => g.parentId === watch('sectionId')).map(g => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}
-                    </TextField>
+                    <Controller
+                      name="categoryId"
+                      control={control}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          select
+                          size="small"
+                          fullWidth
+                          label="Category"
+                          disabled={!watch('sectionId') || isViewMode}
+                        >
+                          <MenuItem value="">Select Category</MenuItem>
+                          {itemGroups.filter(g => g.groupType === 'Category' && g.parentId === watch('sectionId')).map((g) => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}
+                        </TextField>
+                      )}
+                    />
                   </Grid>
                   <Grid item xs={12} md={3}>
-                    <TextField fullWidth size="small" select label="Sub Group" {...register('subCategoryId')} disabled={isViewMode}>
-                      <MenuItem value="">Select Sub Group</MenuItem>
-                      {itemGroups.filter(g => g.parentId === watch('categoryId')).map(g => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}
-                    </TextField>
+                    <Controller
+                      name="subCategoryId"
+                      control={control}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          select
+                          size="small"
+                          fullWidth
+                          label="Sub Category"
+                          disabled={!watch('categoryId') || isViewMode}
+                        >
+                          <MenuItem value="">Select Sub Category</MenuItem>
+                          {itemGroups.filter(g => g.groupType === 'Sub Category' && g.parentId === watch('categoryId')).map((g) => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}
+                        </TextField>
+                      )}
+                    />
                   </Grid>
                   <Grid item xs={12} md={3}>
-                    <TextField fullWidth size="small" select label="Style / Type" {...register('subSubCategoryId')} disabled={isViewMode}>
-                      <MenuItem value="">Select Style</MenuItem>
-                      {itemGroups.filter(g => g.parentId === watch('subCategoryId')).map(g => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}
-                    </TextField>
+                    <Controller
+                      name="subSubCategoryId"
+                      control={control}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          select
+                          size="small"
+                          fullWidth
+                          label="Style / Type"
+                          disabled={!watch('subCategoryId') || isViewMode}
+                        >
+                          <MenuItem value="">Select Style / Type</MenuItem>
+                          {itemGroups.filter(g => g.groupType === 'Style / Type' && g.parentId === watch('subCategoryId')).map((g) => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}
+                        </TextField>
+                      )}
+                    />
                   </Grid>
                 </Grid>
               </FormSection>
 
               <FormSection title="Descriptors" subtitle="Garment specific attributes for better search and reporting.">
                 <Grid container spacing={2}>
-                  {fields.attrs.map(([key, label]) => (
-                    <Grid key={key} item xs={12} md={2.4}>
-                      <TextField fullWidth size="small" label={label} {...register(key)} disabled={isViewMode} />
-                    </Grid>
-                  ))}
-                  <Grid item xs={12}>
-                    <TextField fullWidth size="small" label="Description" multiline minRows={2} {...register('description')} disabled={isViewMode} />
-                  </Grid>
+                  <Grid item xs={12} md={2.4}><TextField fullWidth size="small" label="Fabric" {...register('fabric')} disabled={isViewMode} /></Grid>
+                  <Grid item xs={12} md={2.4}><TextField fullWidth size="small" label="Pattern" {...register('pattern')} disabled={isViewMode} /></Grid>
+                  <Grid item xs={12} md={2.4}><TextField fullWidth size="small" label="Fit" {...register('fit')} disabled={isViewMode} /></Grid>
+                  <Grid item xs={12} md={2.4}><TextField fullWidth size="small" label="Gender" {...register('gender')} disabled={isViewMode} /></Grid>
+                  <Grid item xs={12} md={12}><TextField fullWidth size="small" label="Description" multiline minRows={2} {...register('description')} disabled={isViewMode} /></Grid>
                 </Grid>
               </FormSection>
             </Stack>

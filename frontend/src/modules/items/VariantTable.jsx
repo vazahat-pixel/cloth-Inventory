@@ -286,12 +286,18 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
             <>
               <Button
                 variant="contained"
+                type="button"
                 startIcon={<AutoFixHighIcon />}
                 onClick={handleGenerateVariants}
               >
                 Generate Combinations
               </Button>
-              <Button variant="outlined" startIcon={<AddCircleOutlineIcon />} onClick={openAddDialog}>
+              <Button 
+                variant="outlined" 
+                type="button"
+                startIcon={<AddCircleOutlineIcon />} 
+                onClick={openAddDialog}
+              >
                 Add Variant Manually
               </Button>
             </>
@@ -391,7 +397,8 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
       </Paper>
 
       <Dialog open={dialogOpen} onClose={closeDialog} fullWidth maxWidth="md">
-        <Box component="form" onSubmit={handleSubmit(handleVariantSave)}>
+      <Dialog open={dialogOpen} onClose={closeDialog} fullWidth maxWidth="md">
+        <Box>
           <DialogTitle>{editingVariant ? 'Edit Variant' : 'Add Variant'}</DialogTitle>
           <DialogContent dividers>
             <Stack spacing={2}>
@@ -577,11 +584,20 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
           </DialogContent>
           <DialogActions sx={{ px: 3, py: 2 }}>
             <Button onClick={closeDialog}>Cancel</Button>
-            <Button variant="contained" type="submit">
+            <Button 
+              variant="contained" 
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleSubmit(handleVariantSave)();
+              }}
+            >
               {editingVariant ? 'Update Variant' : 'Add Variant'}
             </Button>
           </DialogActions>
         </Box>
+      </Dialog>
       </Dialog>
     </Stack>
   );

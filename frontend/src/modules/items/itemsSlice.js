@@ -5,56 +5,154 @@ import { normalizeResponse } from '../../services/normalization';
 // Async Thunks
 export const fetchItems = createAsyncThunk('items/fetchAll', async (_, { rejectWithValue }) => {
   try {
-    const response = await api.get('/products');
-    const raw = response.data.products || response.data.data || [];
-    return normalizeResponse(raw, 'product');
+    const response = await api.get('/items');
+    // The items are likely inside response.data.items or response.data.data
+    const raw = response.data.items || response.data.data || [];
+    return normalizeResponse(raw, 'item');
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
 });
 
-export const addItem = createAsyncThunk('items/add', async (itemData, { rejectWithValue }) => {
+export const addItem = createAsyncThunk('items/add', async (item, { rejectWithValue }) => {
   try {
-    // Map data for single Item creation (matching backend Item model)
+    const brandId = item.brand ? String(item.brand) : null;
+    const hsnId = item.hsnCodeId ? String(item.hsnCodeId) : null;
+
+    if (!brandId) throw new Error('Brand selection is mandatory.');
+    if (!hsnId) throw new Error('HSN Code selection is mandatory.');
+
     const payload = {
-      itemName: itemData.itemName || itemData.name,
-      itemCode: (itemData.itemCode || itemData.code || '').trim().toUpperCase(),
-      brand: itemData.brandId || itemData.brand,
-      session: itemData.seasonId || itemData.season,
-      shade: itemData.shadeColor,
-      description: itemData.description,
-      hsCodeId: itemData.hsnCodeId,
-      groupIds: [itemData.section, itemData.categoryId, itemData.subCategory, itemData.styleType].filter(Boolean),
-      sizes: (itemData.variants || []).map((v) => ({
+      itemName: item.itemName || item.name,
+      itemCode: (item.itemCode || item.code || '').trim().toUpperCase(),
+      brand: brandId,
+      session: item.season ? String(item.season) : null,
+      shade: item.shadeColor,
+      description: item.description,
+      uom: item.uom || 'PCS',
+      hsCodeId: hsnId,
+      fabric: item.fabric,
+      pattern: item.pattern,
+      fit: item.fit,
+      gender: item.gender,
+      section: item.sectionId ? String(item.sectionId) : null,
+      category: item.categoryId ? String(item.categoryId) : null,
+      subCategory: item.subCategoryId ? String(item.subCategoryId) : null,
+      styleType: item.subSubCategoryId ? String(item.subSubCategoryId) : null,
+      groupIds: [item.sectionId, item.categoryId, item.subCategoryId, item.subSubCategoryId].filter(Boolean).map(id => String(id)),
+      defaultWarehouse: item.defaultWarehouse ? String(item.defaultWarehouse) : null,
+      reorderLevel: Number(item.reorderLevel || 0),
+      reorderQty: Number(item.reorderQty || 0),
+      openingStock: Number(item.openingStock || 0),
+      openingStockRate: Number(item.openingStockRate || 0),
+      stockTrackingEnabled: item.stockTrackingEnabled ?? true,
+      barcodeEnabled: item.barcodeEnabled ?? true,
+      sizes: (item.variants || []).map((v) => ({
         size: v.size,
-        barcode: v.barcode || null,
+        barcode: (v.sku || v.barcode || '').trim(),
         costPrice: Number(v.costPrice || 0),
-        salePrice: Number(v.salePrice || v.sellingPrice || 0),
+        salePrice: Number(v.salePrice || 0),
         mrp: Number(v.mrp || 0),
-        isActive: true
+        stock: Number(v.stock || 0),
+        isActive: v.status !== 'Inactive'
       })),
+      images: (item.images || []).filter(Boolean).map(img => {
+        // If it's already a string URL, return it (ignore blobs)
+        if (typeof img === 'string') {
+          return !img.startsWith('blob:') ? img : null;
+        }
+        // If it's an object (Cloudinary or custom upload response)
+        if (typeof img === 'object') {
+          // Check common keys from Cloudinary/Uploaders
+          const url = 
+            img.secure_url || 
+            img.url || 
+            img.data?.url || 
+            img.data?.secure_url ||
+            (img.preview && !img.preview.startsWith('blob:') ? img.preview : null);
+          return url || null;
+        }
+        return null;
+      }).filter(Boolean),
       isActive: true,
     };
+
+    if (!payload.itemCode) throw new Error('Style Code (itemCode) is required');
 
     const response = await api.post('/items', payload);
     return response.data.item || response.data.data;
   } catch (error) {
-    return rejectWithValue(error.response?.data?.message || error.message);
+    return rejectWithValue(error.response?.data?.message || (error instanceof Error ? error.message : String(error)));
   }
 });
 
 export const updateItem = createAsyncThunk('items/update', async ({ id, item }, { rejectWithValue }) => {
   try {
-    const response = await api.patch(`/products/${id}`, item);
-    return response.data.product || response.data.data;
+    const brandId = item.brand ? String(item.brand) : null;
+    const hsnId = item.hsnCodeId ? String(item.hsnCodeId) : null;
+
+    const payload = {
+      itemName: item.itemName || item.name,
+      itemCode: (item.itemCode || item.code || '').trim().toUpperCase(),
+      brand: brandId,
+      session: item.season ? String(item.season) : null,
+      shade: item.shadeColor,
+      description: item.description,
+      uom: item.uom || 'PCS',
+      hsCodeId: hsnId,
+      fabric: item.fabric,
+      pattern: item.pattern,
+      fit: item.fit,
+      gender: item.gender,
+      groupIds: [item.sectionId, item.categoryId, item.subCategoryId, item.subSubCategoryId].filter(Boolean).map(id => String(id)),
+      defaultWarehouse: item.defaultWarehouse ? String(item.defaultWarehouse) : null,
+      reorderLevel: Number(item.reorderLevel || 0),
+      reorderQty: Number(item.reorderQty || 0),
+      openingStock: Number(item.openingStock || 0),
+      openingStockRate: Number(item.openingStockRate || 0),
+      stockTrackingEnabled: item.stockTrackingEnabled ?? true,
+      barcodeEnabled: item.barcodeEnabled ?? true,
+      sizes: (item.variants || []).map((v) => ({
+        size: v.size,
+        barcode: (v.sku || v.barcode || '').trim(),
+        costPrice: Number(v.costPrice || 0),
+        salePrice: Number(v.salePrice || 0),
+        mrp: Number(v.mrp || 0),
+        stock: Number(v.stock || 0),
+        isActive: v.status !== 'Inactive'
+      })),
+      images: (item.images || []).filter(Boolean).map(img => {
+        if (typeof img === 'string') {
+          return !img.startsWith('blob:') ? img : null;
+        }
+        if (typeof img === 'object') {
+          const url = 
+            img.secure_url || 
+            img.url || 
+            img.data?.url || 
+            img.data?.secure_url ||
+            (img.preview && !img.preview.startsWith('blob:') ? img.preview : null);
+          return url || null;
+        }
+        return null;
+      }).filter(Boolean),
+      isActive: true,
+    };
+
+    if (!payload.itemCode) throw new Error('Style Code (itemCode) is required');
+    if (!payload.brand) delete payload.brand; 
+    if (!payload.hsCodeId) delete payload.hsCodeId;
+
+    const response = await api.patch(`/items/${id}`, payload);
+    return response.data.item || response.data.data;
   } catch (error) {
-    return rejectWithValue(error.response?.data?.message || error.message);
+    return rejectWithValue(error.response?.data?.message || (error instanceof Error ? error.message : String(error)));
   }
 });
 
 export const deleteItem = createAsyncThunk('items/delete', async (id, { rejectWithValue }) => {
   try {
-    await api.delete(`/products/${id}`);
+    await api.delete(`/items/${id}`);
     return id;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
