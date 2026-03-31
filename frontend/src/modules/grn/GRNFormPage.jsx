@@ -5,6 +5,7 @@ import {
   Alert,
   Box,
   Button,
+  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -255,10 +256,10 @@ function GRNFormPage({ mode = 'edit' }) {
       {successMessage && <Alert severity="success" sx={{ mb: 2 }}>{successMessage}</Alert>}
 
       <Grid container spacing={3}>
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <Paper sx={{ p: 3, borderRadius: 2 }}>
             <Grid container spacing={2}>
-              <Grid item xs={12} md={3}>
+              <Grid size={{ xs: 12, md: 3 }}>
                 <TextField select fullWidth label="Purchase Order" size="small" value={formValues.purchaseOrderId} 
                     onChange={e => setFormValues({...formValues, purchaseOrderId: e.target.value})} disabled={isViewMode || !!id}>
                     <MenuItem value="">Direct Receipt</MenuItem>
@@ -308,7 +309,7 @@ function GRNFormPage({ mode = 'edit' }) {
           </Paper>
         </Grid>
 
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <TableContainer component={Paper}>
             <Table size="small">
               <TableHead sx={{ bgcolor: '#f8fafc' }}>
