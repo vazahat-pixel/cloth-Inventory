@@ -122,6 +122,17 @@ import SetupLandingPage from '../modules/setup/SetupLandingPage';
 import ProfilePage from '../modules/profile/ProfilePage';
 import SetupCustomFieldsAccountsPage from '../modules/setup/SetupCustomFieldsAccountsPage';
 import NotFoundPage from '../pages/NotFoundPage';
+import SeasonsListPage from '../modules/masters/Seasons/ListPage';
+import SettingsLayout from '../modules/settings/SettingsLayout';
+import CompanyProfilePage from '../modules/settings/CompanyProfilePage';
+import UsersPage from '../modules/settings/UsersPage';
+import RolesPage from '../modules/settings/RolesPage';
+import NumberSeriesPage from '../modules/settings/NumberSeriesPage';
+import PreferencesPage from '../modules/settings/PreferencesPage';
+import PurchaseVoucherConfigPage from '../modules/settings/PurchaseVoucherConfigPage';
+import PrintTemplatesPage from '../modules/settings/PrintTemplatesPage';
+import AuditLogPage from '../modules/settings/AuditLogPage';
+import LogicERPManager from '../modules/erp/LogicERPManager';
 
 // --- Loading Placeholder ---
 const PageLoader = () => (
@@ -130,134 +141,6 @@ const PageLoader = () => (
   </Box>
 );
 
-// --- Modules (Lazy loaded by feature set) ---
-
-// Masters
-const MastersLayout = lazy(() => import('../modules/masters/MastersLayout'));
-const SuppliersListPage = lazy(() => import('../modules/masters/suppliers/ListPage'));
-const CustomersListPage = lazy(() => import('../modules/masters/customers/ListPage'));
-const AccountGroupsListPage = lazy(() => import('../modules/masters/accountGroups/ListPage'));
-const WarehousesListPage = lazy(() => import('../modules/masters/warehouses/ListPage'));
-const StoresListPage = lazy(() => import('../modules/masters/stores/ListPage'));
-const BrandsListPage = lazy(() => import('../modules/masters/brands/ListPage'));
-const ItemGroupsListPage = lazy(() => import('../modules/masters/itemGroups/ListPage'));
-const SalesmenListPage = lazy(() => import('../modules/masters/salesmen/ListPage'));
-const BanksListPage = lazy(() => import('../modules/masters/banks/ListPage'));
-const SeasonsListPage = lazy(() => import('../modules/masters/seasons/ListPage'));
-
-// Items & Setup
-const ItemListPage = lazy(() => import('../modules/items/ItemListPage'));
-const ItemFormPage = lazy(() => import('../modules/items/ItemFormPage'));
-const GroupsPage = lazy(() => import('../modules/setup/GroupsPage'));
-const SizesPage = lazy(() => import('../modules/setup/SizesPage'));
-
-// Inventory
-const StockOverviewPage = lazy(() => import('../modules/inventory/StockOverviewPage'));
-const StockInPage = lazy(() => import('../modules/inventory/StockInPage'));
-const StockTransferPage = lazy(() => import('../modules/inventory/StockTransferPage'));
-const StockTransferFormPage = lazy(() => import('../modules/inventory/StockTransferFormPage'));
-const StockAuditPage = lazy(() => import('../modules/inventory/StockAuditPage'));
-const StockAdjustmentPage = lazy(() => import('../modules/inventory/StockAdjustmentPage'));
-const MovementHistoryPage = lazy(() => import('../modules/inventory/MovementHistoryPage'));
-const AuditDashboard = lazy(() => import('../modules/inventory/AuditDashboard'));
-const ItemJourneyPage = lazy(() => import('../modules/inventory/ItemJourneyPage'));
-const StockAuditView = lazy(() => import('../modules/inventory/StockAuditView'));
-const ValidationDashboard = lazy(() => import('../modules/inventory/ValidationDashboard'));
-const AuditLogViewer = lazy(() => import('../modules/inventory/AuditLogViewer'));
-
-// Purchase & Orders
-const PurchaseListPage = lazy(() => import('../modules/purchase/PurchaseListPage'));
-const PurchaseFormPage = lazy(() => import('../modules/purchase/PurchaseFormPage'));
-const PurchaseOrderListPage = lazy(() => import('../modules/purchase/PurchaseOrderListPage'));
-const PurchaseOrderFormPage = lazy(() => import('../modules/purchase/PurchaseOrderFormPage'));
-const PurchaseReturnPage = lazy(() => import('../modules/purchase/PurchaseReturnPage'));
-const SaleOrderListPage = lazy(() => import('../modules/orders/SaleOrderListPage'));
-const SaleOrderFormPage = lazy(() => import('../modules/orders/SaleOrderFormPage'));
-const DeliveryOrderPage = lazy(() => import('../modules/orders/DeliveryOrderPage'));
-const DeliveryChallanPage = lazy(() => import('../modules/dispatch/DeliveryChallanPage'));
-const DeliveryChallanForm = lazy(() => import('../modules/dispatch/DeliveryChallanForm'));
-
-// Sales & Billing
-const SalesListPage = lazy(() => import('../modules/sales/SalesListPage'));
-const BillingPage = lazy(() => import('../modules/sales/BillingPage'));
-const SalesReturnPage = lazy(() => import('../modules/sales/SalesReturnPage'));
-
-// Pricing
-const PriceListPage = lazy(() => import('../modules/pricing/PriceListPage'));
-const PriceListFormPage = lazy(() => import('../modules/pricing/PriceListFormPage'));
-const SchemeListPage = lazy(() => import('../modules/pricing/SchemeListPage'));
-const SchemeFormPage = lazy(() => import('../modules/pricing/SchemeFormPage'));
-const CouponPage = lazy(() => import('../modules/pricing/CouponPage'));
-
-// Customers & Rewards
-const LoyaltyConfigPage = lazy(() => import('../modules/customers/LoyaltyConfigPage'));
-const VoucherListPage = lazy(() => import('../modules/customers/VoucherListPage'));
-const VoucherFormPage = lazy(() => import('../modules/customers/VoucherFormPage'));
-const CreditNotesPage = lazy(() => import('../modules/customers/CreditNotesPage'));
-const CustomerRewardsPage = lazy(() => import('../modules/customers/CustomerRewardsPage'));
-
-// Setup & GST
-const SetupLandingPage = lazy(() => import('../modules/setup/SetupLandingPage'));
-const SetupCustomFieldsAccountsPage = lazy(() => import('../modules/setup/SetupCustomFieldsAccountsPage'));
-const SetupCountryPage = lazy(() => import('../modules/setup/SetupCountryPage'));
-const SetupGenericTablePage = lazy(() => import('../modules/setup/SetupGenericTablePage'));
-const AccountMasterPage = lazy(() => import('../modules/setup/AccountMasterPage'));
-const StoreMasterPage = lazy(() => import('../modules/setup/StoreMasterPage'));
-const HSNCodePage = lazy(() => import('../modules/setup/HSNCodePage'));
-const FormulaPage = lazy(() => import('../modules/setup/FormulaPage'));
-const BarcodePrintingPage = lazy(() => import('../modules/setup/BarcodePrintingPage'));
-const DiscountSetupPage = lazy(() => import('../modules/setup/DiscountSetupPage'));
-const CounterMasterPage = lazy(() => import('../modules/setup/CounterMasterPage'));
-
-const TaxRatesPage = lazy(() => import('../modules/gst/TaxRatesPage'));
-const TaxGroupPage = lazy(() => import('../modules/gst/TaxGroupPage'));
-const InvoiceTaxReportPage = lazy(() => import('../modules/gst/InvoiceTaxReportPage'));
-const GSTRSummaryPage = lazy(() => import('../modules/gst/GSTRSummaryPage'));
-
-// Accounts
-const AccountsDashboard = lazy(() => import('../modules/accounts/AccountsDashboard'));
-const BankPaymentPage = lazy(() => import('../modules/accounts/BankPaymentPage'));
-const BankReceiptPage = lazy(() => import('../modules/accounts/BankReceiptPage'));
-const ContinuousPrintingPage = lazy(() => import('../modules/accounts/ContinuousPrintingPage'));
-const AccountsUtilitiesPage = lazy(() => import('../modules/accounts/AccountsUtilitiesPage'));
-
-// Reports
-const ReportsDashboard = lazy(() => import('../modules/reports/ReportsDashboard'));
-const SalesReportPage = lazy(() => import('../modules/reports/SalesReportPage'));
-const PurchaseReportPage = lazy(() => import('../modules/reports/PurchaseReportPage'));
-const StockReportPage = lazy(() => import('../modules/reports/StockReportPage'));
-const ProfitReportPage = lazy(() => import('../modules/reports/ProfitReportPage'));
-const CustomerReportPage = lazy(() => import('../modules/reports/CustomerReportPage'));
-const VendorReportPage = lazy(() => import('../modules/reports/VendorReportPage'));
-const MovementReportPage = lazy(() => import('../modules/reports/MovementReportPage'));
-const AgeAnalysisPage = lazy(() => import('../modules/reports/AgeAnalysisPage'));
-const LedgerReportPage = lazy(() => import('../modules/reports/LedgerReportPage'));
-const BankBookPage = lazy(() => import('../modules/reports/BankBookPage'));
-const CollectionReportPage = lazy(() => import('../modules/reports/CollectionReportPage'));
-
-// Settings
-const SettingsLayout = lazy(() => import('../modules/settings/SettingsLayout'));
-const CompanyProfilePage = lazy(() => import('../modules/settings/CompanyProfilePage'));
-const UsersPage = lazy(() => import('../modules/settings/UsersPage'));
-const RolesPage = lazy(() => import('../modules/settings/RolesPage'));
-const NumberSeriesPage = lazy(() => import('../modules/settings/NumberSeriesPage'));
-const PreferencesPage = lazy(() => import('../modules/settings/PreferencesPage'));
-const PurchaseVoucherConfigPage = lazy(() => import('../modules/settings/PurchaseVoucherConfigPage'));
-const PrintTemplatesPage = lazy(() => import('../modules/settings/PrintTemplatesPage'));
-const AuditLogPage = lazy(() => import('../modules/settings/AuditLogPage'));
-
-// Placeholder Pages
-const PurchasePlaceholderPage = lazy(() => import('../modules/purchase/PurchasePlaceholderPage'));
-const InventoryPlaceholderPage = lazy(() => import('../modules/inventory/InventoryPlaceholderPage'));
-const BillingPlaceholderPage = lazy(() => import('../modules/sales/BillingPlaceholderPage'));
-const SetupAccountsPlaceholderPage = lazy(() => import('../modules/setup/SetupAccountsPlaceholderPage'));
-const OrdersContinuousPrintingPage = lazy(() => import('../modules/orders/OrdersContinuousPrintingPage'));
-
-// ERP Modules
-const GRNListPage = lazy(() => import('../modules/grn/GRNListPage'));
-const GRNFormPage = lazy(() => import('../modules/grn/GRNFormPage'));
-const LogicERPManager = lazy(() => import('../modules/erp/LogicERPManager'));
-const DataImportExportPage = lazy(() => import('../modules/data/DataImportExportPage'));
 
 function AppRoutes() {
   return (

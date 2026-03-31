@@ -41,26 +41,32 @@ const getLabelsByGrn = async (req, res, next) => {
         const grn = await GRN.findById(id).populate('items.productId');
         if (!grn) return sendError(res, 'GRN not found', 404);
 
+        if (!grn.items || !Array.isArray(grn.items)) {
+            return sendSuccess(res, { labels: [] }, 'GRN has no items.');
+        }
+
         const labels = [];
         for (const item of grn.items) {
             const product = item.productId;
-            if (!product) continue;
-
-            // Generate label for each received quantity
-            for (let i = 0; i < item.receivedQty; i++) {
-                labels.push({
-                    barcode: product.barcode || product.sku || product.itemCode || `BAR-${product._id.toString().slice(-6)}`,
-                    article: product.sku || product.itemCode || product.itemName,
-                    size: item.size || product.size || 'N/A',
-                    color: product.shade || product.color || 'N/A',
-                    mrp: product.salePrice || product.mrp || 0,
-                    design: product.itemName || product.name
-                });
+            
+            // Generate labels ONLY if product data exists
+            if (product && item.receivedQty > 0) {
+                for (let i = 0; i < item.receivedQty; i++) {
+                    labels.push({
+                        barcode: product.barcode || product.sku || product.itemCode || `BAR-${product._id || i}`,
+                        article: product.sku || product.itemCode || product.name || 'N/A',
+                        size: item.size || product.size || 'N/A',
+                        color: product.shade || product.color || 'N/A',
+                        mrp: product.salePrice || product.mrp || 0,
+                        design: product.itemName || product.name || 'N/A'
+                    });
+                }
             }
         }
 
-        return sendSuccess(res, { labels }, `Extracted ${labels.length} labels from GRN ${grn.grnNumber}.`);
+        return sendSuccess(res, { labels }, `Extracted ${labels.length} labels from GRN ${grn.grnNumber || 'N/A'}.`);
     } catch (error) {
+        console.error('getLabelsByGrn Full Error:', error);
         next(error);
     }
 };
