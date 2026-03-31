@@ -1,18 +1,18 @@
 import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { 
-  Alert, 
-  Box, 
-  Button, 
-  CircularProgress, 
-  Paper, 
-  Stack, 
-  TextField, 
-  Typography, 
+import {
+  Alert,
   Avatar,
   AvatarGroup,
-  InputAdornment
+  Box,
+  Button,
+  CircularProgress,
+  InputAdornment,
+  Paper,
+  Stack,
+  TextField,
+  Typography,
 } from '@mui/material';
 import MailOutlineIcon from '@mui/icons-material/MailOutline';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
@@ -28,8 +28,7 @@ const ROLE_LABELS = {
   staff: 'Store Login',
 };
 
-// Branding configuration
-const COMPANY_NAME = 'Inventory ERP'; // Consistently using the remote identifier
+const COMPANY_NAME = 'Inventory ERP';
 const COMPANY_TAGLINE = 'Apparel & Retail Management Suite';
 
 function LoginPage() {
@@ -58,8 +57,8 @@ function LoginPage() {
         urlRole === 'ho'
           ? 'admin'
           : urlRole === 'store' || urlRole === 'staff'
-          ? 'store_staff'
-          : urlRole || undefined;
+            ? 'store_staff'
+            : urlRole || undefined;
 
       const response = await authService.login({ ...formValues, role: apiRole });
       dispatch(loginSuccess(response));
@@ -68,7 +67,6 @@ function LoginPage() {
       const basePath = responseRole ? getRoleBasePath(responseRole) : '/ho';
       const intendedPath = location.state?.from?.pathname;
 
-      // Smart redirection: Allow landing on specific sub-panels if intended (useful for admins jumping to /store)
       if (intendedPath && intendedPath !== '/' && intendedPath !== basePath) {
         navigate(intendedPath, { replace: true });
       } else {
@@ -93,10 +91,10 @@ function LoginPage() {
         background: '#f8fafc',
         position: 'relative',
         overflow: 'hidden',
-        p: 2,
+        px: { xs: 2, md: 3 },
+        py: { xs: 2, md: 3 },
       }}
     >
-      {/* Abstract Background Blobs */}
       <Box
         sx={{
           position: 'absolute',
@@ -128,32 +126,30 @@ function LoginPage() {
         elevation={0}
         sx={{
           width: '100%',
-          maxWidth: 1040,
-          minHeight: 640,
+          maxWidth: 920,
+          minHeight: { xs: 'auto', md: 560 },
           display: 'grid',
-          gridTemplateColumns: { xs: '1fr', md: '1.2fr 1fr' },
-          borderRadius: '28px',
+          gridTemplateColumns: { xs: '1fr', md: '1.05fr 0.95fr' },
+          borderRadius: '24px',
           overflow: 'hidden',
           backgroundColor: '#ffffff',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.08)',
+          boxShadow: '0 22px 45px -18px rgba(15, 23, 42, 0.18)',
           zIndex: 1,
           position: 'relative',
         }}
       >
-        {/* Left Section: Branding & Visuals */}
         <Box
           sx={{
             display: { xs: 'none', md: 'flex' },
             flexDirection: 'column',
             justifyContent: 'space-between',
-            p: 6,
+            p: { md: 4.5, lg: 5 },
             background: 'linear-gradient(135deg, #10b981 0%, #06b6d4 100%)',
             color: '#ffffff',
             position: 'relative',
             overflow: 'hidden',
           }}
         >
-          {/* Subtle overlay shapes */}
           <Box
             sx={{
               position: 'absolute',
@@ -171,9 +167,9 @@ function LoginPage() {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
               <Box
                 sx={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: '14px',
+                  width: 40,
+                  height: 40,
+                  borderRadius: '12px',
                   background: 'rgba(255, 255, 255, 0.95)',
                   display: 'flex',
                   alignItems: 'center',
@@ -182,90 +178,137 @@ function LoginPage() {
                   boxShadow: '0 8px 16px rgba(16, 185, 129, 0.2)',
                 }}
               >
-                <Typography sx={{ fontWeight: 900, fontSize: '1.4rem' }}>H</Typography>
+                <Typography sx={{ fontWeight: 900, fontSize: '1.35rem' }}>H</Typography>
               </Box>
               <Box>
                 <Typography
                   variant="h6"
-                  sx={{ fontWeight: 800, letterSpacing: -0.5, lineHeight: 1, fontSize: '1.25rem' }}
+                  sx={{ fontWeight: 800, letterSpacing: -0.5, lineHeight: 1, fontSize: '1.1rem' }}
                 >
                   {COMPANY_NAME}
                 </Typography>
-                <Typography variant="caption" sx={{ opacity: 0.85, fontWeight: 500 }}>
+                <Typography variant="caption" sx={{ opacity: 0.85, fontWeight: 500, fontSize: '0.72rem' }}>
                   {COMPANY_TAGLINE}
                 </Typography>
               </Box>
             </Box>
           </Box>
 
-          <Box sx={{ zIndex: 1, mt: 4 }}>
+          <Box sx={{ zIndex: 1, mt: 3 }}>
             <Typography
               variant="h2"
-              sx={{ fontWeight: 900, mb: 2, letterSpacing: -1.5, fontSize: '3.5rem' }}
+              sx={{
+                fontWeight: 900,
+                mb: 1.5,
+                letterSpacing: -1.2,
+                fontSize: { md: '2.75rem', lg: '3.1rem' },
+                lineHeight: 1.02,
+              }}
             >
               Welcome back!
             </Typography>
             <Typography
               variant="h6"
-              sx={{ opacity: 0.9, fontWeight: 400, maxWidth: 440, lineHeight: 1.6, mb: 4 }}
+              sx={{
+                opacity: 0.9,
+                fontWeight: 400,
+                maxWidth: 380,
+                lineHeight: 1.55,
+                mb: 3,
+                fontSize: { md: '1.05rem', lg: '1.15rem' },
+              }}
             >
-              Streamline your apparel operations with our industrial-grade ERP suite designed for speed and precision.
+              Streamline your apparel operations with our industrial-grade ERP suite designed for speed and
+              precision.
             </Typography>
 
-            {/* Floating Avatars for premium look */}
-            <Box sx={{ display: 'flex', alignItems: 'center', mt: 2, gap: 2 }}>
-              <AvatarGroup max={4} sx={{ '& .MuiAvatar-root': { width: 32, height: 32, border: '2px solid #10b981' } }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mt: 1.5, gap: 1.5 }}>
+              <AvatarGroup
+                max={4}
+                sx={{ '& .MuiAvatar-root': { width: 28, height: 28, border: '2px solid #10b981' } }}
+              >
                 <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)' }} />
                 <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.3)' }} />
                 <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.4)' }} />
               </AvatarGroup>
-              <Typography variant="body2" sx={{ fontWeight: 600, opacity: 0.9 }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, opacity: 0.9, fontSize: '0.95rem' }}>
                 Trusted by 500+ Retailers
               </Typography>
             </Box>
           </Box>
 
           <Box sx={{ zIndex: 1 }}>
-            <Typography variant="caption" sx={{ opacity: 0.7 }}>
-              © {new Date().getFullYear()} {COMPANY_NAME}. Industrial Excellence.
+            <Typography variant="caption" sx={{ opacity: 0.72, fontSize: '0.78rem' }}>
+              Copyright {new Date().getFullYear()} {COMPANY_NAME}. Industrial Excellence.
             </Typography>
           </Box>
         </Box>
 
-        {/* Right Section: Login Form */}
         <Box
           sx={{
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center',
-            p: { xs: 4, sm: 6, md: 8 },
+            p: { xs: 3, sm: 4, md: 5 },
             backgroundColor: '#ffffff',
           }}
         >
-          <Box component="form" onSubmit={handleSubmit}>
-            <Box sx={{ mb: 5 }}>
+          <Box
+            sx={{
+              display: { xs: 'flex', md: 'none' },
+              alignItems: 'center',
+              gap: 1.5,
+              mb: 3,
+            }}
+          >
+            <Box
+              sx={{
+                width: 36,
+                height: 36,
+                borderRadius: '11px',
+                background: 'linear-gradient(135deg, #10b981 0%, #06b6d4 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ffffff',
+              }}
+            >
+              <Typography sx={{ fontWeight: 900, fontSize: '1.1rem' }}>H</Typography>
+            </Box>
+            <Box>
+              <Typography sx={{ fontWeight: 800, color: '#111827', lineHeight: 1.1 }}>{COMPANY_NAME}</Typography>
+              <Typography variant="caption" sx={{ color: '#64748b' }}>
+                {COMPANY_TAGLINE}
+              </Typography>
+            </Box>
+          </Box>
+
+          <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%', maxWidth: 420, mx: 'auto' }}>
+            <Box sx={{ mb: 4 }}>
               <Typography
                 variant="h4"
-                sx={{ fontWeight: 800, color: '#111827', mb: 1, letterSpacing: -0.5 }}
+                sx={{
+                  fontWeight: 800,
+                  color: '#111827',
+                  mb: 1,
+                  letterSpacing: -0.5,
+                  fontSize: { xs: '2rem', md: '2.5rem' },
+                }}
               >
                 {panelLabel}
               </Typography>
-              <Typography variant="body1" sx={{ color: '#6b7280', fontWeight: 500 }}>
+              <Typography variant="body1" sx={{ color: '#6b7280', fontWeight: 500, maxWidth: 360 }}>
                 Sign in to continue to your {isStorePortal ? 'store' : 'head office'} workspace.
               </Typography>
             </Box>
 
             {error && (
-              <Alert 
-                severity="error" 
-                onClose={() => dispatch(clearAuthError())}
-                sx={{ mb: 4, borderRadius: '12px', fontWeight: 500 }}
-              >
+              <Alert severity="error" onClose={() => dispatch(clearAuthError())} sx={{ mb: 3, borderRadius: '12px', fontWeight: 500 }}>
                 {error}
               </Alert>
             )}
 
-            <Stack spacing={3}>
+            <Stack spacing={2.25}>
               <TextField
                 label="Work Email"
                 placeholder="you@company.com"
@@ -273,6 +316,7 @@ function LoginPage() {
                 name="email"
                 fullWidth
                 required
+                size="small"
                 value={formValues.email}
                 onChange={handleChange}
                 InputProps={{
@@ -286,20 +330,25 @@ function LoginPage() {
                   '& .MuiOutlinedInput-root': {
                     borderRadius: '12px',
                     backgroundColor: '#f9fafb',
+                    minHeight: 54,
                     '& fieldset': { borderColor: '#e2e8f0' },
                     '&:hover fieldset': { borderColor: '#cbd5e1' },
                     '&.Mui-focused fieldset': { borderColor: '#10b981', borderWidth: '2px' },
+                  },
+                  '& .MuiOutlinedInput-input': {
+                    py: 1.6,
                   },
                   '& .MuiInputLabel-root.Mui-focused': { color: '#10b981' },
                 }}
               />
               <TextField
                 label="Password"
-                placeholder="••••••••"
+                placeholder="********"
                 type="password"
                 name="password"
                 fullWidth
                 required
+                size="small"
                 value={formValues.password}
                 onChange={handleChange}
                 InputProps={{
@@ -313,15 +362,19 @@ function LoginPage() {
                   '& .MuiOutlinedInput-root': {
                     borderRadius: '12px',
                     backgroundColor: '#f9fafb',
+                    minHeight: 54,
                     '& fieldset': { borderColor: '#e2e8f0' },
                     '&:hover fieldset': { borderColor: '#cbd5e1' },
                     '&.Mui-focused fieldset': { borderColor: '#10b981', borderWidth: '2px' },
+                  },
+                  '& .MuiOutlinedInput-input': {
+                    py: 1.6,
                   },
                   '& .MuiInputLabel-root.Mui-focused': { color: '#10b981' },
                 }}
               />
 
-              <Box sx={{ pt: 1 }}>
+              <Box sx={{ pt: 0.5 }}>
                 <Button
                   type="submit"
                   variant="contained"
@@ -330,7 +383,7 @@ function LoginPage() {
                   disabled={loading}
                   startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
                   sx={{
-                    py: 1.6,
+                    py: 1.3,
                     borderRadius: '14px',
                     fontWeight: 700,
                     textTransform: 'none',
@@ -345,7 +398,7 @@ function LoginPage() {
                     },
                     '&:active': {
                       transform: 'translateY(0)',
-                    }
+                    },
                   }}
                 >
                   {loading ? 'Authenticating...' : 'Sign in to Account'}
@@ -353,9 +406,20 @@ function LoginPage() {
               </Box>
             </Stack>
 
-            <Box sx={{ mt: 5, textAlign: 'center' }}>
+            <Box sx={{ mt: 4, textAlign: 'center' }}>
               <Typography variant="body2" sx={{ color: '#94a3b8' }}>
-                Having trouble signing in? <Box component="span" sx={{ color: '#10b981', fontWeight: 600, cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}>Contact Administrator</Box>
+                Having trouble signing in?{' '}
+                <Box
+                  component="span"
+                  sx={{
+                    color: '#10b981',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    '&:hover': { textDecoration: 'underline' },
+                  }}
+                >
+                  Contact Administrator
+                </Box>
               </Typography>
             </Box>
           </Box>
