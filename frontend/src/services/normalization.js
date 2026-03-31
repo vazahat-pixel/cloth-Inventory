@@ -6,7 +6,6 @@
  */
 export const normalizeResponse = (data, entityType) => {
     if (!data) return data;
-    console.log(`[DEBUG] normalizeResponse(${entityType}) input:`, data);
 
     let result;
     if (Array.isArray(data)) {
@@ -14,7 +13,6 @@ export const normalizeResponse = (data, entityType) => {
     } else {
         result = normalizeItem(data, entityType);
     }
-    console.log(`[DEBUG] normalizeResponse(${entityType}) output:`, result);
     return result;
 };
 

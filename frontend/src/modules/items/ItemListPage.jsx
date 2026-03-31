@@ -104,7 +104,7 @@ function ItemListPage() {
       {viewMode === 'cards' ? (
         <Grid container spacing={2}>
           {paginatedRows.map((row) => (
-            <Grid item xs={12} md={6} lg={4} key={row.id}>
+            <Grid size={{ xs: 12, md: 6, lg: 4 }} key={row.id}>
               <Card elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2 }}>
                 <CardContent>
                   <Stack spacing={1.25}>

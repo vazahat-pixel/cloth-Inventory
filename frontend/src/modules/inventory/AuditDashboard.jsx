@@ -99,7 +99,7 @@ const AuditDashboard = () => {
       {/* Primary Stats */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         {statCards.map((card, idx) => (
-          <Grid item xs={12} sm={6} md={3} key={idx}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }} key={idx}>
             <Card sx={{ 
               borderRadius: 4, 
               boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
@@ -130,7 +130,7 @@ const AuditDashboard = () => {
 
       <Grid container spacing={3}>
         {/* Recent System Activity */}
-        <Grid item xs={12} md={8}>
+        <Grid size={{ xs: 12, md: 8 }}>
           <Paper sx={{ p: 3, borderRadius: 4, border: '1px solid #e2e8f0' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, gap: 1.5 }}>
               <HistoryIcon sx={{ color: '#3b82f6' }} />
@@ -166,7 +166,7 @@ const AuditDashboard = () => {
         </Grid>
 
         {/* System Health / Errors */}
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Paper sx={{ p: 3, borderRadius: 4, bgcolor: '#0f172a', border: '1px solid #1e293b' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, gap: 1.5 }}>
               <ErrorOutlineIcon sx={{ color: '#f43f5e' }} />

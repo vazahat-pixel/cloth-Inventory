@@ -69,16 +69,7 @@ function ItemFormPage({ mode = 'edit' }) {
 
   const existingItem = useMemo(() => (isEditMode ? items.find((item) => item.id === id || item._id === id) : null), [id, isEditMode, items]);
   const { register, handleSubmit, reset, watch, setValue, control, formState: { errors } } = useForm({
-    defaultValues: {
-      status: 'Active',
-      uom: 'PCS',
-      stockTrackingEnabled: true,
-      barcodeEnabled: true,
-      reorderLevel: 0,
-      reorderQty: 0,
-      openingStock: 0,
-      openingStockRate: 0
-    }
+    defaultValues,
   });
   const [activeTab, setActiveTab] = useState('basic');
   const [variants, setVariants] = useState([]);
@@ -123,8 +114,8 @@ function ItemFormPage({ mode = 'edit' }) {
         itemCode: existingItem.itemCode || '', 
         itemName: existingItem.itemName || '', 
         brand: getId(existingItem.brand) ? String(getId(existingItem.brand)) : '',
-        season: getId(existingItem.session) ? String(getId(existingItem.session)) : '',
-        hsnCodeId: getId(existingItem.hsCodeId) ? String(getId(existingItem.hsCodeId)) : '', 
+        season: getId(existingItem.season || existingItem.session) ? String(getId(existingItem.season || existingItem.session)) : '',
+        hsnCodeId: getId(existingItem.hsnCodeId || existingItem.hsCodeId) ? String(getId(existingItem.hsnCodeId || existingItem.hsCodeId)) : '', 
         shadeColor: existingItem.shade || '', 
         uom: existingItem.uom || 'PCS', 
         description: existingItem.description || '', 
@@ -137,7 +128,7 @@ function ItemFormPage({ mode = 'edit' }) {
         categoryId: getGroupIdByType('Category'),
         subCategoryId: getGroupIdByType('Sub Category'),
         subSubCategoryId: getGroupIdByType('Style / Type'),
-        defaultWarehouse: existingItem.defaultWarehouse ? String(existingItem.defaultWarehouse) : '', 
+        defaultWarehouse: getId(existingItem.defaultWarehouse || existingItem.warehouseId) ? String(getId(existingItem.defaultWarehouse || existingItem.warehouseId)) : '', 
         reorderLevel: Number(existingItem.reorderLevel || 0), 
         reorderQty: Number(existingItem.reorderQty || 0),
         openingStock: Number(existingItem.openingStock || 0), 
@@ -171,7 +162,7 @@ function ItemFormPage({ mode = 'edit' }) {
   }, [existingItem, isEditMode, reset, brands.length, itemGroups.length, seasons.length, hsnCodes.length]);
 
   useEffect(() => {
-    const selected = hsnCodes.find((item) => item.id === watch('hsnCodeId'));
+    const selected = hsnCodes.find((item) => String(item.id || item._id || '') === String(watch('hsnCodeId') || ''));
     if (selected?.gstSlabId && !watch('gstSlabId')) setValue('gstSlabId', selected.gstSlabId);
   }, [hsnCodes, setValue, watch]);
 
@@ -281,10 +272,24 @@ function ItemFormPage({ mode = 'edit' }) {
     }
   };
 
-  const sections = itemGroups.filter(g => (g.groupType === 'Section' || !g.parentId) && !['Brand', 'Season'].includes(g.groupType));
-  const categoryOptions = itemGroups.filter(g => g.parentId === watch('sectionId'));
-  const subCategoryOptions = itemGroups.filter(g => g.parentId === watch('categoryId'));
-  const styleOptions = itemGroups.filter(g => g.parentId === watch('subCategoryId'));
+  const getOptionId = (value) => String(value?._id || value?.id || value || '');
+  const renderAsyncValueOption = (value, options) => {
+    const normalizedValue = String(value || '');
+    if (!normalizedValue) return null;
+    const hasMatch = options.some((option) => getOptionId(option) === normalizedValue);
+    if (hasMatch) return null;
+    return <MenuItem sx={{ display: 'none' }} value={normalizedValue}>{normalizedValue}</MenuItem>;
+  };
+
+  const selectedSectionId = watch('sectionId') || '';
+  const selectedCategoryId = watch('categoryId') || '';
+  const selectedSubCategoryId = watch('subCategoryId') || '';
+  const selectedDefaultWarehouse = watch('defaultWarehouse') || '';
+
+  const sections = itemGroups.filter((g) => (g.groupType === 'Section' || !g.parentId) && !['Brand', 'Season'].includes(g.groupType));
+  const categoryOptions = itemGroups.filter((g) => g.groupType === 'Category' && getOptionId(g.parentId) === String(selectedSectionId));
+  const subCategoryOptions = itemGroups.filter((g) => g.groupType === 'Sub Category' && getOptionId(g.parentId) === String(selectedCategoryId));
+  const styleOptions = itemGroups.filter((g) => g.groupType === 'Style / Type' && getOptionId(g.parentId) === String(selectedSubCategoryId));
 
   if (isEditMode && !existingItem) {
     return (
@@ -330,11 +335,11 @@ function ItemFormPage({ mode = 'edit' }) {
             <Stack spacing={3}>
               <FormSection title="Core Information" subtitle="Item identity and classification.">
                 <Grid container spacing={2}>
-                  <Grid item xs={12} md={3}><TextField fullWidth size="small" label="Style Code *" {...register('itemCode', { required: 'Style Code is required' })} error={Boolean(errors.itemCode)} helperText={errors.itemCode?.message || ' '} disabled={isViewMode} /></Grid>
-                  <Grid item xs={12} md={3}><TextField fullWidth size="small" label="Item Name *" {...register('itemName', { required: 'Item Name is required' })} error={Boolean(errors.itemName)} helperText={errors.itemName?.message || ' '} disabled={isViewMode} /></Grid>
-                  <Grid item xs={12} md={3}><TextField fullWidth size="small" label="Color / Shade" {...register('shadeColor')} disabled={isViewMode} /></Grid>
-                  <Grid item xs={12} md={3}><TextField fullWidth size="small" label="UOM" {...register('uom')} disabled={isViewMode} /></Grid>
-                  <Grid item xs={12} md={3}>
+                  <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Style Code *" {...register('itemCode', { required: 'Style Code is required' })} error={Boolean(errors.itemCode)} helperText={errors.itemCode?.message || ' '} disabled={isViewMode} /></Grid>
+                  <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Item Name *" {...register('itemName', { required: 'Item Name is required' })} error={Boolean(errors.itemName)} helperText={errors.itemName?.message || ' '} disabled={isViewMode} /></Grid>
+                  <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Color / Shade" {...register('shadeColor')} disabled={isViewMode} /></Grid>
+                  <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="SKU Prefix" {...register('skuPrefix')} disabled={isViewMode} /></Grid>
+                  <Grid size={{ xs: 12, md: 3 }}>
                     <Controller
                       name="hsnCodeId"
                       control={control}
@@ -346,6 +351,7 @@ function ItemFormPage({ mode = 'edit' }) {
                           size="small"
                           fullWidth
                           label="HSN Code *"
+                          value={field.value ?? ''}
                           disabled={isViewMode}
                           error={Boolean(errors.hsnCodeId)}
                           helperText={
@@ -353,6 +359,7 @@ function ItemFormPage({ mode = 'edit' }) {
                             (field.value ? `Applied GST Slab: ${hsnCodes.find(h => String(h.id || h._id) === String(field.value))?.gstPercent || 0}%` : 'Select HSN to view tax slab.')
                           }
                         >
+                          {renderAsyncValueOption(field.value, hsnCodes)}
                           <MenuItem value="">Select HSN</MenuItem>
                           {hsnCodes.map((h) => (
                             <MenuItem key={h.id || h._id} value={h.id || h._id}>
@@ -363,7 +370,7 @@ function ItemFormPage({ mode = 'edit' }) {
                       )}
                     />
                   </Grid>
-                  <Grid item xs={12} md={3}>
+                  <Grid size={{ xs: 12, md: 3 }}>
                     <Controller
                       name="brand"
                       control={control}
@@ -375,10 +382,12 @@ function ItemFormPage({ mode = 'edit' }) {
                           size="small"
                           fullWidth
                           label="Brand"
+                          value={field.value ?? ''}
                           disabled={isViewMode}
                           error={Boolean(errors.brand)}
                           helperText={errors.brand?.message || ' '}
                         >
+                          {renderAsyncValueOption(field.value, brands)}
                           <MenuItem value="">Select Brand</MenuItem>
                           {brands.map((b) => (
                             <MenuItem key={b.id || b._id} value={b.id || b._id}>
@@ -389,7 +398,7 @@ function ItemFormPage({ mode = 'edit' }) {
                       )}
                     />
                   </Grid>
-                  <Grid item xs={12} md={3}>
+                  <Grid size={{ xs: 12, md: 3 }}>
                     <Controller
                       name="season"
                       control={control}
@@ -400,8 +409,10 @@ function ItemFormPage({ mode = 'edit' }) {
                           size="small"
                           fullWidth
                           label="Season"
+                          value={field.value ?? ''}
                           disabled={isViewMode}
                         >
+                          {renderAsyncValueOption(field.value, seasons)}
                           <MenuItem value="">Select Season</MenuItem>
                           {seasons.map((s) => (
                             <MenuItem key={s.id || s._id} value={s.id || s._id}>
@@ -412,7 +423,7 @@ function ItemFormPage({ mode = 'edit' }) {
                       )}
                     />
                   </Grid>
-                  <Grid item xs={12} md={3}>
+                  <Grid size={{ xs: 12, md: 3 }}>
                     <TextField fullWidth size="small" select label="UOM" {...register('uom')} disabled={isViewMode}>
                       <MenuItem value="PCS">PCS</MenuItem>
                       <MenuItem value="SET">SET</MenuItem>
@@ -424,7 +435,7 @@ function ItemFormPage({ mode = 'edit' }) {
 
               <FormSection title="Category Hierarchy" subtitle="Organize item in Section > Category > Sub Category > Style / Type.">
                 <Grid container spacing={2}>
-                  <Grid item xs={12} md={3}>
+                  <Grid size={{ xs: 12, md: 3 }}>
                     <Controller
                       name="sectionId"
                       control={control}
@@ -435,15 +446,17 @@ function ItemFormPage({ mode = 'edit' }) {
                           size="small"
                           fullWidth
                           label="Section"
+                          value={field.value ?? ''}
                           disabled={isViewMode}
                         >
+                          {renderAsyncValueOption(field.value, sections)}
                           <MenuItem value="">Select Section</MenuItem>
-                          {itemGroups.filter(g => g.groupType === 'Section').map((g) => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}
+                          {sections.map((g) => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}
                         </TextField>
                       )}
                     />
                   </Grid>
-                  <Grid item xs={12} md={3}>
+                  <Grid size={{ xs: 12, md: 3 }}>
                     <Controller
                       name="categoryId"
                       control={control}
@@ -454,15 +467,17 @@ function ItemFormPage({ mode = 'edit' }) {
                           size="small"
                           fullWidth
                           label="Category"
-                          disabled={!watch('sectionId') || isViewMode}
+                          value={field.value ?? ''}
+                          disabled={!selectedSectionId || isViewMode}
                         >
+                          {renderAsyncValueOption(field.value, categoryOptions)}
                           <MenuItem value="">Select Category</MenuItem>
-                          {itemGroups.filter(g => g.groupType === 'Category' && g.parentId === watch('sectionId')).map((g) => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}
+                          {categoryOptions.map((g) => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}
                         </TextField>
                       )}
                     />
                   </Grid>
-                  <Grid item xs={12} md={3}>
+                  <Grid size={{ xs: 12, md: 3 }}>
                     <Controller
                       name="subCategoryId"
                       control={control}
@@ -473,15 +488,17 @@ function ItemFormPage({ mode = 'edit' }) {
                           size="small"
                           fullWidth
                           label="Sub Category"
-                          disabled={!watch('categoryId') || isViewMode}
+                          value={field.value ?? ''}
+                          disabled={!selectedCategoryId || isViewMode}
                         >
+                          {renderAsyncValueOption(field.value, subCategoryOptions)}
                           <MenuItem value="">Select Sub Category</MenuItem>
-                          {itemGroups.filter(g => g.groupType === 'Sub Category' && g.parentId === watch('categoryId')).map((g) => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}
+                          {subCategoryOptions.map((g) => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}
                         </TextField>
                       )}
                     />
                   </Grid>
-                  <Grid item xs={12} md={3}>
+                  <Grid size={{ xs: 12, md: 3 }}>
                     <Controller
                       name="subSubCategoryId"
                       control={control}
@@ -492,10 +509,12 @@ function ItemFormPage({ mode = 'edit' }) {
                           size="small"
                           fullWidth
                           label="Style / Type"
-                          disabled={!watch('subCategoryId') || isViewMode}
+                          value={field.value ?? ''}
+                          disabled={!selectedSubCategoryId || isViewMode}
                         >
+                          {renderAsyncValueOption(field.value, styleOptions)}
                           <MenuItem value="">Select Style / Type</MenuItem>
-                          {itemGroups.filter(g => g.groupType === 'Style / Type' && g.parentId === watch('subCategoryId')).map((g) => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}
+                          {styleOptions.map((g) => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}
                         </TextField>
                       )}
                     />
@@ -505,11 +524,11 @@ function ItemFormPage({ mode = 'edit' }) {
 
               <FormSection title="Descriptors" subtitle="Garment specific attributes for better search.">
                 <Grid container spacing={2}>
-                  <Grid item xs={12} md={2.4}><TextField fullWidth size="small" label="Fabric" {...register('fabric')} disabled={isViewMode} /></Grid>
-                  <Grid item xs={12} md={2.4}><TextField fullWidth size="small" label="Pattern" {...register('pattern')} disabled={isViewMode} /></Grid>
-                  <Grid item xs={12} md={2.4}><TextField fullWidth size="small" label="Fit" {...register('fit')} disabled={isViewMode} /></Grid>
-                  <Grid item xs={12} md={2.4}><TextField fullWidth size="small" label="Gender" {...register('gender')} disabled={isViewMode} /></Grid>
-                  <Grid item xs={12} md={12}><TextField fullWidth size="small" label="Description" multiline minRows={2} {...register('description')} disabled={isViewMode} /></Grid>
+                  <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Fabric" {...register('fabric')} disabled={isViewMode} /></Grid>
+                  <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Pattern" {...register('pattern')} disabled={isViewMode} /></Grid>
+                  <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Fit" {...register('fit')} disabled={isViewMode} /></Grid>
+                  <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Gender" {...register('gender')} disabled={isViewMode} /></Grid>
+                  <Grid size={12}><TextField fullWidth size="small" label="Description" multiline minRows={2} {...register('description')} disabled={isViewMode} /></Grid>
                 </Grid>
               </FormSection>
             </Stack>
@@ -531,7 +550,7 @@ function ItemFormPage({ mode = 'edit' }) {
             <FormSection title="Media" subtitle="Images for catalog and sales presentation.">
               <Grid container spacing={2}>
                 {images.map((img, index) => (
-                  <Grid item xs={12} sm={6} md={4} key={index}>
+                  <Grid key={index} size={{ xs: 12, sm: 6, md: 4 }}>
                     <Paper elevation={0} sx={{ border: '1px dashed #cbd5e1', borderRadius: 2, p: 1.5, minHeight: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#f8fafc', position: 'relative' }}>
                       {uploadingImage === index ? (
                         <CircularProgress size={30} />
@@ -560,18 +579,19 @@ function ItemFormPage({ mode = 'edit' }) {
           <Box sx={{ display: activeTab === 'inventory' ? 'block' : 'none' }}>
             <FormSection title="Inventory Defaults" subtitle="Operational settings for warehouses.">
               <Grid container spacing={2}>
-                <Grid item xs={12} md={4}>
+                <Grid size={{ xs: 12, md: 4 }}>
                   <TextField fullWidth size="small" select label="Default Warehouse" {...register('defaultWarehouse')} disabled={isViewMode}>
+                    {renderAsyncValueOption(selectedDefaultWarehouse, warehouses)}
                     <MenuItem value="">Select Warehouse</MenuItem>
                     {warehouses.map((w) => <MenuItem key={w.id || w._id} value={w.id || w._id}>{w.warehouseName || w.name}</MenuItem>)}
                   </TextField>
                 </Grid>
                 {['reorderLevel', 'reorderQty', 'openingStock', 'openingStockRate'].map((key) => (
-                  <Grid item xs={12} md={2} key={key}>
+                  <Grid key={key} size={{ xs: 12, md: 2 }}>
                     <TextField fullWidth size="small" type="number" label={key.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase())} {...register(key)} disabled={isViewMode} />
                   </Grid>
                 ))}
-                <Grid item xs={12} md={4}>
+                <Grid size={{ xs: 12, md: 4 }}>
                   <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 2 }}>
                     <FormControlLabel control={<Switch checked={watch('stockTrackingEnabled')} onChange={(e) => setValue('stockTrackingEnabled', e.target.checked)} disabled={isViewMode} />} label="Stock Tracking" />
                     <FormControlLabel control={<Switch checked={watch('barcodeEnabled')} onChange={(e) => setValue('barcodeEnabled', e.target.checked)} disabled={isViewMode} />} label="Barcode Printing" />
