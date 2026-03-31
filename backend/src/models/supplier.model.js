@@ -28,6 +28,12 @@ const supplierSchema = new mongoose.Schema(
         address: {
             type: String
         },
+        addressLine1: { type: String, trim: true },
+        addressLine2: { type: String, trim: true },
+        city: { type: String, trim: true },
+        state: { type: String, trim: true },
+        pincode: { type: String, trim: true },
+        country: { type: String, default: 'India' },
         bankDetails: {
             type: String
         },
@@ -39,6 +45,15 @@ const supplierSchema = new mongoose.Schema(
             type: String,
             trim: true
         },
+        panNo: { type: String, trim: true },
+        openingBalance: { type: Number, default: 0 },
+        creditDays: { type: Number, default: 0 },
+        supplierType: { 
+            type: String, 
+            enum: ['General', 'Fabric', 'Trim', 'Finished Goods'],
+            default: 'General'
+        },
+        alternatePhone: { type: String, trim: true },
         isActive: {
             type: Boolean,
             default: true

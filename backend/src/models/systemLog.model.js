@@ -8,7 +8,27 @@ const systemLogSchema = new mongoose.Schema({
   module: {
     type: String,
     required: true,
-    enum: ['ERP_SYSTEM', 'Setup', 'Item', 'Purchase', 'GRN', 'Barcode', 'Inventory', 'Transfer', 'Sales', 'Accounting', 'Groups', 'Import', 'GST', 'Stores', 'Warehouses', 'Suppliers', 'Production', 'Reports', 'Auth']
+    enum: [
+      'ERP_SYSTEM',
+      'Setup',
+      'Item',
+      'Purchase',
+      'GRN',
+      'Barcode',
+      'Inventory',
+      'Transfer',
+      'Sales',
+      'Accounting',
+      'Groups',
+      'Import',
+      'GST',
+      'Stores',
+      'Warehouses',
+      'Suppliers',
+      'Production',
+      'Reports',
+      'Auth'
+    ]
   },
   userId: {
     type: mongoose.Schema.Types.ObjectId,

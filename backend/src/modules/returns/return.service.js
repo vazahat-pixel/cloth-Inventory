@@ -146,21 +146,24 @@ const createSalesReturn = async (returnData, userId) => {
         const processedItems = [];
 
         for (const item of items) {
-            const originalItem = sale.products.find(p => p.productId.toString() === item.variantId.toString());
-            if (!originalItem) throw new Error(`Product ${item.variantId} not found in the original sale`);
+            const pid = item.productId || item.variantId;
+            const originalItem = sale.products.find(p => p.productId.toString() === pid.toString());
+            if (!originalItem) throw new Error(`Product ${pid} not found in the original sale`);
 
             if (item.quantity > originalItem.quantity) {
-                throw new Error(`Cannot return more than sold quantity for product ${item.variantId}`);
+                throw new Error(`Cannot return more than sold quantity for product ${pid}`);
             }
 
             const itemSubTotal = originalItem.price * item.quantity;
-            const itemTax = (originalItem.gstAmount / originalItem.quantity) * item.quantity;
+            const itemTax = (originalItem.taxAmount / originalItem.quantity) * item.quantity;
 
             processedItems.push({
-                variantId: item.variantId,
+                productId: pid,
+                variantId: pid,
                 quantity: item.quantity,
                 rate: originalItem.price,
-                subTotal: itemSubTotal
+                subTotal: itemSubTotal,
+                taxAmount: itemTax
             });
 
             totalReturnAmount += itemSubTotal;

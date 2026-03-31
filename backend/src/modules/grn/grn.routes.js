@@ -12,6 +12,7 @@ const router = express.Router();
 router.use(protect);
 
 router.post('/', createGRNValidation, validate, grnController.create);
+router.get('/', grnController.getAll);
 router.get('/all', grnController.getAll);
 router.get('/:id', grnController.getById);
 router.get('/purchase/:purchaseId', grnController.getByPurchase);

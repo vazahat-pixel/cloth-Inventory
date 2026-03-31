@@ -36,7 +36,9 @@ const saleItemSchema = new mongoose.Schema({
         type: String,
         enum: ['DEFAULT', 'STORE_SPECIFIC'],
         default: 'DEFAULT'
-    }
+    },
+    taxAmount: { type: Number, default: 0 },
+    taxPercentage: { type: Number, default: 0 }
 }, { _id: false });
 
 const saleSchema = new mongoose.Schema(
@@ -98,6 +100,8 @@ const saleSchema = new mongoose.Schema(
             type: Number,
             default: 0
         },
+        taxAmount: { type: Number, default: 0 },
+        taxPercentage: { type: Number, default: 0 },
         taxBreakup: {
             cgst: { type: Number, default: 0 },
             sgst: { type: Number, default: 0 },

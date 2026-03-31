@@ -20,16 +20,29 @@ export const addItem = createAsyncThunk('items/add', async (itemData, { rejectWi
       name: itemData.name,
       category: itemData.category,
       brand: itemData.brand,
+      styleCode: itemData.itemCode || itemData.styleCode,
+      fabric: itemData.fabric,
+      gender: itemData.gender,
+      season: itemData.season,
       size: v.size,
       color: v.color,
-      salePrice: Number(v.sellingPrice || 0),
+      salePrice: Number(v.sellingPrice || v.salePrice || 0),
       costPrice: Number(v.costPrice || 0),
-      factoryStock: Number(v.stock || 0),
-      // Let backend generate SKU/barcode; we still pass the user-facing SKU to keep a record if needed
-      sku: null,
-      barcode: null,
+      mrp: Number(v.mrp || v.sellingPrice || 0),
+      factoryStock: Number(v.stock || v.factoryStock || 0),
+      sku: v.sku || null,
+      barcode: v.barcode || null,
       images: (itemData.images || []).map(img => img.preview || img),
-      gstSlabId: itemData.hsnCodeId ? undefined : undefined, 
+      hsnCodeId: itemData.hsnCodeId || null,
+      gstSlabId: itemData.gstSlabId || null,
+      attributes: {
+        pattern: itemData.pattern,
+        fit: itemData.fit,
+        sleeveType: itemData.sleeveType,
+        neckType: itemData.neckType,
+        occasion: itemData.occasion,
+        materialComposition: itemData.materialComposition
+      }
     }));
 
     if (!products.length) {

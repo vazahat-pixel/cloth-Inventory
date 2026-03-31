@@ -30,7 +30,7 @@ import FilterBar from '../../../components/erp/FilterBar';
 import ExportButton from '../../../components/erp/ExportButton';
 import StatusBadge from '../../../components/erp/StatusBadge';
 import suppliersExportColumns from '../../../config/exportColumns/suppliers';
-import { fetchMasters } from '../mastersSlice';
+import { fetchMasters, addMasterRecord, updateMasterRecord, deleteMasterRecord } from '../mastersSlice';
 import { supplierSeed } from '../../erp/erpUiMocks';
 
 const defaultFormValues = {
@@ -107,8 +107,9 @@ const toExportRows = (rows) =>
 function SuppliersListPage() {
   const dispatch = useDispatch();
   const masterRows = useSelector((state) => state.masters?.suppliers || []);
+  const masterLoading = useSelector((state) => state.masters?.loading);
 
-  const [rows, setRows] = useState(supplierSeed);
+  const [rows, setRows] = useState([]);
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -121,9 +122,7 @@ function SuppliersListPage() {
   }, [dispatch]);
 
   useEffect(() => {
-    if (masterRows.length) {
-      setRows(toLocalRows(masterRows));
-    }
+    setRows(toLocalRows(masterRows));
   }, [masterRows]);
 
   const filteredRows = useMemo(() => {
@@ -164,33 +163,38 @@ function SuppliersListPage() {
     return !Object.keys(nextErrors).length;
   };
 
-  const saveRow = () => {
+  const saveRow = async () => {
     if (!validate()) {
       return;
     }
 
-    const timestamp = new Date().toISOString().slice(0, 10);
-    const payload = {
-      ...formValues,
-      openingBalance: Number(formValues.openingBalance || 0),
-      creditDays: Number(formValues.creditDays || 0),
-      updatedAt: timestamp,
-      createdAt: formValues.id ? formValues.createdAt || timestamp : timestamp,
-    };
+    try {
+      const payload = {
+        ...formValues,
+        openingBalance: Number(formValues.openingBalance || 0),
+        creditDays: Number(formValues.creditDays || 0),
+      };
 
-    setRows((previous) => (
-      formValues.id
-        ? previous.map((row) => (row.id === formValues.id ? { ...row, ...payload } : row))
-        : [{ ...payload, id: `sup-ui-${Date.now()}` }, ...previous]
-    ));
-    closeDialog();
+      if (formValues.id && !String(formValues.id).startsWith('sup-ui-')) {
+        await dispatch(updateMasterRecord({ entityKey: 'suppliers', id: formValues.id, updates: payload })).unwrap();
+      } else {
+        await dispatch(addMasterRecord({ entityKey: 'suppliers', record: payload })).unwrap();
+      }
+      closeDialog();
+    } catch (error) {
+      alert(`Error saving supplier: ${error}`);
+    }
   };
 
-  const deleteRow = (row) => {
+  const deleteRow = async (row) => {
     if (!window.confirm(`Delete supplier ${row.supplierName}?`)) {
       return;
     }
-    setRows((previous) => previous.filter((item) => item.id !== row.id));
+    try {
+      await dispatch(deleteMasterRecord({ entityKey: 'suppliers', id: row.id })).unwrap();
+    } catch (error) {
+      alert(`Error deleting supplier: ${error}`);
+    }
   };
 
   return (
