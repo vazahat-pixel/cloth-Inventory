@@ -1,7 +1,7 @@
 const StoreInventory = require('../models/storeInventory.model');
 const WarehouseInventory = require('../models/warehouseInventory.model');
 const StockMovement = require('../models/stockMovement.model');
-const Product = require('../models/product.model');
+const Item = require('../models/item.model');
 const Store = require('../models/store.model');
 const Warehouse = require('../models/warehouse.model');
 const systemConfigService = require('../modules/systemConfig/systemConfig.service');
@@ -49,31 +49,34 @@ const _updateInventory = async ({ variantId, locationId, locationType, qty, sess
     }
 
     let inventory = await InventoryModel.findOne(filter).session(session);
-
+    
     if (!inventory) {
-        if (qty < 0) throw new Error(`Insufficient stock for product ${variantId} at ${locationType}`);
-        
+        if (qty < 0) throw new Error(`Insufficient stock for variant ${variantId} at ${locationType}`);
         const initData = { ...filter, quantity: 0 };
         if (locationType === 'STORE') initData.quantityAvailable = 0;
-        
         inventory = new InventoryModel(initData);
     }
-
-    // 2. Negative Stock Control
+    
     const allowNegative = await systemConfigService.getConfigByKey('allowNegativeStock', false);
     const newQty = (inventory.quantity || 0) + delta;
     
     if (!allowNegative && newQty < 0) {
-        throw new Error(`Negative stock not allowed. Requested: ${delta}, Available: ${inventory.quantity}`);
+        throw new Error(`Negative stock not allowed at ${locationType}. Requested Change: ${delta}, Current: ${inventory.quantity}`);
     }
-
-    inventory.quantity = newQty;
-    if (locationType === 'STORE') {
-        inventory.quantityAvailable = newQty;
-    }
-    inventory.lastUpdated = Date.now();
     
+    inventory.quantity = newQty;
+    if (locationType === 'STORE') inventory.quantityAvailable = newQty;
+    inventory.lastUpdated = Date.now();
     await inventory.save({ session });
+    
+    // MASTER STOCK UPDATE: Sync with Item model for global/master view
+    // Note: We use atomic update to prevent race conditions in subdocuments
+    await Item.updateOne(
+        { "sizes._id": variantId },
+        { $inc: { "sizes.$.stock": delta } },
+        { session }
+    );
+    
     return inventory;
 };
 
@@ -118,11 +121,13 @@ const addStock = async ({ variantId, locationId, locationType, qty, type, refere
 
     // New: Record in Stock Ledger (Logic ERP Style)
     try {
-        const product = await Product.findById(variantId).session(session);
-        if (product) {
+        const itemDoc = await Item.findOne({ "sizes._id": variantId }).session(session);
+        if (itemDoc) {
+            const variantEntry = itemDoc.sizes.id(variantId);
             await stockLedgerService.recordMovement({
-                itemId: variantId,
-                barcode: product.barcode || `SKU-${product.sku || variantId}`,
+                itemId: itemDoc._id,
+                variantId,
+                barcode: (variantEntry ? variantEntry.sku : null) || itemDoc.itemCode,
                 type: 'IN',
                 quantity: movementQty,
                 source: resolveReferenceType(referenceType).toUpperCase(),
@@ -130,7 +135,7 @@ const addStock = async ({ variantId, locationId, locationType, qty, type, refere
                 userId: performedBy,
                 locationId,
                 locationType,
-                batchNo: 'DEFAULT' // Default to start with, can be extended to pass actual batch
+                batchNo: 'DEFAULT'
             });
         }
     } catch (err) {
@@ -180,12 +185,13 @@ const removeStock = async ({ variantId, locationId, locationType, qty, type, ref
     });
 
     // New: Record in Stock Ledger (Logic ERP Style)
-    // This will throw error if stock is insufficient (Business Rule Enforcement)
-    const product = await Product.findById(variantId).session(session);
-    if (product) {
+    const itemDoc = await Item.findOne({ "sizes._id": variantId }).session(session);
+    if (itemDoc) {
+        const variantEntry = itemDoc.sizes.id(variantId);
         await stockLedgerService.recordMovement({
-            itemId: variantId,
-            barcode: product.barcode || `SKU-${product.sku || variantId}`,
+            itemId: itemDoc._id,
+            variantId,
+            barcode: (variantEntry ? variantEntry.sku : null) || itemDoc.itemCode,
             type: 'OUT',
             quantity: movementQty,
             source: resolveReferenceType(referenceType).toUpperCase(),
@@ -227,32 +233,37 @@ const transferStock = async ({ variantId, fromLocationId, fromLocationType, toLo
     }], { session });
 
     // New: Record transfer in Stock Ledger
-    const product = await Product.findById(variantId).session(session);
-    if (product) {
-       await stockLedgerService.recordMovement({
-         itemId: variantId,
-         barcode: product.barcode || `SKU-${product.sku || variantId}`,
-         type: 'OUT',
-         quantity: movementQty,
-         source: 'TRANSFER_FROM',
-         referenceId: referenceId.toString(),
-         userId: performedBy,
-         locationId: fromLocationId,
-         locationType: fromLocationType
-       });
-
-       await stockLedgerService.recordMovement({
-         itemId: variantId,
-         barcode: product.barcode || `SKU-${product.sku || variantId}`,
-         type: 'IN',
-         quantity: movementQty,
-         source: 'TRANSFER_TO',
-         referenceId: referenceId.toString(),
-         userId: performedBy,
-         locationId: toLocationId,
-         locationType: toLocationType
-       });
-    }
+    const itemDoc = await Item.findOne({ "sizes._id": variantId }).session(session);
+    if (itemDoc) {
+        const variantEntry = itemDoc.sizes.id(variantId);
+        const barcode = (variantEntry ? variantEntry.sku : null) || itemDoc.itemCode;
+        
+        await stockLedgerService.recordMovement({
+          itemId: itemDoc._id,
+          variantId,
+          barcode,
+          type: 'OUT',
+          quantity: movementQty,
+          source: 'TRANSFER_FROM',
+          referenceId: referenceId.toString(),
+          userId: performedBy,
+          locationId: fromLocationId,
+          locationType: fromLocationType
+        });
+ 
+        await stockLedgerService.recordMovement({
+          itemId: itemDoc._id,
+          variantId,
+          barcode,
+          type: 'IN',
+          quantity: movementQty,
+          source: 'TRANSFER_TO',
+          referenceId: referenceId.toString(),
+          userId: performedBy,
+          locationId: toLocationId,
+          locationType: toLocationType
+        });
+     }
 
     return true;
 };

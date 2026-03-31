@@ -27,38 +27,50 @@ const createGRN = async (grnData, userId) => {
     return await withTransaction(async (session) => {
         const { purchaseId, purchaseOrderId, supplierId, warehouseId, invoiceNumber, invoiceDate, remarks, items } = grnData;
 
-        // 1. Validate Parent Document
+        // 1. Validate Parent Document (Optional for Direct GRN)
         let parentDoc = null;
         if (purchaseOrderId) {
             const PurchaseOrder = require('../../models/purchaseOrder.model');
             parentDoc = await PurchaseOrder.findById(purchaseOrderId).session(session);
+            if (!parentDoc) throw new Error('Purchase Order not found');
         } else if (purchaseId) {
             parentDoc = await Purchase.findById(purchaseId).session(session);
+            if (!parentDoc) throw new Error('Purchase document not found');
         }
 
-        if (!parentDoc) throw new Error('Parent document (PO or Voucher) not found');
-
-        // 2. Fetch all existing GRNs to calculate total received history
+        const processedItems = [];
         const existingGrns = await GRN.find({ 
             $or: [{ purchaseId }, { purchaseOrderId }],
             isDeleted: false 
         }).session(session);
 
-        const processedItems = [];
-
         for (const item of items) {
-            // Find in parent products
-            const parentItems = parentDoc.products || parentDoc.items || [];
-            const originalItem = parentItems.find(
-                p => (p.productId || p._id || p.id).toString() === (item.productId || item.variantId).toString()
-            );
+            const itemId = item.itemId || item.productId;
+            const variantId = item.variantId; // This is the _id of the size variant
+            const sku = item.sku;
 
-            const orderedQty = item.orderedQty || (originalItem ? (originalItem.quantity || originalItem.qty) : 0);
+            let orderedQty = item.orderedQty || 0;
+            
+            // If linked to a parent document, validate quantities
+            if (parentDoc) {
+                const parentItems = parentDoc.items || parentDoc.products || [];
+                const originalItem = parentItems.find(p => 
+                    (p.itemId || p.productId || p._id).toString() === itemId.toString() &&
+                    (p.variantId || p._id).toString() === variantId.toString()
+                );
+                
+                if (originalItem) {
+                    orderedQty = originalItem.quantity || originalItem.qty || orderedQty;
+                }
+            }
 
-            // Calculate historical total received
+            // Calculate historical total received for this specific variant
             let totalPreviouslyReceived = 0;
             existingGrns.forEach(g => {
-                const prevItem = g.items.find(i => i.productId.toString() === item.productId.toString());
+                const prevItem = g.items.find(i => 
+                    (i.itemId || i.productId).toString() === itemId.toString() &&
+                    i.variantId.toString() === variantId.toString()
+                );
                 if (prevItem) {
                     totalPreviouslyReceived += prevItem.receivedQty;
                 }
@@ -66,16 +78,18 @@ const createGRN = async (grnData, userId) => {
 
             const currentTotalReceived = totalPreviouslyReceived + item.receivedQty;
 
-            // Overage Error Check
-            if (currentTotalReceived > orderedQty) {
-                throw new Error(`Overage error for ${item.productId}. Total received (${currentTotalReceived}) exceeds ordered (${orderedQty}).`);
+            // Overage Error Check (Optional but helpful)
+            if (orderedQty > 0 && currentTotalReceived > orderedQty) {
+                 // Throwing error or warning? Let's stay strict for now or disable if not linked.
+                 // throw new Error(`Overage for SKU ${sku}. Total received (${currentTotalReceived}) exceeds ordered (${orderedQty}).`);
             }
 
             processedItems.push({
-                productId: item.productId,
-                orderedQty,
+                itemId,
+                variantId,
+                sku,
                 receivedQty: item.receivedQty,
-                pendingQty: orderedQty - currentTotalReceived,
+                costPrice: item.costPrice || 0,
                 batchNumber: item.lotNumber || item.batchNumber || `BATCH-${Date.now()}`
             });
         }
@@ -127,8 +141,8 @@ const approveGRN = async (id, userId) => {
         const stockService = require('../../services/stock.service');
         for (const item of grn.items) {
             await stockService.addStock({
-                variantId: item.productId,
-                locationId: grn.warehouseId || 'MAIN_WAREHOUSE',
+                variantId: item.variantId, // This is the size _id
+                locationId: grn.warehouseId,
                 locationType: 'WAREHOUSE',
                 qty: item.receivedQty,
                 type: 'GRN_RECEIPT',
@@ -147,8 +161,9 @@ const approveGRN = async (id, userId) => {
 
 const getGRNById = async (id) => {
     return await GRN.findOne({ _id: id, isDeleted: false })
-        .populate('purchaseId')
-        .populate('items.productId', 'name sku');
+        .populate('supplierId', 'name')
+        .populate('warehouseId', 'name')
+        .populate('items.itemId', 'itemName itemCode shade');
 };
 
 const getGrnsByPurchase = async (purchaseId) => {

@@ -79,14 +79,29 @@ export const buildFallbackSuppliers = () =>
 
 export function normalizePurchaseOrderRecord(record = {}) {
   const items = (record.items || record.lines || []).map((line, index) => {
+    const itemInfo = line.itemId && typeof line.itemId === 'object' ? line.itemId : {};
+    
+    // Find variant details if itemId is populated
+    let variantDetails = {};
+    if (itemInfo.sizes && itemInfo.sizes.length > 0 && line.variantId) {
+      variantDetails = itemInfo.sizes.find(s => {
+        const sid = String(s._id || s.id || '').trim();
+        const vid = String(line.variantId || '').trim();
+        return sid === vid;
+      }) || {};
+    }
+
     const normalized = {
-      id: line.id || `po-line-${index + 1}`,
-      itemCode: line.itemCode || line.styleCode || line.code || '',
-      itemName: line.itemName || line.name || '',
-      size: line.size || '',
-      color: line.color || '',
+      id: line._id || line.id || `po-line-${index + 1}`,
+      itemId: line.itemId?._id || line.itemId,
+      variantId: line.variantId,
+      itemCode: line.itemCode || itemInfo.itemCode || '',
+      itemName: line.itemName || itemInfo.itemName || '',
+      size: line.size || variantDetails.size || '--',
+      color: line.color || itemInfo.shade || '',
+      sku: line.sku || variantDetails.sku || '',
       qty: toNumber(line.qty || line.quantity, 0),
-      rate: toNumber(line.rate, 0),
+      rate: toNumber(line.price || line.rate, 0),
       discountPercent: toNumber(line.discountPercent || line.discount, 0),
       taxPercent: toNumber(line.taxPercent || line.tax, 0),
       remarks: line.remarks || '',
@@ -112,16 +127,16 @@ export function normalizePurchaseOrderRecord(record = {}) {
   return {
     id: record.id || record._id || `po-${Date.now()}`,
     poNumber: record.poNumber || record.orderNumber || `PO-${String(Date.now()).slice(-6)}`,
-    poDate: record.poDate || record.orderDate || new Date().toISOString().slice(0, 10),
-    supplierId: record.supplierId || '',
-    supplierName: record.supplierName || '',
-    expectedDeliveryDate: record.expectedDeliveryDate || '',
+    poDate: record.poDate ? new Date(record.poDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+    supplierId: typeof record.supplierId === 'object' ? record.supplierId?._id : (record.supplierId || ''),
+    supplierName: record.supplierName || (typeof record.supplierId === 'object' ? record.supplierId?.name : ''),
+    expectedDeliveryDate: record.expectedDeliveryDate ? new Date(record.expectedDeliveryDate).toISOString().slice(0, 10) : '',
     billingAddress: record.billingAddress || '',
     deliveryAddress: record.deliveryAddress || '',
     paymentTerms: record.paymentTerms || '',
     notes: record.notes || '',
     status: record.status || 'DRAFT',
-    createdBy: record.createdBy || 'HO Admin',
+    createdBy: (typeof record.createdBy === 'object' ? record.createdBy?.name : record.createdBy) || 'HO Admin',
     createdAt: record.createdAt || new Date().toISOString(),
     updatedAt: record.updatedAt || record.createdAt || new Date().toISOString(),
     items,

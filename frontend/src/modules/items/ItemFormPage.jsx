@@ -150,7 +150,7 @@ function ItemFormPage({ mode = 'edit' }) {
         id: s._id || s.id || createVariantId(),
         size: s.size,
         color: existingItem.shade || '',
-        sku: s.barcode || '',
+        sku: s.sku || s.barcode || '',
         costPrice: Number(s.costPrice || 0),
         salePrice: Number(s.salePrice || 0),
         mrp: Number(s.mrp || 0),

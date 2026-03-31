@@ -240,9 +240,13 @@ function PurchaseListPage() {
                   {paginatedRows.map((row) => (
                     <TableRow key={row.id} hover>
                       <TableCell sx={{ fontWeight: 700 }}>{row.invoiceNumber || row.billNumber || '-'}</TableCell>
-                      <TableCell>{supplierMap[row.supplierId] || (row.supplierId?.name) || ''}</TableCell>
+                      <TableCell>
+                        {typeof row.supplierId === 'object' ? row.supplierId?.name : (supplierMap[row.supplierId] || '')}
+                      </TableCell>
                       <TableCell>{row.invoiceDate || row.billDate || '-'}</TableCell>
-                      <TableCell>{warehouseMap[row.warehouseId] || (typeof row.warehouseId === 'object' ? row.warehouseId.name : row.warehouseName) || ''}</TableCell>
+                      <TableCell>
+                        {typeof row.warehouseId === 'object' ? row.warehouseId?.name : (warehouseMap[row.warehouseId] || row.warehouseName || '')}
+                      </TableCell>
                       <TableCell align="right">{row.totals?.totalQuantity ?? '-'}</TableCell>
                       <TableCell align="right">{row.totals?.netAmount != null ? Number(row.totals.netAmount).toFixed(2) : '-'}</TableCell>
                       <TableCell>
@@ -331,21 +335,24 @@ function PurchaseListPage() {
         open={Boolean(barcodePrintPurchase)}
         onClose={() => setBarcodePrintPurchase(null)}
         purchase={barcodePrintPurchase}
-        lines={(barcodePrintPurchase?.items || barcodePrintPurchase?.products || []).map((item) => {
-          // Support both raw (productId is an object) and normalized item structures
-          const prod = item.productId && typeof item.productId === 'object' ? item.productId : {};
+        lines={(barcodePrintPurchase?.products || barcodePrintPurchase?.items || []).map((item) => {
+          const itemInfo = item.itemId && typeof item.itemId === 'object' ? item.itemId : {};
+          let variantDetails = {};
+          if (itemInfo.sizes && item.variantId) {
+            variantDetails = itemInfo.sizes.find(s => String(s._id || s.id) === String(item.variantId)) || {};
+          }
           return {
-            sku: item.sku || prod.sku || '',
-            itemName: item.itemName || item.name || prod.name || '',
-            size: item.size || prod.size || '',
-            color: item.color || item.colour || prod.color || '',
-            category: item.category || item.group || prod.category || '',
-            type: item.type || prod.type || 'REGULAR PLAIN',
-            design: item.design || item.itemName || prod.name || '',
-            mrp: item.mrp || prod.salePrice || prod.sellingPrice || item.rate || '',
-            quantity: item.quantity || 1,
-            rate: item.rate || 0,
-            variantId: item.variantId || prod._id || item.productId || '',
+            sku: item.sku || variantDetails.sku || itemInfo.itemCode || '',
+            itemName: item.itemName || itemInfo.itemName || itemInfo.name || '',
+            size: item.size || variantDetails.size || '',
+            color: item.color || itemInfo.shade || itemInfo.color || '',
+            category: item.category || itemInfo.category || '',
+            type: item.type || 'REGULAR PLAIN',
+            design: item.itemName || itemInfo.itemName || itemInfo.name || '',
+            mrp: item.rate || item.price || variantDetails.mrp || 0,
+            quantity: item.quantity || item.qty || 1,
+            rate: item.rate || item.price || 0,
+            variantId: item.variantId || item._id,
           };
         })}
         warehouseMap={warehouseMap}

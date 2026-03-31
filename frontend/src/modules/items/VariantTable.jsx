@@ -397,7 +397,6 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
       </Paper>
 
       <Dialog open={dialogOpen} onClose={closeDialog} fullWidth maxWidth="md">
-      <Dialog open={dialogOpen} onClose={closeDialog} fullWidth maxWidth="md">
         <Box>
           <DialogTitle>{editingVariant ? 'Edit Variant' : 'Add Variant'}</DialogTitle>
           <DialogContent dividers>
@@ -584,7 +583,6 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
             </Button>
           </DialogActions>
         </Box>
-      </Dialog>
       </Dialog>
     </Stack>
   );

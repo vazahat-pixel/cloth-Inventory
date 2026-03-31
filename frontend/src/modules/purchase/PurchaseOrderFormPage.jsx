@@ -66,27 +66,42 @@ const defaultForm = {
 };
 
 function buildVariantOptions(records = []) {
-  const options = [
-    ...buildFallbackVariantOptions(),
-    ...(records || []).map((item) => ({
-      id: item.id || item._id || item.sku,
-      itemCode: item.code || item.itemCode || item.sku || '',
-      itemName: item.name || item.itemName || '',
-      size: item.size || '',
-      color: item.color || item.shadeColor || '',
-      sku: item.sku || '',
-      rate: Number(item.costPrice || item.salePrice || item.sellingPrice || 0),
-      mrp: Number(item.mrp || item.salePrice || item.sellingPrice || 0),
-      uom: item.uom || 'PCS',
-      status: item.status || 'Active',
-    })),
-  ];
-
-  const merged = new Map();
-  options.forEach((option) => {
-    merged.set(option.sku || option.id, option);
+  const options = [];
+  
+  (records || []).forEach(item => {
+    if (item.sizes && item.sizes.length > 0) {
+      item.sizes.forEach(v => {
+        options.push({
+          itemId: item._id || item.id,
+          variantId: v._id || v.id,
+          itemCode: item.itemCode || item.code || '',
+          itemName: item.itemName || item.name || '',
+          size: v.size || '',
+          color: item.shade || item.color || '',
+          sku: v.sku || '',
+          rate: Number(v.costPrice || v.salePrice || 0),
+          mrp: Number(v.mrp || 0),
+          uom: item.uom || 'PCS'
+        });
+      });
+    } else {
+      // Fallback if no sizes
+      options.push({
+        itemId: item._id || item.id,
+        variantId: item._id || item.id,
+        itemCode: item.itemCode || item.code || '',
+        itemName: item.itemName || item.name || '',
+        size: '--',
+        color: item.shade || '',
+        sku: item.sku || '',
+        rate: Number(item.costPrice || 0),
+        mrp: Number(item.mrp || 0),
+        uom: item.uom || 'PCS'
+      });
+    }
   });
-  return Array.from(merged.values());
+
+  return options;
 }
 
 function PurchaseOrderFormPage({ mode = 'edit' }) {
@@ -155,18 +170,19 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
     }
 
     if (existingOrder) {
+      const normalized = normalizePurchaseOrderRecord(existingOrder);
       setFormValues({
-        poNumber: existingOrder.poNumber,
-        poDate: existingOrder.poDate,
-        supplierId: existingOrder.supplierId,
-        expectedDeliveryDate: existingOrder.expectedDeliveryDate || '',
-        billingAddress: existingOrder.billingAddress || '',
-        deliveryAddress: existingOrder.deliveryAddress || '',
-        paymentTerms: existingOrder.paymentTerms || '',
-        notes: existingOrder.notes || '',
-        status: existingOrder.status || 'DRAFT',
+        poNumber: normalized.poNumber,
+        poDate: normalized.poDate,
+        supplierId: normalized.supplierId,
+        expectedDeliveryDate: normalized.expectedDeliveryDate,
+        billingAddress: normalized.billingAddress,
+        deliveryAddress: normalized.deliveryAddress,
+        paymentTerms: normalized.paymentTerms,
+        notes: normalized.notes,
+        status: normalized.status,
       });
-      setLines(existingOrder.items || []);
+      setLines(normalized.items || []);
       return;
     }
 
@@ -200,8 +216,8 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
   };
 
   const availableOptions = useMemo(() => {
-    const selectedSkus = new Set(lines.map((line) => line.sku || `${line.itemCode}-${line.size}-${line.color}`));
-    return variantOptions.filter((option) => !selectedSkus.has(option.sku || option.id));
+    const selectedVariantIds = new Set(lines.map((line) => line.variantId));
+    return variantOptions.filter((option) => !selectedVariantIds.has(option.variantId));
   }, [lines, variantOptions]);
 
   const totals = useMemo(() => calculatePurchaseOrderTotals(lines), [lines]);
@@ -211,7 +227,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
       return;
     }
 
-    const option = availableOptions.find((item) => (item.sku || item.id) === linePicker);
+    const option = availableOptions.find((item) => (item.variantId || item.sku || item.id) === linePicker);
     if (!option) {
       return;
     }
@@ -220,7 +236,8 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
       ...previous,
       {
         id: `po-line-${Date.now()}`,
-        productId: option.id,
+        itemId: option.itemId,
+        variantId: option.variantId,
         itemCode: option.itemCode,
         itemName: option.itemName,
         size: option.size,
@@ -300,9 +317,17 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
       notes: formValues.notes,
       status: status || 'DRAFT',
       items: lines.map((line) => ({
-        productId: line.productId || line.id || line._id,
+        itemId: line.itemId,
+        variantId: line.variantId,
+        itemCode: line.itemCode,
+        itemName: line.itemName,
+        size: line.size,
+        color: line.color,
+        sku: line.sku,
         qty: Number(line.qty || 0),
         price: Number(line.rate || 0),
+        discountPercent: Number(line.discountPercent || 0),
+        taxPercent: Number(line.taxPercent || 0),
         remarks: line.remarks || '',
       })),
     };
@@ -493,8 +518,8 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
           >
             <MenuItem value="">Select item / size / color</MenuItem>
             {availableOptions.map((option) => (
-              <MenuItem key={option.sku || option.id} value={option.sku || option.id}>
-                {`${option.itemCode} | ${option.itemName} | ${option.size || '--'} | ${option.color || '--'}`}
+              <MenuItem key={option.variantId || option.id} value={option.variantId || option.id}>
+                {`${option.itemCode} | ${option.itemName} | Size: ${option.size} | Color: ${option.color} | Rate: ₹${option.rate}`}
               </MenuItem>
             ))}
           </TextField>

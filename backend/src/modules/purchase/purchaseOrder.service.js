@@ -27,10 +27,11 @@ const createPOFromPurchase = async (purchaseId, userId) => {
 
         const poNumber = await generatePONumber(session);
         
-        // Map Purchase items to PO items
+        // Map Purchase items to PO items (SKU-aware)
         const poItems = purchase.products.map(p => ({
-            productId: p.productId,
+            itemId: p.itemId,
             variantId: p.variantId,
+            sku: p.sku,
             qty: p.quantity,
             price: p.rate
         }));
@@ -38,7 +39,6 @@ const createPOFromPurchase = async (purchaseId, userId) => {
         const po = new PurchaseOrder({
             poNumber,
             supplierId: purchase.supplierId,
-            storeId: purchase.storeId || purchase.warehouseId,
             items: poItems,
             status: PurchaseOrderStatus.PENDING,
             createdBy: userId,
@@ -64,7 +64,7 @@ const createPO = async (poData, userId) => {
             createdBy: userId
         });
         await po.save({ session });
-        return po;
+        return await PurchaseOrder.findById(po._id).populate('supplierId createdBy items.itemId');
     });
 };
 
@@ -82,8 +82,8 @@ const getAllPOs = async (query) => {
             .skip(skip)
             .limit(parseInt(limit))
             .populate('supplierId', 'name')
-            .populate('storeId', 'name')
-            .populate('createdBy', 'name'),
+            .populate('createdBy', 'name')
+            .populate('items.itemId', 'itemName itemCode shade'),
         PurchaseOrder.countDocuments(filter)
     ]);
 
@@ -93,8 +93,7 @@ const getAllPOs = async (query) => {
 const getPOById = async (id) => {
     const po = await PurchaseOrder.findById(id)
         .populate('supplierId')
-        .populate('storeId')
-        .populate('items.productId')
+        .populate('items.itemId')
         .populate('createdBy', 'name');
     if (!po) throw new Error('Purchase Order not found');
     return po;
@@ -109,13 +108,13 @@ const updateStatus = async (id, status, userId) => {
 const updatePO = async (id, poData, userId) => {
     const po = await PurchaseOrder.findById(id);
     if (!po) throw new Error('Purchase Order not found');
-    if (['RECEIVED', 'CANCELLED'].includes(po.status)) {
+    if (po.status === 'RECEIVED' || po.status === 'CANCELLED') {
         throw new Error('Cannot update PO in current status');
     }
 
     Object.assign(po, poData);
     await po.save();
-    return po;
+    return await PurchaseOrder.findById(id).populate('supplierId createdBy items.itemId');
 };
 
 module.exports = {

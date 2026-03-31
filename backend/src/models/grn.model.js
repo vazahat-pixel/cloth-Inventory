@@ -2,24 +2,25 @@ const mongoose = require('mongoose');
 const { GrnStatus } = require('../core/enums');
 
 const grnItemSchema = new mongoose.Schema({
-    productId: {
+    itemId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Product',
+        ref: 'Item',
         required: true
     },
     variantId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Product' // Assuming variants are products for now as per previous patterns
+        type: String, // This is the _id of the size variant in the Item.sizes array
+        required: true
     },
-    orderedQty: {
-        type: Number,
+    sku: {
+        type: String,
         required: true
     },
     receivedQty: {
         type: Number,
-        required: true
+        required: true,
+        min: 1
     },
-    pendingQty: {
+    costPrice: {
         type: Number,
         default: 0
     },

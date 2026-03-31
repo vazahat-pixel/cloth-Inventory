@@ -28,10 +28,21 @@ const purchaseSchema = new mongoose.Schema(
         },
         products: [
             {
-                productId: {
+                itemId: {
                     type: mongoose.Schema.Types.ObjectId,
-                    ref: 'Product',
+                    ref: 'Item',
                     required: true
+                },
+                variantId: {
+                    type: String, // Reference to Item.sizes._id
+                    required: true
+                },
+                itemCode: { type: String },
+                itemName: { type: String },
+                size: { type: String },
+                color: { type: String },
+                sku: {
+                    type: String
                 },
                 quantity: {
                     type: Number,

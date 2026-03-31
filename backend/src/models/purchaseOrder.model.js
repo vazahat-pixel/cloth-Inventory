@@ -12,28 +12,38 @@ const purchaseOrderSchema = new mongoose.Schema({
         ref: 'Supplier',
         required: true
     },
+    poDate: { type: Date, default: Date.now },
+    expectedDeliveryDate: { type: Date },
+    billingAddress: { type: String },
+    deliveryAddress: { type: String },
+    paymentTerms: { type: String },
+    notes: { type: String },
     items: [{
-        productId: {
+        itemId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'Product',
+            ref: 'Item',
             required: true
         },
         variantId: {
-            type: mongoose.Schema.Types.ObjectId,
-            required: false // Optional if no variants
+            type: String, // This is the _id of the size variant
+            required: true
         },
+        itemCode: { type: String },
+        itemName: { type: String },
+        size: { type: String },
+        color: { type: String },
+        sku: { type: String },
         qty: {
             type: Number,
             required: true
         },
-        receivedQty: {
-            type: Number,
-            default: 0
-        },
         price: {
             type: Number,
             required: true
-        }
+        },
+        discountPercent: { type: Number, default: 0 },
+        taxPercent: { type: Number, default: 0 },
+        remarks: { type: String }
     }],
     status: {
         type: String,

@@ -130,25 +130,18 @@ function PurchaseOrderListPage() {
     [suppliers],
   );
 
-  const rows = useMemo(
-    () =>
-      orders.map((order) => {
-        const supplierIdVal = order.supplierId?._id || order.supplierId;
-        const supplier = supplierMap[supplierIdVal] || {};
-        return {
-          ...order,
-          id: order._id || order.id,
-          poNumber: order.poNumber,
-          poDate: order.poDate || order.createdAt?.slice(0, 10),
-          supplierName: order.supplierName || supplier.supplierName || 'Unassigned Supplier',
-          totals: {
-              totalQty: (order.items || []).reduce((s, i) => s + Number(i.qty), 0),
-              grandTotal: (order.items || []).reduce((s, i) => s + (Number(i.qty) * Number(i.price)), 0)
-          }
-        };
-      }),
-    [orders, supplierMap],
-  );
+  const rows = useMemo(() => {
+    return orders.map((order) => {
+      const normalized = normalizePurchaseOrderRecord(order);
+      const supplierIdVal = normalized.supplierId?._id || normalized.supplierId;
+      const supplier = supplierMap[supplierIdVal] || {};
+      
+      return {
+        ...normalized,
+        supplierName: normalized.supplierName || supplier.supplierName || 'Unassigned Supplier',
+      };
+    });
+  }, [orders, supplierMap]);
 
   const filteredRows = useMemo(() => {
     const query = searchText.trim().toLowerCase();
@@ -158,7 +151,7 @@ function PurchaseOrderListPage() {
             .filter(Boolean)
             .some((value) => String(value).toLowerCase().includes(query))
         : true;
-      const matchesSupplier = supplierFilter === 'all' ? true : row.supplierId === supplierFilter;
+      const matchesSupplier = supplierFilter === 'all' ? true : (row.supplierId?._id || row.supplierId) === supplierFilter;
       const matchesStatus = statusFilter === 'all' ? true : row.status === statusFilter;
       const matchesDateFrom = dateFrom ? row.poDate >= dateFrom : true;
       const matchesDateTo = dateTo ? row.poDate <= dateTo : true;
@@ -349,7 +342,7 @@ function PurchaseOrderListPage() {
                   <TableCell>
                     <StatusBadge value={row.status} />
                   </TableCell>
-                  <TableCell>{row.createdBy || 'HO Admin'}</TableCell>
+                  <TableCell>{(typeof row.createdBy === 'object' ? row.createdBy?.name : row.createdBy) || 'HO Admin'}</TableCell>
                   <TableCell align="right">
                     <Stack direction="row" spacing={0.25} sx={{ justifyContent: 'flex-end' }}>
                       <IconButton size="small" color="info" onClick={() => navigate(`${listPath}/${row.id}/view`)}>

@@ -6,7 +6,7 @@ const variantSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
-  barcode: {
+  sku: {
     type: String,
     unique: true,
     sparse: true,
@@ -28,6 +28,10 @@ const variantSchema = new mongoose.Schema({
     type: Number,
     required: true,
     min: 0,
+    default: 0
+  },
+  stock: {
+    type: Number,
     default: 0
   },
   isActive: {

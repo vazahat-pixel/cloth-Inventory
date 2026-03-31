@@ -1,5 +1,5 @@
 const Purchase = require('../../models/purchase.model');
-const Product = require('../../models/product.model');
+const Item = require('../../models/item.model');
 const Supplier = require('../../models/supplier.model');
 const Account = require('../../models/account.model');
 const GstSlab = require('../../models/gstSlab.model');
@@ -37,8 +37,10 @@ const createPurchase = async (purchaseData, userId) => {
         const processedProducts = [];
 
         for (const item of items) {
-            const product = await Product.findById(item.productId).session(session);
-            if (!product) throw new Error(`Product ${item.productId} not found`);
+            const itemDoc = await Item.findOne({ "sizes._id": item.variantId }).session(session);
+            if (!itemDoc) throw new Error(`Item variant ${item.variantId} not found`);
+            
+            const variantEntry = itemDoc.sizes.id(item.variantId);
 
             const quantity = toNumber(item.quantity);
             const rate = toNumber(item.rate);
@@ -58,7 +60,13 @@ const createPurchase = async (purchaseData, userId) => {
             const total = taxableAmount + gstData.totalTax;
 
             processedProducts.push({
-                productId: item.productId,
+                itemId: itemDoc._id,
+                variantId: item.variantId,
+                itemCode: itemDoc.itemCode,
+                itemName: itemDoc.itemName,
+                size: variantEntry ? variantEntry.size : '',
+                color: itemDoc.shade || itemDoc.color || '',
+                sku: (variantEntry ? variantEntry.sku : null) || itemDoc.itemCode,
                 quantity,
                 rate,
                 discountPercentage: discPercent,
@@ -105,7 +113,10 @@ const createPurchase = async (purchaseData, userId) => {
             session
         });
 
-        return purchase;
+        return await Purchase.findById(purchase._id)
+            .populate('supplierId', 'name')
+            .populate('storeId', 'name')
+            .populate('products.itemId', 'itemName itemCode shade');
     });
 };
 
@@ -117,7 +128,7 @@ const approveGRN = async (purchaseId, userId) => {
 
         for (const item of purchase.products) {
             await addStock({
-                variantId: item.productId,
+                variantId: item.variantId, // Specific size _id
                 locationId: purchase.storeId, 
                 locationType: 'STORE',
                 qty: item.quantity,
@@ -142,7 +153,7 @@ const approveGRN = async (purchaseId, userId) => {
             if (po) {
                 let allReceived = true;
                 for (const item of purchase.products) {
-                    const poItem = po.items.find(i => i.productId.toString() === item.productId.toString());
+                    const poItem = po.items.find(i => i.variantId.toString() === item.variantId.toString());
                     if (poItem) {
                         poItem.receivedQty = (poItem.receivedQty || 0) + item.quantity;
                         if (poItem.receivedQty < poItem.qty) allReceived = false;
@@ -202,7 +213,7 @@ const cancelPurchase = async (purchaseId, userId) => {
         if (purchase.grnStatus === 'APPROVED') {
             for (const item of purchase.products) {
                 await removeStock({
-                    variantId: item.productId,
+                    variantId: item.variantId,
                     locationId: purchase.storeId,
                     locationType: 'STORE',
                     qty: item.quantity,
@@ -236,7 +247,7 @@ const getAllPurchases = async (query) => {
             .limit(parseInt(limit))
             .populate('supplierId', 'name')
             .populate('storeId', 'name')
-            .populate('products.productId', 'name barcode'),
+            .populate('products.itemId', 'itemName itemCode shade'),
         Purchase.countDocuments(filter)
     ]);
 
@@ -244,7 +255,7 @@ const getAllPurchases = async (query) => {
 };
 
 const getPurchaseById = async (id) => {
-    return await Purchase.findById(id).populate('supplierId storeId products.productId');
+    return await Purchase.findById(id).populate('supplierId storeId products.itemId');
 };
 
 module.exports = {

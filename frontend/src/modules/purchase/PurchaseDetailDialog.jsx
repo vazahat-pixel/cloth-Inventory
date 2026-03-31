@@ -92,18 +92,26 @@ function PurchaseDetailDialog({
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {(purchase.items || []).map((item, index) => (
-                    <TableRow key={`${item.variantId || item.productId || index}-${index}`}>
-                      <TableCell>{item.itemName || item.name || '-'}</TableCell>
-                      <TableCell>{`${item.size || '-'} / ${item.color || '-'}`}</TableCell>
-                      <TableCell>{item.sku || '-'}</TableCell>
-                      <TableCell align="right">{Number(item.quantity || 0)}</TableCell>
-                      <TableCell align="right">{Number(item.rate || item.price || 0).toFixed(2)}</TableCell>
-                      <TableCell align="right">{Number(item.discount || 0)}</TableCell>
-                      <TableCell align="right">{Number(item.tax || item.gstPercent || 0)}</TableCell>
-                      <TableCell align="right">{Number(item.amount || item.total || 0).toFixed(2)}</TableCell>
-                    </TableRow>
-                  ))}
+                  {(purchase.products || purchase.items || []).map((item, index) => {
+                    const itemInfo = item.itemId && typeof item.itemId === 'object' ? item.itemId : {};
+                    let variantDetails = {};
+                    if (itemInfo.sizes && item.variantId) {
+                      variantDetails = itemInfo.sizes.find(s => String(s._id || s.id) === String(item.variantId)) || {};
+                    }
+
+                    return (
+                      <TableRow key={`${item.variantId || item._id || index}-${index}`}>
+                        <TableCell>{item.itemName || itemInfo.itemName || itemInfo.name || '-'}</TableCell>
+                        <TableCell>{`${item.size || variantDetails.size || '-'} / ${item.color || itemInfo.shade || itemInfo.color || '-'}`}</TableCell>
+                        <TableCell>{item.sku || variantDetails.sku || '-'}</TableCell>
+                        <TableCell align="right">{Number(item.quantity || item.qty || 0)}</TableCell>
+                        <TableCell align="right">{Number(item.rate || item.price || 0).toFixed(2)}</TableCell>
+                        <TableCell align="right">{Number(item.discountPercentage || item.discount || 0)}</TableCell>
+                        <TableCell align="right">{Number(item.taxPercentage || item.tax || item.gstPercent || 0)}</TableCell>
+                        <TableCell align="right">{Number(item.total || item.amount || 0).toFixed(2)}</TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </TableContainer>

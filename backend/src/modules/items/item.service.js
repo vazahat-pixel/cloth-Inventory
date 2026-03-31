@@ -38,13 +38,13 @@ const ensureGroupsExist = async (groupIds) => {
   }
 };
 
-const ensureSizeBarcodes = async (sizes = []) => {
+const ensureSizeSKUs = async (sizes = []) => {
   for (const entry of sizes) {
-    if (!entry.barcode) {
-      // Generate a barcode per size variant only when the user did not provide one.
-      // This keeps the current master flow stable without forcing a separate barcode UI.
+    if (!entry.sku) {
+      // Generate an SKU per size variant only when the user did not provide one.
+      // We use the same service for now as it generates a unique code.
       // eslint-disable-next-line no-await-in-loop
-      entry.barcode = await generateBarcode();
+      entry.sku = await generateBarcode();
     }
   }
 };
@@ -86,7 +86,7 @@ class ItemService {
     if (data.sizes && Array.isArray(data.sizes)) {
       data.sizes = data.sizes.map(s => ({
         ...s,
-        barcode: s.barcode || s.sku || null,
+        sku: s.sku || s.barcode || null,
         costPrice: Number(s.costPrice || 0),
         salePrice: Number(s.salePrice || 0),
         mrp: Number(s.mrp || 0),
@@ -111,7 +111,7 @@ class ItemService {
       throw new Error('Garment Item must have at least one size pricing');
     }
 
-    await ensureSizeBarcodes(data.sizes);
+    await ensureSizeSKUs(data.sizes);
 
     const item = new Item({
       ...data,
@@ -167,7 +167,7 @@ class ItemService {
     }
 
     if (item.sizes) {
-      await ensureSizeBarcodes(item.sizes);
+      await ensureSizeSKUs(item.sizes);
     }
 
     await item.save();

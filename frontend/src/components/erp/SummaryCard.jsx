@@ -25,13 +25,11 @@ function SummaryCard({ label, value, helper, tone = 'default' }) {
         <Typography variant="caption" sx={{ color: styles.label, fontWeight: 700 }}>
           {label}
         </Typography>
-        {typeof value === 'string' || typeof value === 'number' ? (
+        {['string', 'number'].includes(typeof value) || (value && value.$$typeof) ? (
           <Typography variant="h5" sx={{ color: styles.value, fontWeight: 800 }}>
             {value}
           </Typography>
-        ) : (
-          value
-        )}
+        ) : null}
         {helper ? (
           <Typography variant="body2" sx={{ color: '#64748b' }}>
             {helper}

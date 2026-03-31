@@ -136,19 +136,28 @@ function PurchaseFormPage() {
             otherCharges: order.totals?.otherCharges || 0,
           });
           setLines(
-            (order.items || order.products || []).map((item, index) => ({
-              id: `${item.productId || item.variantId}-${index}-${Date.now()}`,
-              variantId: item.productId || item.variantId,
-              itemName: item.itemName || (items.find(i => i._id === (item.productId || item.variantId))?.name) || 'Item',
-              styleCode: item.styleCode || (items.find(i => i._id === (item.productId || item.variantId))?.sku) || '',
-              size: item.size || (items.find(i => i._id === (item.productId || item.variantId))?.size) || '',
-              color: item.color || (items.find(i => i._id === (item.productId || item.variantId))?.color) || '',
-              sku: item.sku || (items.find(i => i._id === (item.productId || item.variantId))?.barcode) || '',
-              quantity: item.quantity,
-              rate: item.rate,
-              discount: item.discount || 0,
-              tax: item.tax || 0,
-            })),
+            (order.items || []).map((item, index) => {
+              const itemInfo = item.itemId && typeof item.itemId === 'object' ? item.itemId : {};
+              let variantDetails = {};
+              if (itemInfo.sizes && item.variantId) {
+                variantDetails = itemInfo.sizes.find(s => String(s._id || s.id) === String(item.variantId)) || {};
+              }
+
+              return {
+                id: `${item.variantId}-${index}-${Date.now()}`,
+                itemId: item.itemId?._id || item.itemId,
+                variantId: item.variantId,
+                itemName: item.itemName || itemInfo.itemName || itemInfo.name || 'Item',
+                styleCode: item.itemCode || itemInfo.itemCode || itemInfo.code || '',
+                size: item.size || variantDetails.size || '',
+                color: item.color || itemInfo.shade || itemInfo.color || '',
+                sku: item.sku || variantDetails.sku || '',
+                quantity: item.qty || item.quantity,
+                rate: item.price || item.rate,
+                discount: item.discountPercent || item.discount || 0,
+                tax: item.taxPercent || item.tax || 0,
+              };
+            }),
           );
         })
         .catch(err => setFormError("Failed to load Purchase Order details"));
@@ -180,10 +189,29 @@ function PurchaseFormPage() {
       otherCharges: existingPurchase.otherCharges || 0,
     });
     setLines(
-      (existingPurchase.items || []).map((item, index) => ({
-        id: `${item.variantId}-${index}`,
-        ...item,
-      })),
+      (existingPurchase.products || existingPurchase.items || []).map((item, index) => {
+        const itemInfo = item.itemId && typeof item.itemId === 'object' ? item.itemId : {};
+        let variantDetails = {};
+        if (itemInfo.sizes && item.variantId) {
+          variantDetails = itemInfo.sizes.find(s => String(s._id || s.id) === String(item.variantId)) || {};
+        }
+
+        return {
+          id: `${item.variantId}-${index}`,
+          itemId: item.itemId?._id || item.itemId,
+          variantId: item.variantId,
+          itemName: item.itemName || itemInfo.itemName || itemInfo.name || '',
+          styleCode: item.itemCode || itemInfo.itemCode || itemInfo.code || '',
+          size: item.size || variantDetails.size || '',
+          color: item.color || itemInfo.shade || itemInfo.color || '',
+          sku: item.sku || variantDetails.sku || '',
+          quantity: item.quantity || item.qty,
+          rate: item.rate || item.price,
+          discount: item.discountPercentage || item.discount || 0,
+          tax: item.taxPercentage || item.tax || 0,
+          lotNumber: item.lotNumber || '',
+        };
+      }),
     );
   }, [existingPurchase, reset, orderId]);
 
@@ -219,23 +247,43 @@ function PurchaseFormPage() {
   const otherCharges = watch('otherCharges');
 
   // Each product in the backend IS a variant (has size, color, sku, salePrice directly)
-  const variantOptions = useMemo(
-    () =>
-      (items || []).map((product) => ({
-        variantId: product._id || product.id,
-        itemName: product.name || '',
-        styleCode: product.sku || '',
-        size: product.size || '',
-        color: product.color || '',
-        sku: product.barcode || product.sku || '',
-        brand: product.brand || '',
-        category: product.category || '',
-        salePrice: product.salePrice || 0,
-        status: product.isActive === false ? 'Inactive' : 'Active',
-        defaultRate: product.salePrice || product.costPrice || 0,
-      })),
-    [items],
-  );
+  const variantOptions = useMemo(() => {
+    const options = [];
+    (items || []).forEach(product => {
+      if (product.sizes && product.sizes.length > 0) {
+        product.sizes.forEach(v => {
+          options.push({
+            itemId: product._id || product.id,
+            variantId: v._id || v.id,
+            itemName: product.itemName || product.name || '',
+            styleCode: product.itemCode || product.sku || '',
+            size: v.size || '',
+            color: product.shade || product.color || '',
+            sku: v.sku || '',
+            brand: product.brand || '',
+            category: product.category || '',
+            defaultRate: Number(v.costPrice || v.salePrice || 0),
+            status: product.isActive === false ? 'Inactive' : 'Active',
+          });
+        });
+      } else {
+        options.push({
+          itemId: product._id || product.id,
+          variantId: product._id || product.id,
+          itemName: product.itemName || product.name || '',
+          styleCode: product.itemCode || product.sku || '',
+          size: '--',
+          color: product.shade || '',
+          sku: product.sku || '',
+          brand: product.brand || '',
+          category: product.category || '',
+          defaultRate: Number(product.costPrice || 0),
+          status: product.isActive === false ? 'Inactive' : 'Active',
+        });
+      }
+    });
+    return options;
+  }, [items]);
 
   useEffect(() => {
     dispatch(fetchMasters('suppliers'));
@@ -258,6 +306,7 @@ function PurchaseFormPage() {
       ...previous,
       {
         id: `${variantPickerValue.variantId}-${Date.now()}`,
+        itemId: variantPickerValue.itemId,
         variantId: variantPickerValue.variantId,
         lotNumber: '',
         itemName: variantPickerValue.itemName,
@@ -390,7 +439,9 @@ function PurchaseFormPage() {
       const taxPercentage = toNumber(line.tax);
 
       return {
-        productId: line.variantId,
+        itemId: line.itemId,
+        variantId: line.variantId,
+        sku: line.sku,
         quantity,
         rate,
         discountPercentage,
@@ -580,7 +631,7 @@ function PurchaseFormPage() {
             value={variantPickerValue}
             onChange={(_, value) => setVariantPickerValue(value)}
             getOptionLabel={(option) =>
-              `${option.itemName} (${option.size}/${option.color}) - ${option.sku}`
+              `${option.styleCode} | ${option.itemName} | ${option.size} | ${option.color} | ₹${option.defaultRate}`
             }
             renderInput={(params) => <TextField {...params} label="Add Variant" />}
           />

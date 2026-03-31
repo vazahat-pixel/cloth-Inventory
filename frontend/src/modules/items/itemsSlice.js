@@ -49,7 +49,7 @@ export const addItem = createAsyncThunk('items/add', async (item, { rejectWithVa
       barcodeEnabled: item.barcodeEnabled ?? true,
       sizes: (item.variants || []).map((v) => ({
         size: v.size,
-        barcode: (v.sku || v.barcode || '').trim(),
+        sku: (v.sku || v.barcode || '').trim(),
         costPrice: Number(v.costPrice || 0),
         salePrice: Number(v.salePrice || 0),
         mrp: Number(v.mrp || 0),
@@ -115,7 +115,7 @@ export const updateItem = createAsyncThunk('items/update', async ({ id, item }, 
       barcodeEnabled: item.barcodeEnabled ?? true,
       sizes: (item.variants || []).map((v) => ({
         size: v.size,
-        barcode: (v.sku || v.barcode || '').trim(),
+        sku: (v.sku || v.barcode || '').trim(),
         costPrice: Number(v.costPrice || 0),
         salePrice: Number(v.salePrice || 0),
         mrp: Number(v.mrp || 0),

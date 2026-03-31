@@ -53,9 +53,9 @@ const seedSmartItems = async () => {
                 groupIds: [section._id, category._id],
                 hsCodeId: hsn ? hsn._id : null,
                 sizes: [
-                    { size: 'S', barcode: `${baseCode}-S`, costPrice: 400, salePrice: 999, mrp: 1299 },
-                    { size: 'M', barcode: `${baseCode}-M`, costPrice: 400, salePrice: 999, mrp: 1299 },
-                    { size: 'L', barcode: `${baseCode}-L`, costPrice: 450, salePrice: 1099, mrp: 1499 }
+                    { size: 'S', sku: `${baseCode}-S`, costPrice: 400, salePrice: 999, mrp: 1299 },
+                    { size: 'M', sku: `${baseCode}-M`, costPrice: 400, salePrice: 999, mrp: 1299 },
+                    { size: 'L', sku: `${baseCode}-L`, costPrice: 450, salePrice: 1099, mrp: 1499 }
                 ],
                 isActive: true
             });

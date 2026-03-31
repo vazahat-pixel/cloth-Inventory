@@ -45,13 +45,13 @@ const updateStatus = async (id, status, userId) => {
 const getPOs = async (filter = {}) => {
     return await PurchaseOrder.find(filter)
         .populate('supplierId', 'name')
-        .populate('items.productId', 'name sku');
+        .populate('items.itemId', 'itemName itemCode shade');
 };
 
 const getPOById = async (id) => {
     return await PurchaseOrder.findById(id)
         .populate('supplierId')
-        .populate('items.productId');
+        .populate('items.itemId');
 };
 
 module.exports = {
