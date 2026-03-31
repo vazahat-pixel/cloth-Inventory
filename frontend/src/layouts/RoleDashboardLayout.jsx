@@ -3,12 +3,15 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import RoleSidebar from '../components/RoleSidebar';
 import Topbar from '../components/Topbar';
-import { getNavConfigForRole } from '../common/roleConfig';
+import { getNavConfigForRole, getRoleFromPath } from '../common/roleConfig';
 
 function RoleDashboardLayout() {
   const role = useSelector((state) => state.auth.role);
   const location = useLocation();
-  const navConfig = getNavConfigForRole(role);
+  
+  // Choose sidebar based on current path first (e.g. if admin is in /store, show store sidebar)
+  const pathRole = getRoleFromPath(location.pathname);
+  const navConfig = getNavConfigForRole(pathRole || role);
 
   return (
     <Box

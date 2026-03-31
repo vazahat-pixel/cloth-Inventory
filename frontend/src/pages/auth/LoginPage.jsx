@@ -57,10 +57,12 @@ function LoginPage() {
       dispatch(loginSuccess(response));
 
       const responseRole = response.user?.role;
-      const basePath = responseRole ? getRoleBasePath(responseRole) : '/admin';
+      const basePath = responseRole ? getRoleBasePath(responseRole) : '/ho';
       const intendedPath = location.state?.from?.pathname;
 
-      if (intendedPath && intendedPath.startsWith(basePath)) {
+      // Allow redirection to ANY intended path if it's not just the root/dashboard.
+      // This helps admins test the store panel by letting them land directly at /store.
+      if (intendedPath && intendedPath !== '/' && intendedPath !== basePath) {
         navigate(intendedPath, { replace: true });
       } else {
         navigate(basePath, { replace: true });
