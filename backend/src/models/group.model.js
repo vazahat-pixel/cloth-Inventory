@@ -17,7 +17,7 @@ const groupSchema = new mongoose.Schema({
   },
   groupType: {
     type: String,
-    enum: ['Sub Section', 'Type', 'Design', 'Fabric', 'Vendor', 'Season', 'Brand', 'other'],
+    enum: ['Section', 'Category', 'Sub Category', 'Style / Type'],
     required: true
   },
   isActive: {

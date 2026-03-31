@@ -28,7 +28,8 @@ const ROLE_LABELS = {
   staff: 'Store Login',
 };
 
-const COMPANY_NAME = 'Barcode Cloth ERP';
+// Branding configuration
+const COMPANY_NAME = 'Inventory ERP'; // Consistently using the remote identifier
 const COMPANY_TAGLINE = 'Apparel & Retail Management Suite';
 
 function LoginPage() {
@@ -64,10 +65,11 @@ function LoginPage() {
       dispatch(loginSuccess(response));
 
       const responseRole = response.user?.role;
-      const basePath = responseRole ? getRoleBasePath(responseRole) : '/admin';
+      const basePath = responseRole ? getRoleBasePath(responseRole) : '/ho';
       const intendedPath = location.state?.from?.pathname;
 
-      if (intendedPath && intendedPath.startsWith(basePath)) {
+      // Smart redirection: Allow landing on specific sub-panels if intended (useful for admins jumping to /store)
+      if (intendedPath && intendedPath !== '/' && intendedPath !== basePath) {
         navigate(intendedPath, { replace: true });
       } else {
         navigate(basePath, { replace: true });
@@ -210,7 +212,7 @@ function LoginPage() {
               Streamline your apparel operations with our industrial-grade ERP suite designed for speed and precision.
             </Typography>
 
-            {/* Floating Avatars or Abstract elements for premium look */}
+            {/* Floating Avatars for premium look */}
             <Box sx={{ display: 'flex', alignItems: 'center', mt: 2, gap: 2 }}>
               <AvatarGroup max={4} sx={{ '& .MuiAvatar-root': { width: 32, height: 32, border: '2px solid #10b981' } }}>
                 <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)' }} />
@@ -218,7 +220,7 @@ function LoginPage() {
                 <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.4)' }} />
               </AvatarGroup>
               <Typography variant="body2" sx={{ fontWeight: 600, opacity: 0.9 }}>
-                Trusted by 500+ Retails
+                Trusted by 500+ Retailers
               </Typography>
             </Box>
           </Box>

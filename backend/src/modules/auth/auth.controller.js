@@ -75,7 +75,7 @@ const storeLogin = async (req, res, next) => {
         if (!errors.isEmpty()) return sendError(res, errors.array()[0].msg, 400);
 
         const { email, password } = req.body;
-        const user = await User.findOne({ email: email.toLowerCase(), role: 'store_staff' }).select('+passwordHash');
+        const user = await User.findOne({ email: email.toLowerCase(), role: { $in: ['store_staff', 'admin'] } }).select('+passwordHash');
         if (!user || !user.isActive) return sendUnauthorized(res, !user ? 'Invalid email or password.' : 'Account deactivated. Contact admin.');
 
         const isMatch = await user.comparePassword(password);

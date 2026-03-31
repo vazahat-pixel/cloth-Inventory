@@ -53,7 +53,7 @@ function RegisterPage() {
             .unwrap()
             .then((response) => {
                 const responseRole = response.user?.role;
-                const basePath = responseRole === 'admin' ? '/admin' : '/staff';
+                const basePath = getRoleBasePath(responseRole);
                 navigate(basePath, { replace: true });
             })
             .catch(() => {

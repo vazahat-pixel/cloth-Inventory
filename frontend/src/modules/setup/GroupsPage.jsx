@@ -27,6 +27,8 @@ import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import InputAdornment from '@mui/material/InputAdornment';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchMasters, addMasterRecord, updateMasterRecord, deleteMasterRecord } from '../masters/mastersSlice';
 import PageHeader from '../../components/erp/PageHeader';
 import FilterBar from '../../components/erp/FilterBar';
 import ExportButton from '../../components/erp/ExportButton';
@@ -34,17 +36,21 @@ import StatusBadge from '../../components/erp/StatusBadge';
 import FormSection from '../../components/erp/FormSection';
 import TreeViewGroup from '../../components/erp/TreeViewGroup';
 import groupsExportColumns from '../../config/exportColumns/groups';
-import erpGroupService from '../../services/erpGroupService';
 import { groupSeed } from '../erp/erpUiMocks';
 
-const groupTypeOptions = ['Sub Section', 'Fabric', 'Category', 'Sub Category', 'Section', 'Product Type'];
+const groupTypeOptions = [
+  'Section',
+  'Category',
+  'Sub Category',
+  'Style / Type',
+];
 
 const buildTree = (rows, parentId = null, level = 1) =>
   rows
     .filter((row) => (row.parentId || null) === parentId)
     .map((row) => ({
       ...row,
-      level: row.level || level,
+      level,
       children: buildTree(rows, row.id, level + 1),
     }));
 
@@ -85,61 +91,34 @@ const defaultFormValues = {
 };
 
 function GroupsPage({ compact = false }) {
-  const [groups, setGroups] = useState(groupSeed);
+  const dispatch = useDispatch();
+  const groupsFromRedux = useSelector((state) => state.masters.itemGroups);
+  const { loading } = useSelector((state) => state.masters);
+
+  const groups = useMemo(() => {
+    return groupsFromRedux?.length ? groupsFromRedux : groupSeed;
+  }, [groupsFromRedux]);
+
   const [tab, setTab] = useState('tree');
-  const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [groupTypeFilter, setGroupTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [expandedIds, setExpandedIds] = useState(groupSeed.map((group) => group.id));
+  const [expandedIds, setExpandedIds] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formValues, setFormValues] = useState(defaultFormValues);
   const [formErrors, setFormErrors] = useState({});
 
   useEffect(() => {
-    let isMounted = true;
+    dispatch(fetchMasters('itemGroups'));
+  }, [dispatch]);
 
-    const loadGroups = async () => {
-      setLoading(true);
-      try {
-        const tree = await erpGroupService.getGroupTree();
-        if (!isMounted || !tree?.length) {
-          return;
-        }
-
-        const flatten = (nodes, parentId = null, level = 1) =>
-          nodes.flatMap((node) => [
-            {
-              id: node._id || node.id,
-              groupName: node.name || node.groupName,
-              groupType: node.groupType || 'Category',
-              parentId,
-              level,
-              description: node.description || '',
-              status: node.status || (node.isActive === false ? 'Inactive' : 'Active'),
-              createdAt: node.createdAt || '',
-              updatedAt: node.updatedAt || '',
-            },
-            ...flatten(node.children || [], node._id || node.id, level + 1),
-          ]);
-
-        setGroups(flatten(tree));
-      } catch (error) {
-        console.error('Using group fallback data', error);
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadGroups();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  // Sync expanded IDs when first loaded
+  useEffect(() => {
+    if (groups.length && !expandedIds.length) {
+      setExpandedIds(groups.map(g => g.id || g._id));
+    }
+  }, [groups]);
 
   const groupTree = useMemo(() => buildTree(groups), [groups]);
   const groupRows = useMemo(() => flattenTree(groupTree), [groupTree]);
@@ -230,79 +209,54 @@ function GroupsPage({ compact = false }) {
       return;
     }
 
-    const timestamp = new Date().toISOString().slice(0, 10);
-    const nextLevel = formValues.parentId ? (groups.find((row) => row.id === formValues.parentId)?.level || 1) + 1 : 1;
-    const payload = {
-      ...formValues,
-      groupName: formValues.groupName.trim(),
-      description: formValues.description.trim(),
-      level: nextLevel,
-      updatedAt: timestamp,
-      createdAt: formValues.id ? groups.find((row) => row.id === formValues.id)?.createdAt || timestamp : timestamp,
-    };
-
-    const nextRows = formValues.id
-      ? groups.map((row) => (row.id === formValues.id ? { ...row, ...payload } : row))
-      : [
-          {
-            ...payload,
-            id: `grp-${Date.now()}`,
-          },
-          ...groups,
-        ];
-
     try {
       if (formValues.id) {
-        await erpGroupService.updateGroup(formValues.id, {
-          name: payload.groupName,
-          groupType: payload.groupType,
-          parentId: payload.parentId || null,
-          description: payload.description,
-          status: payload.status,
-        });
+        await dispatch(updateMasterRecord({
+          entityKey: 'itemGroups',
+          id: formValues.id,
+          updates: {
+            groupName: formValues.groupName.trim(),
+            groupType: formValues.groupType,
+            parentId: formValues.parentId || null,
+            description: formValues.description.trim(),
+            status: formValues.status,
+          }
+        })).unwrap();
       } else {
-        await erpGroupService.createGroup({
-          name: payload.groupName,
-          groupType: payload.groupType,
-          parentId: payload.parentId || null,
-          description: payload.description,
-          status: payload.status,
-        });
+        await dispatch(addMasterRecord({
+          entityKey: 'itemGroups',
+          record: {
+            groupName: formValues.groupName.trim(),
+            groupType: formValues.groupType,
+            parentId: formValues.parentId || null,
+            description: formValues.description.trim(),
+            status: formValues.status,
+          }
+        })).unwrap();
       }
+      closeDialog();
     } catch (error) {
-      console.error('Persisting group failed, keeping frontend state only.', error);
+      console.error('Failed to save group:', error);
+      alert(error || 'Failed to save group');
     }
-
-    setGroups(nextRows);
-    closeDialog();
   };
 
   const deleteGroup = async (group) => {
-    if (!window.confirm(`Delete group "${group.groupName}"?`)) {
+    if (!window.confirm(`Delete group "${group.groupName}"? This will fail if items are linked.`)) {
       return;
     }
 
     try {
-      await erpGroupService.deleteGroup(group.id);
+      await dispatch(deleteMasterRecord({
+        entityKey: 'itemGroups',
+        id: group.id
+      })).unwrap();
+      if (selectedGroup?.id === group.id) {
+        setSelectedGroup(null);
+      }
     } catch (error) {
-      console.error('Deleting group failed, removing locally only.', error);
-    }
-
-    const idsToRemove = new Set([group.id]);
-    let changed = true;
-    while (changed) {
-      changed = false;
-      groups.forEach((row) => {
-        if (idsToRemove.has(row.parentId) && !idsToRemove.has(row.id)) {
-          idsToRemove.add(row.id);
-          changed = true;
-        }
-      });
-    }
-
-    setGroups(groups.filter((row) => !idsToRemove.has(row.id)));
-    if (selectedGroup?.id === group.id) {
-      setSelectedGroup(null);
+      console.error('Failed to delete group:', error);
+      alert(error || 'Failed to delete group');
     }
   };
 

@@ -99,6 +99,16 @@ export const updatePurchaseOrder = createAsyncThunk('purchase/updateOrder', asyn
   }
 });
 
+export const generatePOFromVoucher = createAsyncThunk('purchase/generatePOFromVoucher', async (voucherId, { dispatch, rejectWithValue }) => {
+  try {
+    const response = await api.post(`/purchase-orders/from-voucher/${voucherId}`);
+    dispatch(fetchPurchases()); // Refresh list to show linked PO
+    return response.data.po || response.data.data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || 'Failed to generate PO');
+  }
+});
+
 export const fetchPurchaseReturns = createAsyncThunk('purchase/fetchReturns', async (_, { rejectWithValue }) => {
   try {
     const response = await api.get('/returns?type=STORE_TO_FACTORY');

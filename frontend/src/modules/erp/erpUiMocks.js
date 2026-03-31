@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import itemsData from '../items/data';
 import { purchasesData } from '../purchase/data';
 import suppliersSeed from '../masters/suppliers/data';
@@ -308,81 +309,20 @@ export const barcodeSeed = itemsData.flatMap((item, itemIndex) =>
   })),
 );
 
+=======
+export const sizeMasterSeed = [];
+export const hsnSeed = [];
+export const groupSeed = [];
+export const supplierSeed = [];
+export const purchaseOrderSeed = [];
+export const grnSeed = [];
+export const stockTransferSeed = [];
+export const systemLogSeed = [];
+export const barcodeSeed = [];
+>>>>>>> 9c9e564667c824d8120f2db8e40813b79138e38d
 export const stockAuditSeed = {
-  locationAnalytics: [
-    {
-      id: 'loc-1',
-      warehouse: 'Main Warehouse',
-      location: 'Rack A-02',
-      itemCode: 'STY-CTN-TEE',
-      itemName: 'Essential Cotton Tee',
-      size: 'M',
-      batch: 'TEE-MAR24-A',
-      balance: 118,
-      lastMovementDate: '2026-03-26 10:45',
-    },
-  ],
-  batchBreakdown: [
-    {
-      id: 'bat-1',
-      batchNo: 'TEE-MAR24-A',
-      origin: 'GRN-2026-001',
-      itemCode: 'STY-CTN-TEE',
-      itemName: 'Essential Cotton Tee',
-      size: 'M',
-      inQty: 120,
-      outQty: 24,
-      balance: 96,
-      referenceType: 'TRANSFER_OUT',
-      referenceNumber: 'TRN-2026-010',
-    },
-  ],
-  fullLedger: [
-    {
-      id: 'led-1',
-      date: '2026-03-24 10:12',
-      source: 'PURCHASE_GRN',
-      movementType: 'IN',
-      itemCode: 'STY-CTN-TEE',
-      itemName: 'Essential Cotton Tee',
-      size: 'M',
-      qty: 118,
-      balanceAfter: 118,
-      warehouse: 'Main Warehouse',
-      batchNo: 'TEE-MAR24-A',
-      referenceId: 'GRN-2026-001',
-      doneBy: 'HO Admin',
-    },
-    {
-      id: 'led-2',
-      date: '2026-03-26 09:45',
-      source: 'TRANSFER_OUT',
-      movementType: 'OUT',
-      itemCode: 'STY-CTN-TEE',
-      itemName: 'Essential Cotton Tee',
-      size: 'M',
-      qty: 24,
-      balanceAfter: 94,
-      warehouse: 'Main Warehouse',
-      batchNo: 'TEE-MAR24-A',
-      referenceId: 'TRN-2026-010',
-      doneBy: 'Warehouse Admin',
-    },
-  ],
+  locationAnalytics: [],
+  batchBreakdown: [],
+  fullLedger: [],
 };
-
-export const stockOverviewSeed = purchasesData.flatMap((purchase) =>
-  (purchase.items || []).map((line, index) => ({
-    id: `${purchase.id}-${line.variantId}-${index}`,
-    itemCode: line.styleCode,
-    itemName: line.itemName,
-    size: line.size,
-    color: line.color,
-    warehouse: purchase.warehouseId === 'wh-2' ? 'North Warehouse' : 'Main Warehouse',
-    availableStock: Math.max(Number(line.quantity || 0) - 8, 0),
-    reservedStock: 8,
-    inTransit: index === 0 ? 12 : 0,
-    reorderLevel: 20,
-    status: Number(line.quantity || 0) - 8 <= 20 ? 'Low_Stock' : 'Active',
-  })),
-);
+export const stockOverviewSeed = [];

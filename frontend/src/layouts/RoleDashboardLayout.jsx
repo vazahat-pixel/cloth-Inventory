@@ -4,16 +4,19 @@ import { useSelector } from 'react-redux';
 import { useState } from 'react';
 import RoleSidebar from '../components/RoleSidebar';
 import Topbar from '../components/Topbar';
-import { getNavConfigForRole } from '../common/roleConfig';
+import { getNavConfigForRole, getRoleFromPath } from '../common/roleConfig';
 
 const DRAWER_WIDTH = 280;
-const COLLAPSED_WIDTH = 88;
+const COLLAPSED_WIDTH = 84; // Consistent with sidebar implementation
 
 function RoleDashboardLayout() {
   const role = useSelector((state) => state.auth.role);
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const navConfig = getNavConfigForRole(role);
+  
+  // Choose sidebar based on current path first (e.g. if admin is in /store, show store sidebar)
+  const pathRole = getRoleFromPath(location.pathname);
+  const navConfig = getNavConfigForRole(pathRole || role);
 
   const sidebarWidth = isCollapsed ? COLLAPSED_WIDTH : DRAWER_WIDTH;
 

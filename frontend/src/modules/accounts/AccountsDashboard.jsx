@@ -37,11 +37,11 @@ function AccountsDashboard() {
 
   const stats = useMemo(() => {
     let totals = {
-      cashBalance: 245000, // Static sample based on prompt requirement context, or can be derived if available
-      bankBalance: 1250000,
+      cashBalance: 0, 
+      bankBalance: 0,
       receivable: 0,
       payable: 0,
-      gstPayable: 45000,
+      gstPayable: 0,
       totalSales: 0,
       totalPurchases: 0,
     };
@@ -55,8 +55,10 @@ function AccountsDashboard() {
 
     purchases.forEach((purchase) => {
       totals.totalPurchases += Number(purchase.totalAmount || 0);
-      // Rough payable logic based on what's available
-      totals.payable += Number(purchase.totalAmount || 0) * 0.2; // roughly 20% mock as payable
+      // Derive payable if possible, otherwise keep 0
+      if (purchase.payment?.status !== 'Paid') {
+        totals.payable += Number(purchase.payment?.dueAmount || 0);
+      }
     });
 
     return totals;

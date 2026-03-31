@@ -29,9 +29,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import { Controller, useForm } from 'react-hook-form';
 
-// Must align with backend enum: ['S', 'M', 'L', 'XL', 'XXL', 'FREE']
-const SIZE_OPTIONS = ['S', 'M', 'L', 'XL', 'XXL', 'FREE'];
-const COLOR_OPTIONS = ['Black', 'Blue', 'Red', 'White', 'Green', 'Grey', 'Navy', 'Yellow'];
+const COLOR_OPTIONS = ['Black', 'Blue', 'Red', 'White', 'Green', 'Grey', 'Navy', 'Yellow', 'Pink', 'Cream', 'Olive', 'Multi'];
 
 const createVariantId = () => `var-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -61,7 +59,7 @@ const createVariantPayload = (overrides = {}) => ({
   ...overrides,
 });
 
-function VariantTable({ variants, onChange, styleCode, readOnly = false }) {
+function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOptions = [] }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingVariant, setEditingVariant] = useState(null);
   const [autoGenerateSku, setAutoGenerateSku] = useState(true);
@@ -248,7 +246,7 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false }) {
               Select Sizes
             </Typography>
             <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', mt: 1 }}>
-              {SIZE_OPTIONS.map((size) => (
+              {sizeOptions.map((size) => (
                 <Chip
                   key={size}
                   label={size}
@@ -259,6 +257,7 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false }) {
                   sx={{ mb: 1 }}
                 />
               ))}
+              {!sizeOptions.length && <Typography variant="caption" color="error">No sizes found in Master. Please add sizes in Setup first.</Typography>}
             </Stack>
           </Box>
 
@@ -411,7 +410,7 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false }) {
                       error={Boolean(errors.size)}
                       helperText={errors.size?.message || ' '}
                     >
-                      {SIZE_OPTIONS.map((size) => (
+                      {sizeOptions.map((size) => (
                         <MenuItem key={size} value={size}>
                           {size}
                         </MenuItem>

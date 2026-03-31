@@ -332,16 +332,25 @@ const normalizeItem = (item, entityType) => {
             normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
             break;
         case 'warehouse':
-            normalized.warehouseName = item.name || item.warehouseName;
+            normalized.warehouseName = item.name;
+            normalized.name = item.name;
+            normalized.code = item.code;
+            normalized.managerName = item.contactPerson || '';
+            normalized.contactNumber = item.contactPhone || '';
             normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
             break;
         case 'store':
             normalized.storeName = item.name;
-            normalized.warehouseName = item.name; // Backwards compat
+            normalized.name = item.name;
             normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
             break;
         case 'brand':
             normalized.brandName = item.name;
+            normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
+            break;
+        case 'season':
+            normalized.seasonName = item.name;
+            normalized.seasonLabel = item.name;
             normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
             break;
         case 'category':
@@ -355,6 +364,17 @@ const normalizeItem = (item, entityType) => {
             normalized.parentId = item.parentId?._id || item.parentId?.id || item.parentId || null;
             normalized.parentGroupName = item.parentId?.name || item.parentGroupName || '';
             normalized.level = item.level ?? 0;
+            normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
+            break;
+        case 'hsnCode':
+            normalized.hsnCode = item.code || '';
+            normalized.gstRate = item.gstPercent || item.gstRate || 0;
+            normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
+            break;
+        case 'size':
+            normalized.sizeCode = item.code || '';
+            normalized.sizeLabel = item.label || '';
+            normalized.sequence = item.sequence || 0;
             normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
             break;
         case 'bank':

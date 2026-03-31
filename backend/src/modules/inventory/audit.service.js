@@ -99,13 +99,15 @@ class AuditService {
       Payment.countDocuments({ status: 'PENDING' }) // Assuming Payment model has status
     ]);
 
+    const validationReport = await this.getValidationReport();
+
     return {
       totalSales: totalSales[0]?.total || 0,
       totalStock: totalStock[0]?.total || 0,
       pendingGRNCount: pendingGRNs,
       pendingPaymentCount: pendingPayments,
-      systemHealth: '100% Traceable',
-      ledgerAuditValue: 'Verified'
+      systemHealth: validationReport.status === 'HEALTHY' ? 'Healthy' : 'Needs Attention',
+      ledgerAuditValue: validationReport.findings.length === 0 ? 'Verified' : 'Review Required'
     };
   }
 }

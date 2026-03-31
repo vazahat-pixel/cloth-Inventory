@@ -12,6 +12,9 @@ const endpointMap = {
   brands: '/brands',
   accountGroups: '/account-groups',
   banks: '/banks',
+  sizes: '/sizes',
+  hsnCodes: '/setup/hsn',
+  seasons: '/seasons',
 };
 
 const responseKeyMap = {
@@ -24,6 +27,24 @@ const responseKeyMap = {
   brands: 'brands',
   accountGroups: 'accountGroups',
   banks: 'banks',
+  sizes: 'sizes',
+  hsnCodes: 'hsns',
+  seasons: 'seasons',
+};
+
+const singularKeyMap = {
+  suppliers: 'supplier',
+  customers: 'customer',
+  warehouses: 'warehouse',
+  stores: 'store',
+  itemGroups: 'group',
+  salesmen: 'user',
+  brands: 'brand',
+  accountGroups: 'accountGroup',
+  banks: 'bank',
+  sizes: 'size',
+  hsnCodes: 'hsn',
+  seasons: 'season',
 };
 
 // Async Thunks for different master entities
@@ -34,7 +55,8 @@ export const fetchMasters = createAsyncThunk('masters/fetchAll', async (entityKe
 
     const response = await api.get(endpoint);
     const key = responseKeyMap[entityKey];
-    const raw = response.data[key] || response.data.data?.[key] || response.data.data || [];
+    const singularKey = singularKeyMap[entityKey];
+    const raw = response.data[key] || response.data.data?.[key] || response.data[singularKey] || response.data.data?.[singularKey] || response.data.data || [];
 
     const entityTypeMapping = {
       itemGroups: 'group',
@@ -123,17 +145,28 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
         },
         isActive: record.status !== 'Inactive',
       };
+    } else if (entityKey === 'sizes') {
+      payload = {
+        code: record.sizeCode,
+        label: record.sizeLabel,
+        sequence: record.sequence,
+        group: record.group,
+        isActive: record.status !== 'Inactive',
+      };
+    } else if (entityKey === 'hsnCodes') {
+      payload = {
+        code: record.hsnCode,
+        description: record.description,
+        gstRate: record.gstRate,
+        status: record.status,
+      };
     }
 
     const response = await api.post(endpoint, payload);
 
-    let raw;
-    if (entityKey === 'itemGroups') {
-      raw = response.data.group || response.data.data?.group;
-    } else {
-      const key = responseKeyMap[entityKey];
-      raw = response.data[key] || response.data.data?.[key] || response.data.data;
-    }
+    const key = responseKeyMap[entityKey];
+    const singularKey = singularKeyMap[entityKey];
+    const raw = response.data[key] || response.data.data?.[key] || response.data[singularKey] || response.data.data?.[singularKey] || response.data.data;
 
     const entityTypeMapping = {
       itemGroups: 'group',
@@ -217,17 +250,28 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
         },
         isActive: updates.status !== 'Inactive',
       };
+    } else if (entityKey === 'sizes') {
+      payload = {
+        code: updates.sizeCode,
+        label: updates.sizeLabel,
+        sequence: updates.sequence,
+        group: updates.group,
+        isActive: updates.status !== 'Inactive',
+      };
+    } else if (entityKey === 'hsnCodes') {
+      payload = {
+        code: updates.hsnCode,
+        description: updates.description,
+        gstRate: updates.gstRate,
+        status: updates.status,
+      };
     }
 
     const response = await api.patch(endpoint, payload);
 
-    let raw;
-    if (entityKey === 'itemGroups') {
-      raw = response.data.group || response.data.data?.group;
-    } else {
-      const key = responseKeyMap[entityKey];
-      raw = response.data[key] || response.data.data?.[key] || response.data.data;
-    }
+    const key = responseKeyMap[entityKey];
+    const singularKey = singularKeyMap[entityKey];
+    const raw = response.data[key] || response.data.data?.[key] || response.data[singularKey] || response.data.data?.[singularKey] || response.data.data;
 
     const entityTypeMapping = {
       itemGroups: 'group',
@@ -263,6 +307,9 @@ const initialState = {
   brands: [],
   accountGroups: [],
   banks: [],
+  sizes: [],
+  hsnCodes: [],
+  seasons: [],
   loading: false,
   error: null,
 };

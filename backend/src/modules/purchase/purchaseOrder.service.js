@@ -1,6 +1,8 @@
 const PurchaseOrder = require('../../models/purchaseOrder.model');
+const Purchase = require('../../models/purchase.model'); // Import Purchase model
 const { withTransaction } = require('../../services/transaction.service');
 const { getNextSequence } = require('../../services/sequence.service');
+const { PurchaseOrderStatus } = require('../../core/enums');
 
 /**
  * Generate unique PO Number (PO-YYYY-XXXXX)
@@ -12,6 +14,45 @@ const generatePONumber = async (session = null) => {
 
     const seq = await getNextSequence(counterName, session);
     return `${prefix}${seq.toString().padStart(6, '0')}`;
+};
+
+/**
+ * Create PO from an existing Purchase Voucher (Draft/Selection)
+ */
+const createPOFromPurchase = async (purchaseId, userId) => {
+    return await withTransaction(async (session) => {
+        const purchase = await Purchase.findById(purchaseId).session(session);
+        if (!purchase) throw new Error('Purchase Voucher not found');
+        if (purchase.purchaseOrderId) throw new Error('A Purchase Order is already linked to this voucher');
+
+        const poNumber = await generatePONumber(session);
+        
+        // Map Purchase items to PO items
+        const poItems = purchase.products.map(p => ({
+            productId: p.productId,
+            variantId: p.variantId,
+            qty: p.quantity,
+            price: p.rate
+        }));
+
+        const po = new PurchaseOrder({
+            poNumber,
+            supplierId: purchase.supplierId,
+            storeId: purchase.storeId || purchase.warehouseId,
+            items: poItems,
+            status: PurchaseOrderStatus.PENDING,
+            createdBy: userId,
+            notes: `Generated from Voucher: ${purchase.purchaseNumber}. ${purchase.notes || ''}`
+        });
+
+        await po.save({ session });
+
+        // Link the PO back to the Purchase document
+        purchase.purchaseOrderId = po._id;
+        await purchase.save({ session });
+
+        return po;
+    });
 };
 
 const createPO = async (poData, userId) => {

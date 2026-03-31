@@ -60,6 +60,9 @@ function PurchaseDetailDialog({
               <DetailField label="Purchase Type" value={purchase.purchaseType || '-'} />
               <DetailField label="Status" value={<Chip size="small" label={purchase.status} />} />
               <DetailField label="Remarks" value={purchase.remarks || '-'} />
+              {purchase.purchaseOrderId && (
+                <DetailField label="Linked PO ID" value={purchase.purchaseOrderId} />
+              )}
             </Stack>
 
             <Divider />

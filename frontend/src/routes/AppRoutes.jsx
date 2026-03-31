@@ -34,6 +34,7 @@ const BrandsListPage = lazy(() => import('../modules/masters/brands/ListPage'));
 const ItemGroupsListPage = lazy(() => import('../modules/masters/itemGroups/ListPage'));
 const SalesmenListPage = lazy(() => import('../modules/masters/salesmen/ListPage'));
 const BanksListPage = lazy(() => import('../modules/masters/banks/ListPage'));
+const SeasonsListPage = lazy(() => import('../modules/masters/seasons/ListPage'));
 
 // Items & Setup
 const ItemListPage = lazy(() => import('../modules/items/ItemListPage'));
@@ -156,6 +157,7 @@ function AppRoutes() {
               <Route path="item-groups" element={<ItemGroupsListPage />} />
               <Route path="salesmen" element={<SalesmenListPage />} />
               <Route path="banks" element={<BanksListPage />} />
+              <Route path="seasons" element={<SeasonsListPage />} />
             </Route>
 
             <Route path="items" element={<ItemListPage />} />
