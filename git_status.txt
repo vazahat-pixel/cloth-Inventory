@@ -1,0 +1,50 @@
+On branch main
+Your branch and 'origin/main' have diverged,
+and have 1 and 7 different commits each, respectively.
+  (use "git pull" if you want to integrate the remote branch with yours)
+
+All conflicts fixed but you are still merging.
+  (use "git commit" to conclude merge)
+
+Changes to be committed:
+	modified:   backend/src/core/enums.js
+	modified:   backend/src/models/stockMovement.model.js
+	modified:   backend/src/modules/barcodes/barcodes.controller.js
+	modified:   backend/src/modules/barcodes/barcodes.routes.js
+	modified:   backend/src/modules/deliveryChallan/deliveryChallan.service.js
+	modified:   backend/src/services/stock.service.js
+	new file:   backend/tmp/check_grn_debug.js
+	new file:   backend/tmp/check_grn_raw.js
+	new file:   backend/tmp/sync_grn_stock.js
+	new file:   frontend/src/common/sizeDisplay.js
+	modified:   frontend/src/components/erp/FilterBar.jsx
+	modified:   frontend/src/modules/grn/GRNListPage.jsx
+	modified:   frontend/src/modules/inventory/AuditDashboard.jsx
+	modified:   frontend/src/modules/inventory/ItemJourneyPage.jsx
+	modified:   frontend/src/modules/inventory/StockInPage.jsx
+	modified:   frontend/src/modules/inventory/StockOverviewPage.jsx
+	modified:   frontend/src/modules/inventory/StockTransferFormPage.jsx
+	modified:   frontend/src/modules/inventory/ValidationDashboard.jsx
+	modified:   frontend/src/modules/items/ItemFormPage.jsx
+	modified:   frontend/src/modules/items/ItemListPage.jsx
+	modified:   frontend/src/modules/items/VariantTable.jsx
+	modified:   frontend/src/modules/setup/BarcodePrintingPage.jsx
+	modified:   frontend/src/modules/setup/DiscountSetupPage.jsx
+	modified:   frontend/src/modules/setup/GroupsPage.jsx
+	modified:   frontend/src/modules/setup/HSNCodePage.jsx
+	modified:   frontend/src/modules/setup/SetupAccountsPlaceholderPage.jsx
+	modified:   frontend/src/modules/setup/SetupLandingPage.jsx
+	new file:   frontend/src/modules/setup/SetupSectionPlaceholderPage.jsx
+	modified:   frontend/src/modules/setup/SizesPage.jsx
+	modified:   frontend/src/modules/setup/setupNavConfig.js
+	modified:   frontend/src/pages/dashboard/DashboardHome.jsx
+	modified:   frontend/src/pages/dashboard/components/RecentSalesTable.jsx
+	modified:   frontend/src/pages/dashboard/components/SalesChart.jsx
+	modified:   frontend/src/routes/AppRoutes.jsx
+	modified:   frontend/src/services/normalization.js
+	modified:   frontend/src/theme.js
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	git_status.txt
+

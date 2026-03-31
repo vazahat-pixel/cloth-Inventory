@@ -14,39 +14,25 @@ import PublicRoute from './PublicRoute';
 import RoleProtectedRoute from './RoleProtectedRoute';
 import RoleRedirect from './RoleRedirect';
 
-// Loading Placeholder
-
-import PayrollSetupsPlaceholderPage from '../modules/payroll/PayrollSetupsPlaceholderPage';
-import ProductionPlaceholderPage from '../modules/production/ProductionPlaceholderPage';
-import PayrollEntryPlaceholderPage from '../modules/payroll/PayrollEntryPlaceholderPage';
-import PayrollReportsPlaceholderPage from '../modules/payroll/PayrollReportsPlaceholderPage';
-import ReportsQueriesPlaceholderPage from '../modules/reports/ReportsQueriesPlaceholderPage';
-import UtilitiesPlaceholderPage from '../modules/utilities/UtilitiesPlaceholderPage';
-import UserAccessPlaceholderPage from '../modules/userAccess/UserAccessPlaceholderPage';
-import PackingSlipPage from '../modules/orders/PackingSlipPage';
-import OrderProcessingPlaceholderPage from '../modules/orders/OrderProcessingPlaceholderPage';
-import DataImportPlaceholderPage from '../modules/data/DataImportPlaceholderPage';
-import PurchaseReturnPageStaff from '../modules/store/PurchaseReturnPage';
-import ProfilePage from '../modules/profile/ProfilePage';
-import NotFoundPage from '../pages/NotFoundPage';
-import SeasonsListPage from '../modules/masters/Seasons/ListPage';
-import SettingsLayout from '../modules/settings/SettingsLayout';
-import CompanyProfilePage from '../modules/settings/CompanyProfilePage';
-import UsersPage from '../modules/settings/UsersPage';
-import RolesPage from '../modules/settings/RolesPage';
-import NumberSeriesPage from '../modules/settings/NumberSeriesPage';
-import PreferencesPage from '../modules/settings/PreferencesPage';
-import PurchaseVoucherConfigPage from '../modules/settings/PurchaseVoucherConfigPage';
-import PrintTemplatesPage from '../modules/settings/PrintTemplatesPage';
-import AuditLogPage from '../modules/settings/AuditLogPage';
-import LogicERPManager from '../modules/erp/LogicERPManager';
-
 // --- Loading Placeholder ---
 const PageLoader = () => (
   <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
     <CircularProgress size={40} sx={{ color: '#10b981' }} />
   </Box>
 );
+
+// --- Modules (Lazy loaded by feature set to reduce network flood) ---
+const PayrollSetupsPlaceholderPage = lazy(() => import('../modules/payroll/PayrollSetupsPlaceholderPage'));
+const ProductionPlaceholderPage = lazy(() => import('../modules/production/ProductionPlaceholderPage'));
+const PayrollEntryPlaceholderPage = lazy(() => import('../modules/payroll/PayrollEntryPlaceholderPage'));
+const PayrollReportsPlaceholderPage = lazy(() => import('../modules/payroll/PayrollReportsPlaceholderPage'));
+const ReportsQueriesPlaceholderPage = lazy(() => import('../modules/reports/ReportsQueriesPlaceholderPage'));
+const UtilitiesPlaceholderPage = lazy(() => import('../modules/utilities/UtilitiesPlaceholderPage'));
+const UserAccessPlaceholderPage = lazy(() => import('../modules/userAccess/UserAccessPlaceholderPage'));
+const PackingSlipPage = lazy(() => import('../modules/orders/PackingSlipPage'));
+const OrderProcessingPlaceholderPage = lazy(() => import('../modules/orders/OrderProcessingPlaceholderPage'));
+const DataImportPlaceholderPage = lazy(() => import('../modules/data/DataImportPlaceholderPage'));
+const PurchaseReturnPageStaff = lazy(() => import('../modules/store/PurchaseReturnPage'));
 
 // --- Modules (Lazy loaded by feature set to reduce network flood) ---
 
