@@ -297,6 +297,30 @@ function AppRoutes() {
           <Route path="setup/accounts" element={<Navigate to="custom-fields" replace />} />
           <Route path="setup/accounts/custom-fields" element={<SetupCustomFieldsAccountsPage />} />
           <Route path="setup/accounts/country" element={<SetupCountryPage />} />
+          <Route path="setup/accounts/states" element={<SetupAccountsPlaceholderPage pageKey="states" />} />
+          <Route path="setup/accounts/city" element={<SetupAccountsPlaceholderPage pageKey="city" />} />
+          <Route path="setup/accounts/opening-trial" element={<SetupAccountsPlaceholderPage pageKey="opening-trial" />} />
+          <Route path="setup/accounts/predefined-narrations" element={<SetupAccountsPlaceholderPage pageKey="predefined-narrations" />} />
+          <Route path="setup/accounts/profit-centers" element={<SetupAccountsPlaceholderPage pageKey="profit-centers" />} />
+          <Route path="setup/accounts/cost-centers" element={<SetupAccountsPlaceholderPage pageKey="cost-centers" />} />
+          <Route path="setup/accounts/cost-center-groups" element={<SetupAccountsPlaceholderPage pageKey="cost-center-groups" />} />
+          <Route path="setup/accounts/allocate-cost-centers" element={<SetupAccountsPlaceholderPage pageKey="allocate-cost-centers" />} />
+          <Route path="setup/accounts/cost-element-budgets" element={<SetupAccountsPlaceholderPage pageKey="cost-element-budgets" />} />
+          <Route path="setup/accounts/transporters" element={<SetupAccountsPlaceholderPage pageKey="transporters" />} />
+          <Route path="setup/accounts/transport-destinations" element={<SetupAccountsPlaceholderPage pageKey="transport-destinations" />} />
+          <Route path="setup/accounts/tax-forms" element={<SetupAccountsPlaceholderPage pageKey="tax-forms" />} />
+          <Route path="setup/accounts/allocate-tax-forms" element={<SetupAccountsPlaceholderPage pageKey="allocate-tax-forms" />} />
+          <Route path="setup/accounts/tds-types" element={<SetupAccountsPlaceholderPage pageKey="tds-types" />} />
+          <Route path="setup/accounts/allocate-tds-types" element={<SetupAccountsPlaceholderPage pageKey="allocate-tds-types" />} />
+          <Route path="setup/accounts/fbt-types" element={<SetupAccountsPlaceholderPage pageKey="fbt-types" />} />
+          <Route path="setup/accounts/allocate-fbt-types" element={<SetupAccountsPlaceholderPage pageKey="allocate-fbt-types" />} />
+          <Route path="setup/accounts/customer-database" element={<SetupAccountsPlaceholderPage pageKey="customer-database" />} />
+          <Route path="setup/accounts/account-groups" element={<SetupAccountsPlaceholderPage pageKey="account-groups" />} />
+          <Route path="setup/accounts/balance-sheet-groups" element={<SetupAccountsPlaceholderPage pageKey="balance-sheet-groups" />} />
+          <Route path="setup/accounts/allocate-balance-sheet-groups" element={<SetupAccountsPlaceholderPage pageKey="allocate-balance-sheet-groups" />} />
+          <Route path="setup/accounts/branch-setup" element={<SetupAccountsPlaceholderPage pageKey="branch-setup" />} />
+          <Route path="setup/accounts/agents" element={<SetupAccountsPlaceholderPage pageKey="agents" />} />
+
           <Route path="setup/accounts/new-account" element={<AccountMasterPage />} />
           <Route path="setup/stores" element={<StoreMasterPage />} />
           <Route path="setup/groups" element={<GroupsPage />} />
@@ -324,6 +348,11 @@ function AppRoutes() {
           <Route path="gst/tax-groups" element={<TaxGroupPage />} />
           <Route path="gst/invoice-report" element={<InvoiceTaxReportPage />} />
           <Route path="gst/gstr-summary" element={<GSTRSummaryPage />} />
+          <Route path="setup/taxes" element={<Navigate to="/ho/gst/tax-rates" replace />} />
+          <Route path="setup/party-wise" element={<SetupGenericTablePage title="Party Wise Rules" description="Configure default parameters, price lists, and calculation rules for parties." />} />
+          <Route path="setup/other-account-details" element={<SetupGenericTablePage title="Other Account Details" description="Configure budgets, limits, and advanced account-level flags." />} />
+          <Route path="setup/configurations" element={<SetupGenericTablePage title="System Configurations" description="Refine system behaviors, voucher parameters, and POS rules." />} />
+
           <Route path="accounts" element={<Navigate to="a-c-vouchers" replace />} />
           <Route path="accounts/a-c-vouchers" element={<AccountsDashboard />} />
           <Route path="accounts/bank-payment" element={<BankPaymentPage />} />

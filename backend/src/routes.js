@@ -48,6 +48,8 @@ const registerRoutes = (app) => {
     app.use('/api/accounts', require('./modules/accounts/accounts.routes'));
     app.use('/api/vouchers', require('./modules/vouchers/voucher.routes'));
     app.use('/api/banks', require('./modules/banks/bank.routes'));
+    app.use('/api/brands', require('./modules/brands/brand.routes'));
+    app.use('/api/customers', require('./modules/customers/customer.routes'));
 };
 
 module.exports = registerRoutes;
