@@ -72,13 +72,6 @@ export const setupNavItems = [
     icon: AccountBalanceWalletOutlinedIcon,
   },
   {
-    label: 'Setup Items',
-    hint: 'Item masters workspace',
-    path: '/clothing-erp',
-    matchPaths: ['/clothing-erp'],
-    icon: Inventory2OutlinedIcon,
-  },
-  {
     label: 'Set Other Item Details',
     hint: 'Item groups',
     path: '/masters/item-groups',

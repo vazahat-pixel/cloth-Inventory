@@ -1,6 +1,6 @@
 import { Box, Card, CardContent, Typography } from '@mui/material';
 
-function SalesChart({ data }) {
+function SalesChart({ data, title = 'Sales Trend (Last 7 Days)' }) {
   const maxVal = Math.max(...data.map((d) => d.value), 1);
 
   return (
@@ -16,7 +16,7 @@ function SalesChart({ data }) {
     >
       <CardContent sx={{ p: 2.5 }}>
         <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary', mb: 2.5 }}>
-          Sales Trend (Last 7 Days)
+          {title}
         </Typography>
         <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, height: 140, px: 0.5 }}>
           {data.map((d, i) => {

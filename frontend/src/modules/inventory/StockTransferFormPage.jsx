@@ -28,6 +28,7 @@ import FilterBar from '../../components/erp/FilterBar';
 import FormSection from '../../components/erp/FormSection';
 import StatusBadge from '../../components/erp/StatusBadge';
 import SummaryCard from '../../components/erp/SummaryCard';
+import { buildSizeLabelLookup, resolveSizeLabel } from '../../common/sizeDisplay';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import { fetchStockOverview } from './inventorySlice';
 import { fetchMasters } from '../masters/mastersSlice';
@@ -65,6 +66,7 @@ function StockTransferFormPage({ mode = 'edit' }) {
   const isEditMode = Boolean(id);
 
   const backendStock = useSelector((state) => state.inventory.stock || []);
+  const sizes = useSelector((state) => state.masters.sizes || []);
   const warehouses = useSelector((state) => state.masters.warehouses || []);
   const stores = useSelector((state) => state.masters.stores || []);
 
@@ -78,7 +80,11 @@ function StockTransferFormPage({ mode = 'edit' }) {
     dispatch(fetchStockOverview());
     dispatch(fetchMasters('warehouses'));
     dispatch(fetchMasters('stores'));
+    dispatch(fetchMasters('sizes'));
   }, [dispatch]);
+
+  const sizeLabelLookup = useMemo(() => buildSizeLabelLookup(sizes), [sizes]);
+  const getSizeLabel = (value) => resolveSizeLabel(value, sizeLabelLookup);
 
   const existingTransfers = useMemo(
     () => loadModuleRecords(stockTransferStorageKey, fallbackStockTransfers).map((record) => normalizeStockTransfer(record)),
@@ -289,11 +295,31 @@ function StockTransferFormPage({ mode = 'edit' }) {
 
       {!isViewMode ? (
         <FilterBar sx={{ mt: 2, mb: 2 }}>
-          <TextField fullWidth size="small" select label="Item Search" value={linePicker} onChange={(event) => setLinePicker(event.target.value)}>
+          <TextField
+            fullWidth
+            size="small"
+            select
+            label="Item Search"
+            value={linePicker}
+            onChange={(event) => setLinePicker(event.target.value)}
+            SelectProps={{
+              renderValue: (selected) => {
+                if (!selected) {
+                  return 'Select item / size';
+                }
+
+                const matchedRow = availableRows.find((row) => `${row.itemCode}-${row.size}` === selected);
+
+                return matchedRow
+                  ? `${matchedRow.itemCode} | ${matchedRow.itemName} | ${getSizeLabel(matchedRow.size)} | Avl ${matchedRow.availableQty}`
+                  : selected;
+              },
+            }}
+          >
             <MenuItem value="">Select item / size</MenuItem>
             {availableRows.map((row) => (
               <MenuItem key={`${row.itemCode}-${row.size}`} value={`${row.itemCode}-${row.size}`}>
-                {`${row.itemCode} | ${row.itemName} | ${row.size} | Avl ${row.availableQty}`}
+                {`${row.itemCode} | ${row.itemName} | ${getSizeLabel(row.size)} | Avl ${row.availableQty}`}
               </MenuItem>
             ))}
           </TextField>
@@ -323,7 +349,7 @@ function StockTransferFormPage({ mode = 'edit' }) {
                 <TableRow key={line.id}>
                   <TableCell sx={{ fontWeight: 700 }}>{line.itemCode}</TableCell>
                   <TableCell>{line.itemName}</TableCell>
-                  <TableCell>{line.size}</TableCell>
+                  <TableCell>{getSizeLabel(line.size)}</TableCell>
                   <TableCell align="right">{line.availableQty}</TableCell>
                   <TableCell align="right">
                     {isViewMode ? (

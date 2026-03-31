@@ -13,6 +13,10 @@ import PublicRoute from './PublicRoute';
 import RoleProtectedRoute from './RoleProtectedRoute';
 import RoleRedirect from './RoleRedirect';
 import NotFoundPage from '../pages/NotFoundPage';
+import { setupTaxesNavItems } from '../modules/setup/setupTaxesNavConfig';
+import { partyWiseNavItems } from '../modules/setup/partyWiseNavConfig';
+import { otherAccountNavItems } from '../modules/setup/otherAccountNavConfig';
+import { configurationsNavItems } from '../modules/setup/configurationsNavConfig';
 
 // Loading Placeholder
 const PageLoader = () => (
@@ -76,6 +80,8 @@ const SalesReturnPage = lazy(() => import('../modules/sales/SalesReturnPage'));
 // Setup & GST
 const SetupLandingPage = lazy(() => import('../modules/setup/SetupLandingPage'));
 const SetupCustomFieldsAccountsPage = lazy(() => import('../modules/setup/SetupCustomFieldsAccountsPage'));
+const SetupAccountsPlaceholderPage = lazy(() => import('../modules/setup/SetupAccountsPlaceholderPage'));
+const SetupSectionPlaceholderPage = lazy(() => import('../modules/setup/SetupSectionPlaceholderPage'));
 const SetupCountryPage = lazy(() => import('../modules/setup/SetupCountryPage'));
 const AccountMasterPage = lazy(() => import('../modules/setup/AccountMasterPage'));
 const StoreMasterPage = lazy(() => import('../modules/setup/StoreMasterPage'));
@@ -211,9 +217,32 @@ function AppRoutes() {
             <Route path="gst/gstr-summary" element={<GSTRSummaryPage />} />
 
             <Route path="setup" element={<SetupLandingPage />} />
+            <Route path="setup/accounts" element={<Navigate to="/ho/setup/accounts/new-account" replace />} />
+            <Route path="setup/taxes" element={<Navigate to={`/ho${setupTaxesNavItems[0].path}`} replace />} />
+            <Route path="setup/party-wise" element={<Navigate to={`/ho${partyWiseNavItems[0].path}`} replace />} />
+            <Route path="setup/other-account-details" element={<Navigate to={`/ho${otherAccountNavItems[0].path}`} replace />} />
+            <Route path="setup/configurations" element={<Navigate to={`/ho${configurationsNavItems[0].path}`} replace />} />
+            <Route path="setup/taxes/gst/tax-rates" element={<Navigate to={`/ho${setupTaxesNavItems[0].path}`} replace />} />
             <Route path="setup/accounts/custom-fields" element={<SetupCustomFieldsAccountsPage />} />
             <Route path="setup/accounts/country" element={<SetupCountryPage />} />
             <Route path="setup/accounts/new-account" element={<AccountMasterPage />} />
+            <Route path="setup/accounts/*" element={<SetupAccountsPlaceholderPage />} />
+            <Route
+              path="setup/taxes/*"
+              element={<SetupSectionPlaceholderPage sectionTitle="Setup Taxes" navItems={setupTaxesNavItems} />}
+            />
+            <Route
+              path="setup/party-wise/*"
+              element={<SetupSectionPlaceholderPage sectionTitle="Party Wise Settings" navItems={partyWiseNavItems} />}
+            />
+            <Route
+              path="setup/other-account-details/*"
+              element={<SetupSectionPlaceholderPage sectionTitle="Other Account Details" navItems={otherAccountNavItems} />}
+            />
+            <Route
+              path="setup/configurations/*"
+              element={<SetupSectionPlaceholderPage sectionTitle="Configurations" navItems={configurationsNavItems} />}
+            />
             <Route path="setup/stores" element={<StoreMasterPage />} />
             <Route path="setup/groups" element={<GroupsPage />} />
             <Route path="setup/hsn-codes" element={<HSNCodePage />} />

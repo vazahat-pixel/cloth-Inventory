@@ -125,6 +125,19 @@ const theme = createTheme({
         size: 'small',
       },
     },
+    MuiSelect: {
+      styleOverrides: {
+        select: {
+          display: 'block',
+          whiteSpace: 'normal',
+          overflow: 'visible',
+          textOverflow: 'clip',
+          overflowWrap: 'anywhere',
+          lineHeight: 1.35,
+          minHeight: '1.35em',
+        },
+      },
+    },
     MuiCard: {
       styleOverrides: {
         root: {

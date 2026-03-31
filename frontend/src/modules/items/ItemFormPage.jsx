@@ -27,6 +27,7 @@ import { useAppNavigate } from '../../hooks/useAppNavigate';
 import PageHeader from '../../components/erp/PageHeader';
 import FormSection from '../../components/erp/FormSection';
 import VariantTable from './VariantTable';
+import { buildSizeLabelLookup, resolveSizeLabel } from '../../common/sizeDisplay';
 import { addItem, updateItem } from './itemsSlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchGstSlabs } from '../gst/gstSlice';
@@ -235,6 +236,71 @@ function ItemFormPage({ mode = 'edit' }) {
   const categoryOptions = itemGroups.filter(g => g.parentId === watch('sectionId'));
   const subCategoryOptions = itemGroups.filter(g => g.parentId === watch('categoryId'));
   const styleOptions = itemGroups.filter(g => g.parentId === watch('subCategoryId'));
+  const sizeLabelLookup = useMemo(() => buildSizeLabelLookup(sizes), [sizes]);
+  const variantSizeOptions = useMemo(
+    () =>
+      sizes
+        .map((size) => {
+          const value = size.sizeCode || size.name || size.sizeLabel || '';
+          return {
+            value,
+            label: resolveSizeLabel(size.sizeLabel || size.name || value, sizeLabelLookup) || value,
+          };
+        })
+        .filter((option) => option.value),
+    [sizeLabelLookup, sizes],
+  );
+
+  const resolveSelectLabel = (options, value, placeholder, labelGetter) => {
+    if (!value) return placeholder;
+    const matchedOption = options.find((option) => String(option.id || option._id) === String(value));
+    return matchedOption ? labelGetter(matchedOption) : placeholder;
+  };
+
+  const renderSelectValue = (options, placeholder, labelGetter) => (selected) => (
+    <Box
+      component="span"
+      sx={{
+        display: 'block',
+        color: selected ? '#0f172a' : '#94a3b8',
+        whiteSpace: 'normal',
+        overflowWrap: 'anywhere',
+        lineHeight: 1.35,
+      }}
+    >
+      {resolveSelectLabel(options, selected, placeholder, labelGetter)}
+    </Box>
+  );
+
+  const responsiveSelectFieldSx = {
+    '& .MuiOutlinedInput-root': {
+      alignItems: 'flex-start',
+      minHeight: 64,
+    },
+    '& .MuiSelect-select': {
+      display: 'block',
+      whiteSpace: 'normal',
+      overflow: 'visible',
+      textOverflow: 'clip',
+      overflowWrap: 'anywhere',
+      lineHeight: 1.35,
+      paddingTop: '18px',
+      paddingBottom: '12px',
+      minHeight: '1.35em !important',
+    },
+  };
+
+  const renderHierarchyValue = (options, placeholder) =>
+    renderSelectValue(options, placeholder, (option) => option.groupName || option.name || placeholder);
+
+  const renderMappedSelectValue = (options, placeholder, labelGetter) =>
+    renderSelectValue(options, placeholder, (option) => labelGetter(option) || placeholder);
+
+  const uomOptions = [
+    { id: 'PCS', label: 'PCS' },
+    { id: 'SET', label: 'SET' },
+    { id: 'METER', label: 'METER' },
+  ];
 
   if (isEditMode && !existingItem) {
     return (
@@ -289,61 +355,172 @@ function ItemFormPage({ mode = 'edit' }) {
                   <Grid item xs={12} md={3}>
                     <TextField fullWidth size="small" label="Color / Shade" {...register('shadeColor')} disabled={isViewMode} />
                   </Grid>
-                  <Grid item xs={12} md={3}>
-                    <TextField fullWidth size="small" select label="HSN Code *" {...register('hsnCodeId', { required: 'HSN Code is required.' })} error={Boolean(errors.hsnCodeId)} helperText={errors.hsnCodeId?.message} disabled={isViewMode}>
+                </Grid>
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    gap: 2,
+                  }}
+                >
+                    <TextField
+                      fullWidth
+                      size="small"
+                      select
+                      label="HSN Code *"
+                      {...register('hsnCodeId', { required: 'HSN Code is required.' })}
+                      error={Boolean(errors.hsnCodeId)}
+                      helperText={errors.hsnCodeId?.message}
+                      disabled={isViewMode}
+                      InputLabelProps={{ shrink: true }}
+                      SelectProps={{
+                        displayEmpty: true,
+                        renderValue: renderMappedSelectValue(
+                          hsnCodes,
+                          'Select HSN',
+                          (hsn) => `${hsn.hsnCode || hsn.code} - ${hsn.gstRate || hsn.gstPercent}%`,
+                        ),
+                      }}
+                      sx={responsiveSelectFieldSx}
+                    >
                       <MenuItem value="">Select HSN</MenuItem>
                       {hsnCodes.map((hsn) => <MenuItem key={hsn.id || hsn._id} value={hsn.id || hsn._id}>{hsn.hsnCode || hsn.code} - {hsn.gstRate || hsn.gstPercent}%</MenuItem>)}
                     </TextField>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <TextField fullWidth size="small" select label="Brand" {...register('brand')} disabled={isViewMode}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      select
+                      label="Brand"
+                      {...register('brand')}
+                      disabled={isViewMode}
+                      InputLabelProps={{ shrink: true }}
+                      SelectProps={{
+                        displayEmpty: true,
+                        renderValue: renderMappedSelectValue(brands, 'Select Brand', (brand) => brand.brandName || brand.name),
+                      }}
+                      sx={responsiveSelectFieldSx}
+                    >
                       <MenuItem value="">Select Brand</MenuItem>
                       {brands.map((brand) => <MenuItem key={brand.id || brand._id} value={brand.id || brand._id}>{brand.brandName || brand.name}</MenuItem>)}
                     </TextField>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <TextField fullWidth size="small" select label="Season" {...register('season')} disabled={isViewMode}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      select
+                      label="Season"
+                      {...register('season')}
+                      disabled={isViewMode}
+                      InputLabelProps={{ shrink: true }}
+                      SelectProps={{
+                        displayEmpty: true,
+                        renderValue: renderMappedSelectValue(seasons, 'Select Season', (season) => season.seasonName || season.name),
+                      }}
+                      sx={responsiveSelectFieldSx}
+                    >
                       <MenuItem value="">Select Season</MenuItem>
                       {seasons.map((s) => <MenuItem key={s.id || s._id} value={s.id || s._id}>{s.seasonName || s.name}</MenuItem>)}
                     </TextField>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <TextField fullWidth size="small" select label="UOM" {...register('uom')} disabled={isViewMode}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      select
+                      label="UOM"
+                      {...register('uom')}
+                      disabled={isViewMode}
+                      InputLabelProps={{ shrink: true }}
+                      SelectProps={{
+                        displayEmpty: true,
+                        renderValue: renderMappedSelectValue(uomOptions, 'Select UOM', (option) => option.label),
+                      }}
+                      sx={responsiveSelectFieldSx}
+                    >
                       <MenuItem value="PCS">PCS</MenuItem>
                       <MenuItem value="SET">SET</MenuItem>
                       <MenuItem value="METER">METER</MenuItem>
                     </TextField>
-                  </Grid>
-                </Grid>
+                </Box>
               </FormSection>
 
               <FormSection title="Category Hierarchy" subtitle="Classification tree for the item.">
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={3}>
-                    <TextField fullWidth size="small" select label="Section / Gender *" {...register('sectionId', { required: 'Section is required.' })} error={Boolean(errors.sectionId)} disabled={isViewMode}>
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    gap: 2,
+                    alignItems: 'start',
+                  }}
+                >
+                  <TextField
+                    fullWidth
+                    size="small"
+                    select
+                    label="Section / Gender *"
+                    {...register('sectionId', { required: 'Section is required.' })}
+                    error={Boolean(errors.sectionId)}
+                    disabled={isViewMode}
+                    InputLabelProps={{ shrink: true }}
+                    SelectProps={{
+                      displayEmpty: true,
+                      renderValue: renderHierarchyValue(sections, 'Select Section / Gender'),
+                    }}
+                    sx={responsiveSelectFieldSx}
+                  >
                       <MenuItem value="">Select Section</MenuItem>
                       {sections.map(g => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}
-                    </TextField>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <TextField fullWidth size="small" select label="Category *" {...register('categoryId', { required: 'Category is required.' })} error={Boolean(errors.categoryId)} disabled={isViewMode}>
+                  </TextField>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    select
+                    label="Category *"
+                    {...register('categoryId', { required: 'Category is required.' })}
+                    error={Boolean(errors.categoryId)}
+                    disabled={isViewMode}
+                    InputLabelProps={{ shrink: true }}
+                    SelectProps={{
+                      displayEmpty: true,
+                      renderValue: renderHierarchyValue(categoryOptions, 'Select Category'),
+                    }}
+                    sx={responsiveSelectFieldSx}
+                  >
                       <MenuItem value="">Select Category</MenuItem>
                       {categoryOptions.map(g => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}
-                    </TextField>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <TextField fullWidth size="small" select label="Sub Group" {...register('subCategoryId')} disabled={isViewMode}>
+                  </TextField>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    select
+                    label="Sub Group"
+                    {...register('subCategoryId')}
+                    disabled={isViewMode}
+                    InputLabelProps={{ shrink: true }}
+                    SelectProps={{
+                      displayEmpty: true,
+                      renderValue: renderHierarchyValue(subCategoryOptions, 'Select Sub Group'),
+                    }}
+                    sx={responsiveSelectFieldSx}
+                  >
                       <MenuItem value="">Select Sub Group</MenuItem>
                       {subCategoryOptions.map(g => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}
-                    </TextField>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <TextField fullWidth size="small" select label="Style / Type" {...register('subSubCategoryId')} disabled={isViewMode}>
+                  </TextField>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    select
+                    label="Style / Type"
+                    {...register('subSubCategoryId')}
+                    disabled={isViewMode}
+                    InputLabelProps={{ shrink: true }}
+                    SelectProps={{
+                      displayEmpty: true,
+                      renderValue: renderHierarchyValue(styleOptions, 'Select Style / Type'),
+                    }}
+                    sx={responsiveSelectFieldSx}
+                  >
                       <MenuItem value="">Select Style</MenuItem>
                       {styleOptions.map(g => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}
-                    </TextField>
-                  </Grid>
-                </Grid>
+                  </TextField>
+                </Box>
               </FormSection>
 
               <FormSection title="Descriptors" subtitle="Garment specific attributes for better search.">
@@ -368,7 +545,7 @@ function ItemFormPage({ mode = 'edit' }) {
               onChange={setVariants} 
               styleCode={styleCode || 'ITEM'} 
               readOnly={isViewMode} 
-              sizeOptions={sizes.map(s => s.sizeCode || s.name)} 
+              sizeOptions={variantSizeOptions} 
             />
           </Box>
 
@@ -405,9 +582,22 @@ function ItemFormPage({ mode = 'edit' }) {
           {/* Inventory Tab */}
           <Box sx={{ display: activeTab === 'inventory' ? 'block' : 'none' }}>
             <FormSection title="Inventory Defaults" subtitle="Operational settings for warehouses.">
-              <Grid container spacing={2}>
-                <Grid item xs={12} md={4}>
-                  <TextField fullWidth size="small" select label="Default Warehouse" {...register('defaultWarehouse')} disabled={isViewMode}>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={4}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    select
+                    label="Default Warehouse"
+                    {...register('defaultWarehouse')}
+                    disabled={isViewMode}
+                    InputLabelProps={{ shrink: true }}
+                    SelectProps={{
+                      displayEmpty: true,
+                      renderValue: renderMappedSelectValue(warehouses, 'Select Warehouse', (warehouse) => warehouse.warehouseName || warehouse.name),
+                    }}
+                    sx={responsiveSelectFieldSx}
+                  >
                     <MenuItem value="">Select Warehouse</MenuItem>
                     {warehouses.map((w) => <MenuItem key={w.id || w._id} value={w.id || w._id}>{w.warehouseName || w.name}</MenuItem>)}
                   </TextField>

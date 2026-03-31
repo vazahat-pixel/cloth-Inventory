@@ -12,7 +12,18 @@ function FilterBar({ children, sx = {} }) {
         ...sx,
       }}
     >
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+      <Stack
+        direction={{ xs: 'column', md: 'row' }}
+        spacing={1.5}
+        useFlexGap
+        sx={{
+          alignItems: { xs: 'stretch', md: 'flex-start' },
+          flexWrap: { md: 'wrap' },
+          '& > *': {
+            flexShrink: 0,
+          },
+        }}
+      >
         {children}
       </Stack>
     </Paper>
@@ -20,4 +31,3 @@ function FilterBar({ children, sx = {} }) {
 }
 
 export default FilterBar;
-
