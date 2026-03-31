@@ -251,13 +251,13 @@ function StockTransferFormPage({ mode = 'edit' }) {
 
       <FormSection title="Header" subtitle="Transfer date, origin, destination, notes, dispatch, and transfer type.">
         <Grid container spacing={2}>
-          <Grid item xs={12} md={3}>
+          <Grid size={{ xs: 12, md: 3 }}>
             <TextField fullWidth size="small" label="Transfer Number" value={formValues.transferNumber} disabled />
           </Grid>
-          <Grid item xs={12} md={3}>
+          <Grid size={{ xs: 12, md: 3 }}>
             <TextField fullWidth size="small" type="date" label="Transfer Date" value={formValues.transferDate} onChange={(event) => setFormValues((previous) => ({ ...previous, transferDate: event.target.value }))} InputLabelProps={{ shrink: true }} disabled={isViewMode} />
           </Grid>
-          <Grid item xs={12} md={3}>
+          <Grid size={{ xs: 12, md: 3 }}>
             <TextField fullWidth size="small" select label="From Location" value={formValues.fromLocation} onChange={(event) => setFormValues((previous) => ({ ...previous, fromLocation: event.target.value }))} disabled={isViewMode}>
               <MenuItem value="">Select Source</MenuItem>
               {locationOptions.map((location) => (
@@ -267,7 +267,7 @@ function StockTransferFormPage({ mode = 'edit' }) {
               ))}
             </TextField>
           </Grid>
-          <Grid item xs={12} md={3}>
+          <Grid size={{ xs: 12, md: 3 }}>
             <TextField fullWidth size="small" select label="To Location" value={formValues.toLocation} onChange={(event) => setFormValues((previous) => ({ ...previous, toLocation: event.target.value }))} disabled={isViewMode}>
               <MenuItem value="">Select Destination</MenuItem>
               {locationOptions.map((location) => (
@@ -277,17 +277,17 @@ function StockTransferFormPage({ mode = 'edit' }) {
               ))}
             </TextField>
           </Grid>
-          <Grid item xs={12} md={4}>
+          <Grid size={{ xs: 12, md: 4 }}>
             <TextField fullWidth size="small" label="Vehicle / Dispatch Details" value={formValues.vehicleDetails} onChange={(event) => setFormValues((previous) => ({ ...previous, vehicleDetails: event.target.value }))} disabled={isViewMode} />
           </Grid>
-          <Grid item xs={12} md={4}>
+          <Grid size={{ xs: 12, md: 4 }}>
             <TextField fullWidth size="small" select label="Transfer Type" value={formValues.transferType} onChange={(event) => setFormValues((previous) => ({ ...previous, transferType: event.target.value }))} disabled={isViewMode}>
               <MenuItem value="HO_TO_STORE">HO to Store</MenuItem>
               <MenuItem value="WAREHOUSE_TO_STORE">Warehouse to Store</MenuItem>
               <MenuItem value="INTER_STORE">Inter Store</MenuItem>
             </TextField>
           </Grid>
-          <Grid item xs={12} md={4}>
+          <Grid size={{ xs: 12, md: 4 }}>
             <TextField fullWidth size="small" label="Notes" value={formValues.notes} onChange={(event) => setFormValues((previous) => ({ ...previous, notes: event.target.value }))} disabled={isViewMode} />
           </Grid>
         </Grid>

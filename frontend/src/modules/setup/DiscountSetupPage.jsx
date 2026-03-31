@@ -13,7 +13,7 @@ const DiscountSetupPage = () => {
             <Typography variant="h4" sx={{ fontWeight: 700, mb: 4 }}>Discount Setup & Pricing</Typography>
 
             <Grid container spacing={4}>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                     <Card sx={{ borderRadius: '16px', border: '1px solid #e2e8f0', cursor: 'pointer', transition: 'all 0.2s', '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 12px 24px rgba(0,0,0,0.05)' } }} onClick={() => navigate('/ho/pricing/schemes')}>
                         <CardContent sx={{ p: 4, display: 'flex', alignItems: 'center' }}>
                             <Box sx={{ p: 2, bgcolor: 'primary.light', borderRadius: '12px', mr: 3 }}>
@@ -30,7 +30,7 @@ const DiscountSetupPage = () => {
                     </Card>
                 </Grid>
 
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                     <Card sx={{ borderRadius: '16px', border: '1px solid #e2e8f0', cursor: 'pointer', transition: 'all 0.2s', '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 12px 24px rgba(0,0,0,0.05)' } }} onClick={() => navigate('/ho/pricing/coupons')}>
                         <CardContent sx={{ p: 4, display: 'flex', alignItems: 'center' }}>
                             <Box sx={{ p: 2, bgcolor: 'secondary.light', borderRadius: '12px', mr: 3 }}>
@@ -47,7 +47,7 @@ const DiscountSetupPage = () => {
                     </Card>
                 </Grid>
 
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                     <Card sx={{ borderRadius: '16px', border: '1px solid #e2e8f0', cursor: 'pointer', transition: 'all 0.2s', '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 12px 24px rgba(0,0,0,0.05)' } }} onClick={() => navigate('/ho/pricing/price-lists')}>
                         <CardContent sx={{ p: 4, display: 'flex', alignItems: 'center' }}>
                             <Box sx={{ p: 2, bgcolor: 'success.light', borderRadius: '12px', mr: 3 }}>

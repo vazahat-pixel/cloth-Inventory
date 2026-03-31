@@ -259,7 +259,7 @@ function SizesPage() {
         <DialogTitle>{formValues.id ? 'Edit Size' : 'Add Size'}</DialogTitle>
         <DialogContent dividers>
           <Grid container spacing={2}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 size="small"
@@ -271,7 +271,7 @@ function SizesPage() {
                 helperText={formErrors.sizeCode || ' '}
               />
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 size="small"
@@ -283,7 +283,7 @@ function SizesPage() {
                 helperText={formErrors.sizeLabel || ' '}
               />
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 size="small"
@@ -293,7 +293,7 @@ function SizesPage() {
                 onChange={(event) => setFormValues((previous) => ({ ...previous, group: event.target.value }))}
               />
             </Grid>
-            <Grid item xs={12} md={3}>
+            <Grid size={{ xs: 12, md: 3 }}>
               <TextField
                 fullWidth
                 size="small"
@@ -305,7 +305,7 @@ function SizesPage() {
                 helperText={formErrors.sequence || ' '}
               />
             </Grid>
-            <Grid item xs={12} md={3}>
+            <Grid size={{ xs: 12, md: 3 }}>
               <TextField
                 fullWidth
                 size="small"

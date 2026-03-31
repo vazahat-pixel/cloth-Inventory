@@ -110,7 +110,7 @@ const ValidationDashboard = () => {
 
       {/* Logic Checks Grid */}
       <Grid container spacing={3}>
-        <Grid item xs={12} md={5}>
+        <Grid size={{ xs: 12, md: 5 }}>
            <Paper sx={{ p: 4, borderRadius: 4, border: '1px solid #e2e8f0', bgcolor: '#f8fafc' }}>
               <Typography variant="h6" sx={{ fontWeight: 800, mb: 3 }}>Integrated Business Rules</Typography>
               <List sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -139,7 +139,7 @@ const ValidationDashboard = () => {
            </Paper>
         </Grid>
 
-        <Grid item xs={12} md={7}>
+        <Grid size={{ xs: 12, md: 7 }}>
            <Paper sx={{ p: 4, borderRadius: 4, border: '1px solid #e2e8f0' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, justifyContent: 'space-between' }}>
                 <Typography variant="h6" sx={{ fontWeight: 800 }}>Audit Findings</Typography>

@@ -113,7 +113,7 @@ const StockInPage = ({
             </Typography>
 
             <Grid container spacing={3}>
-                <Grid item xs={12} md={4}>
+                <Grid size={{ xs: 12, md: 4 }}>
                     <Card>
                         <CardContent>
                             <Stack spacing={2}>
@@ -163,7 +163,7 @@ const StockInPage = ({
                     </Card>
                 </Grid>
 
-                <Grid item xs={12} md={8}>
+                <Grid size={{ xs: 12, md: 8 }}>
                     {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
                     {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 

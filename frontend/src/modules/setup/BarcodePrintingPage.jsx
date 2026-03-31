@@ -190,7 +190,7 @@ function BarcodePrintingPage() {
         <Box sx={{ p: 4 }}>
           {activeTab === 0 ? (
             <Grid container spacing={4}>
-              <Grid item xs={12} md={5}>
+              <Grid size={{ xs: 12, md: 5 }}>
                 <Stack spacing={3}>
                   <Autocomplete
                     options={products}
@@ -202,7 +202,7 @@ function BarcodePrintingPage() {
                   <Button variant="contained" disabled={!selectedProduct} onClick={handlePrint} startIcon={<PrintIcon />}>Print Label</Button>
                 </Stack>
               </Grid>
-              <Grid item xs={12} md={5}>
+              <Grid size={{ xs: 12, md: 5 }}>
                  {selectedProduct && (
                    <Card variant="outlined">
                      <CardContent sx={{ textAlign: 'center' }}>

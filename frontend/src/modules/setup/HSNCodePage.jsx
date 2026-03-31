@@ -295,7 +295,7 @@ function HSNCodePage() {
         <DialogTitle>{formValues.id ? 'Edit HSN Code' : 'Add HSN Code'}</DialogTitle>
         <DialogContent dividers>
           <Grid container spacing={2}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 size="small"
@@ -306,7 +306,7 @@ function HSNCodePage() {
                 helperText={formErrors.hsnCode || ' '}
               />
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 size="small"
@@ -318,7 +318,7 @@ function HSNCodePage() {
                 helperText={formErrors.gstRate || ' '}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 size="small"
@@ -331,7 +331,7 @@ function HSNCodePage() {
                 helperText={formErrors.description || ' '}
               />
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 size="small"
