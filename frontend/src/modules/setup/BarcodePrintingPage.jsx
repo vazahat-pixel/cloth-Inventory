@@ -13,10 +13,20 @@ import {
   Stack,
   TextField,
   Typography,
+  Tabs,
+  Tab,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
 } from '@mui/material';
 import {
   PrintOutlined as PrintIcon,
   QrCodeScannerOutlined as ScannerIcon,
+  FileUploadOutlined as UploadIcon,
+  DescriptionOutlined as ExcelIcon,
 } from '@mui/icons-material';
 import JsBarcode from 'jsbarcode';
 import api from '../../services/api';
@@ -39,8 +49,8 @@ function generateBarcodeDataUrl(text) {
   const canvas = document.createElement('canvas');
   JsBarcode(canvas, text, {
     format: 'CODE128',
-    width: 2,
-    height: 50,
+    width: 1.5,
+    height: 40,
     displayValue: false,
     margin: 0,
   });
@@ -48,11 +58,14 @@ function generateBarcodeDataUrl(text) {
 }
 
 function BarcodePrintingPage() {
+  const [activeTab, setActiveTab] = useState(0);
   const [products, setProducts] = useState(fallbackProducts);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [importing, setImporting] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [importResults, setImportResults] = useState([]);
 
   const [type, setType] = useState('REGULAR');
   const [design, setDesign] = useState('');
@@ -101,118 +114,94 @@ function BarcodePrintingPage() {
     [barcodeValue],
   );
 
-  const handlePrint = () => {
-    if (!selectedProduct || !barcodeValue) {
-      return;
+  const handleExcelUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    setImportResults([]);
+    
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await api.post('/barcodes/import-excel', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setImportResults(res.data?.data?.labels || []);
+    } catch (error) {
+      alert('Import failed: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setImporting(false);
     }
+  };
+
+  const printBatch = (labels) => {
+    if (!labels || !labels.length) return;
 
     const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      return;
-    }
+    if (!printWindow) return;
 
-    const labelHtml = `
+    const labelsHtml = labels.map(label => `
       <div class="tag" style="
         width: 2.25in;
         background: #fff;
         border: 1px solid #000;
-        padding: 8px 10px;
+        padding: 5px 8px;
         page-break-inside: avoid;
         font-family: 'Inter', Arial, sans-serif;
-        margin-bottom: 15px;
+        margin-bottom: 2mm;
         text-transform: uppercase;
+        box-sizing: border-box;
       ">
-        <!-- BARCODE -->
-        <div style="text-align: center; margin-bottom: 12px;">
-          <img src="${barcodeImgData}" style="width: 100%; max-height: 45px; display: block; margin: 0 auto;" />
-          <div style="font-weight: 700; font-size: 8.5pt; letter-spacing: 1px; margin-top: 2px;">${barcodeValue}</div>
+        <div style="text-align: center; margin-bottom: 5px;">
+          <img src="${generateBarcodeDataUrl(label.barcode)}" style="width: 100%; max-height: 40px; display: block; margin: 0 auto;" />
+          <div style="font-weight: 700; font-size: 8pt; letter-spacing: 1px;">${label.barcode}</div>
         </div>
 
-        <!-- FIELDS -->
-        <div style="font-size: 8.5pt; line-height: 1.5; margin-bottom: 1px; clear: both;">
-          <span style="font-weight: 700; min-width: 65px; display: inline-block;">ARTICLE :</span>
-          <span>${selectedProduct.sku}</span>
-        </div>
-        <div style="font-size: 8.5pt; line-height: 1.5; margin-bottom: 1px; clear: both;">
-          <span style="font-weight: 700; min-width: 65px; display: inline-block;">GROUP :</span>
-          <span>${selectedProduct.category || 'CLOTHING'}</span>
-          <span style="float: right; font-size: 7pt; font-weight: 400; margin-top: 1px;">0015</span>
-        </div>
-        <div style="font-size: 8.5pt; line-height: 1.5; margin-bottom: 1px; clear: both;">
-          <span style="font-weight: 700; min-width: 65px; display: inline-block;">TYPE :</span>
-          <span>${type}</span>
-        </div>
-        <div style="font-size: 8.5pt; line-height: 1.5; margin-bottom: 1px; clear: both;">
-          <span style="font-weight: 700; min-width: 65px; display: inline-block;">DESIGN :</span>
-          <span>${design}</span>
-        </div>
-
-        <div style="font-size: 8.5pt; line-height: 1.5; margin-top: 3px; clear: both;">
-          <span style="font-weight: 700; min-width: 65px; display: inline-block;">SIZE :</span>
-          <span style="font-weight: 800; font-size: 10pt;">${selectedProduct.size || '--'}</span>
-        </div>
-        <div style="font-size: 8.5pt; line-height: 1.5; margin-bottom: 1px; clear: both;">
-          <span style="font-weight: 700; min-width: 65px; display: inline-block;">QTY: 1N</span>
-          <span>${qtyInfo}</span>
-        </div>
-        <div style="font-size: 8.5pt; line-height: 1.5; margin-bottom: 8px; clear: both;">
-          <span style="font-weight: 700; min-width: 65px; display: inline-block;">COLOUR :</span>
-          <span>${selectedProduct.color || 'NAVY'}</span>
-        </div>
-
-        <!-- MRP -->
-        <div style="text-align: center; margin: 10px 0;">
-          <div style="display: flex; justify-content: center; align-items: baseline;">
-            <span style="font-size: 10pt; font-weight: 700; margin-right: 5px;">MRP :</span>
-            <span style="font-size: 16pt; font-weight: 800;">${selectedProduct.salePrice}</span>
+        <div style="font-size: 8pt; line-height: 1.3;">
+          <div><span style="font-weight: 700; display: inline-block; width: 60px;">ARTICLE :</span> ${label.article}</div>
+          <div><span style="font-weight: 700; display: inline-block; width: 60px;">DESIGN :</span> ${label.design || ''}</div>
+          <div><span style="font-weight: 700; display: inline-block; width: 60px;">SIZE :</span> <span style="font-weight: 800; font-size: 9pt;">${label.size}</span></div>
+          <div><span style="font-weight: 700; display: inline-block; width: 60px;">COLOUR :</span> ${label.color}</div>
+          
+          <div style="text-align: center; margin: 5px 0;">
+             <span style="font-weight: 700;">MRP : </span>
+             <span style="font-weight: 800; font-size: 14pt;">${label.mrp}</span>
+             <div style="font-size: 6pt;">(INCL. OF ALL TAXES)</div>
           </div>
-          <div style="font-size: 7pt; color: #444; margin-top: -2px;">(INCL. OF ALL TAXES)</div>
-        </div>
 
-        <!-- FOOTER -->
-        <div style="border-top: 1px solid #eee; padding-top: 6px; font-size: 7pt; line-height: 1.3; color: #333; margin-top: 5px;">
-          <div style="font-weight: 800; font-size: 7.5pt; margin-bottom: 2px;">MFG:</div>
-          <div style="font-weight: 800; color: #000;">MFG. & MARKETED BY</div>
-          <div style="font-weight: 800; color: #000; font-size: 7.5pt;">REBEL MASS EXPORT PVT. LTD</div>
-          <div>${mfgLine1 !== 'Rebel Mass Export Pvt. Ltd' ? mfgLine1 : 'Plot No 418, Sector-53, Phase 3'}</div>
-          <div>${mfgLine2 !== 'Plot No 418, Sector-53, Phase 3' ? mfgLine2 : 'Kundli, Sonipat (Haryana)'}</div>
-          <div style="margin-top: 2px;">CUSTOMER CARE: +91 XXXXXXXXXX</div>
-          <div>EMAIL: ${email}</div>
+          <div style="border-top: 1px solid #eee; font-size: 6.5pt; color: #444; padding-top: 3px;">
+            <div style="font-weight: 800;">MFG. & MARKETED BY</div>
+            <div style="font-weight: 800;">REBEL MASS EXPORT PVT. LTD</div>
+            <div>${mfgLine1 || 'Plot No 418, Sector-53, Phase 3'}</div>
+            <div>${mfgLine2 || 'Kundli, Sonipat (Haryana)'}</div>
+          </div>
         </div>
-
-        <div style="height: 4px; background: #eee; margin: 8px -10px -8px; border-top: 1px solid #ddd;"></div>
       </div>
-    `;
+    `).join('');
 
     printWindow.document.write(`
       <html>
         <head>
-          <title>Barcode Labels</title>
-          <link rel="preconnect" href="https://fonts.googleapis.com" />
-          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&display=swap" rel="stylesheet" />
+          <title>Bulk Barcode Print</title>
           <style>
-            @media print {
-              body { margin: 0; padding: 0; }
-              @page { margin: 0; }
-            }
-            body {
-              display: flex;
-              flex-wrap: wrap;
+            @page { margin: 0; }
+            body { 
+              margin: 0; 
+              display: flex; 
+              flex-wrap: wrap; 
               justify-content: center;
-              padding: 20px;
+              padding: 10px;
               background: #fdfdfd;
-              -webkit-print-color-adjust: exact;
             }
           </style>
         </head>
         <body>
-          ${Array.from({ length: Number(quantity || 1) }).map(() => labelHtml).join('')}
+          ${labelsHtml}
           <script>
             window.onload = () => {
-              setTimeout(() => {
-                window.print();
-                window.close();
-              }, 500);
+              setTimeout(() => { window.print(); window.close(); }, 500);
             };
           </script>
         </body>
@@ -221,179 +210,174 @@ function BarcodePrintingPage() {
     printWindow.document.close();
   };
 
+  const handlePrint = () => {
+    if (!selectedProduct) return;
+    const labels = Array.from({ length: quantity }).map(() => ({
+      barcode: barcodeValue,
+      article: selectedProduct.sku,
+      size: selectedProduct.size,
+      color: selectedProduct.color,
+      mrp: selectedProduct.salePrice,
+      design: design || selectedProduct.name
+    }));
+    printBatch(labels);
+  };
+
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" sx={{ fontWeight: 700, mb: 4 }}>
-        Barcode Label Printing
+    <Box sx={{ p: 4, bgcolor: '#f8fafc', minHeight: '100vh' }}>
+      <Typography variant="h4" sx={{ fontWeight: 800, color: '#1e293b', mb: 1 }}>
+        Barcode Printing System
+      </Typography>
+      <Typography variant="body1" sx={{ color: '#64748b', mb: 4 }}>
+        HO Labelling Center: Individual generation or high-volume Excel automation.
       </Typography>
 
-      {loadError ? (
-        <Alert severity="info" sx={{ mb: 3 }}>
-          {loadError}
-        </Alert>
-      ) : null}
+      <Paper sx={{ mb: 4, borderRadius: '16px', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+        <Tabs 
+          value={activeTab} 
+          onChange={(_, v) => setActiveTab(v)}
+          sx={{ borderBottom: '1px solid #e2e8f0', bgcolor: '#fff' }}
+        >
+          <Tab icon={<PrintIcon />} iconPosition="start" label="Single Product Print" sx={{ fontWeight: 700, px: 4 }} />
+          <Tab icon={<ExcelIcon />} iconPosition="start" label="Bulk Print (Excel)" sx={{ fontWeight: 700, px: 4 }} />
+        </Tabs>
 
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={5}>
-          <Card sx={{ borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-            <CardContent sx={{ p: 4 }}>
-              <Stack spacing={3}>
-                <Typography variant="h6" color="primary">
-                  Label Configuration
-                </Typography>
+        <Box sx={{ p: 4 }}>
+          {activeTab === 0 ? (
+            <Grid container spacing={4}>
+              <Grid item xs={12} md={5}>
+                <Stack spacing={3}>
+                  <Autocomplete
+                    options={products}
+                    loading={loading}
+                    getOptionLabel={(option) => `${option.name} (${option.sku})`}
+                    value={selectedProduct}
+                    onChange={(_, value) => setSelectedProduct(value)}
+                    renderInput={(params) => (
+                      <TextField {...params} label="Search Product" fullWidth variant="outlined" />
+                    )}
+                  />
 
-                <Autocomplete
-                  options={products}
-                  loading={loading}
-                  getOptionLabel={(option) => `${option.name} (${option.sku})`}
-                  value={selectedProduct}
-                  onChange={(_, value) => setSelectedProduct(value)}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="Search Product"
-                      fullWidth
-                      InputProps={{
-                        ...params.InputProps,
-                        endAdornment: (
-                          <>
-                            {loading ? <CircularProgress color="inherit" size={18} /> : null}
-                            {params.InputProps.endAdornment}
-                          </>
-                        ),
-                      }}
-                    />
-                  )}
-                />
+                  <Grid container spacing={2}>
+                    <Grid item xs={6}><TextField fullWidth label="Type" value={type} onChange={(e) => setType(e.target.value)} size="small" /></Grid>
+                    <Grid item xs={6}><TextField fullWidth label="Design" value={design} onChange={(e) => setDesign(e.target.value)} size="small" /></Grid>
+                    <Grid item xs={12}><TextField fullWidth label="Qty Note" value={qtyInfo} onChange={(e) => setQtyInfo(e.target.value)} size="small" /></Grid>
+                  </Grid>
 
-                <TextField
-                  fullWidth
-                  label="Type"
-                  value={type}
-                  onChange={(event) => setType(event.target.value)}
-                  size="small"
-                />
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Quantity to Print"
+                    value={quantity}
+                    onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))}
+                  />
 
-                <TextField
-                  fullWidth
-                  label="Design"
-                  value={design}
-                  onChange={(event) => setDesign(event.target.value)}
-                  size="small"
-                />
+                  <Button
+                    variant="contained"
+                    size="large"
+                    disabled={!selectedProduct}
+                    onClick={handlePrint}
+                    startIcon={<PrintIcon />}
+                    sx={{ py: 2, borderRadius: '12px', fontWeight: 700 }}
+                  >
+                    Generate & Print
+                  </Button>
+                </Stack>
+              </Grid>
 
-                <TextField
-                  fullWidth
-                  label="Quantity Note"
-                  value={qtyInfo}
-                  onChange={(event) => setQtyInfo(event.target.value)}
-                  size="small"
-                  placeholder="e.g. 1N CASUAL"
-                />
-
-                <Box sx={{ p: 2, bgcolor: '#f8fafc', borderRadius: '12px' }}>
-                  <Typography variant="caption" sx={{ color: '#64748b' }}>
-                    Manufacturer Details:
+              <Grid item xs={12} md={7}>
+                <Box sx={{ p: 4, bgcolor: '#f1f5f9', borderRadius: '16px', border: '2px dashed #cbd5e1', textAlign: 'center' }}>
+                    <Typography variant="subtitle2" sx={{ color: '#64748b', mb: 3 }}>Live Sticker Preview</Typography>
+                    {selectedProduct ? (
+                      <Paper elevation={4} sx={{ width: '220px', mx: 'auto', p: 2, textAlign: 'left', bgcolor: '#fff', border: '1px solid #000' }}>
+                        <Box sx={{ textAlign: 'center', mb: 1 }}>
+                          <img src={barcodeImgData} style={{ width: '100%', maxHeight: '40px' }} />
+                          <Typography variant="caption" sx={{ fontWeight: 800 }}>{barcodeValue}</Typography>
+                        </Box>
+                        <Typography sx={{ fontSize: '7pt', fontWeight: 700 }}>ARTICLE: {selectedProduct.sku}</Typography>
+                        <Typography sx={{ fontSize: '7pt', fontWeight: 700 }}>SIZE: {selectedProduct.size}</Typography>
+                        <Typography sx={{ fontSize: '7pt', fontWeight: 700 }}>COLOUR: {selectedProduct.color}</Typography>
+                        <Typography sx={{ fontSize: '12pt', fontWeight: 800, textAlign: 'center', mt: 1 }}>MRP: {selectedProduct.salePrice}</Typography>
+                      </Paper>
+                    ) : (
+                      <Stack spacing={1} sx={{ opacity: 0.5 }}>
+                        <ScannerIcon sx={{ fontSize: 60, mx: 'auto' }} />
+                        <Typography variant="body2">Select product to preview</Typography>
+                      </Stack>
+                    )}
+                </Box>
+              </Grid>
+            </Grid>
+          ) : (
+            <Box>
+              <Stack spacing={3} alignItems="center">
+                <Box sx={{ p: 6, border: '2px dashed #3b82f6', borderRadius: '24px', bgcolor: '#eff6ff', textAlign: 'center', width: '100%', maxWidth: 600 }}>
+                  <ExcelIcon sx={{ fontSize: 64, color: '#3b82f6', mb: 2 }} />
+                  <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>Upload Print Schedule</Typography>
+                  <Typography variant="body2" sx={{ color: '#64748b', mb: 3 }}>
+                    Upload an Excel file with columns: <b>Item Code</b>, <b>Size</b>, <b>Color</b>, <b>Qty</b>.
+                    The system will automatically continue the barcode numbering sequence.
                   </Typography>
-                  <TextField fullWidth value={mfgLine1} onChange={(event) => setMfgLine1(event.target.value)} size="small" sx={{ mb: 1, mt: 1 }} />
-                  <TextField fullWidth value={mfgLine2} onChange={(event) => setMfgLine2(event.target.value)} size="small" sx={{ mb: 1 }} />
-                  <TextField fullWidth value={mfgLine3} onChange={(event) => setMfgLine3(event.target.value)} size="small" sx={{ mb: 1 }} />
-                  <TextField fullWidth value={email} onChange={(event) => setEmail(event.target.value)} size="small" label="Email" />
+                  <Button
+                    variant="contained"
+                    component="label"
+                    startIcon={importing ? <CircularProgress size={20} color="inherit" /> : <UploadIcon />}
+                    disabled={importing}
+                    sx={{ borderRadius: '12px', px: 4, py: 1.5 }}
+                  >
+                    {importing ? 'Processing Sequence...' : 'Select Excel File'}
+                    <input type="file" hidden accept=".xlsx,.xls" onChange={handleExcelUpload} />
+                  </Button>
                 </Box>
 
-                <TextField
-                  fullWidth
-                  type="number"
-                  label="Number of Labels"
-                  value={quantity}
-                  onChange={(event) => setQuantity(Math.max(1, Number(event.target.value) || 1))}
-                  inputProps={{ min: 1, max: 100 }}
-                />
-
-                <Button
-                  fullWidth
-                  variant="contained"
-                  size="large"
-                  startIcon={<PrintIcon />}
-                  disabled={!selectedProduct}
-                  onClick={handlePrint}
-                  sx={{ py: 1.5, borderRadius: '12px', fontWeight: 700 }}
-                >
-                  Generate & Print
-                </Button>
+                {importResults.length > 0 && (
+                  <Card sx={{ width: '100%', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                    <CardContent>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                        <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                          Generated Labels ({importResults.length})
+                        </Typography>
+                        <Button 
+                          variant="contained" 
+                          color="success" 
+                          startIcon={<PrintIcon />}
+                          onClick={() => printBatch(importResults)}
+                        >
+                          Print All Labels
+                        </Button>
+                      </Stack>
+                      <TableContainer sx={{ maxHeight: 400 }}>
+                        <Table size="small" stickyHeader>
+                          <TableHead>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 700 }}>Barcode</TableCell>
+                              <TableCell sx={{ fontWeight: 700 }}>Article</TableCell>
+                              <TableCell sx={{ fontWeight: 700 }}>Size</TableCell>
+                              <TableCell sx={{ fontWeight: 700 }}>Color</TableCell>
+                              <TableCell sx={{ fontWeight: 700 }} align="right">MRP</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {importResults.map((row, i) => (
+                              <TableRow key={i}>
+                                <TableCell sx={{ fontFamily: 'monospace' }}>{row.barcode}</TableCell>
+                                <TableCell>{row.article}</TableCell>
+                                <TableCell>{row.size}</TableCell>
+                                <TableCell>{row.color}</TableCell>
+                                <TableCell align="right">{row.mrp}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </CardContent>
+                  </Card>
+                )}
               </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={7}>
-          <Box
-            sx={{
-              p: 4,
-              bgcolor: '#f1f5f9',
-              borderRadius: '24px',
-              textAlign: 'center',
-              minHeight: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-            }}
-          >
-            <Typography variant="h6" sx={{ color: '#334155', mb: 3 }}>
-              Live Preview
-            </Typography>
-
-            {selectedProduct ? (
-              <Paper
-                elevation={4}
-                sx={{
-                  width: '280px',
-                  p: 2,
-                  textAlign: 'left',
-                  border: '1px solid #ddd',
-                  textTransform: 'uppercase',
-                  fontFamily: 'monospace',
-                }}
-              >
-                <Box sx={{ textAlign: 'center', mb: 1 }}>
-                  <Box component="img" src={barcodeImgData} alt="Barcode Preview" sx={{ width: '100%', maxHeight: 45, objectFit: 'contain', mb: 0.5 }} />
-                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                    {barcodeValue}
-                  </Typography>
-                </Box>
-                <Typography variant="body2"><strong>ARTICLE :</strong> {selectedProduct.sku}</Typography>
-                <Typography variant="body2"><strong>GROUP :</strong> {selectedProduct.category || 'CLOTHING'}</Typography>
-                <Typography variant="body2"><strong>TYPE :</strong> {type}</Typography>
-                <Typography variant="body2"><strong>DESIGN :</strong> {design}</Typography>
-                <Typography variant="body2" sx={{ mt: 1 }}><strong>SIZE :</strong> {selectedProduct.size || '--'}</Typography>
-                <Typography variant="body2"><strong>QTY: 1N</strong> {qtyInfo}</Typography>
-                <Typography variant="body2"><strong>COLOUR :</strong> {selectedProduct.color || '--'}</Typography>
-                <Divider sx={{ my: 1, borderStyle: 'dashed' }} />
-                <Box sx={{ display: 'flex', alignItems: 'baseline' }}>
-                  <Typography variant="h6"><strong>MRP :</strong></Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 'bold', ml: 1 }}>
-                    {selectedProduct.salePrice}
-                  </Typography>
-                </Box>
-                <Typography variant="caption" display="block" align="center">
-                  (Incl. of all taxes)
-                </Typography>
-              </Paper>
-            ) : (
-              <Stack alignItems="center" spacing={2}>
-                <ScannerIcon sx={{ fontSize: 60, color: '#cbd5e1' }} />
-                <Typography variant="body2" sx={{ color: '#64748b' }}>
-                  Select a product to see the preview
-                </Typography>
-              </Stack>
-            )}
-
-            <Typography variant="caption" sx={{ mt: 4, color: '#94a3b8' }}>
-              The printed label will use the older label style with actual barcode bars.
-            </Typography>
-          </Box>
-        </Grid>
-      </Grid>
+            </Box>
+          )}
+        </Box>
+      </Paper>
     </Box>
   );
 }

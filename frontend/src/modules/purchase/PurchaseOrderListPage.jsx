@@ -119,16 +119,7 @@ function PurchaseOrderListPage() {
     return Array.from(merged.values());
   }, [masterSuppliers]);
 
-  const orders = useMemo(
-    () => mergePurchaseOrders(loadModuleRecords(purchaseOrderStorageKey, fallbackPurchaseOrders), backendOrders),
-    [backendOrders],
-  );
-
-  useEffect(() => {
-    if (backendOrders.length) {
-      orders.forEach((order) => upsertModuleRecord(purchaseOrderStorageKey, order));
-    }
-  }, [backendOrders.length, orders]);
+  const orders = backendOrders;
 
   const supplierMap = useMemo(
     () =>
@@ -142,10 +133,18 @@ function PurchaseOrderListPage() {
   const rows = useMemo(
     () =>
       orders.map((order) => {
-        const supplier = supplierMap[order.supplierId] || {};
+        const supplierIdVal = order.supplierId?._id || order.supplierId;
+        const supplier = supplierMap[supplierIdVal] || {};
         return {
-          ...normalizePurchaseOrderRecord(order),
+          ...order,
+          id: order._id || order.id,
+          poNumber: order.poNumber,
+          poDate: order.poDate || order.createdAt?.slice(0, 10),
           supplierName: order.supplierName || supplier.supplierName || 'Unassigned Supplier',
+          totals: {
+              totalQty: (order.items || []).reduce((s, i) => s + Number(i.qty), 0),
+              grandTotal: (order.items || []).reduce((s, i) => s + (Number(i.qty) * Number(i.price)), 0)
+          }
         };
       }),
     [orders, supplierMap],

@@ -146,8 +146,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
     if (!id) {
       return null;
     }
-    const orders = mergePurchaseOrders(loadModuleRecords(purchaseOrderStorageKey, fallbackPurchaseOrders), backendOrders);
-    return orders.find((order) => order.id === id);
+    return backendOrders.find((order) => order._id === id || order.id === id);
   }, [backendOrders, id]);
 
   useEffect(() => {

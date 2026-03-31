@@ -10,6 +10,15 @@ const createPO = async (req, res, next) => {
     }
 };
 
+const createPOFromVoucher = async (req, res, next) => {
+    try {
+        const po = await poService.createPOFromPurchase(req.params.voucherId, req.user._id);
+        return sendCreated(res, { po }, 'Purchase Order generated from voucher successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
 const getAllPOs = async (req, res, next) => {
     try {
         const result = await poService.getAllPOs(req.query);
@@ -48,6 +57,7 @@ const updatePO = async (req, res, next) => {
 
 module.exports = {
     createPO,
+    createPOFromVoucher,
     getAllPOs,
     getPOById,
     updateStatus,

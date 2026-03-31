@@ -93,10 +93,37 @@ function ItemFormPage({ mode = 'edit' }) {
     if (selected?.gstSlabId && !watch('gstSlabId')) setValue('gstSlabId', selected.gstSlabId);
   }, [hsnCodes, setValue, watch]);
 
-  const handleImageChange = (index) => (event) => {
-    const file = event.target.files?.[0]; if (!file) return;
-    const reader = new FileReader(); reader.onload = () => setImages((prev) => { const next = [...prev]; next[index] = { name: file.name, preview: String(reader.result) }; return next; }); reader.readAsDataURL(file);
+  const [uploadingImage, setUploadingImage] = useState(null);
+
+  const handleImageChange = (index) => async (event) => {
+    const file = event.target.files?.[0]; 
+    if (!file) return;
+
+    setUploadingImage(index);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await api.post('/media/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      const url = response.data?.data?.url || response.data?.url;
+      if (url) {
+        setImages((prev) => {
+          const next = [...prev];
+          next[index] = { name: file.name, preview: url };
+          return next;
+        });
+      }
+    } catch (error) {
+      console.error('Upload failed:', error);
+      alert('Failed to upload image. Please try again.');
+    } finally {
+      setUploadingImage(null);
+    }
   };
+
   const removeImage = (index) => setImages((prev) => { const next = [...prev]; next[index] = null; return next; });
 
   const onSubmit = (values, statusOverride = values.status, stay = false) => {
@@ -158,7 +185,7 @@ function ItemFormPage({ mode = 'edit' }) {
           </Grid></FormSection> : null}
           {activeTab === 'pricing' ? <VariantTable variants={variants} onChange={(updated) => { setVariantError(''); setVariants(updated); }} styleCode={styleCode || 'ITEM'} readOnly={isViewMode} /> : null}
           {activeTab === 'preview' ? <FormSection title="Variants / SKU Preview" subtitle="Review generated rows before final save."><TableContainer><Table size="small"><TableHead><TableRow><TableCell sx={{ fontWeight: 700 }}>Size</TableCell><TableCell sx={{ fontWeight: 700 }}>Color</TableCell><TableCell sx={{ fontWeight: 700 }} align="right">Cost</TableCell><TableCell sx={{ fontWeight: 700 }} align="right">Sale</TableCell><TableCell sx={{ fontWeight: 700 }} align="right">MRP</TableCell><TableCell sx={{ fontWeight: 700 }}>Barcode Prefix</TableCell><TableCell sx={{ fontWeight: 700 }}>SKU</TableCell><TableCell sx={{ fontWeight: 700 }}>Status</TableCell></TableRow></TableHead><TableBody>{variants.map((variant) => <TableRow key={variant.id}><TableCell>{variant.size}</TableCell><TableCell>{variant.color}</TableCell><TableCell align="right">{variant.costPrice}</TableCell><TableCell align="right">{variant.salePrice}</TableCell><TableCell align="right">{variant.mrp}</TableCell><TableCell>{variant.barcodePrefix || watch('skuPrefix') || watch('itemCode')}</TableCell><TableCell>{variant.sku}</TableCell><TableCell>{variant.status}</TableCell></TableRow>)}{!variants.length ? <TableRow><TableCell colSpan={8} sx={{ py: 4, textAlign: 'center', color: '#64748b' }}>No variant rows added yet.</TableCell></TableRow> : null}</TableBody></Table></TableContainer></FormSection> : null}
-          {activeTab === 'media' ? <FormSection title="Media" subtitle="Frontend-ready image slots for item presentation."><Grid container spacing={2}>{images.map((img, index) => <Grid item xs={12} sm={6} md={4} key={index}><Paper elevation={0} sx={{ border: '1px dashed #cbd5e1', borderRadius: 2, p: 1.5, minHeight: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#f8fafc', position: 'relative', overflow: 'hidden' }}>{img?.preview ? <><Box component="img" src={img.preview} sx={{ width: '100%', height: 160, objectFit: 'cover', borderRadius: 1 }} />{!isViewMode ? <Button size="small" color="error" variant="contained" onClick={() => removeImage(index)} sx={{ position: 'absolute', top: 8, right: 8, minWidth: 0, px: 1 }}>X</Button> : null}</> : <Button component="label" sx={{ textTransform: 'none', color: '#64748b' }} disabled={isViewMode}><Stack spacing={1} sx={{ alignItems: 'center' }}><UploadFileIcon sx={{ fontSize: 32 }} /><Typography variant="body2" sx={{ fontWeight: 700 }}>{index === 0 ? 'Main Image' : `Additional Image ${index}`}</Typography></Stack><input hidden type="file" accept="image/*" onChange={handleImageChange(index)} /></Button>}</Paper></Grid>)}</Grid></FormSection> : null}
+          {activeTab === 'media' ? <FormSection title="Media" subtitle="Frontend-ready image slots for item presentation."><Grid container spacing={2}>{images.map((img, index) => <Grid item xs={12} sm={6} md={4} key={index}><Paper elevation={0} sx={{ border: '1px dashed #cbd5e1', borderRadius: 2, p: 1.5, minHeight: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#f8fafc', position: 'relative', overflow: 'hidden' }}>{uploadingImage === index ? <CircularProgress size={32} /> : img?.preview ? <><Box component="img" src={img.preview} sx={{ width: '100%', height: 160, objectFit: 'cover', borderRadius: 1 }} />{!isViewMode ? <Button size="small" color="error" variant="contained" onClick={() => removeImage(index)} sx={{ position: 'absolute', top: 8, right: 8, minWidth: 0, px: 1 }}>X</Button> : null}</> : <Button component="label" sx={{ textTransform: 'none', color: '#64748b' }} disabled={isViewMode}><Stack spacing={1} sx={{ alignItems: 'center' }}><UploadFileIcon sx={{ fontSize: 32 }} /><Typography variant="body2" sx={{ fontWeight: 700 }}>{index === 0 ? 'Main Image' : `Additional Image ${index}`}</Typography></Stack><input hidden type="file" accept="image/*" onChange={handleImageChange(index)} /></Button>}</Paper></Grid>)}</Grid></FormSection> : null}
           {activeTab === 'inventory' ? <FormSection title="Inventory Defaults" subtitle="Defaults used by warehouse operations, barcode printing, and replenishment."><Grid container spacing={2}>
             <Grid item xs={12} md={4}><TextField fullWidth size="small" select label="Default Warehouse" {...register('defaultWarehouse')} disabled={isViewMode}><MenuItem value="">Select Warehouse</MenuItem>{warehouses.map((warehouse) => <MenuItem key={warehouse.id || warehouse._id} value={warehouse.id || warehouse._id}>{warehouse.warehouseName || warehouse.name}</MenuItem>)}</TextField></Grid>
             {['reorderLevel', 'reorderQty', 'openingStock', 'openingStockRate'].map((key) => <Grid item xs={12} md={2} key={key}><TextField fullWidth size="small" type="number" label={key.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase())} {...register(key)} disabled={isViewMode} /></Grid>)}

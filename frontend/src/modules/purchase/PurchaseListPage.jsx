@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchPurchases } from './purchaseSlice';
+import { fetchPurchases, generatePOFromVoucher } from './purchaseSlice';
 import { fetchMasters } from '../masters/mastersSlice';
+import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import {
   Box,
   Button,
@@ -260,6 +261,20 @@ function PurchaseListPage() {
                           >
                             <EditOutlinedIcon fontSize="small" />
                           </IconButton>
+                          {basePath === '/ho' && !row.purchaseOrderId && (
+                            <IconButton
+                              size="small"
+                              sx={{ color: '#10b981' }}
+                              onClick={() => {
+                                if (window.confirm('Generate Purchase Order from this voucher?')) {
+                                  dispatch(generatePOFromVoucher(row.id));
+                                }
+                              }}
+                              title="Generate PO"
+                            >
+                              <ReceiptLongOutlinedIcon fontSize="small" />
+                            </IconButton>
+                          )}
                           <IconButton
                             size="small"
                             color="secondary"
