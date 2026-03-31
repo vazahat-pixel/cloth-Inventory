@@ -35,6 +35,11 @@ const warehouseSchema = new mongoose.Schema(
             state: { type: String, required: true },
             pincode: String,
         },
+        gstNumber: {
+            type: String,
+            trim: true,
+            default: null
+        },
         isActive: {
             type: Boolean,
             default: true

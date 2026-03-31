@@ -52,6 +52,7 @@ import PurchaseFormPage from '../modules/purchase/PurchaseFormPage';
 import PurchaseOrderListPage from '../modules/purchase/PurchaseOrderListPage';
 import PurchaseOrderFormPage from '../modules/purchase/PurchaseOrderFormPage';
 import PurchaseReturnPage from '../modules/purchase/PurchaseReturnPage';
+import PurchaseReturnListPage from '../modules/purchase/PurchaseReturnListPage';
 import PurchasePlaceholderPage from '../modules/purchase/PurchasePlaceholderPage';
 
 import SalesListPage from '../modules/sales/SalesListPage';
@@ -247,7 +248,7 @@ function AppRoutes() {
           <Route path="purchase/purchase-challan" element={<PurchasePlaceholderPage pageKey="purchase-challan" />} />
           <Route path="purchase/rejection-replacements" element={<PurchasePlaceholderPage pageKey="rejection-replacements" />} />
           <Route path="purchase/qc-document" element={<PurchasePlaceholderPage pageKey="qc-document" />} />
-          <Route path="purchase/purchase-return" element={<PurchasePlaceholderPage pageKey="purchase-return" />} />
+          <Route path="purchase/purchase-return" element={<PurchaseReturnListPage />} />
           <Route path="purchase/purchase-return/:id" element={<PurchaseReturnPage />} />
           <Route path="purchase/purchase-return-challan" element={<PurchasePlaceholderPage pageKey="purchase-return-challan" />} />
           <Route path="purchase/purchase-return-replacements" element={<PurchasePlaceholderPage pageKey="purchase-return-replacements" />} />

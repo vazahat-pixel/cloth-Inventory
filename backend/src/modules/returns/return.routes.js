@@ -6,6 +6,7 @@ const router = express.Router();
 
 router.use(protect);
 
+router.post('/', returnController.createReturn);
 router.post('/purchase-return', returnController.purchaseReturn);
 router.post('/sales-return', returnController.salesReturn);
 router.get('/', returnController.getReturns);

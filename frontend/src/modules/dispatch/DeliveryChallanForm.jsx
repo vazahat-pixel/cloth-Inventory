@@ -107,6 +107,23 @@ function DeliveryChallanForm({
         setLines(prev => prev.filter(l => l.variantId !== variantId));
     };
 
+    const dispatchMode = useMemo(() => {
+        if (!sourceId || !storeId) return null;
+        const src = activeLocations.find(l => l.id === sourceId);
+        const dst = activeLocations.find(l => l.id === storeId);
+        
+        if (!src || !dst) return null;
+        
+        const srcGst = (src.gstNumber || '').trim().toUpperCase();
+        const dstGst = (dst.gstNumber || '').trim().toUpperCase();
+        
+        if (srcGst === dstGst) {
+            return { type: 'CHALLAN', label: 'Delivery Challan', color: 'info.main', description: 'Same GSTIN: Internal Stock Transfer.' };
+        } else {
+            return { type: 'INVOICE', label: 'Tax Invoice', color: 'success.main', description: 'Different GSTIN: Inter-Entity Sale (Taxable).' };
+        }
+    }, [activeLocations, sourceId, storeId]);
+
     const handleSave = () => {
         setError('');
         if (!sourceId) { setError("Please select a source warehouse"); return; }
@@ -126,11 +143,15 @@ function DeliveryChallanForm({
                 rate: l.rate
             })),
             status: 'SHIPPED',
+            dispatchMode: dispatchMode?.type
         };
 
         dispatch(addChallan(payload))
             .unwrap()
-            .then(() => navigate(listPath))
+            .then((res) => {
+                alert(`Successfully generated: ${res.documentNumber} (${res.type})`);
+                navigate(listPath);
+            })
             .catch(err => setError(err || "Failed to save challan"));
     };
 
@@ -186,6 +207,17 @@ function DeliveryChallanForm({
                         </Select>
                     </FormControl>
                 </Stack>
+
+                {dispatchMode && (
+                    <Box sx={{ p: 2, bgcolor: `${dispatchMode.color}05`, border: `1px solid ${dispatchMode.color}`, borderRadius: 2 }}>
+                        <Typography sx={{ color: dispatchMode.color, fontWeight: 700, fontSize: '0.85rem' }}>
+                            {dispatchMode.label.toUpperCase()} MODE DETECTED
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: '#475569' }}>
+                            {dispatchMode.description}
+                        </Typography>
+                    </Box>
+                )}
 
                 <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
                     <TextField

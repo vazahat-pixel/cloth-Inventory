@@ -18,8 +18,8 @@ const generateChallanNumber = async (session = null) => {
  * CREATE DELIVERY CHALLAN
  * Reduces inventory but does NO ledger impact (Standard ERP)
  */
-const createChallan = async (challanData, userId) => {
-    return await withTransaction(async (session) => {
+const createChallan = async (challanData, userId, sessionOuter = null) => {
+    const handle = async (session) => {
         const dcNumber = await generateChallanNumber(session);
 
         const challan = new DeliveryChallan({
@@ -50,7 +50,10 @@ const createChallan = async (challanData, userId) => {
         await workflowService.updateStatus(challan._id, DocumentType.SALE, null, 'SENT', userId, `Challan ${dcNumber} issued for shipment`);
 
         return challan;
-    });
+    };
+
+    if (sessionOuter) return await handle(sessionOuter);
+    return await withTransaction(handle);
 };
 
 const getChallans = async (filter = {}) => {

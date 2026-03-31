@@ -134,6 +134,7 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
           state: record.state,
           pincode: record.pincode || '',
         },
+        gstNumber: record.gstNumber || record.gstNo,
         isActive: record.status !== 'Inactive',
       };
     }
@@ -224,6 +225,7 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
           state: updates.state,
           pincode: updates.pincode || '',
         },
+        gstNumber: updates.gstNumber || updates.gstNo,
         isActive: updates.status !== 'Inactive',
       };
     }

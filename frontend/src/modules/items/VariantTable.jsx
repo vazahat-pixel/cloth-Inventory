@@ -463,24 +463,11 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false }) {
                     {...field}
                     size="small"
                     fullWidth
-                    label="SKU / Barcode"
+                    label="SKU (Master Code)"
+                    placeholder="Ex: TSHIRT-S-BLUE"
                     disabled={autoGenerateSku}
                     error={Boolean(errors.sku)}
-                    helperText={errors.sku?.message || ' '}
-                  />
-                )}
-              />
-
-              <Controller
-                name="barcodePrefix"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    size="small"
-                    fullWidth
-                    label="Barcode Prefix"
-                    helperText="Used in label printing and SKU preview."
+                    helperText={errors.sku?.message || 'Unique identifier for this variant. Note: Physical barcodes/stickers are generated post-purchase/GRN.'}
                   />
                 )}
               />

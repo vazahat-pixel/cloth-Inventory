@@ -42,40 +42,56 @@ function ItemListPage() {
     dispatch(fetchMasters('itemGroups'));
   }, [dispatch]);
 
-  const rows = useMemo(() => items.map((item) => ({
-    id: item.id || item._id,
-    itemCode: item.code || item.sku || '',
-    itemName: item.name || item.itemName || '',
-    brand: item.brand?.brandName || item.brand?.name || item.brand || '',
-    mainGroup: item.category?.groupName || item.category?.name || item.category || '',
-    subGroup: item.subGroup || '',
-    categoryPath: item.categoryPath || '',
-    hsnCode: item.hsnCodeId?.code || item.hsnCodeId?.hsnCode || item.hsnCode || '',
-    gstRate: item.gstSlabId?.percentage || item.gstRate || '',
-    color: item.color || item.shadeColor || '',
-    fabric: item.fabric || item.attributes?.fabric || '',
-    type: item.fabricType || item.type || '',
-    pattern: item.pattern || '',
-    fit: item.fit || '',
-    sleeveType: item.sleeveType || '',
-    neckType: item.neckType || '',
-    gender: item.gender || item.attributes?.gender || '',
-    season: item.season || item.attributes?.season || '',
-    occasion: item.occasion || '',
-    materialComposition: item.materialComposition || '',
-    size: item.size || '',
-    costPrice: item.costPrice || 0,
-    salePrice: item.salePrice || item.sellingPrice || 0,
-    mrp: item.mrp || item.salePrice || 0,
-    sku: item.sku || '',
-    defaultWarehouse: item.defaultWarehouse || '',
-    reorderLevel: item.reorderLevel || 0,
-    reorderQty: item.reorderQty || 0,
-    openingStock: item.openingStock || item.factoryStock || 0,
-    openingStockRate: item.openingStockRate || 0,
-    variantCount: item.variants?.length || 1,
-    status: item.status || 'Active',
-  })), [items]);
+  const rows = useMemo(() => {
+    const groupedMap = new Map();
+
+    items.forEach((item) => {
+      const code = item.itemCode || item.styleCode || item.sku || 'Unknown';
+      
+      if (!groupedMap.has(code)) {
+        groupedMap.set(code, {
+          id: item.id || item._id,
+          itemCode: code,
+          itemName: item.itemName || item.name || '',
+          brand: item.brand?.brandName || item.brand?.name || item.brand || '',
+          mainGroup: item.category?.groupName || item.category?.name || item.category || '',
+          subGroup: item.subGroup || '',
+          categoryPath: item.categoryPath || '',
+          hsnCode: item.hsnCodeId?.code || item.hsnCodeId?.hsnCode || item.hsnCode || '',
+          gstRate: item.gstSlabId?.percentage || item.gstRate || '',
+          color: item.color || item.shadeColor || '',
+          fabric: item.fabric || item.attributes?.fabric || '',
+          type: item.fabricType || item.type || '',
+          pattern: item.pattern || '',
+          fit: item.fit || '',
+          sleeveType: item.sleeveType || '',
+          neckType: item.neckType || '',
+          gender: item.gender || item.attributes?.gender || '',
+          season: item.season || item.attributes?.season || '',
+          occasion: item.occasion || '',
+          materialComposition: item.materialComposition || '',
+          size: item.size || '',
+          costPrice: item.costPrice || 0,
+          salePrice: item.salePrice || item.sellingPrice || 0,
+          mrp: item.mrp || item.salePrice || 0,
+          sku: item.sku || '',
+          defaultWarehouse: item.defaultWarehouse || '',
+          reorderLevel: item.reorderLevel || 0,
+          reorderQty: item.reorderQty || 0,
+          openingStock: item.openingStock || item.factoryStock || 0,
+          openingStockRate: item.openingStockRate || 0,
+          variantCount: 1, // Start with 1
+          status: item.status || 'Active',
+        });
+      } else {
+        const existing = groupedMap.get(code);
+        existing.variantCount += 1;
+        existing.openingStock += (item.factoryStock || 0); // Accumulate stock across variants
+      }
+    });
+
+    return Array.from(groupedMap.values());
+  }, [items]);
 
   const hsnOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.hsnCode).filter(Boolean))), [rows]);
 

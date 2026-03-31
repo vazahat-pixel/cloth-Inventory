@@ -1,10 +1,11 @@
 const challanService = require('./deliveryChallan.service');
+const dispatchService = require('../dispatch/dispatch.service');
 const { sendSuccess, sendError } = require('../../utils/response.handler');
 
 const create = async (req, res, next) => {
     try {
-        const challan = await challanService.createChallan(req.body, req.user._id);
-        return sendSuccess(res, { challan }, 'Delivery Challan created successfully');
+        const result = await dispatchService.processDispatch(req.body, req.user._id);
+        return sendSuccess(res, result, result.message);
     } catch (err) {
         next(err);
     }
