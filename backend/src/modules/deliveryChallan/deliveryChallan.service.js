@@ -18,8 +18,8 @@ const generateChallanNumber = async (session = null) => {
  * CREATE DELIVERY CHALLAN
  * Reduces inventory but does NO ledger impact (Standard ERP)
  */
-const createChallan = async (challanData, userId) => {
-    return await withTransaction(async (session) => {
+const createChallan = async (challanData, userId, sessionOuter = null) => {
+    const handle = async (session) => {
         const dcNumber = await generateChallanNumber(session);
 
         const challan = new DeliveryChallan({
@@ -31,11 +31,11 @@ const createChallan = async (challanData, userId) => {
 
         await challan.save({ session });
 
-        // 1. REDUCE PHYSICAL STOCK
+        // 1. REDUCE PHYSICAL STOCK FROM SOURCE
         for (const item of challanData.items) {
             await removeStock({
-                variantId: item.productId, // In this model referenced as productId but mapped to variant
-                locationId: challanData.storeId,
+                variantId: item.productId,
+                locationId: challanData.sourceId || challanData.storeId,
                 locationType: 'STORE',
                 qty: item.quantity,
                 type: StockMovementType.TRANSFER,
@@ -50,7 +50,10 @@ const createChallan = async (challanData, userId) => {
         await workflowService.updateStatus(challan._id, DocumentType.SALE, null, 'SENT', userId, `Challan ${dcNumber} issued for shipment`);
 
         return challan;
-    });
+    };
+
+    if (sessionOuter) return await handle(sessionOuter);
+    return await withTransaction(handle);
 };
 
 const getChallans = async (filter = {}) => {

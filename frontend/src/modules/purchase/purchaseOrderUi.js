@@ -2,7 +2,7 @@ import itemsData from '../items/data';
 import { purchaseOrderSeed, supplierSeed } from '../erp/erpUiMocks';
 
 export const purchaseOrderStorageKey = 'purchase-orders';
-export const purchaseOrderStatuses = ['Draft', 'Pending', 'Approved', 'Cancelled'];
+export const purchaseOrderStatuses = ['DRAFT', 'PENDING', 'APPROVED', 'CANCELLED'];
 
 export const formatCurrency = (value) =>
   new Intl.NumberFormat('en-IN', {
@@ -120,7 +120,7 @@ export function normalizePurchaseOrderRecord(record = {}) {
     deliveryAddress: record.deliveryAddress || '',
     paymentTerms: record.paymentTerms || '',
     notes: record.notes || '',
-    status: record.status || 'Draft',
+    status: record.status || 'DRAFT',
     createdBy: record.createdBy || 'HO Admin',
     createdAt: record.createdAt || new Date().toISOString(),
     updatedAt: record.updatedAt || record.createdAt || new Date().toISOString(),

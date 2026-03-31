@@ -123,20 +123,20 @@ const approveGRN = async (id, userId) => {
         grn.status = GrnStatus.APPROVED;
         await grn.save({ session });
 
-        // 2. Post to Stock Ledger for each item
+        // 2. Post to Stock Ledger and Master Inventory for each item
+        const stockService = require('../../services/stock.service');
         for (const item of grn.items) {
-            await stockLedgerService.recordMovement({
-                itemId: item.productId,
-                barcode: `${item.productId}-${item.batchNumber}`, // Simplified barcode for demo
-                type: 'IN',
-                quantity: item.receivedQty,
-                source: 'GRN_RECEIPT',
-                referenceId: grn._id,
-                userId: userId,
+            await stockService.addStock({
+                variantId: item.productId,
                 locationId: grn.warehouseId || 'MAIN_WAREHOUSE',
                 locationType: 'WAREHOUSE',
-                batchNo: item.batchNumber
-            }, session);
+                qty: item.receivedQty,
+                type: 'GRN_RECEIPT',
+                referenceId: grn._id,
+                referenceType: 'GRN',
+                performedBy: userId,
+                session
+            });
         }
 
         await workflowService.updateStatus(grn._id, DocumentType.GRN, oldStatus, GrnStatus.APPROVED, userId, `Approved GRN ${grn.grnNumber} and posted stock to warehouse.`);

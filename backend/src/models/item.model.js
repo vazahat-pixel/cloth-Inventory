@@ -51,9 +51,10 @@ const itemSchema = new mongoose.Schema({
     trim: true
   },
   brand: {
-    type: String,
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Brand',
     required: true,
-    trim: true
+    index: true
   },
   shade: {
     type: String,
@@ -63,6 +64,15 @@ const itemSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  uom: {
+    type: String,
+    default: 'PCS'
+  },
+  fabric: { type: String, trim: true },
+  pattern: { type: String, trim: true },
+  fit: { type: String, trim: true },
+  gender: { type: String, trim: true },
+  occasion: { type: String, trim: true },
   groupIds: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Group',
@@ -82,13 +92,21 @@ const itemSchema = new mongoose.Schema({
     trim: true
   },
   session: {
-    type: String,
-    trim: true
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Season',
+    index: true
   },
-  // Dynamic Attributes
-  attributes: {
-    type: mongoose.Schema.Types.Mixed,
-    default: {}
+  // Inventory & Defaults
+  defaultWarehouse: { type: String, trim: true },
+  reorderLevel: { type: Number, default: 0 },
+  reorderQty: { type: Number, default: 0 },
+  openingStock: { type: Number, default: 0 },
+  openingStockRate: { type: Number, default: 0 },
+  stockTrackingEnabled: { type: Boolean, default: true },
+  barcodeEnabled: { type: Boolean, default: true },
+  images: {
+    type: [String],
+    default: []
   },
   // Custom Fields (C.F. System)
   customFields: {

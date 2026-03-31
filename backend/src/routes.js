@@ -56,6 +56,8 @@ const registerRoutes = (app) => {
     app.use('/api/seasons', require('./modules/seasons/season.routes'));
     app.use('/api/customers', require('./modules/customers/customer.routes'));
     app.use('/api/returns', require('./modules/returns/return.routes'));
+    app.use('/api/dispatch', require('./modules/dispatch/dispatch.routes'));
+    app.use('/api/barcodes', require('./modules/barcodes/barcodes.routes'));
 };
 
 module.exports = registerRoutes;

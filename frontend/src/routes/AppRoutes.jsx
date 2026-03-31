@@ -2,7 +2,7 @@ import { Suspense, lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { Box, CircularProgress } from '@mui/material';
 
-// Core Layouts & Pages (Static imports for reliability and speed)
+// Core layouts and always-on route utilities.
 import AuthLayout from '../layouts/AuthLayout';
 import RoleDashboardLayout from '../layouts/RoleDashboardLayout';
 import LoginPage from '../pages/auth/LoginPage';
@@ -12,11 +12,17 @@ import ProtectedRoute from './ProtectedRoute';
 import PublicRoute from './PublicRoute';
 import RoleProtectedRoute from './RoleProtectedRoute';
 import RoleRedirect from './RoleRedirect';
-import NotFoundPage from '../pages/NotFoundPage';
-import { setupTaxesNavItems } from '../modules/setup/setupTaxesNavConfig';
-import { partyWiseNavItems } from '../modules/setup/partyWiseNavConfig';
-import { otherAccountNavItems } from '../modules/setup/otherAccountNavConfig';
-import { configurationsNavItems } from '../modules/setup/configurationsNavConfig';
+import PayrollSetupsPlaceholderPage from '../modules/payroll/PayrollSetupsPlaceholderPage';
+import ProductionPlaceholderPage from '../modules/production/ProductionPlaceholderPage';
+import PayrollEntryPlaceholderPage from '../modules/payroll/PayrollEntryPlaceholderPage';
+import PayrollReportsPlaceholderPage from '../modules/payroll/PayrollReportsPlaceholderPage';
+import ReportsQueriesPlaceholderPage from '../modules/reports/ReportsQueriesPlaceholderPage';
+import UtilitiesPlaceholderPage from '../modules/utilities/UtilitiesPlaceholderPage';
+import UserAccessPlaceholderPage from '../modules/userAccess/UserAccessPlaceholderPage';
+import PackingSlipPage from '../modules/orders/PackingSlipPage';
+import OrderProcessingPlaceholderPage from '../modules/orders/OrderProcessingPlaceholderPage';
+import DataImportPlaceholderPage from '../modules/data/DataImportPlaceholderPage';
+import PurchaseReturnPageStaff from '../modules/store/PurchaseReturnPage';
 
 // Loading Placeholder
 const PageLoader = () => (
@@ -39,6 +45,13 @@ const ItemGroupsListPage = lazy(() => import('../modules/masters/itemGroups/List
 const SalesmenListPage = lazy(() => import('../modules/masters/salesmen/ListPage'));
 const BanksListPage = lazy(() => import('../modules/masters/banks/ListPage'));
 const SeasonsListPage = lazy(() => import('../modules/masters/seasons/ListPage'));
+
+// Placeholders for incomplete modules
+const PurchasePlaceholderPage = lazy(() => import('../modules/purchase/PurchasePlaceholderPage'));
+const InventoryPlaceholderPage = lazy(() => import('../modules/inventory/InventoryPlaceholderPage'));
+const BillingPlaceholderPage = lazy(() => import('../modules/sales/BillingPlaceholderPage'));
+const SetupAccountsPlaceholderPage = lazy(() => import('../modules/setup/SetupAccountsPlaceholderPage'));
+const OrdersContinuousPrintingPage = lazy(() => import('../modules/orders/OrdersContinuousPrintingPage'));
 
 // Items & Setup
 const ItemListPage = lazy(() => import('../modules/items/ItemListPage'));
@@ -77,12 +90,25 @@ const SalesListPage = lazy(() => import('../modules/sales/SalesListPage'));
 const BillingPage = lazy(() => import('../modules/sales/BillingPage'));
 const SalesReturnPage = lazy(() => import('../modules/sales/SalesReturnPage'));
 
+// Pricing
+const PriceListPage = lazy(() => import('../modules/pricing/PriceListPage'));
+const PriceListFormPage = lazy(() => import('../modules/pricing/PriceListFormPage'));
+const SchemeListPage = lazy(() => import('../modules/pricing/SchemeListPage'));
+const SchemeFormPage = lazy(() => import('../modules/pricing/SchemeFormPage'));
+const CouponPage = lazy(() => import('../modules/pricing/CouponPage'));
+
+// Customers
+const LoyaltyConfigPage = lazy(() => import('../modules/customers/LoyaltyConfigPage'));
+const VoucherListPage = lazy(() => import('../modules/customers/VoucherListPage'));
+const VoucherFormPage = lazy(() => import('../modules/customers/VoucherFormPage'));
+const CreditNotesPage = lazy(() => import('../modules/customers/CreditNotesPage'));
+const CustomerRewardsPage = lazy(() => import('../modules/customers/CustomerRewardsPage'));
+
 // Setup & GST
 const SetupLandingPage = lazy(() => import('../modules/setup/SetupLandingPage'));
 const SetupCustomFieldsAccountsPage = lazy(() => import('../modules/setup/SetupCustomFieldsAccountsPage'));
-const SetupAccountsPlaceholderPage = lazy(() => import('../modules/setup/SetupAccountsPlaceholderPage'));
-const SetupSectionPlaceholderPage = lazy(() => import('../modules/setup/SetupSectionPlaceholderPage'));
 const SetupCountryPage = lazy(() => import('../modules/setup/SetupCountryPage'));
+const SetupGenericTablePage = lazy(() => import('../modules/setup/SetupGenericTablePage'));
 const AccountMasterPage = lazy(() => import('../modules/setup/AccountMasterPage'));
 const StoreMasterPage = lazy(() => import('../modules/setup/StoreMasterPage'));
 const HSNCodePage = lazy(() => import('../modules/setup/HSNCodePage'));
@@ -90,6 +116,7 @@ const FormulaPage = lazy(() => import('../modules/setup/FormulaPage'));
 const BarcodePrintingPage = lazy(() => import('../modules/setup/BarcodePrintingPage'));
 const DiscountSetupPage = lazy(() => import('../modules/setup/DiscountSetupPage'));
 const CounterMasterPage = lazy(() => import('../modules/setup/CounterMasterPage'));
+
 const TaxRatesPage = lazy(() => import('../modules/gst/TaxRatesPage'));
 const TaxGroupPage = lazy(() => import('../modules/gst/TaxGroupPage'));
 const InvoiceTaxReportPage = lazy(() => import('../modules/gst/InvoiceTaxReportPage'));
@@ -131,6 +158,7 @@ const DataImportExportPage = lazy(() => import('../modules/data/DataImportExport
 const GRNListPage = lazy(() => import('../modules/grn/GRNListPage'));
 const GRNFormPage = lazy(() => import('../modules/grn/GRNFormPage'));
 const LogicERPManager = lazy(() => import('../modules/erp/LogicERPManager'));
+const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
 
 function AppRoutes() {
   return (
@@ -151,7 +179,7 @@ function AppRoutes() {
         <Route element={<RoleProtectedRoute allowedRoles={['admin', 'Admin']} />}>
           <Route path="/ho" element={<RoleDashboardLayout />}>
             <Route index element={<DashboardHome />} />
-            
+
             <Route path="masters" element={<MastersLayout />}>
               <Route index element={<Navigate to="suppliers" replace />} />
               <Route path="suppliers" element={<SuppliersListPage />} />
@@ -192,57 +220,84 @@ function AppRoutes() {
             <Route path="purchase/purchase-voucher" element={<PurchaseListPage />} />
             <Route path="purchase/purchase-voucher/new" element={<PurchaseFormPage />} />
             <Route path="purchase/purchase-voucher/:id" element={<PurchaseFormPage />} />
-            <Route path="purchase/purchase-return" element={<PurchaseReturnPage />} />
+            <Route path="purchase/purchase-challan" element={<PurchasePlaceholderPage pageKey="purchase-challan" />} />
+            <Route path="purchase/rejection-replacements" element={<PurchasePlaceholderPage pageKey="rejection-replacements" />} />
+            <Route path="purchase/qc-document" element={<PurchasePlaceholderPage pageKey="qc-document" />} />
+            <Route path="purchase/purchase-return" element={<PurchasePlaceholderPage pageKey="purchase-return" />} />
+            <Route path="purchase/purchase-return/:id" element={<PurchaseReturnPage />} />
+            <Route path="purchase/purchase-return-challan" element={<PurchasePlaceholderPage pageKey="purchase-return-challan" />} />
+            <Route path="purchase/purchase-return-replacements" element={<PurchasePlaceholderPage pageKey="purchase-return-replacements" />} />
+            <Route path="purchase/purchase-return-rate-difference" element={<PurchasePlaceholderPage pageKey="purchase-return-rate-difference" />} />
+            <Route path="purchase/stock-receipt-consignment" element={<PurchasePlaceholderPage pageKey="stock-receipt-consignment" />} />
+            <Route path="purchase/purchase-return-consignment" element={<PurchasePlaceholderPage pageKey="purchase-return-consignment" />} />
+            <Route path="purchase/stock-transfer-in" element={<PurchasePlaceholderPage pageKey="stock-transfer-in" />} />
+            <Route path="purchase/assign-sim-mobile" element={<PurchasePlaceholderPage pageKey="assign-sim-mobile" />} />
+            <Route path="purchase/stock-adjustment" element={<PurchasePlaceholderPage pageKey="stock-adjustment" />} />
+            <Route path="purchase/generate-debit-notes" element={<PurchasePlaceholderPage pageKey="generate-debit-notes" />} />
             <Route path="purchase/orders" element={<PurchaseOrderListPage />} />
             <Route path="purchase/orders/new" element={<PurchaseOrderFormPage />} />
-
+            <Route path="purchase/orders/:id" element={<PurchaseOrderFormPage mode="edit" />} />
+            <Route path="purchase/orders/:id/view" element={<PurchaseOrderFormPage mode="view" />} />
+            <Route path="purchase/orders/:id/edit" element={<PurchaseOrderFormPage mode="edit" />} />
             <Route path="orders" element={<Navigate to="sale-order" replace />} />
             <Route path="orders/sale-order" element={<SaleOrderListPage />} />
             <Route path="orders/sale-order/new" element={<SaleOrderFormPage />} />
             <Route path="orders/sale-order/:id/edit" element={<SaleOrderFormPage />} />
+            <Route path="orders/purchase-order" element={<PurchaseOrderListPage />} />
+            <Route path="orders/purchase-order/new" element={<PurchaseOrderFormPage />} />
+            <Route path="orders/purchase-order/:id" element={<PurchaseOrderFormPage mode="edit" />} />
+            <Route path="orders/purchase-order/:id/view" element={<PurchaseOrderFormPage mode="view" />} />
+            <Route path="orders/purchase-order/:id/edit" element={<PurchaseOrderFormPage mode="edit" />} />
+            <Route path="orders/continuous-printing-orders" element={<OrdersContinuousPrintingPage />} />
             <Route path="orders/delivery" element={<DeliveryOrderPage />} />
             <Route path="orders/delivery-challan" element={<DeliveryChallanPage />} />
             <Route path="orders/delivery-challan/new" element={<DeliveryChallanForm />} />
-
             <Route path="sales" element={<Navigate to="sale-bill" replace />} />
-            <Route path="sales/sale-bill" element={<SalesListPage pageTitle="Sale Bill" primaryActionPath="/sales/sale-bill/new" />} />
-            <Route path="sales/sale-bill/new" element={<BillingPage listPath="/sales/sale-bill" />} />
-            <Route path="sales/sales-return" element={<SalesListPage pageTitle="Sales Return" showPrimaryAction={false} />} />
-            <Route path="sales/sales-return/:id" element={<SalesReturnPage listPath="/sales/sales-return" />} />
-
-            <Route path="gst" element={<Navigate to="tax-rates" replace />} />
-            <Route path="gst/tax-rates" element={<TaxRatesPage />} />
-            <Route path="gst/tax-groups" element={<TaxGroupPage />} />
-            <Route path="gst/invoice-report" element={<InvoiceTaxReportPage />} />
-            <Route path="gst/gstr-summary" element={<GSTRSummaryPage />} />
-
+            <Route path="sales/sale-bill" element={<SalesListPage pageTitle="Sale Bill" pageDescription="Review sale bills, payment status, and customer return access..." primaryActionLabel="New Sale Bill" primaryActionPath="/sales/sale-bill/new" returnPathBuilder={(saleId) => `/sales/sales-return/${saleId}`} />} />
+            <Route path="sales/sale-bill/new" element={<BillingPage listPath="/sales/sale-bill" pageTitle="Sale Bill" pageDescription="..." listLabel="..." backButtonLabel="..." returnPathBuilder={(saleId) => `/sales/sales-return/${saleId}`} />} />
+            <Route path="sales/sales-return" element={<SalesListPage pageTitle="Sales Return" pageDescription="..." showPrimaryAction={false} returnPathBuilder={(saleId) => `/sales/sales-return/${saleId}`} />} />
+            <Route path="sales/sales-return/:id" element={<SalesReturnPage listPath="/sales/sales-return" pageTitle="Sales Return" pageDescription="..." listLabel="..." />} />
+            <Route path="pricing" element={<Navigate to="price-lists" replace />} />
+            <Route path="pricing/price-lists" element={<PriceListPage />} />
+            <Route path="pricing/price-lists/new" element={<PriceListFormPage />} />
+            <Route path="pricing/schemes" element={<SchemeListPage />} />
+            <Route path="pricing/schemes/new" element={<SchemeFormPage />} />
+            <Route path="pricing/coupons" element={<CouponPage />} />
+            <Route path="customers" element={<Navigate to="rewards" replace />} />
+            <Route path="customers/rewards" element={<CustomerRewardsPage />} />
+            <Route path="customers/loyalty-config" element={<LoyaltyConfigPage />} />
+            <Route path="customers/vouchers" element={<VoucherListPage />} />
+            <Route path="customers/vouchers/new" element={<VoucherFormPage />} />
+            <Route path="customers/credit-notes" element={<CreditNotesPage />} />
             <Route path="setup" element={<SetupLandingPage />} />
-            <Route path="setup/accounts" element={<Navigate to="/ho/setup/accounts/new-account" replace />} />
-            <Route path="setup/taxes" element={<Navigate to={`/ho${setupTaxesNavItems[0].path}`} replace />} />
-            <Route path="setup/party-wise" element={<Navigate to={`/ho${partyWiseNavItems[0].path}`} replace />} />
-            <Route path="setup/other-account-details" element={<Navigate to={`/ho${otherAccountNavItems[0].path}`} replace />} />
-            <Route path="setup/configurations" element={<Navigate to={`/ho${configurationsNavItems[0].path}`} replace />} />
-            <Route path="setup/taxes/gst/tax-rates" element={<Navigate to={`/ho${setupTaxesNavItems[0].path}`} replace />} />
+            <Route path="setup/accounts" element={<Navigate to="custom-fields" replace />} />
             <Route path="setup/accounts/custom-fields" element={<SetupCustomFieldsAccountsPage />} />
             <Route path="setup/accounts/country" element={<SetupCountryPage />} />
+            <Route path="setup/accounts/states" element={<SetupAccountsPlaceholderPage pageKey="states" />} />
+            <Route path="setup/accounts/city" element={<SetupAccountsPlaceholderPage pageKey="city" />} />
+            <Route path="setup/accounts/opening-trial" element={<SetupAccountsPlaceholderPage pageKey="opening-trial" />} />
+            <Route path="setup/accounts/predefined-narrations" element={<SetupAccountsPlaceholderPage pageKey="predefined-narrations" />} />
+            <Route path="setup/accounts/profit-centers" element={<SetupAccountsPlaceholderPage pageKey="profit-centers" />} />
+            <Route path="setup/accounts/cost-centers" element={<SetupAccountsPlaceholderPage pageKey="cost-centers" />} />
+            <Route path="setup/accounts/cost-center-groups" element={<SetupAccountsPlaceholderPage pageKey="cost-center-groups" />} />
+            <Route path="setup/accounts/allocate-cost-centers" element={<SetupAccountsPlaceholderPage pageKey="allocate-cost-centers" />} />
+            <Route path="setup/accounts/cost-element-budgets" element={<SetupAccountsPlaceholderPage pageKey="cost-element-budgets" />} />
+            <Route path="setup/accounts/transporters" element={<SetupAccountsPlaceholderPage pageKey="transporters" />} />
+            <Route path="setup/accounts/transport-destinations" element={<SetupAccountsPlaceholderPage pageKey="transport-destinations" />} />
+            <Route path="setup/accounts/tax-forms" element={<SetupAccountsPlaceholderPage pageKey="tax-forms" />} />
+            <Route path="setup/accounts/allocate-tax-forms" element={<SetupAccountsPlaceholderPage pageKey="allocate-tax-forms" />} />
+            <Route path="setup/accounts/tds-types" element={<SetupAccountsPlaceholderPage pageKey="tds-types" />} />
+            <Route path="setup/accounts/allocate-tds-types" element={<SetupAccountsPlaceholderPage pageKey="allocate-tds-types" />} />
+            <Route path="setup/accounts/fbt-types" element={<SetupAccountsPlaceholderPage pageKey="fbt-types" />} />
+            <Route path="setup/accounts/allocate-fbt-types" element={<SetupAccountsPlaceholderPage pageKey="allocate-fbt-types" />} />
+            <Route path="setup/accounts/customer-database" element={<SetupAccountsPlaceholderPage pageKey="customer-database" />} />
+            <Route path="setup/accounts/account-groups" element={<SetupAccountsPlaceholderPage pageKey="account-groups" />} />
+            <Route path="setup/accounts/balance-sheet-groups" element={<SetupAccountsPlaceholderPage pageKey="balance-sheet-groups" />} />
+            <Route path="setup/accounts/allocate-balance-sheet-groups" element={<SetupAccountsPlaceholderPage pageKey="allocate-balance-sheet-groups" />} />
+            <Route path="setup/accounts/branch-setup" element={<SetupAccountsPlaceholderPage pageKey="branch-setup" />} />
+            <Route path="setup/accounts/agents" element={<SetupAccountsPlaceholderPage pageKey="agents" />} />
+
             <Route path="setup/accounts/new-account" element={<AccountMasterPage />} />
-            <Route path="setup/accounts/*" element={<SetupAccountsPlaceholderPage />} />
-            <Route
-              path="setup/taxes/*"
-              element={<SetupSectionPlaceholderPage sectionTitle="Setup Taxes" navItems={setupTaxesNavItems} />}
-            />
-            <Route
-              path="setup/party-wise/*"
-              element={<SetupSectionPlaceholderPage sectionTitle="Party Wise Settings" navItems={partyWiseNavItems} />}
-            />
-            <Route
-              path="setup/other-account-details/*"
-              element={<SetupSectionPlaceholderPage sectionTitle="Other Account Details" navItems={otherAccountNavItems} />}
-            />
-            <Route
-              path="setup/configurations/*"
-              element={<SetupSectionPlaceholderPage sectionTitle="Configurations" navItems={configurationsNavItems} />}
-            />
             <Route path="setup/stores" element={<StoreMasterPage />} />
             <Route path="setup/groups" element={<GroupsPage />} />
             <Route path="setup/hsn-codes" element={<HSNCodePage />} />
@@ -251,7 +306,6 @@ function AppRoutes() {
             <Route path="setup/barcode-print" element={<BarcodePrintingPage />} />
             <Route path="setup/discounts" element={<DiscountSetupPage />} />
             <Route path="setup/counters" element={<CounterMasterPage />} />
-
             <Route path="reports" element={<Navigate to="dashboard" replace />} />
             <Route path="reports/dashboard" element={<ReportsDashboard />} />
             <Route path="reports/sales" element={<SalesReportPage />} />
@@ -265,6 +319,15 @@ function AppRoutes() {
             <Route path="reports/vendors" element={<VendorReportPage />} />
             <Route path="reports/movement" element={<MovementReportPage />} />
             <Route path="reports/age-analysis" element={<AgeAnalysisPage />} />
+            <Route path="gst" element={<Navigate to="tax-rates" replace />} />
+            <Route path="gst/tax-rates" element={<TaxRatesPage />} />
+            <Route path="gst/tax-groups" element={<TaxGroupPage />} />
+            <Route path="gst/invoice-report" element={<InvoiceTaxReportPage />} />
+            <Route path="gst/gstr-summary" element={<GSTRSummaryPage />} />
+            <Route path="setup/taxes" element={<Navigate to="/ho/gst/tax-rates" replace />} />
+            <Route path="setup/party-wise" element={<SetupGenericTablePage title="Party Wise Rules" description="Configure default parameters, price lists, and calculation rules for parties." />} />
+            <Route path="setup/other-account-details" element={<SetupGenericTablePage title="Other Account Details" description="Configure budgets, limits, and advanced account-level flags." />} />
+            <Route path="setup/configurations" element={<SetupGenericTablePage title="System Configurations" description="Refine system behaviors, voucher parameters, and POS rules." />} />
 
             <Route path="accounts" element={<Navigate to="a-c-vouchers" replace />} />
             <Route path="accounts/a-c-vouchers" element={<AccountsDashboard />} />
@@ -288,6 +351,9 @@ function AppRoutes() {
             <Route path="clothing-erp" element={<LogicERPManager />} />
             <Route path="data-import" element={<DataImportExportPage />} />
             <Route path="grn" element={<GRNListPage />} />
+            <Route path="grn/new" element={<GRNFormPage />} />
+            <Route path="grn/:id" element={<GRNFormPage mode="view" />} />
+            <Route path="grn/:id/edit" element={<GRNFormPage mode="edit" />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>

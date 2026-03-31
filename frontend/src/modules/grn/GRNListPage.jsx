@@ -33,8 +33,8 @@ const GRNListPage = () => {
 
   const fetchGrns = async () => {
     try {
-      const res = await api.get('/grn/all'); // We'll add this endpoint to the backend
-      setGrns(res.data.data || []);
+      const res = await api.get('/grn/all');
+      setGrns(res.data.grns || res.data.data || []);
     } catch (err) {
       console.error('Fetch GRNs failed', err);
       // Fallback: search in purchases to show something if /all isn't ready
@@ -45,6 +45,20 @@ const GRNListPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleApprove = async (id) => {
+      if (!window.confirm('Are you sure you want to approve this GRN and post stock to inventory?')) return;
+      setLoading(true);
+      try {
+          await api.patch(`/grn/${id}/approve`);
+          fetchGrns();
+      } catch (err) {
+          console.error('Approve failed', err);
+          alert(err.response?.data?.message || 'Failed to approve');
+      } finally {
+          setLoading(false);
+      }
   };
 
   const getStatusColor = (status) => {
@@ -129,7 +143,7 @@ const GRNListPage = () => {
                       </Tooltip>
                       {grn.status === 'DRAFT' && (
                         <Tooltip title="Approve & Post Stock">
-                          <IconButton size="small" color="success">
+                          <IconButton size="small" color="success" onClick={() => handleApprove(grn._id)}>
                             <CheckCircleOutlineIcon sx={{ fontSize: 18 }} />
                           </IconButton>
                         </Tooltip>

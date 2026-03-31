@@ -141,6 +141,31 @@ function GRNFormPage({ mode = 'edit' }) {
     setLines(newLines);
   };
 
+  useEffect(() => {
+    if (!id && formValues.purchaseOrderId) {
+        const po = purchaseOrders.find(o => (o.id || o._id) === formValues.purchaseOrderId);
+        if (po) {
+            setFormValues(prev => ({
+                ...prev,
+                supplierId: po.supplierId?._id || po.supplierId || '',
+                remarks: po.notes || ''
+            }));
+            const poItems = po.items || [];
+            setLines(poItems.map((item, idx) => ({
+                id: `line-${idx}`,
+                productId: item.productId?._id || item.productId,
+                itemName: item.productId?.name || item.itemName || 'Item',
+                orderedQty: item.qty || item.quantity,
+                receivedQty: item.qty || item.quantity,
+                acceptedQty: item.qty || item.quantity,
+                rejectedQty: 0,
+                rate: item.price || item.rate,
+                batchNumber: ''
+            })));
+        }
+    }
+  }, [formValues.purchaseOrderId, purchaseOrders, id]);
+
   const handleSave = async (isDraft = true) => {
     try {
         setErrorMessage('');
@@ -148,6 +173,7 @@ function GRNFormPage({ mode = 'edit' }) {
             ...formValues,
             items: lines.map(l => ({
                 productId: l.productId,
+                orderedQty: Number(l.orderedQty || 0),
                 receivedQty: Number(l.receivedQty),
                 rejectedQty: Number(l.rejectedQty),
                 batchNumber: l.batchNumber || `B-${Date.now().toString().slice(-4)}`

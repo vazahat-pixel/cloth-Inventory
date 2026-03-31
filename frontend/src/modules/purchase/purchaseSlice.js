@@ -65,7 +65,7 @@ export const updatePurchase = createAsyncThunk('purchase/update', async ({ id, p
 export const fetchPurchaseOrders = createAsyncThunk('purchase/fetchOrders', async (_, { rejectWithValue }) => {
   try {
     const response = await api.get('/purchase-orders');
-    return response.data.purchaseOrders || response.data.data || [];
+    return response.data.orders || response.data.purchaseOrders || response.data.data || response.data;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || 'Failed to fetch purchase orders');
   }
@@ -188,7 +188,7 @@ const purchaseSlice = createSlice({
       })
       .addCase(fetchPurchaseOrders.fulfilled, (state, action) => {
         state.loading = false;
-        state.orders = action.payload || [];
+        state.orders = action.payload.orders || action.payload || [];
       })
       .addCase(addPurchaseOrder.fulfilled, (state, action) => {
         state.orders.unshift(action.payload);

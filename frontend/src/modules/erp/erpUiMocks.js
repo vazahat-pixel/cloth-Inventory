@@ -1,4 +1,5 @@
 import itemsData from '../items/data';
+import { purchasesData } from '../purchase/data';
 import suppliersSeed from '../masters/suppliers/data';
 
 export const sizeMasterSeed = [
@@ -306,6 +307,7 @@ export const barcodeSeed = itemsData.flatMap((item, itemIndex) =>
     isDuplicate: variantIndex === 2,
   })),
 );
+
 export const stockAuditSeed = {
   locationAnalytics: [],
   batchBreakdown: [],
