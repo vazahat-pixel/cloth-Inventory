@@ -8,12 +8,11 @@ import {
 import { useLocation } from 'react-router-dom';
 import useAppNavigate from '../../hooks/useAppNavigate';
 import useRoleBasePath from '../../hooks/useRoleBasePath';
-import {
-  setupAccountsNavItems,
-  setupAccountsPlaceholderContent,
-} from './setupAccountsNavConfig';
 
-function SetupAccountsPlaceholderPage({ pageKey }) {
+function SetupSectionPlaceholderPage({
+  sectionTitle,
+  navItems = [],
+}) {
   const navigate = useAppNavigate();
   const location = useLocation();
   const basePath = useRoleBasePath();
@@ -22,40 +21,30 @@ function SetupAccountsPlaceholderPage({ pageKey }) {
     ? location.pathname.slice(basePath.length) || '/'
     : location.pathname;
 
-  const currentItem = setupAccountsNavItems.find((item) => (
+  const currentItem = navItems.find((item) => (
     localPath === item.path || localPath.startsWith(`${item.path}/`)
   ));
 
-  const resolvedPageKey = pageKey || currentItem?.key;
-  const fallbackSection = currentItem
-    ? {
-        title: currentItem.label,
-        description: `This frontend page is ready inside the Setup Accounts flow.`,
-        highlights: [
-          `${currentItem.label} is now available inside the Setup Accounts side flow on the frontend.`,
-          'This section is ready for the detailed form, table, or allocation workflow later.',
-          'The submenu is wired so each account-setup field opens on the right side immediately.',
-        ],
-        actions: [
-          { label: 'Back to Setup', path: '/setup', variant: 'outlined' },
-        ],
-      }
-    : null;
+  const title = currentItem?.label || sectionTitle;
+  const firstItemPath = navItems[0]?.path;
+  const sectionDescription = currentItem
+    ? `${title} is now available inside the ${sectionTitle} setup flow on the frontend.`
+    : `This frontend section is ready inside the ${sectionTitle} setup flow.`;
 
-  const section = setupAccountsPlaceholderContent[resolvedPageKey] || fallbackSection;
-
-  if (!section) {
-    return null;
-  }
+  const highlights = [
+    sectionDescription,
+    'The route and sidebar entry are now connected, so this page opens directly from setup navigation.',
+    'You can keep building the detailed form, table, or workflow here without changing the route structure.',
+  ];
 
   return (
     <Box>
       <Stack spacing={1} sx={{ mb: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a' }}>
-          {section.title}
+          {title}
         </Typography>
         <Typography variant="body2" sx={{ color: '#64748b', maxWidth: 780 }}>
-          {section.description}
+          {sectionDescription}
         </Typography>
       </Stack>
 
@@ -75,7 +64,7 @@ function SetupAccountsPlaceholderPage({ pageKey }) {
             Frontend Section Ready
           </Typography>
 
-          {section.highlights?.map((highlight) => (
+          {highlights.map((highlight) => (
             <Box
               key={highlight}
               sx={{
@@ -92,23 +81,27 @@ function SetupAccountsPlaceholderPage({ pageKey }) {
             </Box>
           ))}
 
-          {section.actions?.length ? (
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ pt: 0.5 }}>
-              {section.actions.map((action) => (
-                <Button
-                  key={action.label}
-                  variant={action.variant || 'contained'}
-                  onClick={() => navigate(action.path)}
-                >
-                  {action.label}
-                </Button>
-              ))}
-            </Stack>
-          ) : null}
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ pt: 0.5 }}>
+            {firstItemPath && localPath !== firstItemPath ? (
+              <Button
+                variant="contained"
+                onClick={() => navigate(firstItemPath)}
+              >
+                Open First Section
+              </Button>
+            ) : null}
+
+            <Button
+              variant="outlined"
+              onClick={() => navigate('/setup')}
+            >
+              Back to Setup
+            </Button>
+          </Stack>
         </Stack>
       </Paper>
     </Box>
   );
 }
 
-export default SetupAccountsPlaceholderPage;
+export default SetupSectionPlaceholderPage;

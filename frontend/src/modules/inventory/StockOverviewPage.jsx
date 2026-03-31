@@ -26,6 +26,7 @@ import FilterBar from '../../components/erp/FilterBar';
 import ExportButton from '../../components/erp/ExportButton';
 import StatusBadge from '../../components/erp/StatusBadge';
 import SummaryCard from '../../components/erp/SummaryCard';
+import { buildSizeLabelLookup, resolveSizeLabel } from '../../common/sizeDisplay';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import stockOverviewExportColumns from '../../config/exportColumns/stockOverview';
 import { fetchStockOverview } from './inventorySlice';
@@ -74,6 +75,7 @@ function StockOverviewPage() {
   const dispatch = useDispatch();
   const navigate = useAppNavigate();
   const backendRows = useSelector((state) => state.inventory.stock || []);
+  const sizes = useSelector((state) => state.masters.sizes || []);
   const warehouses = useSelector((state) => state.masters.warehouses || []);
 
   const [searchText, setSearchText] = useState('');
@@ -87,7 +89,11 @@ function StockOverviewPage() {
   useEffect(() => {
     dispatch(fetchStockOverview());
     dispatch(fetchMasters('warehouses'));
+    dispatch(fetchMasters('sizes'));
   }, [dispatch]);
+
+  const sizeLabelLookup = useMemo(() => buildSizeLabelLookup(sizes), [sizes]);
+  const getSizeLabel = (value) => resolveSizeLabel(value, sizeLabelLookup);
 
   const rows = useMemo(() => {
     const merged = new Map();
@@ -197,11 +203,21 @@ function StockOverviewPage() {
             </MenuItem>
           ))}
         </TextField>
-        <TextField size="small" select label="Size" value={sizeFilter} onChange={(event) => setSizeFilter(event.target.value)} sx={{ minWidth: 120 }}>
+        <TextField
+          size="small"
+          select
+          label="Size"
+          value={sizeFilter}
+          onChange={(event) => setSizeFilter(event.target.value)}
+          sx={{ minWidth: 120 }}
+          SelectProps={{
+            renderValue: (selected) => (selected === 'all' ? 'All Sizes' : getSizeLabel(selected)),
+          }}
+        >
           <MenuItem value="all">All Sizes</MenuItem>
           {sizeOptions.map((option) => (
             <MenuItem key={option} value={option}>
-              {option}
+              {getSizeLabel(option)}
             </MenuItem>
           ))}
         </TextField>
@@ -235,7 +251,7 @@ function StockOverviewPage() {
                 <TableRow key={row.id} hover>
                   <TableCell sx={{ fontWeight: 700 }}>{row.itemCode}</TableCell>
                   <TableCell>{row.itemName}</TableCell>
-                  <TableCell>{row.size || '--'}</TableCell>
+                  <TableCell>{getSizeLabel(row.size) || '--'}</TableCell>
                   <TableCell>{row.color || '--'}</TableCell>
                   <TableCell>{row.warehouse}</TableCell>
                   <TableCell align="right">{row.availableStock}</TableCell>
