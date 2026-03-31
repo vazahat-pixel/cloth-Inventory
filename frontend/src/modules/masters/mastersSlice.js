@@ -26,6 +26,18 @@ const responseKeyMap = {
   banks: 'banks',
 };
 
+const singularKeyMap = {
+  suppliers: 'supplier',
+  customers: 'customer',
+  warehouses: 'warehouse',
+  stores: 'store',
+  itemGroups: 'group',
+  salesmen: 'user',
+  brands: 'brand',
+  accountGroups: 'accountGroup',
+  banks: 'bank',
+};
+
 // Async Thunks for different master entities
 export const fetchMasters = createAsyncThunk('masters/fetchAll', async (entityKey, { rejectWithValue }) => {
   try {
@@ -34,7 +46,8 @@ export const fetchMasters = createAsyncThunk('masters/fetchAll', async (entityKe
 
     const response = await api.get(endpoint);
     const key = responseKeyMap[entityKey];
-    const raw = response.data[key] || response.data.data?.[key] || response.data.data || [];
+    const singularKey = singularKeyMap[entityKey];
+    const raw = response.data[key] || response.data.data?.[key] || response.data[singularKey] || response.data.data?.[singularKey] || response.data.data || [];
 
     const entityTypeMapping = {
       itemGroups: 'group',
@@ -127,13 +140,9 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
 
     const response = await api.post(endpoint, payload);
 
-    let raw;
-    if (entityKey === 'itemGroups') {
-      raw = response.data.group || response.data.data?.group;
-    } else {
-      const key = responseKeyMap[entityKey];
-      raw = response.data[key] || response.data.data?.[key] || response.data.data;
-    }
+    const key = responseKeyMap[entityKey];
+    const singularKey = singularKeyMap[entityKey];
+    const raw = response.data[key] || response.data.data?.[key] || response.data[singularKey] || response.data.data?.[singularKey] || response.data.data;
 
     const entityTypeMapping = {
       itemGroups: 'group',
@@ -221,13 +230,9 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
 
     const response = await api.patch(endpoint, payload);
 
-    let raw;
-    if (entityKey === 'itemGroups') {
-      raw = response.data.group || response.data.data?.group;
-    } else {
-      const key = responseKeyMap[entityKey];
-      raw = response.data[key] || response.data.data?.[key] || response.data.data;
-    }
+    const key = responseKeyMap[entityKey];
+    const singularKey = singularKeyMap[entityKey];
+    const raw = response.data[key] || response.data.data?.[key] || response.data[singularKey] || response.data.data?.[singularKey] || response.data.data;
 
     const entityTypeMapping = {
       itemGroups: 'group',

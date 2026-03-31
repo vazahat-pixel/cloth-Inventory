@@ -112,73 +112,75 @@ function BarcodePrintingPage() {
     }
 
     const labelHtml = `
-      <div class="label-container" style="
-        width: 280px;
-        padding: 15px;
-        border: 1px solid #000;
-        font-family: Arial, sans-serif;
-        text-transform: uppercase;
-        margin-bottom: 20px;
-        page-break-inside: avoid;
+      <div class="tag" style="
+        width: 2.25in;
         background: #fff;
+        border: 1px solid #000;
+        padding: 8px 10px;
+        page-break-inside: avoid;
+        font-family: 'Inter', Arial, sans-serif;
+        margin-bottom: 15px;
+        text-transform: uppercase;
       ">
-        <div style="text-align: center; margin-bottom: 5px;">
-          <img src="${barcodeImgData}" style="width: 100%; max-height: 45px;" />
-          <div style="font-weight: bold; font-size: 14px; letter-spacing: 2px;">${barcodeValue}</div>
+        <!-- BARCODE -->
+        <div style="text-align: center; margin-bottom: 12px;">
+          <img src="${barcodeImgData}" style="width: 100%; max-height: 45px; display: block; margin: 0 auto;" />
+          <div style="font-weight: 700; font-size: 8.5pt; letter-spacing: 1px; margin-top: 2px;">${barcodeValue}</div>
         </div>
 
-        <div style="font-size: 11px; line-height: 1.4;">
-          <div style="display: flex; margin-bottom: 3px;">
-            <span style="width: 80px; font-weight: bold;">ARTICLE :</span>
-            <span>${selectedProduct.sku}</span>
-          </div>
-          <div style="display: flex; margin-bottom: 3px;">
-            <span style="width: 80px; font-weight: bold;">GROUP :</span>
-            <span>${selectedProduct.category || 'CLOTHING'}</span>
-            <span style="margin-left: auto; font-size: 10px;">0015</span>
-          </div>
-          <div style="display: flex; margin-bottom: 3px;">
-            <span style="width: 80px; font-weight: bold;">TYPE :</span>
-            <span>${type}</span>
-          </div>
-          <div style="display: flex; margin-bottom: 15px;">
-            <span style="width: 80px; font-weight: bold;">DESIGN :</span>
-            <span>${design}</span>
-          </div>
-
-          <div style="display: flex; margin-bottom: 3px;">
-            <span style="width: 80px; font-weight: bold;">SIZE :</span>
-            <span style="font-weight: bold; font-size: 13px;">${selectedProduct.size || '--'}</span>
-          </div>
-          <div style="display: flex; margin-bottom: 3px;">
-            <span style="width: 80px; font-weight: bold;">QTY: 1N</span>
-            <span>${qtyInfo}</span>
-          </div>
-          <div style="display: flex; margin-bottom: 10px;">
-            <span style="width: 80px; font-weight: bold;">COLOUR :</span>
-            <span>${selectedProduct.color || 'NAVY'}</span>
-          </div>
-
-          <div style="border-top: 1px dashed #000; padding-top: 5px; margin-bottom: 5px;">
-            <div style="display: flex; align-items: baseline;">
-              <span style="width: 80px; font-weight: bold; font-size: 14px;">MRP :</span>
-              <span style="font-weight: bold; font-size: 18px;">${selectedProduct.salePrice}</span>
-            </div>
-            <div style="font-size: 10px; text-align: center; margin-top: 2px;">(INCL. OF ALL TAXES)</div>
-          </div>
-
-          <div style="font-size: 9px; line-height: 1.2; margin-top: 10px;">
-            <div style="font-weight: bold;">MFG:</div>
-            <div style="font-weight: bold;">MFG. & MARKETED BY</div>
-            <div>${mfgLine1}</div>
-            <div>${mfgLine2}</div>
-            <div>${mfgLine3}</div>
-            <div style="margin-top: 3px;">CUSTOMER CARE: +91 XXXXXXXXXX</div>
-            <div>EMAIL: ${email}</div>
-          </div>
+        <!-- FIELDS -->
+        <div style="font-size: 8.5pt; line-height: 1.5; margin-bottom: 1px; clear: both;">
+          <span style="font-weight: 700; min-width: 65px; display: inline-block;">ARTICLE :</span>
+          <span>${selectedProduct.sku}</span>
+        </div>
+        <div style="font-size: 8.5pt; line-height: 1.5; margin-bottom: 1px; clear: both;">
+          <span style="font-weight: 700; min-width: 65px; display: inline-block;">GROUP :</span>
+          <span>${selectedProduct.category || 'CLOTHING'}</span>
+          <span style="float: right; font-size: 7pt; font-weight: 400; margin-top: 1px;">0015</span>
+        </div>
+        <div style="font-size: 8.5pt; line-height: 1.5; margin-bottom: 1px; clear: both;">
+          <span style="font-weight: 700; min-width: 65px; display: inline-block;">TYPE :</span>
+          <span>${type}</span>
+        </div>
+        <div style="font-size: 8.5pt; line-height: 1.5; margin-bottom: 1px; clear: both;">
+          <span style="font-weight: 700; min-width: 65px; display: inline-block;">DESIGN :</span>
+          <span>${design}</span>
         </div>
 
-        <div style="height: 5px; border-top: 2px solid #555; border-bottom: 2px solid #333; margin-top: 10px;"></div>
+        <div style="font-size: 8.5pt; line-height: 1.5; margin-top: 3px; clear: both;">
+          <span style="font-weight: 700; min-width: 65px; display: inline-block;">SIZE :</span>
+          <span style="font-weight: 800; font-size: 10pt;">${selectedProduct.size || '--'}</span>
+        </div>
+        <div style="font-size: 8.5pt; line-height: 1.5; margin-bottom: 1px; clear: both;">
+          <span style="font-weight: 700; min-width: 65px; display: inline-block;">QTY: 1N</span>
+          <span>${qtyInfo}</span>
+        </div>
+        <div style="font-size: 8.5pt; line-height: 1.5; margin-bottom: 8px; clear: both;">
+          <span style="font-weight: 700; min-width: 65px; display: inline-block;">COLOUR :</span>
+          <span>${selectedProduct.color || 'NAVY'}</span>
+        </div>
+
+        <!-- MRP -->
+        <div style="text-align: center; margin: 10px 0;">
+          <div style="display: flex; justify-content: center; align-items: baseline;">
+            <span style="font-size: 10pt; font-weight: 700; margin-right: 5px;">MRP :</span>
+            <span style="font-size: 16pt; font-weight: 800;">${selectedProduct.salePrice}</span>
+          </div>
+          <div style="font-size: 7pt; color: #444; margin-top: -2px;">(INCL. OF ALL TAXES)</div>
+        </div>
+
+        <!-- FOOTER -->
+        <div style="border-top: 1px solid #eee; padding-top: 6px; font-size: 7pt; line-height: 1.3; color: #333; margin-top: 5px;">
+          <div style="font-weight: 800; font-size: 7.5pt; margin-bottom: 2px;">MFG:</div>
+          <div style="font-weight: 800; color: #000;">MFG. & MARKETED BY</div>
+          <div style="font-weight: 800; color: #000; font-size: 7.5pt;">REBEL MASS EXPORT PVT. LTD</div>
+          <div>${mfgLine1 !== 'Rebel Mass Export Pvt. Ltd' ? mfgLine1 : 'Plot No 418, Sector-53, Phase 3'}</div>
+          <div>${mfgLine2 !== 'Plot No 418, Sector-53, Phase 3' ? mfgLine2 : 'Kundli, Sonipat (Haryana)'}</div>
+          <div style="margin-top: 2px;">CUSTOMER CARE: +91 XXXXXXXXXX</div>
+          <div>EMAIL: ${email}</div>
+        </div>
+
+        <div style="height: 4px; background: #eee; margin: 8px -10px -8px; border-top: 1px solid #ddd;"></div>
       </div>
     `;
 
@@ -186,23 +188,32 @@ function BarcodePrintingPage() {
       <html>
         <head>
           <title>Barcode Labels</title>
+          <link rel="preconnect" href="https://fonts.googleapis.com" />
+          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&display=swap" rel="stylesheet" />
           <style>
             @media print {
               body { margin: 0; padding: 0; }
+              @page { margin: 0; }
             }
             body {
               display: flex;
               flex-wrap: wrap;
               justify-content: center;
               padding: 20px;
-              background: #f0f0f0;
+              background: #fdfdfd;
+              -webkit-print-color-adjust: exact;
             }
           </style>
         </head>
         <body>
           ${Array.from({ length: Number(quantity || 1) }).map(() => labelHtml).join('')}
           <script>
-            window.onload = () => window.print();
+            window.onload = () => {
+              setTimeout(() => {
+                window.print();
+                window.close();
+              }, 500);
+            };
           </script>
         </body>
       </html>

@@ -90,15 +90,6 @@ function BarcodePrintDialog({ open, onClose, purchase, lines = [], warehouseMap 
       .map((item) => {
         // Code 39 barcode: wrap value with * and render in Libre Barcode 39 font
         const barcodeValue = `*${escapeHtml(item.sku)}*`;
-        const rows = [
-          ['Article', item.sku],
-          ['Group', item.group],
-          ['Type', item.type],
-          ['DESIGN', item.design],
-          ['Size', item.size],
-          ['Qty', item.quantity],
-          ['Colour', item.colour],
-        ];
 
         return `
           <div class="tag">
@@ -109,32 +100,40 @@ function BarcodePrintDialog({ open, onClose, purchase, lines = [], warehouseMap 
             </div>
 
             <!-- FIELD ROWS -->
-            <table class="fields">
-              ${rows
-            .map(([label, value]) => `
-                  <tr>
-                    <td class="label">${escapeHtml(label)} :</td>
-                    <td class="value">${escapeHtml(String(value || ''))}</td>
-                  </tr>`)
-            .join('')}
-            </table>
+            <div class="field-item"><span class="label">Article :</span> <span class="value">${escapeHtml(item.sku)}</span></div>
+            <div class="field-item">
+              <span class="label">Group :</span> <span class="value">${escapeHtml(item.group)}</span>
+              <span style="float: right; font-size: 7pt; font-weight: normal; margin-top: 1px;">0015</span>
+            </div>
+            <div class="field-item"><span class="label">Type :</span> <span class="value">${escapeHtml(item.type)}</span></div>
+            <div class="field-item"><span class="label">DESIGN :</span> <span class="value">${escapeHtml(item.design)}</span></div>
+            
+            <div class="field-item" style="margin-top: 2px;"><span class="label">Size :</span> <span class="value" style="font-weight: bold; font-size: 10pt;">${escapeHtml(item.size)}</span></div>
+            <div class="field-item"><span class="label">Qty :</span> <span class="value">1N ${escapeHtml(item.qtyNote || 'CASUAL')}</span></div>
+            <div class="field-item"><span class="label">Colour :</span> <span class="value">${escapeHtml(item.colour)}</span></div>
 
             <!-- MRP -->
-            <div class="mrp-row">
-              <span class="mrp-label">MRP :</span>
-              <span class="mrp-value">&#8377;${escapeHtml(String(item.mrp || ''))}</span>
+            <div class="mrp-box">
+              <div class="mrp-row">
+                <span class="mrp-label">MRP :</span>
+                <span class="mrp-value">${escapeHtml(item.mrp || '0')}</span>
+              </div>
+              <div class="mrp-tax">(Incl of all taxes)</div>
             </div>
-            <div class="mrp-tax">(Incl of all taxes)</div>
 
             <!-- COMPANY FOOTER -->
             <div class="footer">
-              <div>${escapeHtml(COMPANY.name)}</div>
+              <div style="font-weight: bold; font-size: 7pt; margin-bottom: 2px;">MFG:</div>
+              <div style="font-weight: bold;">${escapeHtml(COMPANY.name)}</div>
               <div class="co-name">${escapeHtml(COMPANY.fullName)}</div>
               <div>${escapeHtml(COMPANY.address)}</div>
               <div>${escapeHtml(COMPANY.city)}</div>
-              <div>${escapeHtml(COMPANY.customerCare)}</div>
+              <div style="margin-top: 2px;">${escapeHtml(COMPANY.customerCare)}</div>
               <div>${escapeHtml(COMPANY.email)}</div>
             </div>
+            
+            <!-- BOTTOM STRIPE -->
+            <div class="bottom-stripe"></div>
           </div>`;
       })
       .join('');
@@ -146,115 +145,127 @@ function BarcodePrintDialog({ open, onClose, purchase, lines = [], warehouseMap 
   <title>Garment Tags — ${escapeHtml(purchase?.billNumber || 'Print')}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link
-    href="https://fonts.googleapis.com/css2?family=Libre+Barcode+39+Text&family=Arial&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Libre+Barcode+39+Text&family=Inter:wght@400;700&display=swap"
     rel="stylesheet"
   />
   <style>
-    @page { margin: 0.2in; }
-
+    @page { margin: 0; }
     * { box-sizing: border-box; }
 
     body {
-      font-family: Arial, sans-serif;
+      font-family: 'Inter', Arial, sans-serif;
       margin: 0;
-      padding: 0;
-      background: #fff;
+      padding: 10px;
+      background: #fdfdfd;
+      -webkit-print-color-adjust: exact;
     }
 
     .tags-grid {
       display: flex;
       flex-wrap: wrap;
-      gap: 5px;
-      justify-content: flex-start;
+      gap: 10px;
     }
 
     /* ── SINGLE TAG ── */
     .tag {
-      width: 2.5in;
-      border: 1px solid #444;
-      padding: 5px 7px 5px;
-      page-break-inside: avoid;
-      font-size: 8pt;
-      line-height: 1.25;
+      width: 2.25in;
       background: #fff;
+      border: 1px solid #e0e0e0;
+      padding: 8px 10px;
+      page-break-inside: avoid;
+      position: relative;
       overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
 
-    /* Barcode — FULL WIDTH, never cut off */
+    /* Barcode */
     .barcode-wrap {
       text-align: center;
-      width: 100%;
-      overflow: hidden;
-      margin-bottom: 2px;
+      margin-bottom: 15px;
     }
     .barcode {
-      font-family: 'Libre Barcode 39 Text', monospace;
-      font-size: 36pt;
+      font-family: 'Libre Barcode 39 Text', cursive;
+      font-size: 38pt;
       line-height: 1;
-      letter-spacing: -2px;
       display: block;
-      width: 100%;
-      white-space: nowrap;
-      transform: scaleX(0.85);
-      transform-origin: left center;
+      margin-bottom: -5px;
     }
     .sku-text {
-      font-size: 7pt;
-      font-weight: bold;
-      letter-spacing: 0.5px;
-      text-align: center;
-      margin-top: -2px;
-      word-break: break-all;
+      font-size: 8pt;
+      font-weight: 700;
+      letter-spacing: 1px;
     }
 
-    /* Field table */
-    .fields {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 2px 0;
-    }
-    .fields td {
-      padding: 0.3px 1px;
-      vertical-align: top;
+    /* Field Items */
+    .field-item {
+      font-size: 8.5pt;
+      line-height: 1.5;
+      margin-bottom: 1px;
+      text-transform: uppercase;
+      clear: both;
     }
     .label {
-      font-weight: bold;
-      white-space: nowrap;
-      width: 48px;
-      font-size: 8pt;
+      font-weight: 700;
+      color: #000;
+      display: inline-block;
+      min-width: 65px;
     }
     .value {
-      font-size: 8pt;
-      padding-left: 3px;
-      font-weight: normal;
+      font-weight: 400;
+      color: #000;
     }
 
-    /* MRP */
-    .mrp-row {
-      margin-top: 2px;
-      font-size: 9pt;
-      font-weight: bold;
+    /* MRP Section */
+    .mrp-box {
+      margin: 12px 0;
+      text-align: center;
     }
-    .mrp-label { margin-right: 3px; }
-    .mrp-value { font-size: 13pt; }
+    .mrp-row {
+      display: flex;
+      justify-content: center;
+      align-items: baseline;
+    }
+    .mrp-label {
+      font-size: 10pt;
+      font-weight: 700;
+      margin-right: 5px;
+    }
+    .mrp-value {
+      font-size: 16pt;
+      font-weight: 800;
+    }
     .mrp-tax {
-      font-size: 6.5pt;
-      color: #333;
-      margin-top: -1px;
+      font-size: 7pt;
+      color: #444;
+      margin-top: -2px;
     }
 
     /* Footer */
     .footer {
-      border-top: 1px dashed #888;
-      margin-top: 3px;
-      padding-top: 2px;
-      font-size: 6.5pt;
-      line-height: 1.25;
+      border-top: 1px solid #eee;
+      padding-top: 8px;
+      font-size: 7pt;
+      line-height: 1.3;
+      color: #333;
+      margin-top: 5px;
     }
-    .co-name { font-weight: bold; }
+    .footer div { margin-bottom: 1px; }
+    .footer .co-name {
+      font-weight: 700;
+      color: #000;
+      font-size: 7.5pt;
+    }
+
+    .bottom-stripe {
+      height: 4px;
+      background: linear-gradient(to right, #ccc 0%, #eee 50%, #ccc 100%);
+      margin: 8px -10px -8px;
+      border-top: 1px solid #ddd;
+    }
 
     @media print {
-      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      body { padding: 0; background: none; }
+      .tag { border: 1px solid #000; margin: 0; box-shadow: none; }
     }
   </style>
 </head>
@@ -262,7 +273,14 @@ function BarcodePrintDialog({ open, onClose, purchase, lines = [], warehouseMap 
   <div class="tags-grid">
     ${tagHTML}
   </div>
-  <script>window.onload = function () { window.print(); };<\/script>
+  <script>
+    window.onload = function() {
+      setTimeout(() => {
+        window.print();
+        window.close();
+      }, 500);
+    };
+  <\/script>
 </body>
 </html>`);
     win.document.close();
