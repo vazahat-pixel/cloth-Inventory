@@ -41,7 +41,7 @@ function SetupLandingPage() {
           </Typography>
           <Typography variant="body2" sx={{ color: '#475569', lineHeight: 1.7 }}>
             Use the compact setup panel beside the main sidebar to move between Setup Accounts,
-            Setup Items, Item Details, Taxes, and Configurations.
+            Item Details, Taxes, and Configurations.
           </Typography>
           <Typography variant="body2" sx={{ color: '#64748b', lineHeight: 1.7 }}>
             This page stays clean while the setup shortcuts remain visible in a smaller side menu.

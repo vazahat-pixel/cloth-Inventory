@@ -4,5 +4,6 @@ const barcodesController = require('./barcodes.controller');
 const { protect } = require('../../middlewares/auth.middleware');
 
 router.post('/import-excel', protect, barcodesController.importExcelAndGenerateBarcodes);
+router.get('/grn/:id', protect, barcodesController.getLabelsByGrn);
 
 module.exports = router;

@@ -341,7 +341,7 @@ function GroupsPage({ compact = false }) {
 
         {tab === 'tree' ? (
           <Grid container>
-            <Grid item xs={12} md={7} sx={{ borderRight: { md: '1px solid #e2e8f0' }, p: 2 }}>
+            <Grid size={{ xs: 12, md: 7 }} sx={{ borderRight: { md: '1px solid #e2e8f0' }, p: 2 }}>
               {loading ? (
                 <Typography variant="body2" sx={{ color: '#64748b', p: 2 }}>
                   Loading groups...
@@ -364,7 +364,7 @@ function GroupsPage({ compact = false }) {
               )}
             </Grid>
 
-            <Grid item xs={12} md={5} sx={{ p: 2 }}>
+            <Grid size={{ xs: 12, md: 5 }} sx={{ p: 2 }}>
               <FormSection
                 title={selectedGroup ? 'Selected Group' : 'Hierarchy Tips'}
                 subtitle={selectedGroup ? 'Use this summary to review hierarchy details before editing.' : 'Expand parent nodes and create subgroups directly from the hierarchy.'}
@@ -456,7 +456,7 @@ function GroupsPage({ compact = false }) {
         <DialogTitle>{formValues.id ? 'Edit Group' : 'Add Group'}</DialogTitle>
         <DialogContent dividers>
           <Grid container spacing={2}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 size="small"
@@ -467,7 +467,7 @@ function GroupsPage({ compact = false }) {
                 helperText={formErrors.groupName || ' '}
               />
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 size="small"
@@ -485,7 +485,7 @@ function GroupsPage({ compact = false }) {
                 ))}
               </TextField>
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 size="small"
@@ -504,7 +504,7 @@ function GroupsPage({ compact = false }) {
                   ))}
               </TextField>
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 size="small"
@@ -517,7 +517,7 @@ function GroupsPage({ compact = false }) {
                 <MenuItem value="Inactive">Inactive</MenuItem>
               </TextField>
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 size="small"

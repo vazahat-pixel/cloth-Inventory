@@ -15,6 +15,33 @@ import RoleProtectedRoute from './RoleProtectedRoute';
 import RoleRedirect from './RoleRedirect';
 
 // Loading Placeholder
+
+import PayrollSetupsPlaceholderPage from '../modules/payroll/PayrollSetupsPlaceholderPage';
+import ProductionPlaceholderPage from '../modules/production/ProductionPlaceholderPage';
+import PayrollEntryPlaceholderPage from '../modules/payroll/PayrollEntryPlaceholderPage';
+import PayrollReportsPlaceholderPage from '../modules/payroll/PayrollReportsPlaceholderPage';
+import ReportsQueriesPlaceholderPage from '../modules/reports/ReportsQueriesPlaceholderPage';
+import UtilitiesPlaceholderPage from '../modules/utilities/UtilitiesPlaceholderPage';
+import UserAccessPlaceholderPage from '../modules/userAccess/UserAccessPlaceholderPage';
+import PackingSlipPage from '../modules/orders/PackingSlipPage';
+import OrderProcessingPlaceholderPage from '../modules/orders/OrderProcessingPlaceholderPage';
+import DataImportPlaceholderPage from '../modules/data/DataImportPlaceholderPage';
+import PurchaseReturnPageStaff from '../modules/store/PurchaseReturnPage';
+import ProfilePage from '../modules/profile/ProfilePage';
+import NotFoundPage from '../pages/NotFoundPage';
+import SeasonsListPage from '../modules/masters/Seasons/ListPage';
+import SettingsLayout from '../modules/settings/SettingsLayout';
+import CompanyProfilePage from '../modules/settings/CompanyProfilePage';
+import UsersPage from '../modules/settings/UsersPage';
+import RolesPage from '../modules/settings/RolesPage';
+import NumberSeriesPage from '../modules/settings/NumberSeriesPage';
+import PreferencesPage from '../modules/settings/PreferencesPage';
+import PurchaseVoucherConfigPage from '../modules/settings/PurchaseVoucherConfigPage';
+import PrintTemplatesPage from '../modules/settings/PrintTemplatesPage';
+import AuditLogPage from '../modules/settings/AuditLogPage';
+import LogicERPManager from '../modules/erp/LogicERPManager';
+
+// --- Loading Placeholder ---
 const PageLoader = () => (
   <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
     <CircularProgress size={40} sx={{ color: '#10b981' }} />
@@ -231,6 +258,7 @@ function AppRoutes() {
             <Route path="purchase/orders/:id" element={<PurchaseOrderFormPage mode="edit" />} />
             <Route path="purchase/orders/:id/view" element={<PurchaseOrderFormPage mode="view" />} />
             <Route path="purchase/orders/:id/edit" element={<PurchaseOrderFormPage mode="edit" />} />
+
             <Route path="orders" element={<Navigate to="sale-order" replace />} />
             <Route path="orders/sale-order" element={<SaleOrderListPage />} />
             <Route path="orders/sale-order/new" element={<SaleOrderFormPage />} />
@@ -244,23 +272,27 @@ function AppRoutes() {
             <Route path="orders/delivery" element={<DeliveryOrderPage />} />
             <Route path="orders/delivery-challan" element={<DeliveryChallanPage />} />
             <Route path="orders/delivery-challan/new" element={<DeliveryChallanForm />} />
+
             <Route path="sales" element={<Navigate to="sale-bill" replace />} />
             <Route path="sales/sale-bill" element={<SalesListPage pageTitle="Sale Bill" pageDescription="Review sale bills, payment status, and customer return access..." primaryActionLabel="New Sale Bill" primaryActionPath="/sales/sale-bill/new" returnPathBuilder={(saleId) => `/sales/sales-return/${saleId}`} />} />
             <Route path="sales/sale-bill/new" element={<BillingPage listPath="/sales/sale-bill" pageTitle="Sale Bill" pageDescription="..." listLabel="..." backButtonLabel="..." returnPathBuilder={(saleId) => `/sales/sales-return/${saleId}`} />} />
             <Route path="sales/sales-return" element={<SalesListPage pageTitle="Sales Return" pageDescription="..." showPrimaryAction={false} returnPathBuilder={(saleId) => `/sales/sales-return/${saleId}`} />} />
             <Route path="sales/sales-return/:id" element={<SalesReturnPage listPath="/sales/sales-return" pageTitle="Sales Return" pageDescription="..." listLabel="..." />} />
+
             <Route path="pricing" element={<Navigate to="price-lists" replace />} />
             <Route path="pricing/price-lists" element={<PriceListPage />} />
             <Route path="pricing/price-lists/new" element={<PriceListFormPage />} />
             <Route path="pricing/schemes" element={<SchemeListPage />} />
             <Route path="pricing/schemes/new" element={<SchemeFormPage />} />
             <Route path="pricing/coupons" element={<CouponPage />} />
+
             <Route path="customers" element={<Navigate to="rewards" replace />} />
             <Route path="customers/rewards" element={<CustomerRewardsPage />} />
             <Route path="customers/loyalty-config" element={<LoyaltyConfigPage />} />
             <Route path="customers/vouchers" element={<VoucherListPage />} />
             <Route path="customers/vouchers/new" element={<VoucherFormPage />} />
             <Route path="customers/credit-notes" element={<CreditNotesPage />} />
+
             <Route path="setup" element={<SetupLandingPage />} />
             <Route path="setup/accounts" element={<Navigate to="custom-fields" replace />} />
             <Route path="setup/accounts/custom-fields" element={<SetupCustomFieldsAccountsPage />} />
@@ -298,6 +330,11 @@ function AppRoutes() {
             <Route path="setup/barcode-print" element={<BarcodePrintingPage />} />
             <Route path="setup/discounts" element={<DiscountSetupPage />} />
             <Route path="setup/counters" element={<CounterMasterPage />} />
+            <Route path="setup/taxes" element={<Navigate to="/ho/gst/tax-rates" replace />} />
+            <Route path="setup/party-wise" element={<SetupGenericTablePage title="Party Wise Rules" description="Configure default parameters, price lists, and calculation rules for parties." />} />
+            <Route path="setup/other-account-details" element={<SetupGenericTablePage title="Other Account Details" description="Configure budgets, limits, and advanced account-level flags." />} />
+            <Route path="setup/configurations" element={<SetupGenericTablePage title="System Configurations" description="Refine system behaviors, voucher parameters, and POS rules." />} />
+
             <Route path="reports" element={<Navigate to="dashboard" replace />} />
             <Route path="reports/dashboard" element={<ReportsDashboard />} />
             <Route path="reports/sales" element={<SalesReportPage />} />
@@ -311,15 +348,12 @@ function AppRoutes() {
             <Route path="reports/vendors" element={<VendorReportPage />} />
             <Route path="reports/movement" element={<MovementReportPage />} />
             <Route path="reports/age-analysis" element={<AgeAnalysisPage />} />
+
             <Route path="gst" element={<Navigate to="tax-rates" replace />} />
             <Route path="gst/tax-rates" element={<TaxRatesPage />} />
             <Route path="gst/tax-groups" element={<TaxGroupPage />} />
             <Route path="gst/invoice-report" element={<InvoiceTaxReportPage />} />
             <Route path="gst/gstr-summary" element={<GSTRSummaryPage />} />
-            <Route path="setup/taxes" element={<Navigate to="/ho/gst/tax-rates" replace />} />
-            <Route path="setup/party-wise" element={<SetupGenericTablePage title="Party Wise Rules" description="Configure default parameters, price lists, and calculation rules for parties." />} />
-            <Route path="setup/other-account-details" element={<SetupGenericTablePage title="Other Account Details" description="Configure budgets, limits, and advanced account-level flags." />} />
-            <Route path="setup/configurations" element={<SetupGenericTablePage title="System Configurations" description="Refine system behaviors, voucher parameters, and POS rules." />} />
 
             <Route path="accounts" element={<Navigate to="a-c-vouchers" replace />} />
             <Route path="accounts/a-c-vouchers" element={<AccountsDashboard />} />

@@ -28,6 +28,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import { Controller, useForm } from 'react-hook-form';
+import { buildSizeLabelLookup, resolveSizeLabel } from '../../common/sizeDisplay';
 
 const COLOR_OPTIONS = ['Black', 'Blue', 'Red', 'White', 'Green', 'Grey', 'Navy', 'Yellow', 'Pink', 'Cream', 'Olive', 'Multi'];
 
@@ -82,6 +83,32 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
 
   const selectedSize = watch('size');
   const selectedColor = watch('color');
+  const normalizedSizeOptions = useMemo(
+    () =>
+      sizeOptions
+        .map((option) =>
+          typeof option === 'string'
+            ? { value: option, label: option }
+            : {
+                value: option?.value || option?.sizeCode || option?.name || option?.sizeLabel || '',
+                label: option?.label || option?.sizeLabel || option?.name || option?.value || option?.sizeCode || '',
+              },
+        )
+        .filter((option) => option.value),
+    [sizeOptions],
+  );
+  const sizeLabelLookup = useMemo(
+    () =>
+      buildSizeLabelLookup(
+        normalizedSizeOptions.map((option) => ({
+          sizeCode: option.value,
+          sizeLabel: option.label,
+        })),
+      ),
+    [normalizedSizeOptions],
+  );
+
+  const getSizeLabel = (value) => resolveSizeLabel(value, sizeLabelLookup);
 
   useEffect(() => {
     if (!autoGenerateSku) {
@@ -246,18 +273,18 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
               Select Sizes
             </Typography>
             <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', mt: 1 }}>
-              {sizeOptions.map((size) => (
+              {normalizedSizeOptions.map((sizeOption) => (
                 <Chip
-                  key={size}
-                  label={size}
+                  key={sizeOption.value}
+                  label={sizeOption.label}
                   clickable
-                  color={selectedSizes.includes(size) ? 'primary' : 'default'}
-                  variant={selectedSizes.includes(size) ? 'filled' : 'outlined'}
-                  onClick={() => toggleBulkSelection(size, selectedSizes, setSelectedSizes)}
+                  color={selectedSizes.includes(sizeOption.value) ? 'primary' : 'default'}
+                  variant={selectedSizes.includes(sizeOption.value) ? 'filled' : 'outlined'}
+                  onClick={() => toggleBulkSelection(sizeOption.value, selectedSizes, setSelectedSizes)}
                   sx={{ mb: 1 }}
                 />
               ))}
-              {!sizeOptions.length && <Typography variant="caption" color="error">No sizes found in Master. Please add sizes in Setup first.</Typography>}
+              {!normalizedSizeOptions.length && <Typography variant="caption" color="error">No sizes found in Master. Please add sizes in Setup first.</Typography>}
             </Stack>
           </Box>
 
@@ -339,7 +366,7 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
               <TableBody>
                 {variants.map((variant) => (
                   <TableRow key={variant.id} hover>
-                    <TableCell>{variant.size}</TableCell>
+                    <TableCell>{getSizeLabel(variant.size)}</TableCell>
                     <TableCell>{variant.color}</TableCell>
                     <TableCell>{variant.sku}</TableCell>
                     <TableCell align="right">{variant.costPrice}</TableCell>
@@ -415,10 +442,13 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
                       label="Size"
                       error={Boolean(errors.size)}
                       helperText={errors.size?.message || ' '}
+                      SelectProps={{
+                        renderValue: (selected) => getSizeLabel(selected),
+                      }}
                     >
-                      {sizeOptions.map((size) => (
-                        <MenuItem key={size} value={size}>
-                          {size}
+                      {normalizedSizeOptions.map((sizeOption) => (
+                        <MenuItem key={sizeOption.value} value={sizeOption.value}>
+                          {sizeOption.label}
                         </MenuItem>
                       ))}
                     </TextField>

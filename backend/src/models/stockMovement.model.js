@@ -14,7 +14,7 @@ const stockMovementSchema = new mongoose.Schema({
     type: {
         type: String,
         required: true,
-        enum: ['PURCHASE', 'QC_APPROVED', 'SALE', 'TRANSFER', 'RETURN', 'DAMAGED', 'ADJUSTMENT'],
+        enum: ['PURCHASE', 'QC_APPROVED', 'SALE', 'TRANSFER', 'RETURN', 'DAMAGED', 'ADJUSTMENT', 'GRN_RECEIPT'],
         index: true
     },
     referenceId: {
@@ -24,7 +24,7 @@ const stockMovementSchema = new mongoose.Schema({
     referenceType: {
         type: String,
         required: true,
-        enum: ['Purchase', 'QC', 'Sale', 'Dispatch', 'Return', 'ProductionBatch', 'Adjustment', 'Audit', 'DeliveryChallan']
+        enum: ['Purchase', 'QC', 'Sale', 'Dispatch', 'Return', 'ProductionBatch', 'Adjustment', 'Audit', 'DeliveryChallan', 'GRN']
     },
     fromLocation: {
         type: mongoose.Schema.Types.ObjectId,
