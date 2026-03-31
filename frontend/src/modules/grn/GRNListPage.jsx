@@ -20,6 +20,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import PrintIcon from '@mui/icons-material/Print';
 import api from '../../services/api';
 
 const GRNListPage = () => {
@@ -145,6 +146,18 @@ const GRNListPage = () => {
                         <Tooltip title="Approve & Post Stock">
                           <IconButton size="small" color="success" onClick={() => handleApprove(grn._id)}>
                             <CheckCircleOutlineIcon sx={{ fontSize: 18 }} />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      
+                      {grn.status === 'APPROVED' && (
+                        <Tooltip title="Print Barcodes / Labels">
+                          <IconButton 
+                            size="small" 
+                            color="info" 
+                            onClick={() => navigate(`/ho/setup/barcode-print?grnId=${grn._id}`)}
+                          >
+                            <PrintIcon sx={{ fontSize: 18 }} />
                           </IconButton>
                         </Tooltip>
                       )}

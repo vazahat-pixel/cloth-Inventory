@@ -2,8 +2,7 @@ import { Suspense, lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { Box, CircularProgress } from '@mui/material';
 
-// Core Layouts & Pages (Static imports for reliability and speed)
-// Layouts & Page Utilities (Static imports for reliability)
+// --- Core Layouts & Essential Pages (Static imports for reliability) ---
 import AuthLayout from '../layouts/AuthLayout';
 import RoleDashboardLayout from '../layouts/RoleDashboardLayout';
 import LoginPage from '../pages/auth/LoginPage';
@@ -13,124 +12,17 @@ import ProtectedRoute from './ProtectedRoute';
 import PublicRoute from './PublicRoute';
 import RoleProtectedRoute from './RoleProtectedRoute';
 import RoleRedirect from './RoleRedirect';
-import MastersLayout from '../modules/masters/MastersLayout';
-import SuppliersListPage from '../modules/masters/suppliers/ListPage';
-import CustomersListPage from '../modules/masters/customers/ListPage';
-import AccountGroupsListPage from '../modules/masters/accountGroups/ListPage';
-import WarehousesListPage from '../modules/masters/warehouses/ListPage';
-import StoresListPage from '../modules/masters/stores/ListPage';
-import BrandsListPage from '../modules/masters/brands/ListPage';
-import ItemGroupsListPage from '../modules/masters/itemGroups/ListPage';
-import SalesmenListPage from '../modules/masters/salesmen/ListPage';
-import BanksListPage from '../modules/masters/banks/ListPage';
-
-import ItemListPage from '../modules/items/ItemListPage';
-import ItemFormPage from '../modules/items/ItemFormPage';
-import GroupsPage from '../modules/setup/GroupsPage';
-import SizesPage from '../modules/setup/SizesPage';
-
-import StockOverviewPage from '../modules/inventory/StockOverviewPage';
-import StockInPage from '../modules/inventory/StockInPage';
-import StockTransferPage from '../modules/inventory/StockTransferPage';
-import StockTransferFormPage from '../modules/inventory/StockTransferFormPage';
-import StockAuditPage from '../modules/inventory/StockAuditPage';
-import StockAdjustmentPage from '../modules/inventory/StockAdjustmentPage';
-import MovementHistoryPage from '../modules/inventory/MovementHistoryPage';
-import AuditDashboard from '../modules/inventory/AuditDashboard';
-import ItemJourneyPage from '../modules/inventory/ItemJourneyPage';
-import StockAuditView from '../modules/inventory/StockAuditView';
-import ValidationDashboard from '../modules/inventory/ValidationDashboard';
-import AuditLogViewer from '../modules/inventory/AuditLogViewer';
-import InventoryPlaceholderPage from '../modules/inventory/InventoryPlaceholderPage';
-
-import PurchaseListPage from '../modules/purchase/PurchaseListPage';
-import PurchaseFormPage from '../modules/purchase/PurchaseFormPage';
-import PurchaseOrderListPage from '../modules/purchase/PurchaseOrderListPage';
-import PurchaseOrderFormPage from '../modules/purchase/PurchaseOrderFormPage';
-import PurchaseReturnPage from '../modules/purchase/PurchaseReturnPage';
-import PurchasePlaceholderPage from '../modules/purchase/PurchasePlaceholderPage';
-
-import SalesListPage from '../modules/sales/SalesListPage';
-import BillingPage from '../modules/sales/BillingPage';
-import SalesReturnPage from '../modules/sales/SalesReturnPage';
-import BillingPlaceholderPage from '../modules/sales/BillingPlaceholderPage';
-
-import PayrollSetupsPlaceholderPage from '../modules/payroll/PayrollSetupsPlaceholderPage';
-import ProductionPlaceholderPage from '../modules/production/ProductionPlaceholderPage';
-import PayrollEntryPlaceholderPage from '../modules/payroll/PayrollEntryPlaceholderPage';
-import PayrollReportsPlaceholderPage from '../modules/payroll/PayrollReportsPlaceholderPage';
-
-import PriceListPage from '../modules/pricing/PriceListPage';
-import PriceListFormPage from '../modules/pricing/PriceListFormPage';
-import SchemeListPage from '../modules/pricing/SchemeListPage';
-import SchemeFormPage from '../modules/pricing/SchemeFormPage';
-import CouponPage from '../modules/pricing/CouponPage';
-
-import LoyaltyConfigPage from '../modules/customers/LoyaltyConfigPage';
-import VoucherListPage from '../modules/customers/VoucherListPage';
-import VoucherFormPage from '../modules/customers/VoucherFormPage';
-import CreditNotesPage from '../modules/customers/CreditNotesPage';
-import CustomerRewardsPage from '../modules/customers/CustomerRewardsPage';
-import ReportsDashboard from '../modules/reports/ReportsDashboard';
-import SalesReportPage from '../modules/reports/SalesReportPage';
-import PurchaseReportPage from '../modules/reports/PurchaseReportPage';
-import StockReportPage from '../modules/reports/StockReportPage';
-import ProfitReportPage from '../modules/reports/ProfitReportPage';
-import CustomerReportPage from '../modules/reports/CustomerReportPage';
-import VendorReportPage from '../modules/reports/VendorReportPage';
-import MovementReportPage from '../modules/reports/MovementReportPage';
-import AgeAnalysisPage from '../modules/reports/AgeAnalysisPage';
-import LedgerReportPage from '../modules/reports/LedgerReportPage';
-import BankBookPage from '../modules/reports/BankBookPage';
-import CollectionReportPage from '../modules/reports/CollectionReportPage';
-import ReportsQueriesPlaceholderPage from '../modules/reports/ReportsQueriesPlaceholderPage';
-import UtilitiesPlaceholderPage from '../modules/utilities/UtilitiesPlaceholderPage';
-import UserAccessPlaceholderPage from '../modules/userAccess/UserAccessPlaceholderPage';
-import TaxRatesPage from '../modules/gst/TaxRatesPage';
-import TaxGroupPage from '../modules/gst/TaxGroupPage';
-import InvoiceTaxReportPage from '../modules/gst/InvoiceTaxReportPage';
-import GSTRSummaryPage from '../modules/gst/GSTRSummaryPage';
-import AccountsDashboard from '../modules/accounts/AccountsDashboard';
-import BankPaymentPage from '../modules/accounts/BankPaymentPage';
-import BankReceiptPage from '../modules/accounts/BankReceiptPage';
-import ContinuousPrintingPage from '../modules/accounts/ContinuousPrintingPage';
-import AccountsUtilitiesPage from '../modules/accounts/AccountsUtilitiesPage';
-import SaleOrderListPage from '../modules/orders/SaleOrderListPage';
-import SaleOrderFormPage from '../modules/orders/SaleOrderFormPage';
-import PackingSlipPage from '../modules/orders/PackingSlipPage';
-import DeliveryOrderPage from '../modules/orders/DeliveryOrderPage';
-import OrderProcessingPlaceholderPage from '../modules/orders/OrderProcessingPlaceholderPage';
-import OrdersContinuousPrintingPage from '../modules/orders/OrdersContinuousPrintingPage';
-import DeliveryChallanPage from '../modules/dispatch/DeliveryChallanPage';
-import DeliveryChallanForm from '../modules/dispatch/DeliveryChallanForm';
-import DataImportExportPage from '../modules/data/DataImportExportPage';
-import DataImportPlaceholderPage from '../modules/data/DataImportPlaceholderPage';
-import PurchaseReturnPageStaff from '../modules/store/PurchaseReturnPage';
-import HSNCodePage from '../modules/setup/HSNCodePage';
-import FormulaPage from '../modules/setup/FormulaPage';
-import AccountMasterPage from '../modules/setup/AccountMasterPage';
-import SetupAccountsPlaceholderPage from '../modules/setup/SetupAccountsPlaceholderPage';
-import BarcodePrintingPage from '../modules/setup/BarcodePrintingPage';
-import StoreMasterPage from '../modules/setup/StoreMasterPage';
-import DiscountSetupPage from '../modules/setup/DiscountSetupPage';
-import SetupGenericTablePage from '../modules/setup/SetupGenericTablePage';
-import CounterMasterPage from '../modules/setup/CounterMasterPage';
-import GRNListPage from '../modules/grn/GRNListPage';
-import GRNFormPage from '../modules/grn/GRNFormPage';
-import SetupCountryPage from '../modules/setup/SetupCountryPage';
-import SetupLandingPage from '../modules/setup/SetupLandingPage';
 import ProfilePage from '../modules/profile/ProfilePage';
-import SetupCustomFieldsAccountsPage from '../modules/setup/SetupCustomFieldsAccountsPage';
 import NotFoundPage from '../pages/NotFoundPage';
 
-// Loading Placeholder
+// --- Loading Placeholder ---
 const PageLoader = () => (
   <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
     <CircularProgress size={40} sx={{ color: '#10b981' }} />
   </Box>
 );
 
-// --- Modules (Lazy loaded by feature set to reduce network flood) ---
+// --- Modules (Lazy loaded by feature set) ---
 
 // Masters
 const MastersLayout = lazy(() => import('../modules/masters/MastersLayout'));
@@ -144,13 +36,6 @@ const ItemGroupsListPage = lazy(() => import('../modules/masters/itemGroups/List
 const SalesmenListPage = lazy(() => import('../modules/masters/salesmen/ListPage'));
 const BanksListPage = lazy(() => import('../modules/masters/banks/ListPage'));
 const SeasonsListPage = lazy(() => import('../modules/masters/seasons/ListPage'));
-
-// Placeholders for incomplete modules
-const PurchasePlaceholderPage = lazy(() => import('../modules/purchase/PurchasePlaceholderPage'));
-const InventoryPlaceholderPage = lazy(() => import('../modules/inventory/InventoryPlaceholderPage'));
-const BillingPlaceholderPage = lazy(() => import('../modules/sales/BillingPlaceholderPage'));
-const SetupAccountsPlaceholderPage = lazy(() => import('../modules/setup/SetupAccountsPlaceholderPage'));
-const OrdersContinuousPrintingPage = lazy(() => import('../modules/orders/OrdersContinuousPrintingPage'));
 
 // Items & Setup
 const ItemListPage = lazy(() => import('../modules/items/ItemListPage'));
@@ -196,7 +81,7 @@ const SchemeListPage = lazy(() => import('../modules/pricing/SchemeListPage'));
 const SchemeFormPage = lazy(() => import('../modules/pricing/SchemeFormPage'));
 const CouponPage = lazy(() => import('../modules/pricing/CouponPage'));
 
-// Customers
+// Customers & Rewards
 const LoyaltyConfigPage = lazy(() => import('../modules/customers/LoyaltyConfigPage'));
 const VoucherListPage = lazy(() => import('../modules/customers/VoucherListPage'));
 const VoucherFormPage = lazy(() => import('../modules/customers/VoucherFormPage'));
@@ -215,18 +100,6 @@ const FormulaPage = lazy(() => import('../modules/setup/FormulaPage'));
 const BarcodePrintingPage = lazy(() => import('../modules/setup/BarcodePrintingPage'));
 const DiscountSetupPage = lazy(() => import('../modules/setup/DiscountSetupPage'));
 const CounterMasterPage = lazy(() => import('../modules/setup/CounterMasterPage'));
-
-// Pricing & Customers
-const PriceListPage = lazy(() => import('../modules/pricing/PriceListPage'));
-const PriceListFormPage = lazy(() => import('../modules/pricing/PriceListFormPage'));
-const SchemeListPage = lazy(() => import('../modules/pricing/SchemeListPage'));
-const SchemeFormPage = lazy(() => import('../modules/pricing/SchemeFormPage'));
-const CouponPage = lazy(() => import('../modules/pricing/CouponPage'));
-const CustomerRewardsPage = lazy(() => import('../modules/customers/CustomerRewardsPage'));
-const LoyaltyConfigPage = lazy(() => import('../modules/customers/LoyaltyConfigPage'));
-const VoucherListPage = lazy(() => import('../modules/customers/VoucherListPage'));
-const VoucherFormPage = lazy(() => import('../modules/customers/VoucherFormPage'));
-const CreditNotesPage = lazy(() => import('../modules/customers/CreditNotesPage'));
 
 const TaxRatesPage = lazy(() => import('../modules/gst/TaxRatesPage'));
 const TaxGroupPage = lazy(() => import('../modules/gst/TaxGroupPage'));
@@ -254,7 +127,7 @@ const LedgerReportPage = lazy(() => import('../modules/reports/LedgerReportPage'
 const BankBookPage = lazy(() => import('../modules/reports/BankBookPage'));
 const CollectionReportPage = lazy(() => import('../modules/reports/CollectionReportPage'));
 
-// Misc
+// Settings
 const SettingsLayout = lazy(() => import('../modules/settings/SettingsLayout'));
 const CompanyProfilePage = lazy(() => import('../modules/settings/CompanyProfilePage'));
 const UsersPage = lazy(() => import('../modules/settings/UsersPage'));
@@ -264,12 +137,19 @@ const PreferencesPage = lazy(() => import('../modules/settings/PreferencesPage')
 const PurchaseVoucherConfigPage = lazy(() => import('../modules/settings/PurchaseVoucherConfigPage'));
 const PrintTemplatesPage = lazy(() => import('../modules/settings/PrintTemplatesPage'));
 const AuditLogPage = lazy(() => import('../modules/settings/AuditLogPage'));
-const ProfilePage = lazy(() => import('../modules/profile/ProfilePage'));
-const DataImportExportPage = lazy(() => import('../modules/data/DataImportExportPage'));
+
+// Placeholder Pages
+const PurchasePlaceholderPage = lazy(() => import('../modules/purchase/PurchasePlaceholderPage'));
+const InventoryPlaceholderPage = lazy(() => import('../modules/inventory/InventoryPlaceholderPage'));
+const BillingPlaceholderPage = lazy(() => import('../modules/sales/BillingPlaceholderPage'));
+const SetupAccountsPlaceholderPage = lazy(() => import('../modules/setup/SetupAccountsPlaceholderPage'));
+const OrdersContinuousPrintingPage = lazy(() => import('../modules/orders/OrdersContinuousPrintingPage'));
+
+// ERP Modules
 const GRNListPage = lazy(() => import('../modules/grn/GRNListPage'));
 const GRNFormPage = lazy(() => import('../modules/grn/GRNFormPage'));
 const LogicERPManager = lazy(() => import('../modules/erp/LogicERPManager'));
-const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
+const DataImportExportPage = lazy(() => import('../modules/data/DataImportExportPage'));
 
 function AppRoutes() {
   return (
@@ -350,6 +230,7 @@ function AppRoutes() {
             <Route path="purchase/orders/:id" element={<PurchaseOrderFormPage mode="edit" />} />
             <Route path="purchase/orders/:id/view" element={<PurchaseOrderFormPage mode="view" />} />
             <Route path="purchase/orders/:id/edit" element={<PurchaseOrderFormPage mode="edit" />} />
+            
             <Route path="orders" element={<Navigate to="sale-order" replace />} />
             <Route path="orders/sale-order" element={<SaleOrderListPage />} />
             <Route path="orders/sale-order/new" element={<SaleOrderFormPage />} />
@@ -363,23 +244,27 @@ function AppRoutes() {
             <Route path="orders/delivery" element={<DeliveryOrderPage />} />
             <Route path="orders/delivery-challan" element={<DeliveryChallanPage />} />
             <Route path="orders/delivery-challan/new" element={<DeliveryChallanForm />} />
+            
             <Route path="sales" element={<Navigate to="sale-bill" replace />} />
             <Route path="sales/sale-bill" element={<SalesListPage pageTitle="Sale Bill" pageDescription="Review sale bills, payment status, and customer return access..." primaryActionLabel="New Sale Bill" primaryActionPath="/sales/sale-bill/new" returnPathBuilder={(saleId) => `/sales/sales-return/${saleId}`} />} />
             <Route path="sales/sale-bill/new" element={<BillingPage listPath="/sales/sale-bill" pageTitle="Sale Bill" pageDescription="..." listLabel="..." backButtonLabel="..." returnPathBuilder={(saleId) => `/sales/sales-return/${saleId}`} />} />
             <Route path="sales/sales-return" element={<SalesListPage pageTitle="Sales Return" pageDescription="..." showPrimaryAction={false} returnPathBuilder={(saleId) => `/sales/sales-return/${saleId}`} />} />
             <Route path="sales/sales-return/:id" element={<SalesReturnPage listPath="/sales/sales-return" pageTitle="Sales Return" pageDescription="..." listLabel="..." />} />
+            
             <Route path="pricing" element={<Navigate to="price-lists" replace />} />
             <Route path="pricing/price-lists" element={<PriceListPage />} />
             <Route path="pricing/price-lists/new" element={<PriceListFormPage />} />
             <Route path="pricing/schemes" element={<SchemeListPage />} />
             <Route path="pricing/schemes/new" element={<SchemeFormPage />} />
             <Route path="pricing/coupons" element={<CouponPage />} />
+            
             <Route path="customers" element={<Navigate to="rewards" replace />} />
             <Route path="customers/rewards" element={<CustomerRewardsPage />} />
             <Route path="customers/loyalty-config" element={<LoyaltyConfigPage />} />
             <Route path="customers/vouchers" element={<VoucherListPage />} />
             <Route path="customers/vouchers/new" element={<VoucherFormPage />} />
             <Route path="customers/credit-notes" element={<CreditNotesPage />} />
+            
             <Route path="setup" element={<SetupLandingPage />} />
             <Route path="setup/accounts" element={<Navigate to="custom-fields" replace />} />
             <Route path="setup/accounts/custom-fields" element={<SetupCustomFieldsAccountsPage />} />
@@ -417,6 +302,11 @@ function AppRoutes() {
             <Route path="setup/barcode-print" element={<BarcodePrintingPage />} />
             <Route path="setup/discounts" element={<DiscountSetupPage />} />
             <Route path="setup/counters" element={<CounterMasterPage />} />
+            <Route path="setup/taxes" element={<Navigate to="/ho/gst/tax-rates" replace />} />
+            <Route path="setup/party-wise" element={<SetupGenericTablePage title="Party Wise Rules" description="Configure default parameters, price lists, and calculation rules for parties." />} />
+            <Route path="setup/other-account-details" element={<SetupGenericTablePage title="Other Account Details" description="Configure budgets, limits, and advanced account-level flags." />} />
+            <Route path="setup/configurations" element={<SetupGenericTablePage title="System Configurations" description="Refine system behaviors, voucher parameters, and POS rules." />} />
+
             <Route path="reports" element={<Navigate to="dashboard" replace />} />
             <Route path="reports/dashboard" element={<ReportsDashboard />} />
             <Route path="reports/sales" element={<SalesReportPage />} />
@@ -430,15 +320,12 @@ function AppRoutes() {
             <Route path="reports/vendors" element={<VendorReportPage />} />
             <Route path="reports/movement" element={<MovementReportPage />} />
             <Route path="reports/age-analysis" element={<AgeAnalysisPage />} />
+            
             <Route path="gst" element={<Navigate to="tax-rates" replace />} />
             <Route path="gst/tax-rates" element={<TaxRatesPage />} />
             <Route path="gst/tax-groups" element={<TaxGroupPage />} />
             <Route path="gst/invoice-report" element={<InvoiceTaxReportPage />} />
             <Route path="gst/gstr-summary" element={<GSTRSummaryPage />} />
-            <Route path="setup/taxes" element={<Navigate to="/ho/gst/tax-rates" replace />} />
-            <Route path="setup/party-wise" element={<SetupGenericTablePage title="Party Wise Rules" description="Configure default parameters, price lists, and calculation rules for parties." />} />
-            <Route path="setup/other-account-details" element={<SetupGenericTablePage title="Other Account Details" description="Configure budgets, limits, and advanced account-level flags." />} />
-            <Route path="setup/configurations" element={<SetupGenericTablePage title="System Configurations" description="Refine system behaviors, voucher parameters, and POS rules." />} />
 
             <Route path="accounts" element={<Navigate to="a-c-vouchers" replace />} />
             <Route path="accounts/a-c-vouchers" element={<AccountsDashboard />} />

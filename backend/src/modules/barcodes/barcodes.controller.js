@@ -1,5 +1,6 @@
 const { getNextSequence } = require('../../services/sequence.service');
 const Product = require('../../models/product.model');
+const GRN = require('../../models/grn.model');
 const { sendSuccess, sendError } = require('../../utils/response.handler');
 
 /**
@@ -8,18 +9,11 @@ const { sendSuccess, sendError } = require('../../utils/response.handler');
  */
 const importExcelAndGenerateBarcodes = async (req, res, next) => {
     try {
-        // In a real scenario, we'd parse req.file (excel) here.
-        // For this implementation, we'll demonstrate the sequence logic.
-        
-        // Let's assume the user wants to generate 50 labels for newly receipted items.
-        // We'll use a sequence named "GLOBAL_BARCODE_SEQUENCE"
-        
-        const count = req.body.count || 10; // Mock count if no file parsed
+        const count = req.body.count || 10; 
         const labels = [];
 
         for (let i = 0; i < count; i++) {
             const seq = await getNextSequence('GLOBAL_BARCODE_SEQUENCE');
-            // Format: BAR-[YEAR]-[SEQ]
             const barcode = `BAR-${new Date().getFullYear()}-${seq.toString().padStart(6, '0')}`;
             
             labels.push({
@@ -38,6 +32,40 @@ const importExcelAndGenerateBarcodes = async (req, res, next) => {
     }
 };
 
+/**
+ * Fetch Print-Ready Labels from an Approved GRN
+ */
+const getLabelsByGrn = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const grn = await GRN.findById(id).populate('items.productId');
+        if (!grn) return sendError(res, 'GRN not found', 404);
+
+        const labels = [];
+        for (const item of grn.items) {
+            const product = item.productId;
+            if (!product) continue;
+
+            // Generate label for each received quantity
+            for (let i = 0; i < item.receivedQty; i++) {
+                labels.push({
+                    barcode: product.barcode || product.sku || product.itemCode || `BAR-${product._id.toString().slice(-6)}`,
+                    article: product.sku || product.itemCode || product.itemName,
+                    size: item.size || product.size || 'N/A',
+                    color: product.shade || product.color || 'N/A',
+                    mrp: product.salePrice || product.mrp || 0,
+                    design: product.itemName || product.name
+                });
+            }
+        }
+
+        return sendSuccess(res, { labels }, `Extracted ${labels.length} labels from GRN ${grn.grnNumber}.`);
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
-    importExcelAndGenerateBarcodes
+    importExcelAndGenerateBarcodes,
+    getLabelsByGrn
 };

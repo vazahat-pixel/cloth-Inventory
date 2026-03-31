@@ -107,7 +107,7 @@ const addStock = async ({ variantId, locationId, locationType, qty, type, refere
     // Audit Logging
     await createAuditLog({
         action: 'ADD_STOCK',
-        module: 'STOCK',
+        module: 'Inventory',
         performedBy,
         targetId: inventory._id,
         targetModel: locationType === 'STORE' ? 'StoreInventory' : 'WarehouseInventory',
@@ -170,7 +170,7 @@ const removeStock = async ({ variantId, locationId, locationType, qty, type, ref
     // Audit Logging
     await createAuditLog({
         action: 'REMOVE_STOCK',
-        module: 'STOCK',
+        module: 'Inventory',
         performedBy,
         targetId: inventory._id,
         targetModel: locationType === 'STORE' ? 'StoreInventory' : 'WarehouseInventory',
