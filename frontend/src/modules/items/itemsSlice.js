@@ -75,6 +75,7 @@ export const addItem = createAsyncThunk('items/add', async (item, { rejectWithVa
         return null;
       }).filter(Boolean),
       isActive: true,
+      status: itemData.status || 'Active'
     };
 
     if (!payload.itemCode) throw new Error('Style Code (itemCode) is required');
@@ -153,6 +154,7 @@ export const updateItem = createAsyncThunk('items/update', async ({ id, item }, 
 export const deleteItem = createAsyncThunk('items/delete', async (id, { rejectWithValue }) => {
   try {
     await api.delete(`/items/${id}`);
+    await api.delete(`/items/${id}`);
     return id;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
@@ -193,9 +195,11 @@ const itemsSlice = createSlice({
         state.loading = true;
         state.error = null;
       })
-      .addCase(addItem.fulfilled, (state) => {
-        // Bulk import: rely on a fresh fetchItems instead of trying to infer created products here
+      .addCase(addItem.fulfilled, (state, action) => {
         state.loading = false;
+        if (action.payload) {
+          state.records.unshift(action.payload);
+        }
       })
       .addCase(addItem.rejected, (state, action) => {
         state.loading = false;

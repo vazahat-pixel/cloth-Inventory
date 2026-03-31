@@ -1,126 +1,82 @@
-const Dispatch = require('../../models/dispatch.model');
-const { DispatchStatus, DocumentType } = require('../../core/enums');
+const DeliveryChallan = require('../../models/deliveryChallan.model');
+const Sale = require('../../models/sale.model');
+const Warehouse = require('../../models/warehouse.model');
+const Store = require('../../models/store.model');
 const { withTransaction } = require('../../services/transaction.service');
-const { removeStock, addStock } = require('../../services/stock.service');
-const { getNextSequence } = require('../../services/sequence.service');
-const workflowService = require('../workflow/workflow.service');
+const challanService = require('../deliveryChallan/deliveryChallan.service');
+const salesService = require('../sales/sales.service');
+const { DocumentType } = require('../../core/enums');
 
 /**
- * Generate unique Dispatch Number (DSP-YYYY-XXXXX)
+ * UNIFIED DISPATCH SYSTEM
+ * Routes dispatches between same GSTIN (Delivery Challan)
+ * and different GSTIN (Tax Invoice / Sale)
  */
-const generateDispatchNumber = async (session = null) => {
-    const year = new Date().getFullYear();
-    const prefix = `DSP-${year}-`;
-    const counterName = `DISPATCH_${year}`;
-
-    const seq = await getNextSequence(counterName, session);
-    return `${prefix}${seq.toString().padStart(5, '0')}`;
-};
-
-/**
- * CREATE DISPATCH (Warehouse -> Store Movement)
- * Initial state: PENDING. No stock moved yet.
- */
-const createDispatch = async (dispatchData, userId) => {
+const processDispatch = async (dispatchData, userId) => {
     return await withTransaction(async (session) => {
-        const dispatchNumber = await generateDispatchNumber(session);
-        
-        // Use products array naming as per common frontend payload
-        const rawItems = dispatchData.items || dispatchData.products || [];
-        const items = rawItems.map(item => ({
-            variantId: item.variantId || item.productId,
-            qty: Number(item.qty || item.quantity)
-        }));
+        const { sourceWarehouseId, destinationStoreId, products, ...rest } = dispatchData;
 
-        const dispatch = new Dispatch({
-            ...dispatchData,
-            items,
-            dispatchNumber,
-            status: DispatchStatus.PENDING,
-            createdBy: userId
-        });
+        // 1. Resolve source and destination entities
+        const source = await Warehouse.findById(sourceWarehouseId).session(session) 
+                    || await Store.findById(sourceWarehouseId).session(session);
+        const destination = await Store.findById(destinationStoreId).session(session);
 
-        await dispatch.save({ session });
-
-        // Log in workflow
-        await workflowService.updateStatus(dispatch._id, DocumentType.DISPATCH, null, DispatchStatus.PENDING, userId, `Dispatch ${dispatchNumber} created in PENDING state.`);
-
-        return dispatch;
-    });
-};
-
-/**
- * UPDATE DISPATCH STATUS
- * Performs atomic stock transfer during DISPATCHED state change.
- */
-const updateDispatchStatus = async (id, status, userId) => {
-    return await withTransaction(async (session) => {
-        const dispatch = await Dispatch.findById(id).session(session);
-        if (!dispatch) throw new Error('Dispatch record not found');
-
-        const oldStatus = dispatch.status;
-        if (oldStatus === status) return dispatch;
-
-        if (status === DispatchStatus.DISPATCHED && oldStatus === DispatchStatus.PENDING) {
-            // ATOMIC STOCK MOVEMENT: Warehouse -> Store
-            const stockService = require('../../services/stock.service');
-            
-            for (const item of dispatch.items) {
-                await stockService.transferStock({
-                    variantId: item.variantId,
-                    fromLocationId: dispatch.sourceWarehouseId,
-                    fromLocationType: 'WAREHOUSE',
-                    toLocationId: dispatch.destinationStoreId,
-                    toLocationType: 'STORE',
-                    qty: item.qty,
-                    referenceId: dispatch._id,
-                    referenceType: 'Dispatch',
-                    performedBy: userId,
-                    session
-                });
-            }
-            dispatch.dispatchedAt = Date.now();
-        } else if (status === DispatchStatus.RECEIVED && oldStatus === DispatchStatus.DISPATCHED) {
-            dispatch.receivedAt = Date.now();
-        } else if (status === DispatchStatus.CANCELLED && oldStatus === DispatchStatus.PENDING) {
-             // Just cancel, no stock moved yet
-        } else {
-            throw new Error(`Invalid status transition from ${oldStatus} to ${status}`);
+        if (!source || !destination) {
+            throw new Error('Source or Destination not found');
         }
 
-        dispatch.status = status;
-        await dispatch.save({ session });
+        // 2. Compare GSTINs
+        const sourceGst = (source.gstNumber || '').trim();
+        const destGst = (destination.gstNumber || '').trim();
 
-        // Log in workflow
-        await workflowService.updateStatus(dispatch._id, DocumentType.DISPATCH, oldStatus, status, userId, `Dispatch ${dispatch.dispatchNumber} updated to ${status}`);
+        // Standard ERP Logic: Same GSTIN = Stock Transfer (DC), Different GSTIN = Sale (Invoice)
+        const isSameEntity = sourceGst === destGst;
 
-        return dispatch;
+        if (isSameEntity) {
+            // ACTION: CREATE DELIVERY CHALLAN
+            const challan = await challanService.createChallan({
+                ...rest,
+                storeId: destinationStoreId, // Target
+                sourceId: sourceWarehouseId, // From
+                items: products,
+                type: 'STOCK_TRANSFER'
+            }, userId, session);
+
+            return {
+                type: 'DELIVERY_CHALLAN',
+                documentNumber: challan.dcNumber,
+                documentId: challan._id,
+                message: 'Successfully created Delivery Challan (Same GSTIN)'
+            };
+        } else {
+            // ACTION: CREATE TAX INVOICE (Internal Sale)
+            // We map dispatch items to sale items
+            const sale = await salesService.createSale({
+                ...rest,
+                storeId: sourceWarehouseId, // Stock reduces from source
+                destinationStoreId,
+                items: products.map(p => ({
+                    productId: p.productId,
+                    quantity: p.quantity,
+                    price: p.rate || 0, // In internal sales, we usually use cost or transfer price
+                })),
+                type: 'INTERNAL_SALE',
+                customerId: null, // Internal transfer doesn't need retail customer
+                paymentMode: 'CREDIT',
+                amountPaid: 0,
+                discount: 0
+            }, userId, session);
+
+            return {
+                type: 'TAX_INVOICE',
+                documentNumber: sale.saleNumber,
+                documentId: sale._id,
+                message: 'Successfully created Tax Invoice (Different GSTIN)'
+            };
+        }
     });
-};
-
-const getDispatchById = async (id) => {
-    return await Dispatch.findById(id)
-        .populate('sourceWarehouseId', 'name')
-        .populate('destinationStoreId', 'name')
-        .populate('items.variantId', 'name sku barcode');
-};
-
-const getDispatches = async (query = {}) => {
-    const { status, sourceWarehouseId, destinationStoreId } = query;
-    const filter = {};
-    if (status) filter.status = status;
-    if (sourceWarehouseId) filter.sourceWarehouseId = sourceWarehouseId;
-    if (destinationStoreId) filter.destinationStoreId = destinationStoreId;
-
-    return await Dispatch.find(filter)
-        .sort({ updatedAt: -1 })
-        .populate('sourceWarehouseId', 'name')
-        .populate('destinationStoreId', 'name');
 };
 
 module.exports = {
-    createDispatch,
-    updateDispatchStatus,
-    getDispatchById,
-    getDispatches
+    processDispatch
 };

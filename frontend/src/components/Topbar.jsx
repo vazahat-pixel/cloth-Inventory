@@ -25,25 +25,38 @@ function Topbar() {
     <Box
       component="header"
       sx={{
-        height: 60,
-        backgroundColor: '#ffffff',
-        borderBottom: '1px solid #e2e8f0',
-        px: { xs: 2, sm: 3 },
+        height: 70,
+        px: { xs: 3, sm: 4 },
+        py: 1,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
+        position: 'sticky',
+        top: 20,
+        mx: 3,
+        zIndex: 1000,
+        background: 'rgba(255, 255, 255, 0.4)',
+        backdropFilter: 'blur(16px)',
+        border: '1px solid rgba(255, 255, 255, 0.2)',
+        borderRadius: 5,
+        boxShadow: '0 10px 30px -10px rgba(0, 0, 0, 0.05)',
+        mt: 2,
+        mb: 1,
       }}
     >
-      <Typography variant="h6" sx={{ fontSize: 18, fontWeight: 700, color: '#0f172a' }}>
-        {title}
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Box sx={{ width: 6, height: 24, borderRadius: 2, background: 'linear-gradient(to bottom, #4f46e5, #06b6d4)' }} />
+        <Typography variant="h6" sx={{ fontSize: 20, fontWeight: 800, color: '#111827', letterSpacing: -0.5 }}>
+          {title}
+        </Typography>
+      </Box>
 
-      <Stack direction="row" spacing={2} alignItems="center">
+      <Stack direction="row" spacing={3} alignItems="center">
         <Box sx={{ textAlign: 'right' }}>
-          <Typography variant="body2" sx={{ color: '#0f172a', fontWeight: 700, lineHeight: 1.1 }}>
+          <Typography variant="body2" sx={{ color: '#111827', fontWeight: 800, lineHeight: 1.1, fontSize: 13 }}>
             {user?.name || 'User'}
           </Typography>
-          <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600 }}>
+          <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>
             {role || 'No Role'}
           </Typography>
         </Box>
@@ -51,15 +64,42 @@ function Topbar() {
         <Button
           component={Link}
           to={`${basePath}/profile`}
-          variant="text"
+          variant="contained"
           size="small"
-          startIcon={<AccountCircleIcon />}
-          sx={{ color: '#64748b', textTransform: 'none', fontWeight: 600 }}
+          startIcon={<AccountCircleIcon sx={{ fontSize: '18px !important' }} />}
+          sx={{
+            background: 'rgba(79, 70, 229, 0.1)',
+            color: '#4f46e5',
+            boxShadow: 'none',
+            '&:hover': { background: 'rgba(79, 70, 229, 0.2)', boxShadow: 'none' },
+            borderRadius: 100,
+            px: 2,
+            py: 0.75,
+            textTransform: 'none',
+            fontWeight: 700,
+            fontSize: 12
+          }}
         >
-          My Profile
+          Profile
         </Button>
 
-        <Button variant="outlined" size="small" onClick={handleLogout}>
+        <Button 
+          variant="contained" 
+          size="small" 
+          onClick={handleLogout}
+          sx={{
+            background: '#111827',
+            color: '#fff',
+            '&:hover': { background: '#1f2937' },
+            borderRadius: 100,
+            px: 2,
+            py: 0.75,
+            textTransform: 'none',
+            fontWeight: 700,
+            fontSize: 12,
+            boxShadow: '0 4px 14px 0 rgba(0,0,0,0.25)'
+          }}
+        >
           Logout
         </Button>
       </Stack>

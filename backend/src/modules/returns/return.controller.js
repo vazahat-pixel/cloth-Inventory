@@ -37,7 +37,23 @@ const getById = async (req, res, next) => {
     }
 };
 
+const createReturn = async (req, res, next) => {
+    try {
+        const { type } = req.body;
+        if (type === 'PURCHASE_RETURN' || type === 'STORE_TO_FACTORY') {
+            return await purchaseReturn(req, res, next);
+        } else if (type === 'SALES_RETURN' || type === 'CUSTOMER_TO_STORE') {
+            return await salesReturn(req, res, next);
+        } else {
+            return sendError(res, 'Invalid or missing return type', 400);
+        }
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
+    createReturn,
     purchaseReturn,
     salesReturn,
     getReturns,

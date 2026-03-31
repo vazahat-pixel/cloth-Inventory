@@ -46,7 +46,6 @@ const creditNoteSchema = new mongoose.Schema(
 );
 
 creditNoteSchema.index({ customerId: 1 });
-creditNoteSchema.index({ creditNoteNumber: 1 });
 creditNoteSchema.index({ status: 1 });
 
 module.exports = mongoose.model('CreditNote', creditNoteSchema);

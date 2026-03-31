@@ -169,7 +169,7 @@ const normalizeItem = (item, entityType) => {
                     color: p.color || '',
                     returnQty: item.quantity || 0,
                     quantity: item.quantity || 0, // Fallback
-                    rate: item.rate || 0, 
+                    rate: item.rate || 0,
                     amount: item.amount || 0
                 }];
             } else if (item.items) {
@@ -228,14 +228,60 @@ const normalizeItem = (item, entityType) => {
             normalized.status = normalized.available <= 10 ? 'LOW_STOCK' : 'OK';
             break;
 
-        case 'product':
+        case 'product': {
+            // Map common aliases to ensure UI stability across different models
             normalized.name = item.name;
             normalized.itemName = item.name;
             normalized.sku = item.sku;
-            normalized.code = item.sku; // Backwards compat for code column
+            normalized.code = item.sku;
+            normalized.styleCode = item.styleCode || item.skuPrefix;
+            normalized.itemCode = item.styleCode || item.skuPrefix || item.sku;
+
+            // Populated Object handling
+            normalized.brand = item.brand?._id || item.brand;
+            normalized.category = item.category?._id || item.category;
+            normalized.mainGroup = normalized.category;
+            normalized.subGroup = item.subGroup;
+            normalized.gstSlabId = item.gstSlabId?._id || item.gstSlabId;
+            normalized.hsnCodeId = item.hsnCodeId?._id || item.hsnCodeId;
+
+            // Attribute extraction
+            normalized.fabric = item.fabric || item.attributes?.fabric;
+            normalized.type = item.fabricType || item.attributes?.type;
+            normalized.gender = item.gender || item.attributes?.gender;
+            normalized.season = item.season || item.attributes?.season;
+            normalized.color = item.color || item.shadeColor || item.attributes?.color;
+            normalized.shadeColor = normalized.color;
+
+            // Pricing & Stock
             normalized.salePrice = item.salePrice;
+            normalized.costPrice = item.costPrice;
+            normalized.mrp = item.mrp;
+            normalized.openingStock = item.factoryStock || 0;
+            normalized.factoryStock = item.factoryStock || 0;
+
             normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
             break;
+        }
+
+        case 'item': {
+            normalized.itemName = item.itemName || item.name;
+            normalized.itemCode = item.itemCode || item.sku;
+            normalized.brand = item.brand?._id || item.brand;
+            normalized.shade = item.shade;
+            normalized.shadeColor = item.shade;
+            normalized.mainGroup = item.groupIds?.[0]?._id || item.groupIds?.[0];
+            normalized.category = normalized.mainGroup;
+            normalized.hsnCodeId = item.hsCodeId?._id || item.hsCodeId;
+            normalized.gstSlabId = item.gstSlabId?._id || item.gstSlabId;
+            normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
+            normalized.variants = (item.sizes || []).map(v => ({
+                ...v,
+                id: v._id || v.id,
+                qty: v.stock || 0
+            }));
+            break;
+        }
 
         case 'customer':
             normalized.customerName = item.name;
@@ -332,16 +378,12 @@ const normalizeItem = (item, entityType) => {
             normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
             break;
         case 'warehouse':
-            normalized.warehouseName = item.name;
-            normalized.name = item.name;
-            normalized.code = item.code;
-            normalized.managerName = item.contactPerson || '';
-            normalized.contactNumber = item.contactPhone || '';
+            normalized.warehouseName = item.name || item.warehouseName;
             normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
             break;
         case 'store':
             normalized.storeName = item.name;
-            normalized.name = item.name;
+            normalized.warehouseName = item.name; // Backwards compat
             normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
             break;
         case 'brand':

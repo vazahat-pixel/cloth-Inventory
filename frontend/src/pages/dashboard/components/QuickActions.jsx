@@ -27,40 +27,61 @@ function QuickActions() {
       elevation={0}
       sx={{
         height: '100%',
-        borderRadius: 2.5,
-        border: '1px solid',
-        borderColor: 'divider',
+        borderRadius: 5,
+        background: 'rgba(255, 255, 255, 0.45)',
+        backdropFilter: 'blur(20px)',
+        border: '1px solid rgba(255, 255, 255, 0.3)',
+        boxShadow: '0 15px 35px -10px rgba(0, 0, 0, 0.04)',
         overflow: 'hidden',
       }}
     >
-      <CardContent sx={{ p: 2.5 }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary', mb: 2 }}>
-          Quick Actions
-        </Typography>
-        <Stack spacing={1.25}>
+      <CardContent sx={{ p: 3.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+          <Box sx={{ width: 8, height: 8, borderRadius: 100, bgcolor: '#4f46e5' }} />
+          <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#111827', letterSpacing: -0.5 }}>
+            Quick Actions
+          </Typography>
+        </Box>
+        <Stack spacing={2}>
           {actions?.map((a) => {
             const Icon = a.icon;
+            const colorMap = {
+              primary: '#4f46e5',
+              success: '#059669',
+              info: '#0891b2',
+              secondary: '#7c3aed'
+            };
+            const btnColor = colorMap[a.color] || '#4f46e5';
+
             return (
               <Button
                 key={a.path}
                 component={Link}
                 to={`${basePath}${a.path}`}
-                variant="outlined"
+                variant="contained"
                 fullWidth
-                startIcon={<Icon sx={{ fontSize: 20 }} />}
+                startIcon={<Icon sx={{ fontSize: '20px !important' }} />}
                 sx={{
-                  py: 1.25,
+                  py: 1.5,
+                  px: 2.5,
                   justifyContent: 'flex-start',
                   textTransform: 'none',
-                  fontWeight: 600,
-                  borderRadius: 1.5,
-                  borderColor: 'divider',
-                  color: 'text.primary',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  borderRadius: 100,
+                  background: 'rgba(255, 255, 255, 0.6)',
+                  color: '#1f2937',
+                  border: '1px solid rgba(0, 0, 0, 0.05)',
+                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                   '&:hover': {
-                    borderColor: `${a.color}.main`,
-                    bgcolor: (theme) => theme.palette[a.color].main + '12',
-                    color: `${a.color}.dark`,
+                    background: btnColor,
+                    color: '#fff',
+                    transform: 'translateX(6px)',
+                    boxShadow: `0 10px 20px -5px ${btnColor}40`,
+                    '& .MuiButton-startIcon': { color: '#fff' }
                   },
+                  '& .MuiButton-startIcon': { color: btnColor, transition: 'color 0.3s' }
                 }}
               >
                 {a.label}

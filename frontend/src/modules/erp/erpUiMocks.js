@@ -1,12 +1,313 @@
-export const sizeMasterSeed = [];
-export const hsnSeed = [];
-export const groupSeed = [];
-export const supplierSeed = [];
-export const purchaseOrderSeed = [];
-export const grnSeed = [];
-export const stockTransferSeed = [];
-export const systemLogSeed = [];
-export const barcodeSeed = [];
+import itemsData from '../items/data';
+import { purchasesData } from '../purchase/data';
+import suppliersSeed from '../masters/suppliers/data';
+
+export const sizeMasterSeed = [
+  { id: 'size-1', sizeCode: 'S', sizeLabel: 'Small', sequence: 1, status: 'Active' },
+  { id: 'size-2', sizeCode: 'M', sizeLabel: 'Medium', sequence: 2, status: 'Active' },
+  { id: 'size-3', sizeCode: 'L', sizeLabel: 'Large', sequence: 3, status: 'Active' },
+  { id: 'size-4', sizeCode: 'XL', sizeLabel: 'Extra Large', sequence: 4, status: 'Active' },
+];
+
+export const hsnSeed = [
+  {
+    id: '65f1a2c3b4d5e6f7a8b9c001',
+    hsnCode: '6109',
+    description: 'Knitted T-Shirts and singlets',
+    gstRate: 5,
+    status: 'Active',
+    createdAt: '2026-03-04',
+    updatedAt: '2026-03-08',
+  },
+  {
+    id: '65f1a2c3b4d5e6f7a8b9c002',
+    hsnCode: '6201',
+    description: 'Mens woven jackets and blazers',
+    gstRate: 12,
+    status: 'Active',
+    createdAt: '2026-03-11',
+    updatedAt: '2026-03-16',
+  },
+  {
+    id: '65f1a2c3b4d5e6f7a8b9c003',
+    hsnCode: '6203',
+    description: 'Mens shirts and trousers',
+    gstRate: 12,
+    status: 'Inactive',
+    createdAt: '2026-02-19',
+    updatedAt: '2026-03-02',
+  },
+];
+
+export const groupSeed = [
+  {
+    id: '65f1a2c3b4d5e6f7a8b9c101',
+    groupName: 'T-Shirt',
+    groupType: 'Category',
+    parentId: null,
+    level: 1,
+    description: 'Primary t-shirt family',
+    status: 'Active',
+    createdAt: '2026-03-01',
+    updatedAt: '2026-03-10',
+  },
+  {
+    id: '65f1a2c3b4d5e6f7a8b9c102',
+    groupName: 'Cotton',
+    groupType: 'Fabric',
+    parentId: '65f1a2c3b4d5e6f7a8b9c101',
+    level: 2,
+    description: 'Cotton fabric based t-shirts',
+    status: 'Active',
+    createdAt: '2026-03-02',
+    updatedAt: '2026-03-10',
+  },
+  {
+    id: '65f1a2c3b4d5e6f7a8b9c103',
+    groupName: 'Oversized',
+    groupType: 'Product Type',
+    parentId: '65f1a2c3b4d5e6f7a8b9c102',
+    level: 3,
+    description: 'Oversized fit tees',
+    status: 'Active',
+    createdAt: '2026-03-03',
+    updatedAt: '2026-03-11',
+  },
+  {
+    id: '65f1a2c3b4d5e6f7a8b9c104',
+    groupName: 'Section Essentials',
+    groupType: 'Section',
+    parentId: null,
+    level: 1,
+    description: 'Fast moving essentials',
+    status: 'Inactive',
+    createdAt: '2026-03-05',
+    updatedAt: '2026-03-15',
+  },
+];
+
+export const supplierSeed = suppliersSeed.map((supplier, index) => ({
+  id: supplier.id,
+  supplierName: supplier.supplierName || supplier.name,
+  contactPerson: ['Rakesh Jain', 'Amit Shah', 'Sourav Dutta'][index] || 'Procurement Desk',
+  phone: supplier.phone,
+  alternatePhone: `98${index + 10}345678${index}`,
+  email: supplier.email,
+  gstNo: supplier.gstNumber,
+  panNo: ['AAECA1234F', 'BBBCC5678K', 'CCCDD3344L'][index] || 'AAAAA0000A',
+  addressLine1: supplier.address,
+  addressLine2: 'Industrial Estate',
+  city: ['Surat', 'Pune', 'Kolkata'][index] || 'Ahmedabad',
+  state: ['Gujarat', 'Maharashtra', 'West Bengal'][index] || 'Gujarat',
+  pincode: ['395003', '411026', '700007'][index] || '380001',
+  country: 'India',
+  openingBalance: [125000, 64000, 18000][index] || 0,
+  creditDays: [21, 30, 14][index] || 15,
+  supplierType: ['Fabric', 'Finished Goods', 'Trim'][index] || 'General',
+  notes: supplier.notes || 'Preferred vendor for seasonal assortments.',
+  status: supplier.status,
+  createdAt: '2026-02-15',
+  updatedAt: '2026-03-21',
+}));
+
+export const purchaseOrderSeed = [
+  {
+    id: 'po-1',
+    poNumber: 'PO-2026-001',
+    poDate: '2026-03-18',
+    supplierId: supplierSeed[0]?.id,
+    supplierName: supplierSeed[0]?.supplierName,
+    expectedDeliveryDate: '2026-03-28',
+    billingAddress: 'HO Billing Desk, Surat',
+    deliveryAddress: 'Main Warehouse, Surat',
+    paymentTerms: '21 days credit',
+    notes: 'Pre-summer cotton program',
+    status: 'Pending',
+    createdBy: 'HO Admin',
+    createdAt: '2026-03-18',
+    items: [
+      {
+        id: 'po-line-1',
+        itemCode: 'STY-CTN-TEE',
+        itemName: 'Essential Cotton Tee',
+        size: 'M',
+        color: 'White',
+        qty: 120,
+        rate: 255,
+        discountPercent: 4,
+        taxPercent: 5,
+        amount: 30549,
+        remarks: 'Priority replenishment',
+      },
+    ],
+    totals: {
+      subtotal: 30600,
+      discountTotal: 1224,
+      taxTotal: 1469,
+      grandTotal: 30845,
+      totalQty: 120,
+    },
+  },
+  {
+    id: 'po-2',
+    poNumber: 'PO-2026-002',
+    poDate: '2026-03-21',
+    supplierId: supplierSeed[1]?.id,
+    supplierName: supplierSeed[1]?.supplierName,
+    expectedDeliveryDate: '2026-03-30',
+    billingAddress: 'HO Billing Desk, Surat',
+    deliveryAddress: 'North Warehouse, Pune',
+    paymentTerms: '30 days credit',
+    notes: 'Denim jacket reorder',
+    status: 'Approved',
+    createdBy: 'Anita Merchant',
+    createdAt: '2026-03-21',
+    items: [
+      {
+        id: 'po-line-2',
+        itemCode: 'STY-DNM-JKT',
+        itemName: 'Classic Denim Jacket',
+        size: 'L',
+        color: 'Blue',
+        qty: 48,
+        rate: 1280,
+        discountPercent: 2,
+        taxPercent: 12,
+        amount: 67284,
+        remarks: 'Batch A1',
+      },
+    ],
+    totals: {
+      subtotal: 61440,
+      discountTotal: 1229,
+      taxTotal: 7073,
+      grandTotal: 67284,
+      totalQty: 48,
+    },
+  },
+];
+
+export const grnSeed = [
+  {
+    id: 'grn-1',
+    grnNumber: 'GRN-2026-001',
+    grnDate: '2026-03-24',
+    poNumber: 'PO-2026-001',
+    poId: 'po-1',
+    supplierName: supplierSeed[0]?.supplierName,
+    warehouse: 'Main Warehouse',
+    invoiceNumber: 'INV-90011',
+    invoiceDate: '2026-03-23',
+    status: 'Approved',
+    postedBy: 'HO Admin',
+    createdAt: '2026-03-24',
+    lineItems: [
+      {
+        id: 'grn-line-1',
+        itemCode: 'STY-CTN-TEE',
+        itemName: 'Essential Cotton Tee',
+        size: 'M',
+        orderedQty: 120,
+        previouslyReceivedQty: 0,
+        receivedQty: 120,
+        rejectedQty: 2,
+        acceptedQty: 118,
+        rate: 255,
+        batchNo: 'TEE-MAR24-A',
+        remarks: '2 pcs damaged packing',
+      },
+    ],
+  },
+];
+
+export const stockTransferSeed = [
+  {
+    id: 'trn-1',
+    transferNumber: 'TRN-2026-010',
+    transferDate: '2026-03-26',
+    fromLocation: 'Main Warehouse',
+    toLocation: 'MG Road Store',
+    totalQty: 36,
+    status: 'In Transit',
+    createdBy: 'Warehouse Admin',
+    createdAt: '2026-03-26',
+    items: [
+      {
+        id: 'trn-line-1',
+        itemCode: 'STY-CTN-TEE',
+        itemName: 'Essential Cotton Tee',
+        size: 'M',
+        availableQty: 118,
+        transferQty: 24,
+        uom: 'PCS',
+        remarks: 'Weekend replenishment',
+      },
+      {
+        id: 'trn-line-2',
+        itemCode: 'STY-DNM-JKT',
+        itemName: 'Classic Denim Jacket',
+        size: 'L',
+        availableQty: 36,
+        transferQty: 12,
+        uom: 'PCS',
+        remarks: 'Display stock',
+      },
+    ],
+  },
+];
+
+export const systemLogSeed = [
+  {
+    id: 'log-1',
+    dateTime: '2026-03-24 10:12',
+    module: 'GRN',
+    action: 'APPROVE_POST',
+    referenceType: 'GRN',
+    referenceNumber: 'GRN-2026-001',
+    user: 'HO Admin',
+    status: 'Success',
+    remarks: 'Inventory posted to Main Warehouse',
+  },
+  {
+    id: 'log-2',
+    dateTime: '2026-03-26 09:45',
+    module: 'Stock Transfer',
+    action: 'CREATE_DRAFT',
+    referenceType: 'TRANSFER',
+    referenceNumber: 'TRN-2026-010',
+    user: 'Warehouse Admin',
+    status: 'Pending',
+    remarks: 'Dispatch vehicle details awaited',
+  },
+  {
+    id: 'log-3',
+    dateTime: '2026-03-27 15:05',
+    module: 'Barcode',
+    action: 'PRINT_LABELS',
+    referenceType: 'BARCODE_BATCH',
+    referenceNumber: 'BT-2026-004',
+    user: 'Inventory Clerk',
+    status: 'Success',
+    remarks: '120 unique labels generated',
+  },
+];
+
+export const barcodeSeed = itemsData.flatMap((item, itemIndex) =>
+  (item.variants || []).map((variant, variantIndex) => ({
+    id: `barcode-${item.id}-${variant.id}`,
+    srNo: itemIndex * 10 + variantIndex + 1,
+    barcode: variant.sku,
+    itemCode: item.code,
+    itemName: item.name,
+    size: variant.size,
+    batchNo: variantIndex % 2 === 0 ? 'TEE-MAR24-A' : 'JKT-MAR24-B',
+    warehouse: variantIndex % 2 === 0 ? 'Main Warehouse' : 'North Warehouse',
+    generatedOn: '2026-03-27 15:05',
+    printStatus: variantIndex % 3 === 0 ? 'Printed' : 'Queued',
+    isDuplicate: variantIndex === 2,
+  })),
+);
+
 export const stockAuditSeed = {
   locationAnalytics: [],
   batchBreakdown: [],
