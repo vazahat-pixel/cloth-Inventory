@@ -86,6 +86,11 @@ const grnSchema = new mongoose.Schema(
             type: String,
             trim: true
         },
+        gateEntryNumber: { type: String, trim: true },
+        vehicleNumber: { type: String, trim: true },
+        transportName: { type: String, trim: true },
+        totalValue: { type: Number, default: 0 },
+        totalQty: { type: Number, default: 0 },
         items: [grnItemSchema],
         status: {
             type: String,

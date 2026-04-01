@@ -46,6 +46,9 @@ const defaultForm = {
   invoiceNumber: '',
   invoiceDate: new Date().toISOString().slice(0, 10),
   remarks: '',
+  gateEntryNumber: '',
+  vehicleNumber: '',
+  transportName: '',
   status: 'DRAFT',
 };
 
@@ -73,7 +76,7 @@ function GRNFormPage({ mode = 'edit' }) {
 
   const filteredPurchaseOrders = useMemo(() => {
     // For new GRNs, show only APPROVED or PARTIALLY_RECEIVED orders
-    let list = (purchaseOrders || []).filter(po => 
+    let list = (purchaseOrders || []).filter(po =>
       ['APPROVED', 'PARTIALLY_RECEIVED'].includes(po.status?.toUpperCase())
     );
 
@@ -112,12 +115,15 @@ function GRNFormPage({ mode = 'edit' }) {
         invoiceNumber: existingGrn.invoiceNumber || '',
         invoiceDate: existingGrn.invoiceDate?.slice(0, 10) || defaultForm.invoiceDate,
         remarks: existingGrn.remarks || '',
+        gateEntryNumber: existingGrn.gateEntryNumber || '',
+        vehicleNumber: existingGrn.vehicleNumber || '',
+        transportName: existingGrn.transportName || '',
         status: existingGrn.status || 'DRAFT',
       });
       setLines((existingGrn.items || []).map((item, idx) => {
         // Find the full item details from our local store (allItems)
         const masterItem = allItems.find(i => (i._id || i.id).toString() === (item.itemId?._id || item.itemId || "").toString()) || {};
-        
+
         // Find the original ordered quantity from the linked PO
         const linkedPO = purchaseOrders.find(o => (o._id || o.id).toString() === (existingGrn.purchaseOrderId?._id || existingGrn.purchaseOrderId || "").toString());
         const poItem = linkedPO ? (linkedPO.items || []).find(pi => (pi.variantId || "").toString() === (item.variantId || "").toString()) : null;
@@ -196,8 +202,8 @@ function GRNFormPage({ mode = 'edit' }) {
     if (!id && formValues.purchaseOrderId) {
       const po = purchaseOrders.find(o => (o.id || o._id) === formValues.purchaseOrderId);
       if (po) {
-        const suppId = (typeof po.supplierId === 'object' && po.supplierId !== null) 
-          ? (po.supplierId._id || po.supplierId.id) 
+        const suppId = (typeof po.supplierId === 'object' && po.supplierId !== null)
+          ? (po.supplierId._id || po.supplierId.id)
           : po.supplierId;
 
         setFormValues(prev => ({
@@ -216,11 +222,11 @@ function GRNFormPage({ mode = 'edit' }) {
             // FALLBACK Logic: If SKU is missing in PO, fetch from master
             let sku = item.sku;
             if (!sku && itemId) {
-                const masterItem = allItems.find(i => (i._id || i.id).toString() === itemId.toString());
-                if (masterItem?.sizes) {
-                    const variant = masterItem.sizes.find(v => (v._id || v.id).toString() === variantId.toString());
-                    sku = variant?.sku;
-                }
+              const masterItem = allItems.find(i => (i._id || i.id).toString() === itemId.toString());
+              if (masterItem?.sizes) {
+                const variant = masterItem.sizes.find(v => (v._id || v.id).toString() === variantId.toString());
+                sku = variant?.sku;
+              }
             }
 
             return {
@@ -258,6 +264,8 @@ function GRNFormPage({ mode = 'edit' }) {
             batchNumber: l.batchNumber || `B-${Date.now().toString().slice(-4)}`,
           }))
           .filter((l) => l.receivedQty > 0),
+        totalValue: totals.totalValue,
+        totalQty: totals.received
       };
 
       if (!payload.items.length) {
@@ -267,11 +275,11 @@ function GRNFormPage({ mode = 'edit' }) {
 
       let result;
       if (id) {
-          result = await dispatch(updateGrn({ id, updateData: payload })).unwrap();
+        result = await dispatch(updateGrn({ id, updateData: payload })).unwrap();
       } else {
-          result = await dispatch(addGrn(payload)).unwrap();
+        result = await dispatch(addGrn(payload)).unwrap();
       }
-      
+
       if (!isDraft) {
         await dispatch(approveGrn(result._id || result.id)).unwrap();
       }
@@ -405,7 +413,6 @@ function GRNFormPage({ mode = 'edit' }) {
                   <Typography variant="h6" sx={{ color: '#15803d', fontWeight: 900 }}>{totals.received}</Typography>
                 </Box>
               </Grid>
-
               {!isLocked && !id && !formValues.purchaseOrderId && (
                 <Grid item xs={12}>
                   <Box sx={{ p: 2, bgcolor: '#f1f5f9', borderRadius: 2, display: 'flex', gap: 2, alignItems: 'center' }}>
@@ -454,7 +461,7 @@ function GRNFormPage({ mode = 'edit' }) {
                       <Chip label={line.size} size="small" sx={{ fontWeight: 700, bgcolor: '#f1f5f9' }} />
                     </TableCell>
                     <TableCell>
-                        <Typography variant="caption" sx={{ fontFamily: 'monospace', color: '#64748b' }}>{line.sku}</Typography>
+                      <Typography variant="caption" sx={{ fontFamily: 'monospace', color: '#64748b' }}>{line.sku}</Typography>
                     </TableCell>
                     <TableCell align="right">{line.orderedQty || 0}</TableCell>
                     <TableCell align="right">
