@@ -797,7 +797,7 @@ const getStockAgingReport = async () => {
             $project: {
                 name: 1,
                 sku: 1,
-                currentStock: { $add: ["$factoryStock", 0] }, // Simplify: just factory stock for now or join with stores
+                currentStock: { $add: ["$factoryStock", 0] },
                 createdAt: 1,
                 daysInStock: {
                     $floor: {
@@ -882,6 +882,111 @@ const getProfitReport = async (startDate, endDate) => {
     ]);
 };
 
+/**
+ * SALE CHALLAN REPORT
+ * Summarizes delivery challans and their statuses.
+ */
+const getSaleChallanReport = async (startDate, endDate, storeId) => {
+    const DeliveryChallan = require('../../models/deliveryChallan.model');
+    const match = {};
+    if (startDate || endDate) {
+        match.dcDate = {};
+        if (startDate) match.dcDate.$gte = new Date(startDate);
+        if (endDate) match.dcDate.$lte = new Date(endDate);
+    }
+    if (storeId) match.storeId = new (require('mongoose').Types.ObjectId)(storeId);
+
+    return await DeliveryChallan.aggregate([
+        { $match: match },
+        {
+            $group: {
+                _id: '$status',
+                count: { $sum: 1 },
+                totalAmount: { $sum: { $reduce: { input: "$items", initialValue: 0, in: { $add: ["$$value", { $multiply: ["$$this.quantity", "$$this.price"] }] } } } }
+            }
+        },
+        { $project: { status: '$_id', count: 1, totalAmount: 1 } }
+    ]);
+};
+
+/**
+ * SCHEME REPORT
+ * Shows active schemes.
+ */
+const getSchemeReport = async (startDate, endDate) => {
+    const Scheme = require('../../models/scheme.model');
+    return await Scheme.find({ isActive: true }).select('name type value startDate endDate');
+};
+
+/**
+ * ORDER REPORT
+ * Combined view of Sale and Purchase Orders.
+ */
+const getOrderReport = async (startDate, endDate) => {
+    const SaleOrder = require('../../models/saleOrder.model');
+    const PurchaseOrder = require('../../models/purchaseOrder.model');
+    
+    const match = {};
+    if (startDate || endDate) {
+        match.createdAt = {};
+        if (startDate) match.createdAt.$gte = new Date(startDate);
+        if (endDate) match.createdAt.$lte = new Date(endDate);
+    }
+
+    const saleOrders = await SaleOrder.aggregate([
+        { $match: match },
+        { $group: { _id: '$status', count: { $sum: 1 }, total: { $sum: '$grandTotal' } } }
+    ]);
+
+    const purchaseOrders = await PurchaseOrder.aggregate([
+        { $match: match },
+        { $group: { _id: '$status', count: { $sum: 1 }, total: { $sum: '$grandTotal' } } }
+    ]);
+
+    return { saleOrders, purchaseOrders };
+};
+
+/**
+ * AGENT WISE REPORT
+ * Sales performance by Handled By (Cashier/Agent).
+ */
+const getAgentWiseReport = async (startDate, endDate) => {
+    const match = { isDeleted: false };
+    if (startDate || endDate) {
+        match.saleDate = {};
+        if (startDate) match.saleDate.$gte = new Date(startDate);
+        if (endDate) match.saleDate.$lte = new Date(endDate);
+    }
+
+    return await Sale.aggregate([
+        { $match: match },
+        {
+            $group: {
+                _id: '$cashierId', 
+                totalSales: { $sum: '$grandTotal' },
+                count: { $sum: 1 }
+            }
+        },
+        {
+            $lookup: {
+                from: 'users',
+                localField: '_id',
+                foreignField: '_id',
+                as: 'agent'
+            }
+        },
+        { $unwind: '$agent' },
+        {
+            $project: {
+                agentName: '$agent.name',
+                totalSales: 1,
+                count: 1
+            }
+        },
+        { $sort: { totalSales: -1 } }
+    ]);
+};
+
 module.exports = {
     getDailySalesReport,
     getMonthlySalesReport,
@@ -903,6 +1008,9 @@ module.exports = {
     getStockReport,
     getMovementReport,
     getStockAgingReport,
-    getProfitReport
+    getProfitReport,
+    getSaleChallanReport,
+    getSchemeReport,
+    getOrderReport,
+    getAgentWiseReport
 };
-

@@ -34,6 +34,9 @@ function StockReportPage() {
   const brands = useSelector((state) => state.masters?.brands || []);
   const itemGroups = useSelector((state) => state.masters?.itemGroups || []);
   const movements = useSelector((state) => state.inventory?.movements || []);
+  const auth = useSelector((state) => state.auth || {});
+  const currentUser = auth.user || {};
+  const isAdmin = currentUser.role?.toLowerCase() === 'admin' || currentUser.role === 'HO';
 
   useEffect(() => {
     dispatch(fetchStockOverview());
@@ -113,7 +116,7 @@ function StockReportPage() {
 
   const stockRows = useMemo(() => {
     return stock.map((s) => {
-      const prices = variantPriceMap[s.productId || s.variantId] || {};
+      const prices = variantPriceMap[String(s.productId || s.variantId || '')] || {};
       const closingStock = toNum(s.quantity);
       const value = closingStock * (prices.cost || prices.selling || 0);
       const locationId = s.storeId || s.warehouseId || s.id;

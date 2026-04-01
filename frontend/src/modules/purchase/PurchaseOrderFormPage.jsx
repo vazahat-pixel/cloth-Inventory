@@ -342,6 +342,11 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
       notes: formValues.notes,
       warehouseId: formValues.warehouseId,
       status: status || 'DRAFT',
+      totalQty: totals.totalQty,
+      subTotal: totals.subtotal,
+      taxAmount: totals.taxTotal,
+      discountAmount: totals.discountTotal,
+      totalAmount: totals.grandTotal,
       items: lines.map((line) => ({
         itemId: line.itemId,
         variantId: line.variantId,

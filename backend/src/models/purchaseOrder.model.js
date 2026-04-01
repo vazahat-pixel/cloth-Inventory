@@ -15,13 +15,18 @@ const purchaseOrderSchema = new mongoose.Schema({
     warehouseId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Warehouse',
-        required: false // Optional for backward compatibility, but recommended for flow
+        required: true
     },
     poDate: { type: Date, default: Date.now },
     expectedDeliveryDate: { type: Date },
     billingAddress: { type: String },
     deliveryAddress: { type: String },
     paymentTerms: { type: String },
+    subTotal: { type: Number, default: 0 },
+    discountAmount: { type: Number, default: 0 },
+    taxAmount: { type: Number, default: 0 },
+    totalAmount: { type: Number, default: 0 },
+    totalQty: { type: Number, default: 0 },
     notes: { type: String },
     items: [{
         itemId: {
