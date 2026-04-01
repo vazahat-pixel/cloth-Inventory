@@ -87,12 +87,15 @@ const GrnStatus = {
     DRAFT: 'DRAFT',
     PENDING: 'PENDING',
     APPROVED: 'APPROVED',
+    INVOICED: 'INVOICED',   // GRN has been billed via Purchase Voucher
     COMPLETED: 'COMPLETED',
     CANCELLED: 'CANCELLED',
 };
 
 const PurchaseStatus = {
     DRAFT: 'DRAFT',
+    APPROVED: 'APPROVED',
+    POSTED: 'POSTED',
     COMPLETED: 'COMPLETED',
     CANCELLED: 'CANCELLED',
 };

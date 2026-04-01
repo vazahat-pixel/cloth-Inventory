@@ -44,12 +44,23 @@ const getPurchaseById = async (req, res, next) => {
     }
 };
 
-const approveGRN = async (req, res, next) => {
+const updatePurchase = async (req, res, next) => {
     try {
         const userId = req.user._id;
         const purchaseId = req.params.id;
-        const purchase = await purchaseService.approveGRN(purchaseId, userId);
-        return sendSuccess(res, { purchase }, 'GRN approved and stock updated successfully');
+        const purchase = await purchaseService.updatePurchase(purchaseId, req.body, userId);
+        return sendSuccess(res, { purchase }, 'Purchase record updated successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
+const postVoucher = async (req, res, next) => {
+    try {
+        const userId = req.user._id;
+        const purchaseId = req.params.id;
+        const purchase = await purchaseService.postVoucher(purchaseId, userId);
+        return sendSuccess(res, { purchase }, 'Voucher posted and ledgers updated successfully');
     } catch (err) {
         next(err);
     }
@@ -57,8 +68,9 @@ const approveGRN = async (req, res, next) => {
 
 module.exports = {
     createPurchase,
+    updatePurchase,
     cancelPurchase,
     getAllPurchases,
     getPurchaseById,
-    approveGRN
+    postVoucher
 };

@@ -28,10 +28,12 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import SearchIcon from '@mui/icons-material/Search';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import KeyboardReturnOutlinedIcon from '@mui/icons-material/KeyboardReturnOutlined';
 import LocalPrintshopOutlinedIcon from '@mui/icons-material/LocalPrintshopOutlined';
 import PurchaseDetailDialog from './PurchaseDetailDialog';
 import BarcodePrintDialog from './BarcodePrintDialog';
+import { postPurchase } from './purchaseSlice';
 import useRoleBasePath from '../../hooks/useRoleBasePath';
 
 function PurchaseListPage() {
@@ -54,15 +56,11 @@ function PurchaseListPage() {
   const [barcodePrintPurchase, setBarcodePrintPurchase] = useState(null);
 
   const isStoreStaff = user?.role !== 'Admin';
-  const purchaseNewPath = basePath === '/ho' ? '/purchase/purchase-voucher/new' : '/purchase/new';
-  const getPurchaseEditPath = (purchaseId) => (
-    basePath === '/ho' ? `/purchase/purchase-voucher/${purchaseId}` : `/purchase/${purchaseId}`
-  );
-  const getPurchaseReturnPath = (purchaseId) => (
-    basePath === '/ho' ? `/purchase/purchase-return/${purchaseId}` : `/purchase/${purchaseId}/return`
-  );
-  const pageTitle = basePath === '/ho' ? 'Purchase Voucher' : 'Purchase Bills';
-  const addButtonLabel = basePath === '/ho' ? 'Add Purchase Voucher' : 'Add Purchase';
+  const purchaseNewPath = '/purchase/purchase-voucher/new';
+  const getPurchaseEditPath = (purchaseId) => `/purchase/purchase-voucher/${purchaseId}`;
+  const getPurchaseReturnPath = (purchaseId) => `/purchase/purchase-return/${purchaseId}`;
+  const pageTitle = "Purchase Voucher";
+  const addButtonLabel = "Add Purchase Voucher";
 
   useEffect(() => {
     dispatch(fetchPurchases());
@@ -72,25 +70,34 @@ function PurchaseListPage() {
   }, [dispatch]);
 
   const availableLocations = useMemo(() => {
-    const combined = [...warehouses, ...stores];
-    if (isStoreStaff && user?.shopId) {
-      return combined.filter(l => l.id === user.shopId);
-    }
-    return combined;
-  }, [warehouses, stores, isStoreStaff, user?.shopId]);
+    // Procurement receipts (Purchases) go to Warehouses only
+    return warehouses.map(w => ({ ...w, _id: w._id || w.id, name: w.name }));
+  }, [warehouses]);
 
   const supplierMap = useMemo(() => 
     suppliers.reduce((acc, s) => ({ ...acc, [s._id || s.id]: s.name || s.supplierName }), {}),
   [suppliers]);
 
-  const warehouseMap = useMemo(() => 
-    [...warehouses, ...stores].reduce((acc, w) => ({ ...acc, [w._id || w.id]: w.name }), {}),
-  [warehouses, stores]);
+  const locationMap = useMemo(() => {
+    const combined = [...warehouses, ...stores];
+    return combined.reduce((acc, l) => ({ ...acc, [l._id || l.id]: l.name }), {});
+  }, [warehouses, stores]);
+
+  // Resolve location name from populated object or ID map
+  const resolveLocation = (row) => {
+    // Try populated object first (storeId is now populated from backend)
+    const storeObj = row.storeId;
+    if (storeObj && typeof storeObj === 'object') return storeObj.name || '—';
+    // Fallback to ID map
+    const id = storeObj || row.warehouseId;
+    return locationMap[id] || '—';
+  };
 
   const filteredRows = useMemo(() => {
     const query = searchText.trim().toLowerCase();
-    return purchases.filter((row) => {
-      const sName = supplierMap[row.supplierId] || '';
+    return (purchases || []).filter((row) => {
+      if (!row) return false; // guard against undefined entries in Redux state
+      const sName = supplierMap[row.supplierId?._id || row.supplierId] || '';
       const invNo = row.purchaseNumber || row.invoiceNumber || '';
       const matchesSearch = query ? (invNo.toLowerCase().includes(query) || sName.toLowerCase().includes(query)) : true;
       const matchesWarehouse = warehouseFilter === 'all' ? true : row.storeId === warehouseFilter || row.warehouseId === warehouseFilter;
@@ -152,7 +159,7 @@ function PurchaseListPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {paginatedRows.map((row) => (
+                  {paginatedRows.filter(Boolean).map((row) => (
                     <TableRow key={row._id || row.id} hover>
                       <TableCell sx={{ py: 1.5 }}>
                         <Box>
@@ -160,18 +167,53 @@ function PurchaseListPage() {
                           <Typography variant="caption" sx={{ color: '#64748b', display: 'block', mt: -0.2 }}>Ref: {row.invoiceNumber || '-'}</Typography>
                         </Box>
                       </TableCell>
-                      <TableCell>{supplierMap[row.supplierId] || 'Unknown'}</TableCell>
-                      <TableCell>{new Date(row.invoiceDate || row.createdAt).toLocaleDateString()}</TableCell>
-                      <TableCell>{warehouseMap[row.storeId || row.warehouseId] || 'N/A'}</TableCell>
+                      <TableCell>{supplierMap[row.supplierId?._id || row.supplierId] || row.supplierId?.name || row.supplierId?.supplierName || 'Unknown'}</TableCell>
+                      <TableCell>{new Date(row.invoiceDate || row.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</TableCell>
+                      <TableCell>{resolveLocation(row)}</TableCell>
                       <TableCell align="right">{row.totalQuantity || row.totals?.totalQuantity || '-'}</TableCell>
                       <TableCell align="right">₹ {(row.grandTotal || row.totals?.netAmount || 0).toFixed(2)}</TableCell>
                       <TableCell><PurchaseStatusChip status={row.status} /></TableCell>
                       <TableCell>
                         <Stack direction="row" spacing={0.5}>
                           <IconButton size="small" color="info" onClick={() => setSelectedPurchase(row)}><VisibilityOutlinedIcon fontSize="small" /></IconButton>
-                          <IconButton size="small" color="primary" onClick={() => navigate(getPurchaseEditPath(row._id || row.id))}><EditOutlinedIcon fontSize="small" /></IconButton>
-                          <IconButton size="small" color="secondary" onClick={() => setBarcodePrintPurchase(row)}><LocalPrintshopOutlinedIcon fontSize="small" /></IconButton>
-                          <IconButton size="small" color="warning" onClick={() => navigate(getPurchaseReturnPath(row._id || row.id))}><KeyboardReturnOutlinedIcon fontSize="small" /></IconButton>
+                          <IconButton 
+                            size="small" color="primary" 
+                            disabled={row.status === 'CANCELLED' || row.status === 'POSTED' || row.status === 'APPROVED'}
+                            onClick={() => navigate(getPurchaseEditPath(row._id || row.id))}
+                            title="Edit Draft"
+                          >
+                            <EditOutlinedIcon fontSize="small" />
+                          </IconButton>
+                          
+                          {row.status === 'DRAFT' && (
+                            <IconButton 
+                              size="small" color="success" 
+                              onClick={() => {
+                                if(window.confirm('Post this voucher to accounts? This will lock the record.')) {
+                                  dispatch(postPurchase(row._id || row.id));
+                                }
+                              }}
+                              title="Post to Accounts"
+                            >
+                              <CheckCircleOutlinedIcon fontSize="small" />
+                            </IconButton>
+                          )}
+
+                           <IconButton 
+                                size="small" color="secondary" 
+                                disabled={row.status === 'DRAFT' || row.status === 'CANCELLED'}
+                                onClick={() => setBarcodePrintPurchase(row)} 
+                                title={row.status === 'DRAFT' ? "Wait: Post voucher to enable barcode printing" : "Print Barcodes"}
+                           >
+                             <LocalPrintshopOutlinedIcon fontSize="small" />
+                           </IconButton>
+                          <IconButton 
+                            size="small" color="warning" 
+                            disabled={row.status === 'CANCELLED'}
+                            onClick={() => navigate(getPurchaseReturnPath(row._id || row.id))}
+                          >
+                            <KeyboardReturnOutlinedIcon fontSize="small" />
+                          </IconButton>
                         </Stack>
                       </TableCell>
                     </TableRow>
@@ -189,8 +231,15 @@ function PurchaseListPage() {
         )}
       </Paper>
 
-      <PurchaseDetailDialog open={Boolean(selectedPurchase)} onClose={() => setSelectedPurchase(null)} purchase={selectedPurchase} supplierName={selectedPurchase ? supplierMap[selectedPurchase.supplierId] : ''} warehouseName={selectedPurchase ? warehouseMap[selectedPurchase.storeId || selectedPurchase.warehouseId] : ''} />
-      {barcodePrintPurchase && <BarcodePrintDialog open={true} onClose={() => setBarcodePrintPurchase(null)} purchase={barcodePrintPurchase} lines={(barcodePrintPurchase?.products || []).map(p => ({ ...p, sku: p.sku, itemName: p.itemName, size: p.size, color: p.color, quantity: p.quantity, rate: p.rate, variantId: p.variantId }))} warehouseMap={warehouseMap} />}
+      <PurchaseDetailDialog 
+        open={Boolean(selectedPurchase)} 
+        onClose={() => setSelectedPurchase(null)} 
+        purchase={selectedPurchase} 
+        supplierName={selectedPurchase ? (supplierMap[selectedPurchase.supplierId?._id || selectedPurchase.supplierId] || selectedPurchase.supplierId?.name || '') : ''} 
+        warehouseName={selectedPurchase ? locationMap[selectedPurchase.storeId || selectedPurchase.warehouseId] : ''} 
+        onPrintBarcodes={setBarcodePrintPurchase}
+      />
+      {barcodePrintPurchase && <BarcodePrintDialog open={true} onClose={() => setBarcodePrintPurchase(null)} purchase={barcodePrintPurchase} lines={(barcodePrintPurchase?.products || []).map(p => ({ ...p, sku: p.sku, itemName: p.itemName, size: p.size, color: p.color, quantity: p.quantity, rate: p.rate, variantId: p.variantId }))} warehouseMap={locationMap} />}
     </>
   );
 }

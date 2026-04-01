@@ -35,6 +35,16 @@ const grnItemSchema = new mongoose.Schema({
     batchNumber: {
         type: String,
         trim: true
+    },
+    size: String,
+    color: String,
+    tax: {
+        type: Number,
+        default: 0
+    },
+    discount: {
+        type: Number,
+        default: 0
     }
 }, { _id: false });
 

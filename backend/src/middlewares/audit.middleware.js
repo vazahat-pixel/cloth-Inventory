@@ -5,17 +5,30 @@ const SystemLog = require('../models/systemLog.model');
  */
 const createAuditLog = async ({ action, module, performedBy, details, req, session }) => {
     try {
+        // Normalize module to match enum: 'PURCHASE' -> 'Purchase', 'GRN' stays 'GRN', etc.
+        const enumValues = [
+            'ERP_SYSTEM', 'Setup', 'Item', 'Purchase', 'GRN', 'Barcode',
+            'Inventory', 'Transfer', 'Sales', 'Accounting', 'Groups',
+            'Import', 'GST', 'Stores', 'Warehouses', 'Suppliers',
+            'Production', 'Reports', 'Auth'
+        ];
+        // Find case-insensitive match in enum, fallback to 'ERP_SYSTEM'
+        const normalizedModule = enumValues.find(
+            v => v.toUpperCase() === (module || '').toUpperCase()
+        ) || 'ERP_SYSTEM';
+
         await SystemLog.create([{
             action,
-            module,
+            module: normalizedModule,
             userId: performedBy,
             details,
             ipAddress: req?.ip,
             userAgent: req?.headers?.['user-agent']
         }], { session });
     } catch (err) {
+        // IMPORTANT: Audit log failure must NEVER fail the main business transaction.
+        // Log the error but do not re-throw — the purchase/GRN must still save.
         console.error('SystemLog write failed:', err.message);
-        if (session) throw err; 
     }
 };
 

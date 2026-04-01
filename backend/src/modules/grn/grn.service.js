@@ -1,5 +1,6 @@
 const GRN = require('../../models/grn.model');
 const Purchase = require('../../models/purchase.model');
+const Item = require('../../models/item.model');
 const { GrnStatus, DocumentType } = require('../../core/enums');
 const { withTransaction } = require('../../services/transaction.service');
 const { getNextSequence } = require('../../services/sequence.service');
@@ -47,8 +48,8 @@ const createGRN = async (grnData, userId) => {
         for (const item of items) {
             const itemId = item.itemId || item.productId;
             const variantId = item.variantId; // This is the _id of the size variant
-            const sku = item.sku;
-
+            let sku = item.sku;
+            
             let orderedQty = item.orderedQty || 0;
 
             // If linked to a parent document, validate quantities
@@ -89,17 +90,38 @@ const createGRN = async (grnData, userId) => {
                 // throw new Error(`Overage for SKU ${sku}. Total received (${currentTotalReceived}) exceeds ordered (${orderedQty}).`);
             }
 
+            const originalItem = parentDoc ? parentDoc.items.find(p => 
+                (p.itemId || p.productId || p._id).toString() === itemId.toString() &&
+                (p.variantId || p._id).toString() === variantId.toString()
+            ) : null;
+
+            
+            // BACKEND FAIL-SAFE: If SKU is missing, recover it from Item Master
+            if (!sku && itemId) {
+                const masterDoc = await Item.findById(itemId).session(session);
+                if (masterDoc && masterDoc.sizes) {
+                    const variant = masterDoc.sizes.find(v => (v._id || v.id).toString() === variantId.toString());
+                    sku = variant?.sku;
+                }
+                // If still missing, check Top Level
+                if (!sku) sku = masterDoc?.sku || masterDoc?.itemCode;
+            }
+
             processedItems.push({
                 itemId,
                 variantId,
-                sku,
+                sku: sku || 'N/A', // Ultimate fallback for model integrity
                 receivedQty: item.receivedQty,
-                costPrice: item.costPrice || (originalItem ? (originalItem.rate || originalItem.costPrice) : 0),
-                tax: item.tax || (originalItem ? originalItem.tax : 0),
-                discount: item.discount || (originalItem ? originalItem.discount : 0),
+                costPrice: item.costPrice || (originalItem ? (originalItem.price || originalItem.rate || originalItem.costPrice) : 0),
+                tax: item.tax || (originalItem ? (originalItem.taxPercent || originalItem.tax) : 0),
+                discount: item.discount || (originalItem ? (originalItem.discountPercent || originalItem.discount) : 0),
+                size: item.size || (originalItem ? originalItem.size : '-'),
+                color: item.color || (originalItem ? originalItem.color : '-'),
                 batchNumber: item.lotNumber || item.batchNumber || `BATCH-${Date.now()}`
             });
         }
+
+        console.log('Processed Items for GRN:', processedItems);
 
         const grnNumber = await generateGrnNumber(session);
 
@@ -167,10 +189,10 @@ const approveGRN = async (id, userId) => {
 
 const getGRNById = async (id) => {
     return await GRN.findOne({ _id: id, isDeleted: false })
-        .populate('supplierId', 'name')
+        .populate('supplierId', 'name supplierName')
         .populate('warehouseId', 'name')
         .populate('purchaseOrderId', 'poNumber items')
-        .populate('items.itemId', 'itemName itemCode shade sizes');
+        .populate('items.itemId', 'itemName itemCode shade gstTax sizes');
 };
 
 const getGrnsByPurchase = async (purchaseId) => {
@@ -179,7 +201,9 @@ const getGrnsByPurchase = async (purchaseId) => {
 
 const getAllGrns = async () => {
     return await GRN.find({ isDeleted: false })
-        .populate('supplierId', 'name')
+        .populate('supplierId', 'name supplierName')
+        .populate('warehouseId', 'name')
+        .populate('items.itemId', 'itemName itemCode shade gstTax sizes')
         .sort({ createdAt: -1 });
 };
 
