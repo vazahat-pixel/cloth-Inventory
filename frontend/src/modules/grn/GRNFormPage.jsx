@@ -51,6 +51,9 @@ const defaultForm = {
   invoiceNumber: '',
   invoiceDate: new Date().toISOString().slice(0, 10),
   remarks: '',
+  gateEntryNumber: '',
+  vehicleNumber: '',
+  transportName: '',
   status: 'DRAFT',
 };
 
@@ -100,6 +103,9 @@ function GRNFormPage({ mode = 'edit' }) {
         invoiceNumber: existingGrn.invoiceNumber || '',
         invoiceDate: existingGrn.invoiceDate?.slice(0, 10) || defaultForm.invoiceDate,
         remarks: existingGrn.remarks || '',
+        gateEntryNumber: existingGrn.gateEntryNumber || '',
+        vehicleNumber: existingGrn.vehicleNumber || '',
+        transportName: existingGrn.transportName || '',
         status: existingGrn.status || 'DRAFT',
       });
       setLines(existingGrn.items || []);
@@ -223,6 +229,8 @@ function GRNFormPage({ mode = 'edit' }) {
             batchNumber: l.batchNumber || `B-${Date.now().toString().slice(-4)}`,
           }))
           .filter((l) => l.receivedQty > 0),
+        totalValue: totals.totalValue,
+        totalQty: totals.received
       };
 
       if (!payload.items.length) {
@@ -374,6 +382,24 @@ function GRNFormPage({ mode = 'edit' }) {
                   <Typography variant="caption" sx={{ color: '#166534', fontWeight: 700 }}>Total Units Received</Typography>
                   <Typography variant="h6" sx={{ color: '#15803d', fontWeight: 900 }}>{totals.received}</Typography>
                 </Box>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Box sx={{ p: 1, px: 2, bgcolor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 2, textAlign: 'center', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <Typography variant="caption" sx={{ color: '#1e40af', fontWeight: 700 }}>Total Receipt Value</Typography>
+                  <Typography variant="h6" sx={{ color: '#1d4ed8', fontWeight: 900 }}>₹{totals.totalValue.toLocaleString()}</Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <TextField fullWidth label="Gate Entry #" size="small" value={formValues.gateEntryNumber} onChange={e => setFormValues({...formValues, gateEntryNumber: e.target.value})} disabled={isLocked} />
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <TextField fullWidth label="Vehicle #" size="small" value={formValues.vehicleNumber} onChange={e => setFormValues({...formValues, vehicleNumber: e.target.value})} disabled={isLocked} />
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <TextField fullWidth label="Transport Name" size="small" value={formValues.transportName} onChange={e => setFormValues({...formValues, transportName: e.target.value})} disabled={isLocked} />
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <TextField fullWidth label="Remarks" size="small" value={formValues.remarks} onChange={e => setFormValues({...formValues, remarks: e.target.value})} disabled={isLocked} />
               </Grid>
               {!isLocked && !id && !formValues.purchaseOrderId && (
                 <Grid item xs={12}>

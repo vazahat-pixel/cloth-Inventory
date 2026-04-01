@@ -217,10 +217,9 @@ function ItemFormPage({ mode = 'edit' }) {
       itemCode: data.itemCode.trim().toUpperCase(),
       brand: data.brand,
       session: data.season,
-      section: data.sectionId,
-      category: data.categoryId,
-      subCategory: data.subCategoryId,
-      styleType: data.subSubCategoryId,
+      // Collect group IDs for the new hierarchy system
+      groupIds: [data.sectionId, data.categoryId, data.subCategoryId, data.subSubCategoryId].filter(Boolean),
+      category: data.categoryId, // Backward compatibility
       shade: data.shadeColor,
       uom: data.uom,
       hsnCodeId: data.hsnCodeId,
@@ -612,3 +611,18 @@ function ItemFormPage({ mode = 'edit' }) {
 }
 
 export default ItemFormPage;
+
+/**
+ * Renders a placeholder MenuItem if the current value is not in the options list.
+ * Crucial for avoiding MUI "Out of range" errors when data is still loading.
+ */
+function renderAsyncValueOption(value, options) {
+  if (!value) return null;
+  const match = options.find((o) => String(o.id || o._id) === String(value));
+  if (match) return null; // MUI handles this fine
+  return (
+    <MenuItem key={value} value={value} sx={{ display: 'none' }}>
+      Loading...
+    </MenuItem>
+  );
+}
