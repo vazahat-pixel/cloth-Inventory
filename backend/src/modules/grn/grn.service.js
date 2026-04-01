@@ -39,9 +39,9 @@ const createGRN = async (grnData, userId) => {
         }
 
         const processedItems = [];
-        const existingGrns = await GRN.find({ 
+        const existingGrns = await GRN.find({
             $or: [{ purchaseId }, { purchaseOrderId }],
-            isDeleted: false 
+            isDeleted: false
         }).session(session);
 
         for (const item of items) {
@@ -50,15 +50,15 @@ const createGRN = async (grnData, userId) => {
             const sku = item.sku;
 
             let orderedQty = item.orderedQty || 0;
-            
+
             // If linked to a parent document, validate quantities
             if (parentDoc) {
                 const parentItems = parentDoc.items || parentDoc.products || [];
-                const originalItem = parentItems.find(p => 
+                const originalItem = parentItems.find(p =>
                     (p.itemId || p.productId || p._id).toString() === itemId.toString() &&
                     (p.variantId || p._id).toString() === variantId.toString()
                 );
-                
+
                 if (originalItem) {
                     orderedQty = originalItem.quantity || originalItem.qty || orderedQty;
                 }
@@ -66,22 +66,27 @@ const createGRN = async (grnData, userId) => {
 
             // Calculate historical total received for this specific variant
             let totalPreviouslyReceived = 0;
-            existingGrns.forEach(g => {
-                const prevItem = g.items.find(i => 
-                    (i.itemId || i.productId).toString() === itemId.toString() &&
-                    i.variantId.toString() === variantId.toString()
-                );
-                if (prevItem) {
-                    totalPreviouslyReceived += prevItem.receivedQty;
-                }
-            });
+            if (existingGrns.length > 0 && itemId && variantId) {
+                existingGrns.forEach(g => {
+                    if (g.items && Array.isArray(g.items)) {
+                        const prevItem = g.items.find(i => {
+                            const curItemId = (i.itemId || i.productId);
+                            return curItemId && curItemId.toString() === itemId.toString() &&
+                                i.variantId && i.variantId.toString() === variantId.toString();
+                        });
+                        if (prevItem) {
+                            totalPreviouslyReceived += (prevItem.receivedQty || 0);
+                        }
+                    }
+                });
+            }
 
             const currentTotalReceived = totalPreviouslyReceived + item.receivedQty;
 
             // Overage Error Check (Optional but helpful)
             if (orderedQty > 0 && currentTotalReceived > orderedQty) {
-                 // Throwing error or warning? Let's stay strict for now or disable if not linked.
-                 // throw new Error(`Overage for SKU ${sku}. Total received (${currentTotalReceived}) exceeds ordered (${orderedQty}).`);
+                // Throwing error or warning? Let's stay strict for now or disable if not linked.
+                // throw new Error(`Overage for SKU ${sku}. Total received (${currentTotalReceived}) exceeds ordered (${orderedQty}).`);
             }
 
             processedItems.push({
@@ -89,7 +94,9 @@ const createGRN = async (grnData, userId) => {
                 variantId,
                 sku,
                 receivedQty: item.receivedQty,
-                costPrice: item.costPrice || 0,
+                costPrice: item.costPrice || (originalItem ? (originalItem.rate || originalItem.costPrice) : 0),
+                tax: item.tax || (originalItem ? originalItem.tax : 0),
+                discount: item.discount || (originalItem ? originalItem.discount : 0),
                 batchNumber: item.lotNumber || item.batchNumber || `BATCH-${Date.now()}`
             });
         }
@@ -111,14 +118,13 @@ const createGRN = async (grnData, userId) => {
         });
 
         await grn.save({ session });
-        
-        // Link document and log transition
+
         const parentId = purchaseOrderId || purchaseId;
-        const parentType = purchaseOrderId ? DocumentType.PURCHASE_ORDER : DocumentType.PURCHASE;
-        
+        const parentType = purchaseOrderId ? DocumentType.PO : DocumentType.PURCHASE;
+
         await workflowService.linkDocuments(parentId, grn._id, parentType, DocumentType.GRN);
         await workflowService.updateStatus(grn._id, DocumentType.GRN, null, GrnStatus.DRAFT, userId, `Created Draft GRN ${grnNumber} from ${purchaseOrderId ? 'PO' : 'Purchase'}`);
-        
+
         return grn;
     });
 };
@@ -154,12 +160,6 @@ const approveGRN = async (id, userId) => {
         }
 
         await workflowService.updateStatus(grn._id, DocumentType.GRN, oldStatus, GrnStatus.APPROVED, userId, `Approved GRN ${grn.grnNumber} and posted stock to warehouse.`);
-        
-        // 3. Update PO fulfillment status if linked
-        if (grn.purchaseOrderId) {
-            const poService = require('../purchaseOrder/purchaseOrder.service');
-            await poService.syncPoStatus(grn.purchaseOrderId, session);
-        }
 
         return grn;
     });
@@ -169,7 +169,8 @@ const getGRNById = async (id) => {
     return await GRN.findOne({ _id: id, isDeleted: false })
         .populate('supplierId', 'name')
         .populate('warehouseId', 'name')
-        .populate('items.itemId', 'itemName itemCode shade');
+        .populate('purchaseOrderId', 'poNumber items')
+        .populate('items.itemId', 'itemName itemCode shade sizes');
 };
 
 const getGrnsByPurchase = async (purchaseId) => {
@@ -182,10 +183,17 @@ const getAllGrns = async () => {
         .sort({ createdAt: -1 });
 };
 
+const getNextSuggestedNumber = async () => {
+    // Note: In this simple implementation, we generate it. 
+    // Usually, we'd peek, but here we just return a generated one for now.
+    return await generateGrnNumber();
+};
+
 module.exports = {
     createGRN,
     approveGRN,
     getGRNById,
     getGrnsByPurchase,
-    getAllGrns
+    getAllGrns,
+    getNextSuggestedNumber
 };

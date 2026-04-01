@@ -46,10 +46,20 @@ const approve = async (req, res, next) => {
     }
 };
 
+const getNextNumber = async (req, res, next) => {
+    try {
+        const nextNumber = await grnService.getNextSuggestedNumber();
+        return sendSuccess(res, { nextNumber }, 'Next Suggested GRN Number fetched');
+    } catch (err) {
+        next(err);
+    }
+};
+
 module.exports = {
     create,
     getById,
     getAll,
     getByPurchase,
-    approve
+    approve,
+    getNextNumber
 };

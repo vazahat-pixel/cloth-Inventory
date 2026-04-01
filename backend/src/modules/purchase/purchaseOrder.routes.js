@@ -6,7 +6,8 @@ const { requireAdmin } = require('../../middlewares/role.middleware');
 const router = express.Router();
 
 router.use(protect);
-router.use(requireAdmin);
+// Anyone authenticated can view list, detail or create. 
+// However, approving is restricted to Admin.
 
 router.route('/')
     .get(poController.getAllPOs)
@@ -19,6 +20,6 @@ router.route('/:id')
     .patch(poController.updatePO);
 
 router.route('/:id/status')
-    .patch(poController.updateStatus);
+    .patch(requireAdmin, poController.updateStatus);
 
 module.exports = router;

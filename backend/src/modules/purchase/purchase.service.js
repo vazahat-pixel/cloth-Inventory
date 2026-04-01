@@ -22,7 +22,13 @@ const createPurchase = async (purchaseData, userId) => {
         const storeId = purchaseData.storeId || purchaseData.warehouseId;
         const invoiceNumber = (purchaseData.invoiceNumber || '').trim();
         const invoiceDate = purchaseData.invoiceDate;
-        const { supplierId } = purchaseData;
+        const { supplierId, grnId } = purchaseData;
+
+        // Duplicate Invoice Check: One GRN = One Purchase Voucher
+        if (grnId) {
+            const existing = await Purchase.findOne({ grnId, status: { $ne: PurchaseStatus.CANCELLED } }).session(session);
+            if (existing) throw new Error(`A Purchase Voucher (${existing.purchaseNumber}) is already linked to this GRN.`);
+        }
 
         const supplier = await Supplier.findOne({ _id: supplierId, isDeleted: false, isActive: true }).session(session);
         if (!supplier) throw new Error('Supplier not found or inactive');
@@ -97,12 +103,23 @@ const createPurchase = async (purchaseData, userId) => {
             otherCharges,
             grandTotal,
             status: PurchaseStatus.DRAFT,
-            grnStatus: 'DRAFT',
+            grnStatus: purchaseData.grnStatus || 'DRAFT',
+            grnId: grnId || null,
+            purchaseOrderId: purchaseData.purchaseOrderId || null,
             createdBy: userId,
             notes: purchaseData.notes || ''
         });
 
         await purchase.save({ session });
+
+        // Update GRN reference/status if linked
+        if (grnId) {
+            const GRN = require('../../models/grn.model');
+            await GRN.findByIdAndUpdate(grnId, { 
+                purchaseId: purchase._id,
+                status: 'APPROVED' // Ensure it stays approved or mark as INVOICED if status exists
+            }).session(session);
+        }
 
         await createAuditLog({
             action: 'CREATE_PURCHASE',

@@ -100,7 +100,15 @@ const getPOById = async (id) => {
 };
 
 const updateStatus = async (id, status, userId) => {
-    const po = await PurchaseOrder.findByIdAndUpdate(id, { status }, { new: true });
+    const updateData = { status };
+    
+    // If approving, record metadata
+    if (status === PurchaseOrderStatus.APPROVED) {
+        updateData.approvedBy = userId;
+        updateData.approvedAt = new Date();
+    }
+
+    const po = await PurchaseOrder.findByIdAndUpdate(id, updateData, { new: true });
     if (!po) throw new Error('Purchase Order not found');
     return po;
 };
@@ -108,8 +116,11 @@ const updateStatus = async (id, status, userId) => {
 const updatePO = async (id, poData, userId) => {
     const po = await PurchaseOrder.findById(id);
     if (!po) throw new Error('Purchase Order not found');
-    if (po.status === 'RECEIVED' || po.status === 'CANCELLED') {
-        throw new Error('Cannot update PO in current status');
+
+    // PRODUCTION RULE: Only DRAFT orders are editable. 
+    // Approved/Pending orders are IMMUTABLE.
+    if (po.status !== PurchaseOrderStatus.DRAFT) {
+        throw new Error(`Changes not allowed. This order is already in '${po.status}' stage.`);
     }
 
     Object.assign(po, poData);

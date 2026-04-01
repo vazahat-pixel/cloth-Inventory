@@ -2,7 +2,9 @@ const { sendForbidden } = require('../utils/response.handler');
 
 const requireRole = (...roles) => (req, res, next) => {
     if (!req.user) return sendForbidden(res, 'Access denied. Not authenticated.');
-    if (!roles.includes(req.user.role)) return sendForbidden(res, `Access denied. Requires one of: ${roles.join(', ')}`);
+    const userRole = (req.user.role || '').toLowerCase();
+    const allowedRoles = roles.map(r => r.toLowerCase());
+    if (!allowedRoles.includes(userRole)) return sendForbidden(res, `Access denied. Requires one of: ${roles.join(', ')}`);
     next();
 };
 

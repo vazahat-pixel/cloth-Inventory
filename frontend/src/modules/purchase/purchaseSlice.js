@@ -74,9 +74,18 @@ export const fetchPurchaseOrders = createAsyncThunk('purchase/fetchOrders', asyn
 export const fetchPurchaseOrderById = createAsyncThunk('purchase/fetchOrderById', async (id, { rejectWithValue }) => {
   try {
     const response = await api.get(`/purchase-orders/${id}`);
-    return response.data.purchaseOrder || response.data.po || response.data.data;
-  } catch (error) {
-    return rejectWithValue(error.response?.data?.message || 'Failed to fetch purchase order details');
+    return response.data.purchaseOrder;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Failed to fetch Purchase Order');
+  }
+});
+
+export const fetchGRNById = createAsyncThunk('purchase/fetchGRNById', async (id, { rejectWithValue }) => {
+  try {
+    const response = await api.get(`/grn/${id}`);
+    return response.data.grn;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Failed to fetch GRN');
   }
 });
 
@@ -96,6 +105,15 @@ export const updatePurchaseOrder = createAsyncThunk('purchase/updateOrder', asyn
     return response.data.purchaseOrder || response.data.po || response.data.data;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || 'Failed to update purchase order');
+  }
+});
+
+export const updatePurchaseOrderStatus = createAsyncThunk('purchase/updateOrderStatus', async ({ id, status }, { rejectWithValue }) => {
+  try {
+    const response = await api.patch(`/purchase-orders/${id}/status`, { status });
+    return response.data.purchaseOrder || response.data.po || response.data.data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || 'Failed to update status');
   }
 });
 
@@ -194,6 +212,12 @@ const purchaseSlice = createSlice({
         state.orders.unshift(action.payload);
       })
       .addCase(updatePurchaseOrder.fulfilled, (state, action) => {
+        const index = state.orders.findIndex((o) => o.id === action.payload.id || o._id === action.payload._id);
+        if (index !== -1) {
+          state.orders[index] = action.payload;
+        }
+      })
+      .addCase(updatePurchaseOrderStatus.fulfilled, (state, action) => {
         const index = state.orders.findIndex((o) => o.id === action.payload.id || o._id === action.payload._id);
         if (index !== -1) {
           state.orders[index] = action.payload;

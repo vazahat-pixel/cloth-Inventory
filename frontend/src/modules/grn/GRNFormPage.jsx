@@ -40,7 +40,7 @@ import { useAppNavigate } from '../../hooks/useAppNavigate';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchPurchaseOrders } from '../purchase/purchaseSlice';
 import { fetchItems } from '../items/itemsSlice';
-import { addGrn, approveGrn, fetchGrnById } from './grnSlice';
+import { addGrn, approveGrn, fetchGrnById, fetchNextGrnNumber } from './grnSlice';
 
 const defaultForm = {
   grnNumber: '',
@@ -60,7 +60,7 @@ function GRNFormPage({ mode = 'edit' }) {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const isViewMode = mode === 'view';
-  
+
   const { records: grns, loading: grnLoading } = useSelector((state) => state.grn);
   const purchaseOrders = useSelector((state) => state.purchase.orders || []);
   const warehouses = useSelector((state) => state.masters.warehouses || []);
@@ -103,49 +103,41 @@ function GRNFormPage({ mode = 'edit' }) {
         status: existingGrn.status || 'DRAFT',
       });
       setLines(existingGrn.items || []);
-    } 
-    // If new mode and PO selected (either via URL or dropdown)
-    else if (!id && formValues.purchaseOrderId) {
-      const po = purchaseOrders.find(o => (o.id || o._id) === formValues.purchaseOrderId);
-      if (po) {
-        setFormValues(prev => ({
-          ...prev,
-          supplierId: po.supplierId?._id || po.supplierId || '',
-          remarks: po.notes || ''
-        }));
-        
-        const poItems = po.items || [];
-        setLines(poItems.map((item, idx) => ({
-          id: `line-${idx}-${Date.now()}`,
-          itemId: item.itemId?._id || item.itemId,
-          variantId: item.variantId,
-          itemName: item.itemName || 'Item',
-          itemCode: item.itemCode || '',
-          size: item.size || 'N/A',
-          sku: item.sku || '',
-          orderedQty: item.qty || 0,
-          receivedQty: item.qty || 0,
-          costPrice: item.price || 0,
-          batchNumber: `B-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`
-        })));
-      }
-    }
-    // Handle initial poId from searchParams
-    else if (!id && !formValues.purchaseOrderId) {
-      const poIdFromUrl = searchParams.get('poId');
-      if (poIdFromUrl) {
-        setFormValues(prev => ({ ...prev, purchaseOrderId: poIdFromUrl }));
+    } else if (!id) {
+      const poId = searchParams.get('poId');
+      if (poId) {
+        const po = purchaseOrders.find(o => o.id === poId || o._id === poId);
+        if (po) {
+          setFormValues(prev => ({
+            ...prev,
+            purchaseOrderId: poId,
+            supplierId: po.supplierId,
+            remarks: po.notes || ''
+          }));
+          // Auto-fill lines from PO
+          setLines((po.items || []).map((item, idx) => ({
+            id: `new-${idx}`,
+            productId: item.productId,
+            itemName: item.itemName || 'Item',
+            orderedQty: item.qty || item.quantity,
+            receivedQty: item.qty || item.quantity,
+            acceptedQty: item.qty || item.quantity,
+            rejectedQty: 0,
+            rate: item.price || item.rate,
+            batchNumber: ''
+          })));
+        }
       }
     }
   }, [id, existingGrn, purchaseOrders, formValues.purchaseOrderId, searchParams]);
 
   const totals = useMemo(() => {
     return lines.reduce((acc, curr) => {
-        acc.ordered += Number(curr.orderedQty || 0);
-        acc.received += Number(curr.receivedQty || 0);
-        acc.accepted += Number(curr.acceptedQty || 0);
-        acc.rejected += Number(curr.rejectedQty || 0);
-        return acc;
+      acc.ordered += Number(curr.orderedQty || 0);
+      acc.received += Number(curr.receivedQty || 0);
+      acc.accepted += Number(curr.acceptedQty || 0);
+      acc.rejected += Number(curr.rejectedQty || 0);
+      return acc;
     }, { ordered: 0, received: 0, accepted: 0, rejected: 0 });
   }, [lines]);
 
@@ -157,20 +149,20 @@ function GRNFormPage({ mode = 'edit' }) {
 
   const addItemToLines = (item) => {
     if (!item || !item.sizes?.length) return;
-    
+
     const newLines = item.sizes.map(v => ({
-        id: `temp-${Date.now()}-${Math.random()}`,
-        itemId: item._id || item.id,
-        variantId: v._id || v.id,
-        itemName: item.itemName,
-        itemCode: item.itemCode,
-        shade: item.shade,
-        size: v.size,
-        sku: v.sku,
-        orderedQty: 0,
-        receivedQty: 0,
-        costPrice: v.costPrice || 0,
-        batchNumber: `B-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`
+      id: `temp-${Date.now()}-${Math.random()}`,
+      itemId: item._id || item.id,
+      variantId: v._id || v.id,
+      itemName: item.itemName,
+      itemCode: item.itemCode,
+      shade: item.shade,
+      size: v.size,
+      sku: v.sku,
+      orderedQty: 0,
+      receivedQty: 0,
+      costPrice: v.costPrice || 0,
+      batchNumber: `B-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`
     }));
 
     setLines([...lines, ...newLines]);
@@ -181,36 +173,64 @@ function GRNFormPage({ mode = 'edit' }) {
     setLines(lines.filter((_, i) => i !== idx));
   };
 
+  useEffect(() => {
+    if (!id && formValues.purchaseOrderId) {
+      const po = purchaseOrders.find(o => (o.id || o._id) === formValues.purchaseOrderId);
+      if (po) {
+        setFormValues(prev => ({
+          ...prev,
+          supplierId: po.supplierId?._id || po.supplierId || '',
+          remarks: po.notes || ''
+        }));
+        const poItems = po.items || [];
+        setLines(poItems.map((item, idx) => ({
+          id: `line-${idx}`,
+          productId: item.productId?._id || item.productId,
+          itemName: item.productId?.name || item.itemName || 'Item',
+          orderedQty: item.qty || item.quantity,
+          receivedQty: item.qty || item.quantity,
+          acceptedQty: item.qty || item.quantity,
+          rejectedQty: 0,
+          rate: item.price || item.rate,
+          batchNumber: ''
+        })));
+      }
+    }
+  }, [formValues.purchaseOrderId, purchaseOrders, id]);
+
   const handleSave = async (isDraft = true) => {
     try {
-        setErrorMessage('');
-        const payload = {
-            ...formValues,
-            items: lines.map(l => ({
-                itemId: l.itemId,
-                variantId: l.variantId,
-                sku: l.sku,
-                receivedQty: Number(l.receivedQty || 0),
-                costPrice: Number(l.costPrice || 0),
-                batchNumber: l.batchNumber || `B-${Date.now().toString().slice(-4)}`
-            })).filter(l => l.receivedQty > 0) // Only send items with qty > 0
-        };
+      setErrorMessage('');
+      const payload = {
+        ...formValues,
+        items: lines
+          .map((l) => ({
+            itemId: l.itemId,
+            variantId: l.variantId,
+            sku: l.sku,
+            receivedQty: Number(l.receivedQty || 0),
+            costPrice: Number(l.costPrice || 0),
+            batchNumber: l.batchNumber || `B-${Date.now().toString().slice(-4)}`,
+          }))
+          .filter((l) => l.receivedQty > 0),
+      };
 
-        if (!payload.items.length) {
-            throw new Error('Please enter quantity for at least one item.');
-        }
+      if (!payload.items.length) {
+        throw new Error('Please enter quantity for at least one item.');
+      }
 
-        const result = await dispatch(addGrn(payload)).unwrap();
+      const result = await dispatch(addGrn(payload)).unwrap();
+
+      if (!isDraft) {
+        await dispatch(approveGrn(result._id || result.id)).unwrap();
+        setSuccessMessage('GRN created and approved successfully');
+      } else {
         setSuccessMessage('GRN created successfully');
-        
-        if (!isDraft) {
-            await dispatch(approveGrn(result._id || result.id)).unwrap();
-            setSuccessMessage('GRN created and approved successfully');
-        }
+      }
 
-        setTimeout(() => navigate('/ho/grn'), 1500);
+      setTimeout(() => navigate('/ho/grn'), 1500);
     } catch (err) {
-        setErrorMessage(String(err?.message || err || 'Failed to save GRN'));
+      setErrorMessage(err || 'Failed to save GRN');
     }
   };
 
@@ -219,18 +239,18 @@ function GRNFormPage({ mode = 'edit' }) {
   return (
     <Box sx={{ p: 4 }}>
       <PageHeader
-        title={isViewMode ? 'GRN Details' : id ? 'Edit GRN' : 'Create GRN'}
+        title={isViewMode ? `GRN - ${formValues.grnNumber || formValues.invoiceNumber}` : id ? `Edit GRN - ${formValues.grnNumber || formValues.invoiceNumber}` : 'Create GRN'}
         subtitle="Receipt goods against Purchase Order or Voucher."
         actions={[
           <Button key="back" variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate('/ho/grn')}>
             Back
           </Button>,
-          !isViewMode && (
+          !isLocked && (
             <Button key="save" variant="contained" startIcon={<SaveOutlinedIcon />} onClick={() => handleSave(true)}>
               Save Draft
             </Button>
           ),
-          !isViewMode && (
+          !isLocked && (
             <Button key="approve" variant="contained" color="success" startIcon={<TaskAltOutlinedIcon />} onClick={() => setConfirmOpen(true)}>
               Approve & Post
             </Button>
@@ -244,52 +264,121 @@ function GRNFormPage({ mode = 'edit' }) {
       <Grid container spacing={3}>
         <Grid size={{ xs: 12 }}>
           <Paper sx={{ p: 3, borderRadius: 2 }}>
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, md: 3 }}>
-                <TextField select fullWidth label="Purchase Order" size="small" value={formValues.purchaseOrderId} 
-                    onChange={e => setFormValues({...formValues, purchaseOrderId: e.target.value})} disabled={isViewMode || !!id}>
-                    <MenuItem value="">Direct Receipt</MenuItem>
-                    {purchaseOrders.map(po => <MenuItem key={po.id || po._id} value={po.id || po._id}>{po.poNumber} - {po.supplierName}</MenuItem>)}
+            <Grid container spacing={2.5}>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <TextField
+                  select
+                  fullWidth
+                  label="Purchase Order"
+                  size="small"
+                  value={formValues.purchaseOrderId}
+                  onChange={e => setFormValues({ ...formValues, purchaseOrderId: e.target.value })}
+                  disabled={!!id}
+                >
+                  <MenuItem value="">Direct Receipt</MenuItem>
+                  {purchaseOrders
+                    .map((po) => (
+                      <MenuItem key={po.id || po._id} value={po.id || po._id}>
+                        {po.poNumber} - {po.supplierId?.name || 'Direct'}
+                      </MenuItem>
+                    ))}
+                  {/* Fallback for populated PO and view mode if not in list */}
+                  {id && existingGrn?.purchaseOrderId && !purchaseOrders.find(o => (o._id || o.id) === (existingGrn.purchaseOrderId?._id || existingGrn.purchaseOrderId)) && (
+                    <MenuItem key={existingGrn.purchaseOrderId?._id || existingGrn.purchaseOrderId} value={existingGrn.purchaseOrderId?._id || existingGrn.purchaseOrderId}>
+                      {existingGrn.purchaseOrderId?.poNumber || 'Original PO'}
+                    </MenuItem>
+                  )}
                 </TextField>
               </Grid>
-              <Grid item xs={12} md={2.4}>
-                <TextField select fullWidth label="Supplier" size="small" value={formValues.supplierId} 
-                    onChange={e => setFormValues({...formValues, supplierId: e.target.value})} disabled={isViewMode || !!id}>
-                    {suppliers.map(s => <MenuItem key={s.id || s._id} value={s.id || s._id}>{s.supplierName || s.name}</MenuItem>)}
+              <Grid size={{ xs: 12, md: 4 }}>
+                <TextField
+                  select
+                  fullWidth
+                  label="Supplier"
+                  size="small"
+                  value={formValues.supplierId}
+                  onChange={e => setFormValues({ ...formValues, supplierId: e.target.value })}
+                  disabled={!!id || !!formValues.purchaseOrderId}
+                >
+                  {suppliers.map(s => (
+                    <MenuItem key={s.id || s._id} value={s.id || s._id}>
+                      {s.supplierName || s.name}
+                    </MenuItem>
+                  ))}
                 </TextField>
               </Grid>
-              <Grid item xs={12} md={2.4}>
-                <TextField select fullWidth label="Warehouse" size="small" value={formValues.warehouseId} 
-                    onChange={e => setFormValues({...formValues, warehouseId: e.target.value})} disabled={isViewMode}>
-                    {warehouses.map(w => <MenuItem key={w.id || w._id} value={w.id || w._id}>{w.warehouseName || w.name}</MenuItem>)}
+              <Grid size={{ xs: 12, md: 4 }}>
+                <TextField
+                  select
+                  fullWidth
+                  label="Warehouse / Store"
+                  size="small"
+                  value={formValues.warehouseId}
+                  onChange={e => setFormValues({ ...formValues, warehouseId: e.target.value })}
+                  disabled={isLocked}
+                >
+                  {warehouses.map(w => (
+                    <MenuItem key={w.id || w._id} value={w.id || w._id}>
+                      {w.warehouseName || w.name}
+                    </MenuItem>
+                  ))}
                 </TextField>
               </Grid>
-              <Grid item xs={12} md={2.4}>
-                <TextField fullWidth label="Invoice No" size="small" value={formValues.invoiceNumber} 
-                    onChange={e => setFormValues({...formValues, invoiceNumber: e.target.value})} disabled={isViewMode} />
+              <Grid size={{ xs: 12, md: 4 }}>
+                <TextField
+                  fullWidth
+                  label="GRN Number"
+                  size="small"
+                  value={formValues.grnNumber || formValues.invoiceNumber}
+                  disabled
+                  helperText={!id ? "Autogenerated on save" : ""}
+                />
               </Grid>
-              <Grid item xs={12} md={2.4}>
-                <Box sx={{ p: 1, px: 2, bgcolor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 2, textAlign: 'center' }}>
-                  <Typography variant="caption" sx={{ color: '#166534', fontWeight: 700 }}>Total Units</Typography>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <TextField
+                  fullWidth
+                  label="Supplier Invoice / Challan No."
+                  size="small"
+                  value={id ? formValues.invoiceNumber : (formValues.invoiceNumber?.startsWith('GRN-') ? '' : formValues.invoiceNumber)}
+                  onChange={e => setFormValues({ ...formValues, invoiceNumber: e.target.value })}
+                  disabled={isLocked}
+                  placeholder="Enter vendor's bill number"
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <TextField
+                  fullWidth
+                  type="date"
+                  label="GRN / Receipt Date"
+                  size="small"
+                  value={formValues.invoiceDate || formValues.grnDate}
+                  onChange={e => setFormValues({ ...formValues, invoiceDate: e.target.value, grnDate: e.target.value })}
+                  disabled={isLocked}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <Box sx={{ p: 1, px: 2, bgcolor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 2, textAlign: 'center', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <Typography variant="caption" sx={{ color: '#166534', fontWeight: 700 }}>Total Units Received</Typography>
                   <Typography variant="h6" sx={{ color: '#15803d', fontWeight: 900 }}>{totals.received}</Typography>
                 </Box>
               </Grid>
-              {!isViewMode && !id && (
-                  <Grid item xs={12}>
-                      <Box sx={{ p: 2, bgcolor: '#f1f5f9', borderRadius: 2, display: 'flex', gap: 2, alignItems: 'center' }}>
-                          <Typography variant="subtitle2" sx={{ fontWeight: 700, minWidth: 100 }}>Add Item:</Typography>
-                          <Autocomplete
-                              fullWidth
-                              size="small"
-                              options={allItems}
-                              getOptionLabel={(option) => `${option.itemCode} - ${option.itemName} (${option.shade || 'No shade'})`}
-                              value={selectedItem}
-                              onChange={(_, newValue) => addItemToLines(newValue)}
-                              renderInput={(params) => <TextField {...params} label="Search by Style Code or Name" placeholder="Type here..." />}
-                              sx={{ bgcolor: '#fff' }}
-                          />
-                      </Box>
-                  </Grid>
+              {!isLocked && !id && !formValues.purchaseOrderId && (
+                <Grid size={{ xs: 12 }}>
+                  <Box sx={{ p: 2, bgcolor: '#f1f5f9', borderRadius: 2, display: 'flex', gap: 2, alignItems: 'center' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, minWidth: 100 }}>Direct Item Add:</Typography>
+                    <Autocomplete
+                      fullWidth
+                      size="small"
+                      options={allItems}
+                      getOptionLabel={(option) => `${option.itemCode} - ${option.itemName} (${option.shade || 'No shade'})`}
+                      value={selectedItem}
+                      onChange={(_, newValue) => addItemToLines(newValue)}
+                      renderInput={(params) => <TextField {...params} label="Search Style Code" placeholder="Add custom item..." />}
+                      sx={{ bgcolor: '#fff' }}
+                    />
+                  </Box>
+                </Grid>
               )}
             </Grid>
           </Paper>
@@ -314,48 +403,48 @@ function GRNFormPage({ mode = 'edit' }) {
                 {lines.map((line, idx) => (
                   <TableRow key={line.id || idx} hover>
                     <TableCell>
-                        <Stack>
-                            <Typography variant="body2" sx={{ fontWeight: 700, color: '#0f172a' }}>{line.itemCode}</Typography>
-                            <Typography variant="caption" sx={{ color: '#64748b' }}>{line.itemName} - {line.shade}</Typography>
-                        </Stack>
+                      <Stack>
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: '#0f172a' }}>{line.itemCode}</Typography>
+                        <Typography variant="caption" sx={{ color: '#64748b' }}>{line.itemName} - {line.shade}</Typography>
+                      </Stack>
                     </TableCell>
                     <TableCell>
-                        <Chip label={line.size} size="small" sx={{ fontWeight: 700, bgcolor: '#f1f5f9' }} />
+                      <Chip label={line.size} size="small" sx={{ fontWeight: 700, bgcolor: '#f1f5f9' }} />
                     </TableCell>
                     <TableCell>
-                        <Typography variant="caption" sx={{ fontFamily: 'monospace', color: '#64748b' }}>{line.sku}</Typography>
+                      <Typography variant="caption" sx={{ fontFamily: 'monospace', color: '#64748b' }}>{line.sku}</Typography>
                     </TableCell>
                     <TableCell align="right">{line.orderedQty || 0}</TableCell>
                     <TableCell align="right">
-                        <TextField 
-                            type="number" 
-                            size="small" 
-                            value={line.receivedQty} 
-                            placeholder="0"
-                            onChange={e => updateLine(idx, 'receivedQty', e.target.value)} 
-                            disabled={isViewMode} 
-                            sx={{ width: 80 }} 
-                            onFocus={(e) => e.target.select()}
-                        />
+                      <TextField
+                        type="number"
+                        size="small"
+                        value={line.receivedQty}
+                        placeholder="0"
+                        onChange={e => updateLine(idx, 'receivedQty', e.target.value)}
+                        disabled={isViewMode}
+                        sx={{ width: 80 }}
+                        onFocus={(e) => e.target.select()}
+                      />
                     </TableCell>
                     <TableCell align="right">
-                        <TextField 
-                            type="number" 
-                            size="small" 
-                            value={line.costPrice} 
-                            onChange={e => updateLine(idx, 'costPrice', e.target.value)} 
-                            disabled={isViewMode} 
-                            sx={{ width: 90 }} 
-                            InputProps={{ startAdornment: <Typography variant="caption" sx={{ mr: 0.5 }}>₹</Typography> }}
-                        />
+                      <TextField
+                        type="number"
+                        size="small"
+                        value={line.costPrice}
+                        onChange={e => updateLine(idx, 'costPrice', e.target.value)}
+                        disabled={isViewMode}
+                        sx={{ width: 90 }}
+                        InputProps={{ startAdornment: <Typography variant="caption" sx={{ mr: 0.5 }}>₹</Typography> }}
+                      />
                     </TableCell>
                     <TableCell>
-                        <TextField size="small" value={line.batchNumber} onChange={e => updateLine(idx, 'batchNumber', e.target.value)} disabled={isViewMode} sx={{ width: 120 }} />
+                      <TextField size="small" value={line.batchNumber} onChange={e => updateLine(idx, 'batchNumber', e.target.value)} disabled={isViewMode} sx={{ width: 120 }} />
                     </TableCell>
                     {!isViewMode && (
-                        <TableCell align="center">
-                            <IconButton color="error" size="small" onClick={() => removeLine(idx)}><DeleteOutlineIcon fontSize="small" /></IconButton>
-                        </TableCell>
+                      <TableCell align="center">
+                        <IconButton color="error" size="small" onClick={() => removeLine(idx)}><DeleteOutlineIcon fontSize="small" /></IconButton>
+                      </TableCell>
                     )}
                   </TableRow>
                 ))}

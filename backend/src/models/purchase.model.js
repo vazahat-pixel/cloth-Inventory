@@ -121,6 +121,11 @@ const purchaseSchema = new mongoose.Schema(
             ref: 'PurchaseOrder',
             required: false // Optional if direct purchase
         },
+        grnId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'GRN',
+            required: false // Link to physical receipt
+        },
         createdBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User',
@@ -132,6 +137,5 @@ const purchaseSchema = new mongoose.Schema(
 );
 
 purchaseSchema.index({ supplierId: 1, invoiceDate: -1 });
-purchaseSchema.index({ purchaseNumber: 1 });
 
 module.exports = mongoose.model('Purchase', purchaseSchema);

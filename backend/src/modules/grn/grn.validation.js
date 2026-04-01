@@ -12,17 +12,19 @@ const createGRNValidation = [
     body('items')
         .isArray({ min: 1 }).withMessage('At least one item is required in the GRN'),
     
-    body('items.*.productId')
-        .notEmpty().withMessage('Product ID is required')
-        .isMongoId().withMessage('Invalid Product ID'),
+    body('items.*.itemId')
+        .notEmpty().withMessage('Item ID is required')
+        .isMongoId().withMessage('Invalid Item ID'),
+    
+    body('items.*.variantId')
+        .notEmpty().withMessage('Variant ID is required'),
 
-    body('items.*.orderedQty')
-        .optional()
-        .isNumeric().withMessage('Ordered quantity must be a number'),
+    body('items.*.sku')
+        .notEmpty().withMessage('SKU is required'),
 
     body('items.*.receivedQty')
         .notEmpty().withMessage('Received quantity is required')
-        .isNumeric().withMessage('Received quantity must be a number'),
+        .isNumeric({ min: 1 }).withMessage('Received quantity must be a number greater than 0'),
 ];
 
 module.exports = {
