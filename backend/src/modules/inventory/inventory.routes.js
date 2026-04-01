@@ -9,6 +9,9 @@ router.use(protect);
 // Stock Ledger System
 router.get('/stock-ledger/:itemId', inventoryController.getLedgerByItem);
 
+// Production-ready Warehouse Stock Retrieval
+router.get('/warehouse-stock/:warehouseId', inventoryController.getWarehouseStock);
+
 // Debug Visibility & Journey System
 router.get('/dashboard-summary', inventoryController.getDashboardSummary);
 router.get('/system-logs', inventoryController.getSystemLogs);

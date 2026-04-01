@@ -133,6 +133,12 @@ export const inventoryNavItems = [
     icon: Inventory2OutlinedIcon,
   },
   {
+    key: 'stock-dispatch',
+    label: 'Stock Dispatch (Warehouse to Store)',
+    path: '/orders/delivery-challan',
+    icon: LocalShippingOutlinedIcon,
+  },
+  {
     key: 'convert-goods-transit-received',
     label: 'Convert Goods in Transit Docs as Received',
     path: '/inventory/convert-goods-transit-received',

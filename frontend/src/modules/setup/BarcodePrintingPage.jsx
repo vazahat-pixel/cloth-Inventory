@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchGrns } from '../grn/grnSlice';
 import {
   Alert,
   Autocomplete,
@@ -41,11 +43,13 @@ function generateBarcodeDataUrl(text) {
     JsBarcode(canvas, text, {
       format: 'CODE128',
       width: 1.5,
-      height: 40,
+      height: 35,
       displayValue: false,
       margin: 0,
+      background: '#ffffff',
+      lineColor: '#000000',
     });
-    return canvas.toDataURL('image/png');
+    return canvas.toDataURL('image/png', 1.0);
   } catch (e) {
     return '';
   }
@@ -53,11 +57,15 @@ function generateBarcodeDataUrl(text) {
 
 function BarcodePrintingPage() {
   const [searchParams] = useSearchParams();
-  const grnId = searchParams.get('grnId');
+  const rawGrnId = searchParams.get('grnId');
+  
+  const dispatch = useDispatch();
+  const grns = useSelector((state) => state.grn?.records) || [];
 
   const [activeTab, setActiveTab] = useState(0);
   const [products, setProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [selectedGrn, setSelectedGrn] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
@@ -72,29 +80,44 @@ function BarcodePrintingPage() {
   const [mfgLine3, setMfgLine3] = useState('');
 
   useEffect(() => {
-    if (grnId) {
-      setActiveTab(1); // Bulk Tab
-      const fetchGrnLabels = async () => {
-        setImporting(true);
-        try {
-          const res = await api.get(`/barcodes/grn/${grnId}`);
-          setImportResults(res.data?.data?.labels || res.data?.labels || []);
-        } catch (err) {
-          alert('Failed to load stickers from GRN: ' + err.message);
-        } finally {
-          setImporting(false);
-        }
-      };
-      fetchGrnLabels();
+    dispatch(fetchGrns());
+  }, [dispatch]);
+
+  const fetchGrnLabels = async (idOfGrn) => {
+    setImporting(true);
+    try {
+      const res = await api.get(`/barcodes/grn/${idOfGrn}`);
+      const extractedLabels = res.data?.data?.labels || res.data?.labels || [];
+      setImportResults(extractedLabels);
+      if (extractedLabels.length === 0) alert('No valid received items found in this GRN to print.');
+    } catch (err) {
+      alert('Failed to load stickers from GRN: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setImporting(false);
     }
-  }, [grnId]);
+  };
+
+  useEffect(() => {
+    if (rawGrnId) {
+      setActiveTab(1); // Bulk Tab
+      fetchGrnLabels(rawGrnId);
+      const preloadedGrn = grns.find(g => (g._id || g.id) === rawGrnId);
+      if (preloadedGrn) setSelectedGrn(preloadedGrn);
+    }
+  }, [rawGrnId, grns.length]);
+
+  const handleGrnSelect = (_, grnObj) => {
+    setSelectedGrn(grnObj);
+    if (grnObj) fetchGrnLabels(grnObj._id || grnObj.id);
+    else setImportResults([]);
+  };
 
   useEffect(() => {
     const fetchProducts = async () => {
       setLoading(true);
       try {
-        const res = await api.get('/item/all'); // Correct product route
-        const apiProducts = res.data?.items || res.data?.products || [];
+        const res = await api.get('/items');
+        const apiProducts = res.data?.items || res.data?.data || res.data || [];
 
         if (apiProducts.length) {
           const flattened = [];
@@ -147,21 +170,86 @@ function BarcodePrintingPage() {
   const printBatch = (labels) => {
     if (!labels.length) return;
     const printWindow = window.open('', '_blank');
+    const styles = `
+      <style>
+        @page { size: 50mm 100mm; margin: 0; }
+        body { margin: 0; padding: 0; font-family: 'Helvetica', 'Arial', sans-serif; background: #fff; color: #000; }
+        .label { 
+          width: 50mm; height: 100mm; box-sizing: border-box;
+          padding: 3mm 4mm; overflow: hidden; page-break-after: always;
+          display: flex; flex-direction: column; justify-content: flex-start;
+        }
+        .barcode-container { width: 100%; text-align: center; margin-bottom: 2mm; margin-top: 2mm;}
+        .barcode-img { width: 100%; height: 12mm; display: block; margin: 0 auto; object-fit: contain; }
+        .barcode-text { font-size: 8pt; letter-spacing: 1px; margin-top: 1mm; }
+        
+        .info-row { display: flex; font-size: 8pt; line-height: 1.4; margin-bottom: 0.5mm; }
+        .info-col-key { width: 17mm; font-weight: 500; }
+        .info-col-val { flex: 1; text-transform: uppercase; font-weight: 500;}
+        
+        .mrp-row { display: flex; align-items: baseline; margin-top: 1.5mm; margin-bottom: 0.5mm;}
+        .mrp-key { font-size: 9pt; width: 14mm; font-weight: 600;}
+        .mrp-val { font-size: 11pt; font-weight: 700; flex: 1; text-align: center; }
+        .tax-info { text-align: center; font-size: 7.5pt; margin-bottom: 2mm; }
+        
+        .mfg-details { font-size: 7pt; line-height: 1.3; margin-top: 1mm; font-weight: 500;}
+        .mfg-details div { margin-bottom: 0.5mm; }
+      </style>
+    `;
+
     const labelsHtml = labels.map(label => `
-      <div style="width: 2.25in; border: 1px solid #000; padding: 5px; margin-bottom: 2mm; font-family: sans-serif; text-transform: uppercase;">
-        <div style="text-align: center;">
-          <img src="${generateBarcodeDataUrl(label.barcode)}" style="width: 100%; height: 40px;" />
-          <div style="font-weight: bold; font-size: 8pt;">${label.barcode}</div>
+      <div class="label">
+        <div class="barcode-container">
+          <img src="${generateBarcodeDataUrl(label.barcode)}" class="barcode-img" />
+          <div class="barcode-text">${label.barcode}</div>
         </div>
-        <div style="font-size: 7pt; margin-top: 5px;">
-           <div><b>ARTICLE :</b> ${label.article}</div>
-           <div><b>SIZE :</b> ${label.size}</div>
-           <div><b>MRP :</b> ${label.mrp}</div>
+        
+        <div class="info-row">
+          <span class="info-col-key">Article :</span> <span class="info-col-val">${label.article}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-col-key">Group </span> <span class="info-col-val" style="margin-left: -5px">${label.category || 'SHIRT'}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-col-key">Type: </span> <span class="info-col-val">${type}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-col-key">DESIGN :</span> <span class="info-col-val">${design}</span>
+        </div>
+        
+        <div style="height: 1.5mm"></div>
+        
+        <div class="info-row">
+          <span class="info-col-key">Size :</span> <span class="info-col-val" style="padding-left: 2mm">${label.size}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-col-key">Qty:</span> <span class="info-col-val">${qtyInfo} &nbsp;&nbsp;&nbsp;&nbsp;F/S</span>
+        </div>
+        <div class="info-row">
+          <span class="info-col-key">Colour :</span> <span class="info-col-val">${label.color}</span>
+        </div>
+        
+        <div class="mrp-row">
+          <span class="mrp-key">MRP :</span> 
+          <span class="mrp-val">${label.mrp}</span>
+        </div>
+        <div class="tax-info">
+          (Incl of all taxes)
+        </div>
+
+        <div class="mfg-details">
+          <div><b>MFG:</b></div>
+          <div>Mfg. & Marketed By</div>
+          <div>Rebel Mass Export Pvt. Ltd</div>
+          <div>${mfgLine1}</div>
+          <div>${mfgLine2}</div>
+          <div>Customer Care:</div>
+          <div>Email: info.dapolo@gmail.com</div>
         </div>
       </div>
     `).join('');
 
-    printWindow.document.write(`<html><body onload="window.print(); window.close()">${labelsHtml}</body></html>`);
+    printWindow.document.write(`<html><head>${styles}</head><body onload="window.print(); setTimeout(() => window.close(), 500);">${labelsHtml}</body></html>`);
     printWindow.document.close();
   };
 
@@ -189,10 +277,19 @@ function BarcodePrintingPage() {
         </Tabs>
 
         <Box sx={{ p: 4 }}>
-          {activeTab === 0 ? (
+          {activeTab === 0 && (
             <Grid container spacing={4}>
               <Grid size={{ xs: 12, md: 5 }}>
                 <Stack spacing={3}>
+                  <Box sx={{ p: 2, border: '1px dashed #cbd5e1', borderRadius: 2 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 2, color: '#475569' }}>Vertical Apparels Tag Config</Typography>
+                    <Stack spacing={2}>
+                      <TextField size="small" label="Type (e.g., FORMAL SOLID)" value={type} onChange={(e) => setType(e.target.value)} />
+                      <TextField size="small" label="DESIGN (e.g., COLLAR)" value={design} onChange={(e) => setDesign(e.target.value)} />
+                      <TextField size="small" label="Mfg Line 1" value={mfgLine1} onChange={(e) => setMfgLine1(e.target.value)} />
+                      <TextField size="small" label="Mfg Line 2" value={mfgLine2} onChange={(e) => setMfgLine2(e.target.value)} />
+                    </Stack>
+                  </Box>
                   <Autocomplete
                     options={products}
                     getOptionLabel={(o) => `${o.sku} - ${o.name} (${o.size})`}
@@ -207,7 +304,7 @@ function BarcodePrintingPage() {
                 {selectedProduct && (
                   <Card variant="outlined">
                     <CardContent sx={{ textAlign: 'center' }}>
-                      <img src={barcodeImgData} style={{ width: '200px' }} />
+                      <img src={barcodeImgData} style={{ width: '200px' }} alt="barcode" />
                       <Typography variant="h6">{selectedProduct.name}</Typography>
                       <Typography>MRP: {selectedProduct.salePrice}</Typography>
                     </CardContent>
@@ -215,18 +312,29 @@ function BarcodePrintingPage() {
                 )}
               </Grid>
             </Grid>
-          ) : (
+          )}
+
+          {activeTab === 1 && (
             <Stack spacing={3}>
-              <Stack direction="row" spacing={2} alignItems="center">
+              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                <Autocomplete
+                   options={grns}
+                   getOptionLabel={(o) => `${o.grnNumber} - ${o.supplierId?.name || o.supplierId?.supplierName || 'Unknown Supplier'}`}
+                   value={selectedGrn}
+                   onChange={handleGrnSelect}
+                   sx={{ width: 400 }}
+                   renderInput={(params) => <TextField {...params} label="Select a Completed GRN / PV" size="small" />}
+                />
+                <Typography variant="body2" sx={{color: '#64748b'}}>OR</Typography>
                 <Button variant="outlined" component="label" startIcon={<UploadIcon />}>
                   Upload Excel Manual
                   <input type="file" hidden onChange={handleExcelUpload} />
                 </Button>
-                {grnId && <Alert severity="info">Auto-loaded labels from GRN: {grnId}</Alert>}
+                <Box sx={{ flexGrow: 1 }} />
                 <Button variant="contained" color="success" disabled={!importResults.length} onClick={() => printBatch(importResults)}>
-                  Print All Queued Labels ({importResults.length})
+                  Print Automation ({importResults.length})
                 </Button>
-              </Stack>
+              </Box>
 
               <TableContainer component={Paper} variant="outlined">
                 <Table size="small">

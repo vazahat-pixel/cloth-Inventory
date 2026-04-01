@@ -27,7 +27,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import { addChallan } from './dispatchSlice';
 import { fetchMasters } from '../masters/mastersSlice';
-import { fetchStockOverview } from '../inventory/inventorySlice';
+import { fetchWarehouseStock } from '../inventory/inventorySlice';
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
 
@@ -56,8 +56,13 @@ function DeliveryChallanForm({
     useEffect(() => {
         dispatch(fetchMasters('warehouses'));
         dispatch(fetchMasters('stores'));
-        dispatch(fetchStockOverview());
     }, [dispatch]);
+
+    useEffect(() => {
+        if (sourceId) {
+            dispatch(fetchWarehouseStock(sourceId));
+        }
+    }, [dispatch, sourceId]);
 
 
     const activeLocations = useMemo(
@@ -68,7 +73,8 @@ function DeliveryChallanForm({
 
     const warehouseStock = useMemo(() => {
         if (!sourceId) return [];
-        return stockRows.filter(s => s.warehouseId === sourceId || s.storeId === sourceId);
+        // When using fetchWarehouseStock, stockRows already contains normalized items for that specific warehouse
+        return stockRows;
     }, [stockRows, sourceId]);
 
     const variantOptions = useMemo(() => {

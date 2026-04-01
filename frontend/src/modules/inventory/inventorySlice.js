@@ -8,12 +8,25 @@ export const fetchStockOverview = createAsyncThunk(
   async (params, { rejectWithValue }) => {
     try {
       const response = await api.get('/store-inventory', { params });
-      // Backend returns { success: true, data: { inventory: [...] } }
       const data = response.data.data || response.data;
       const raw = data.inventory || data.data || (Array.isArray(data) ? data : []);
       return normalizeResponse(raw, 'inventory');
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch stock');
+    }
+  }
+);
+
+// Specific for Warehouse Dispatches
+export const fetchWarehouseStock = createAsyncThunk(
+  'inventory/fetchWarehouseStock',
+  async (warehouseId, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/inventory/warehouse-stock/${warehouseId}`);
+      // Backend now sends { success: true, data: [...] }
+      return response.data.data || [];
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch warehouse stock');
     }
   }
 );
@@ -180,6 +193,18 @@ const inventorySlice = createSlice({
         state.stock = action.payload || [];
       })
       .addCase(fetchStockOverview.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // Warehouse Stock
+      .addCase(fetchWarehouseStock.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(fetchWarehouseStock.fulfilled, (state, action) => {
+        state.loading = false;
+        state.stock = action.payload || [];
+      })
+      .addCase(fetchWarehouseStock.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
