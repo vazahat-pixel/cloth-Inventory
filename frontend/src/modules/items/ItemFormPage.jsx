@@ -213,16 +213,15 @@ function ItemFormPage({ mode = 'edit' }) {
     }
 
     const payload = {
-      name: data.itemName.trim(),
-      code: data.itemCode.trim().toUpperCase(),
-      sku: data.itemCode.trim().toUpperCase(),
-      brandId: data.brand,
-      seasonId: data.season,
+      itemName: data.itemName.trim(),
+      itemCode: data.itemCode.trim().toUpperCase(),
+      brand: data.brand,
+      session: data.season,
       section: data.sectionId,
-      categoryId: data.categoryId,
+      category: data.categoryId,
       subCategory: data.subCategoryId,
       styleType: data.subSubCategoryId,
-      shadeColor: data.shadeColor,
+      shade: data.shadeColor,
       uom: data.uom,
       hsnCodeId: data.hsnCodeId,
       gstSlabId: data.gstSlabId,
@@ -240,7 +239,7 @@ function ItemFormPage({ mode = 'edit' }) {
       barcodeEnabled: data.barcodeEnabled !== false,
       status: statusOverride,
       images: images.filter(Boolean).map((img) => img.preview || img),
-      variants: variants.map((v) => ({
+      sizes: variants.map((v) => ({
         ...v,
         salePrice: Number(v.salePrice || 0),
         costPrice: Number(v.costPrice || 0),
@@ -272,24 +271,21 @@ function ItemFormPage({ mode = 'edit' }) {
     }
   };
 
-  const getOptionId = (value) => String(value?._id || value?.id || value || '');
-  const renderAsyncValueOption = (value, options) => {
-    const normalizedValue = String(value || '');
-    if (!normalizedValue) return null;
-    const hasMatch = options.some((option) => getOptionId(option) === normalizedValue);
-    if (hasMatch) return null;
-    return <MenuItem sx={{ display: 'none' }} value={normalizedValue}>{normalizedValue}</MenuItem>;
+  const getOptionId = (value) => {
+    if (!value) return '';
+    if (typeof value === 'object') return String(value._id || value.id || '');
+    return String(value);
   };
 
-  const selectedSectionId = watch('sectionId') || '';
-  const selectedCategoryId = watch('categoryId') || '';
-  const selectedSubCategoryId = watch('subCategoryId') || '';
-  const selectedDefaultWarehouse = watch('defaultWarehouse') || '';
+  const selectedSectionId = getOptionId(watch('sectionId'));
+  const selectedCategoryId = getOptionId(watch('categoryId'));
+  const selectedSubCategoryId = getOptionId(watch('subCategoryId'));
+  const selectedDefaultWarehouse = getOptionId(watch('defaultWarehouse'));
 
   const sections = itemGroups.filter((g) => (g.groupType === 'Section' || !g.parentId) && !['Brand', 'Season'].includes(g.groupType));
-  const categoryOptions = itemGroups.filter((g) => g.groupType === 'Category' && getOptionId(g.parentId) === String(selectedSectionId));
-  const subCategoryOptions = itemGroups.filter((g) => g.groupType === 'Sub Category' && getOptionId(g.parentId) === String(selectedCategoryId));
-  const styleOptions = itemGroups.filter((g) => g.groupType === 'Style / Type' && getOptionId(g.parentId) === String(selectedSubCategoryId));
+  const categoryOptions = itemGroups.filter((g) => g.groupType === 'Category' && getOptionId(g.parentId) === selectedSectionId);
+  const subCategoryOptions = itemGroups.filter((g) => g.groupType === 'Sub Category' && getOptionId(g.parentId) === selectedCategoryId);
+  const styleOptions = itemGroups.filter((g) => g.groupType === 'Style / Type' && getOptionId(g.parentId) === selectedSubCategoryId);
 
   if (isEditMode && !existingItem) {
     return (

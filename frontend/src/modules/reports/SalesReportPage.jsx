@@ -48,14 +48,23 @@ function SalesReportPage() {
 
   const itemGroupMap = useMemo(() => {
     const map = {};
+    const groupNameMap = itemGroups.reduce((acc, g) => ({ ...acc, [g.id || g._id]: g.groupName || g.name }), {});
+    
     items.forEach((item) => {
-      const groupName = item.category || 'Ungrouped';
-      item.variants?.forEach((v) => {
-        map[v.id] = groupName;
+      // Find Category among groupIds
+      const catId = (item.groupIds || []).find(id => {
+          const group = itemGroups.find(g => (g.id || g._id) === (id?.id || id?._id || id));
+          return group?.groupType === 'Category';
+      });
+      const groupName = groupNameMap[catId?.id || catId?._id || catId] || String(item.category || 'Ungrouped');
+      
+      const variants = item.variants || item.sizes || [];
+      variants.forEach((v) => {
+        map[v.id || v._id] = groupName;
       });
     });
     return map;
-  }, [items]);
+  }, [items, itemGroups]);
 
   const [filters, setFilters] = useState({});
   const [searchText, setSearchText] = useState('');
@@ -254,6 +263,7 @@ function SalesReportPage() {
         return {
           Invoice: row.invoiceNumber,
           Date: row.date,
+          Branch: warehouseMap[row.warehouseId || row.storeId] || 'Main Office',
           Customer: row.customerName || 'Walk-in',
           Items: row.items?.length || 0,
           Qty: toNum(t.totalQuantity),
@@ -264,7 +274,7 @@ function SalesReportPage() {
           Payment: row.payment?.mode || '-',
         };
       }),
-    [filteredRows],
+    [filteredRows, warehouseMap],
   );
 
   const exportDetailRows = useMemo(
@@ -387,8 +397,8 @@ function SalesReportPage() {
             />
           ) : viewMode === 'summary' ? (
             <ReportExportButton
-              headers={['Invoice', 'Date', 'Customer', 'Items', 'Qty', 'Gross', 'Discount', 'Tax', 'Net', 'Payment']}
-              headerKeys={['Invoice', 'Date', 'Customer', 'Items', 'Qty', 'Gross', 'Discount', 'Tax', 'Net', 'Payment']}
+              headers={['Invoice', 'Date', 'Branch', 'Customer', 'Items', 'Qty', 'Gross', 'Discount', 'Tax', 'Net', 'Payment']}
+              headerKeys={['Invoice', 'Date', 'Branch', 'Customer', 'Items', 'Qty', 'Gross', 'Discount', 'Tax', 'Net', 'Payment']}
               rows={exportSummaryRows}
               filename="sale-register-summary.csv"
             />
@@ -466,6 +476,7 @@ function SalesReportPage() {
                   <TableRow>
                     <TableCell sx={{ fontWeight: 700 }}>Invoice</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Branch</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Customer</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Items</TableCell>
                     <TableCell sx={{ fontWeight: 700 }} align="right">Qty</TableCell>
@@ -483,6 +494,7 @@ function SalesReportPage() {
                       <TableRow key={row.id} hover>
                         <TableCell sx={{ fontWeight: 600 }}>{row.invoiceNumber}</TableCell>
                         <TableCell>{row.date}</TableCell>
+                        <TableCell>{warehouseMap[row.warehouseId || row.storeId] || 'Main Office'}</TableCell>
                         <TableCell>{row.customerName || 'Walk-in'}</TableCell>
                         <TableCell>{row.items?.length || 0}</TableCell>
                         <TableCell align="right">{toNum(t.totalQuantity)}</TableCell>

@@ -445,11 +445,12 @@ function BillingPage({
 
     try {
       setErrorMessage('');
-      const response = await api.get(`/products/barcode/${scannedCode}`);
+      // Use the dedicated Sales barcode endpoint that checks store specific stock
+      const response = await api.get(`/sales/barcode/${scannedCode}?storeId=${storeId}`);
       const product = response.data.product || response.data.data;
       
       if (!product) {
-        setErrorMessage('Product not found for this barcode');
+        setErrorMessage('Product not found for this barcode in this store.');
         return;
       }
 
@@ -466,7 +467,7 @@ function BillingPage({
         color: product.color || '',
         sku: product.sku || '',
         barcode: product.barcode || '',
-        available: available,
+        available: product.available || 0,
         rate: toNumber(product.salePrice),
         tax: 0, // Should come from linked HSN -> GST
       });
@@ -566,6 +567,8 @@ function BillingPage({
     const payload = {
       storeId,
       customerId: selectedCustomer?.id || null,
+      customerName: selectedCustomer?.name || selectedCustomer?.customerName || customerName,
+      customerMobile: selectedCustomer?.mobileNumber || mobileInput,
       products: preparedProducts,
       subTotal: totals.grossAmount,
       discount: toNumber(billDiscount) + toNumber(couponDiscountAmount) + toNumber(schemeDiscountAmount),

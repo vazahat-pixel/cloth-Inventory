@@ -100,16 +100,17 @@ function BarcodePrintingPage() {
           const flattened = [];
           apiProducts.forEach(p => {
             const variants = p.sizes || p.variants || [{}];
+            const categoryObj = (p.groupIds || []).find(g => g.groupType === 'Category');
             variants.forEach(v => {
               flattened.push({
                 id: v._id || p._id,
                 name: p.itemName || p.name,
-                sku: v.barcode || v.sku || p.itemCode || p.sku,
+                sku: v.sku || v.barcode || p.itemCode || p.sku,
                 barcode: v.barcode || v.sku || p.barcode || p.itemCode,
                 salePrice: v.salePrice || p.salePrice || 0,
                 size: v.size || 'N/A',
                 color: p.shade || p.color || 'N/A',
-                category: p.categoryId?.name || 'GARMENT'
+                category: categoryObj?.name || categoryObj?.groupName || 'GARMENT'
               });
             });
           });

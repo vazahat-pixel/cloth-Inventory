@@ -117,28 +117,29 @@ function GRNFormPage({ mode = 'edit' }) {
           // Auto-fill lines from PO
           setLines((po.items || []).map((item, idx) => ({
             id: `new-${idx}`,
-            productId: item.productId,
+            itemId: item.itemId?._id || item.itemId || item.productId?._id || item.productId,
+            variantId: item.variantId,
+            sku: item.sku,
             itemName: item.itemName || 'Item',
-            orderedQty: item.qty || item.quantity,
-            receivedQty: item.qty || item.quantity,
-            acceptedQty: item.qty || item.quantity,
-            rejectedQty: 0,
-            rate: item.price || item.rate,
+            orderedQty: item.qty || item.quantity || 0,
+            receivedQty: item.qty || item.quantity || 0,
+            costPrice: item.price || item.rate || 0,
+            tax: item.taxPercent || 0,
+            discount: item.discountPercent || 0,
             batchNumber: ''
           })));
         }
       }
     }
-  }, [id, existingGrn, purchaseOrders, formValues.purchaseOrderId, searchParams]);
+  }, [id, existingGrn, purchaseOrders, searchParams]);
 
   const totals = useMemo(() => {
     return lines.reduce((acc, curr) => {
       acc.ordered += Number(curr.orderedQty || 0);
       acc.received += Number(curr.receivedQty || 0);
-      acc.accepted += Number(curr.acceptedQty || 0);
-      acc.rejected += Number(curr.rejectedQty || 0);
+      acc.totalValue += (Number(curr.receivedQty || 0) * Number(curr.costPrice || 0));
       return acc;
-    }, { ordered: 0, received: 0, accepted: 0, rejected: 0 });
+    }, { ordered: 0, received: 0, totalValue: 0 });
   }, [lines]);
 
   const updateLine = (idx, field, val) => {
@@ -162,6 +163,8 @@ function GRNFormPage({ mode = 'edit' }) {
       orderedQty: 0,
       receivedQty: 0,
       costPrice: v.costPrice || 0,
+      tax: 0,
+      discount: 0,
       batchNumber: `B-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`
     }));
 
@@ -185,13 +188,18 @@ function GRNFormPage({ mode = 'edit' }) {
         const poItems = po.items || [];
         setLines(poItems.map((item, idx) => ({
           id: `line-${idx}`,
-          productId: item.productId?._id || item.productId,
-          itemName: item.productId?.name || item.itemName || 'Item',
+          itemId: item.itemId?._id || item.itemId || item.productId?._id || item.productId,
+          variantId: item.variantId,
+          sku: item.sku,
+          itemName: item.itemName || 'Item',
+          itemCode: item.itemCode || '',
+          shade: item.color || '',
+          size: item.size || '',
           orderedQty: item.qty || item.quantity,
           receivedQty: item.qty || item.quantity,
-          acceptedQty: item.qty || item.quantity,
-          rejectedQty: 0,
-          rate: item.price || item.rate,
+          costPrice: item.price || item.rate,
+          tax: item.taxPercent || 0,
+          discount: item.discountPercent || 0,
           batchNumber: ''
         })));
       }
@@ -210,6 +218,8 @@ function GRNFormPage({ mode = 'edit' }) {
             sku: l.sku,
             receivedQty: Number(l.receivedQty || 0),
             costPrice: Number(l.costPrice || 0),
+            tax: Number(l.tax || 0),
+            discount: Number(l.discount || 0),
             batchNumber: l.batchNumber || `B-${Date.now().toString().slice(-4)}`,
           }))
           .filter((l) => l.receivedQty > 0),
@@ -233,6 +243,8 @@ function GRNFormPage({ mode = 'edit' }) {
       setErrorMessage(err || 'Failed to save GRN');
     }
   };
+
+  const isLocked = isViewMode || (id && existingGrn?.status === 'APPROVED');
 
   if (grnLoading && id) return <Box sx={{ p: 4, textAlign: 'center' }}><CircularProgress /></Box>;
 
@@ -262,10 +274,10 @@ function GRNFormPage({ mode = 'edit' }) {
       {successMessage && <Alert severity="success" sx={{ mb: 2 }}>{successMessage}</Alert>}
 
       <Grid container spacing={3}>
-        <Grid size={{ xs: 12 }}>
+        <Grid item xs={12}>
           <Paper sx={{ p: 3, borderRadius: 2 }}>
             <Grid container spacing={2.5}>
-              <Grid size={{ xs: 12, md: 4 }}>
+              <Grid item xs={12} md={4}>
                 <TextField
                   select
                   fullWidth
@@ -290,7 +302,7 @@ function GRNFormPage({ mode = 'edit' }) {
                   )}
                 </TextField>
               </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
+              <Grid item xs={12} md={4}>
                 <TextField
                   select
                   fullWidth
@@ -307,7 +319,7 @@ function GRNFormPage({ mode = 'edit' }) {
                   ))}
                 </TextField>
               </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
+              <Grid item xs={12} md={4}>
                 <TextField
                   select
                   fullWidth
@@ -324,7 +336,7 @@ function GRNFormPage({ mode = 'edit' }) {
                   ))}
                 </TextField>
               </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
+              <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
                   label="GRN Number"
@@ -334,7 +346,7 @@ function GRNFormPage({ mode = 'edit' }) {
                   helperText={!id ? "Autogenerated on save" : ""}
                 />
               </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
+              <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
                   label="Supplier Invoice / Challan No."
@@ -345,26 +357,26 @@ function GRNFormPage({ mode = 'edit' }) {
                   placeholder="Enter vendor's bill number"
                 />
               </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
+              <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
                   type="date"
                   label="GRN / Receipt Date"
                   size="small"
-                  value={formValues.invoiceDate || formValues.grnDate}
+                  value={(formValues.invoiceDate || formValues.grnDate)?.slice(0, 10)}
                   onChange={e => setFormValues({ ...formValues, invoiceDate: e.target.value, grnDate: e.target.value })}
                   disabled={isLocked}
                   InputLabelProps={{ shrink: true }}
                 />
               </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
+              <Grid item xs={12} md={4}>
                 <Box sx={{ p: 1, px: 2, bgcolor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 2, textAlign: 'center', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                   <Typography variant="caption" sx={{ color: '#166534', fontWeight: 700 }}>Total Units Received</Typography>
                   <Typography variant="h6" sx={{ color: '#15803d', fontWeight: 900 }}>{totals.received}</Typography>
                 </Box>
               </Grid>
               {!isLocked && !id && !formValues.purchaseOrderId && (
-                <Grid size={{ xs: 12 }}>
+                <Grid item xs={12}>
                   <Box sx={{ p: 2, bgcolor: '#f1f5f9', borderRadius: 2, display: 'flex', gap: 2, alignItems: 'center' }}>
                     <Typography variant="subtitle2" sx={{ fontWeight: 700, minWidth: 100 }}>Direct Item Add:</Typography>
                     <Autocomplete
@@ -384,17 +396,18 @@ function GRNFormPage({ mode = 'edit' }) {
           </Paper>
         </Grid>
 
-        <Grid size={{ xs: 12 }}>
+        <Grid item xs={12}>
           <TableContainer component={Paper}>
             <Table size="small">
               <TableHead sx={{ bgcolor: '#f8fafc' }}>
                 <TableRow>
                   <TableCell sx={{ fontWeight: 700 }}>ITEM / STYLE</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>SIZE</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 700 }}>ORDERED</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 700 }}>RECEIVED</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700 }}>COST PRICE</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700 }}>RATE</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700 }}>DISC%</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700 }}>TAX%</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>BATCH #</TableCell>
                   {!isViewMode && <TableCell align="center" sx={{ fontWeight: 700 }}>ACTION</TableCell>}
                 </TableRow>
@@ -411,18 +424,14 @@ function GRNFormPage({ mode = 'edit' }) {
                     <TableCell>
                       <Chip label={line.size} size="small" sx={{ fontWeight: 700, bgcolor: '#f1f5f9' }} />
                     </TableCell>
-                    <TableCell>
-                      <Typography variant="caption" sx={{ fontFamily: 'monospace', color: '#64748b' }}>{line.sku}</Typography>
-                    </TableCell>
                     <TableCell align="right">{line.orderedQty || 0}</TableCell>
                     <TableCell align="right">
                       <TextField
                         type="number"
                         size="small"
                         value={line.receivedQty}
-                        placeholder="0"
                         onChange={e => updateLine(idx, 'receivedQty', e.target.value)}
-                        disabled={isViewMode}
+                        disabled={isLocked}
                         sx={{ width: 80 }}
                         onFocus={(e) => e.target.select()}
                       />
@@ -433,15 +442,34 @@ function GRNFormPage({ mode = 'edit' }) {
                         size="small"
                         value={line.costPrice}
                         onChange={e => updateLine(idx, 'costPrice', e.target.value)}
-                        disabled={isViewMode}
+                        disabled={isLocked}
                         sx={{ width: 90 }}
-                        InputProps={{ startAdornment: <Typography variant="caption" sx={{ mr: 0.5 }}>₹</Typography> }}
+                      />
+                    </TableCell>
+                    <TableCell align="right">
+                      <TextField
+                        type="number"
+                        size="small"
+                        value={line.discount}
+                        onChange={e => updateLine(idx, 'discount', e.target.value)}
+                        disabled={isLocked}
+                        sx={{ width: 70 }}
+                      />
+                    </TableCell>
+                    <TableCell align="right">
+                      <TextField
+                        type="number"
+                        size="small"
+                        value={line.tax}
+                        onChange={e => updateLine(idx, 'tax', e.target.value)}
+                        disabled={isLocked}
+                        sx={{ width: 70 }}
                       />
                     </TableCell>
                     <TableCell>
-                      <TextField size="small" value={line.batchNumber} onChange={e => updateLine(idx, 'batchNumber', e.target.value)} disabled={isViewMode} sx={{ width: 120 }} />
+                      <TextField size="small" value={line.batchNumber} onChange={e => updateLine(idx, 'batchNumber', e.target.value)} disabled={isLocked} sx={{ width: 120 }} />
                     </TableCell>
-                    {!isViewMode && (
+                    {!isLocked && (
                       <TableCell align="center">
                         <IconButton color="error" size="small" onClick={() => removeLine(idx)}><DeleteOutlineIcon fontSize="small" /></IconButton>
                       </TableCell>
