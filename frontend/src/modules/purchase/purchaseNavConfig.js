@@ -28,6 +28,12 @@ export const purchaseNavItems = [
     icon: ReceiptLongOutlinedIcon,
   },
   {
+    key: 'purchase-payment',
+    label: 'Purchase Payment (Bank)',
+    path: '/ho/accounts/bank-payment-list',
+    icon: PriceChangeOutlinedIcon,
+  },
+  {
     key: 'purchase-challan',
     label: 'Purchase Challan',
     path: '/purchase/purchase-challan',
