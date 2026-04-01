@@ -61,7 +61,7 @@ function PurchaseReturnListPage() {
     const query = searchText.toLowerCase();
     return returns.filter((row) => {
       const returnNo = row.returnNumber?.toLowerCase() || '';
-      const supplier = supplierMap[row.supplierId]?.toLowerCase() || '';
+      const supplier = (row.supplierName || supplierMap[row.supplierId] || '').toLowerCase();
       const reason = row.reason?.toLowerCase() || '';
       return returnNo.includes(query) || supplier.includes(query) || reason.includes(query);
     });
@@ -82,7 +82,7 @@ function PurchaseReturnListPage() {
         <Button 
           variant="contained" 
           startIcon={<AddCircleOutlineIcon />}
-          onClick={() => navigate('/ho/purchase/purchase-voucher')}
+          onClick={() => navigate('/purchase/purchase-return/new')}
         >
           New Return (Select Bill)
         </Button>
@@ -110,29 +110,31 @@ function PurchaseReturnListPage() {
           <Table size="small">
             <TableHead sx={{ bgcolor: '#f8fafc' }}>
               <TableRow>
-                <TableCell sx={{ fontWeight: 700 }}>Return No.</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Location</TableCell>
-                <TableCell sx={{ fontWeight: 700 }} align="right">Amount</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Reason</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Actions</TableCell>
+                <TableCell sx={{ fontWeight: 700, fontSize: 13 }}>Date</TableCell>
+                <TableCell sx={{ fontWeight: 700, fontSize: 13 }}>Return No.</TableCell>
+                <TableCell sx={{ fontWeight: 700, fontSize: 13 }}>Supplier</TableCell>
+                <TableCell sx={{ fontWeight: 700, fontSize: 13 }}>Location</TableCell>
+                <TableCell sx={{ fontWeight: 700, fontSize: 13 }} align="right">Amount</TableCell>
+                <TableCell sx={{ fontWeight: 700, fontSize: 13 }}>Status</TableCell>
+                <TableCell sx={{ fontWeight: 700, fontSize: 13 }} align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {paginatedRows.length > 0 ? (
                 paginatedRows.map((row) => (
                   <TableRow key={row._id || row.id} hover>
-                    <TableCell sx={{ fontWeight: 600 }}>{row.returnNumber}</TableCell>
-                    <TableCell>{new Date(row.createdAt).toLocaleDateString()}</TableCell>
-                    <TableCell>{locationMap[row.locationId] || row.locationId}</TableCell>
-                    <TableCell align="right">₹{Number(row.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</TableCell>
-                    <TableCell>{row.reason || 'N/A'}</TableCell>
-                    <TableCell>
-                      <Chip label="Approved" size="small" color="success" variant="outlined" />
+                    <TableCell sx={{ fontSize: 13 }}>{new Date(row.createdAt).toLocaleDateString()}</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: '#0f172a', fontSize: 13 }}>{row.returnNumber}</TableCell>
+                    <TableCell sx={{ fontSize: 13 }}>{row.supplierName || supplierMap[row.supplierId] || 'Unknown Supplier'}</TableCell>
+                    <TableCell sx={{ fontSize: 13 }}>{locationMap[row.locationId] || row.locationId || 'Main Warehouse'}</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700, color: '#ef4444', fontSize: 13 }}>
+                        ₹{Number(row.netAmount || row.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </TableCell>
-                    <TableCell>
-                      <IconButton size="small" title="View Details">
+                    <TableCell sx={{ fontSize: 13 }}>
+                      <Chip label="COMPLETED" size="small" sx={{ bgcolor: '#dcfce7', color: '#166534', fontWeight: 700, fontSize: 10 }} />
+                    </TableCell>
+                    <TableCell align="center">
+                      <IconButton size="small" color="primary" onClick={() => navigate(`/purchase/purchase-return/${row._id || row.id}`)} title="View Detail">
                         <VisibilityOutlinedIcon fontSize="small" />
                       </IconButton>
                     </TableCell>

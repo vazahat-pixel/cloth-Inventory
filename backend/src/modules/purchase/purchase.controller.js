@@ -66,11 +66,36 @@ const postVoucher = async (req, res, next) => {
     }
 };
 
+const purchaseReturnService = require('./purchaseReturn.service');
+
+const createPurchaseReturn = async (req, res, next) => {
+    try {
+        const userId = req.user._id;
+        const purchaseReturn = await purchaseReturnService.createPurchaseReturn(req.body, userId);
+        return sendCreated(res, { purchaseReturn }, 'Purchase return processed and Debit Note generated');
+    } catch (err) {
+        next(err);
+    }
+};
+
+const getAllPurchaseReturns = async (req, res, next) => {
+    try {
+        const returns = await require('../../models/purchaseReturn.model').find()
+            .sort({ createdAt: -1 })
+            .populate('supplierId', 'supplierName name');
+        return sendSuccess(res, { returns }, 'Purchase returns retrieved successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
 module.exports = {
     createPurchase,
     updatePurchase,
     cancelPurchase,
     getAllPurchases,
     getPurchaseById,
-    postVoucher
+    postVoucher,
+    createPurchaseReturn,
+    getAllPurchaseReturns
 };

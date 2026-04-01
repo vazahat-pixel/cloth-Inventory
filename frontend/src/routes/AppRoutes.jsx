@@ -82,6 +82,7 @@ const PurchaseListPage = lazy(() => import('../modules/purchase/PurchaseListPage
 const PurchaseFormPage = lazy(() => import('../modules/purchase/PurchaseFormPage'));
 const PurchaseOrderListPage = lazy(() => import('../modules/purchase/PurchaseOrderListPage'));
 const PurchaseOrderFormPage = lazy(() => import('../modules/purchase/PurchaseOrderFormPage'));
+const PurchaseReturnListPage = lazy(() => import('../modules/purchase/PurchaseReturnListPage'));
 const PurchaseReturnPage = lazy(() => import('../modules/purchase/PurchaseReturnPage'));
 const SaleOrderListPage = lazy(() => import('../modules/orders/SaleOrderListPage'));
 const SaleOrderFormPage = lazy(() => import('../modules/orders/SaleOrderFormPage'));
@@ -232,7 +233,7 @@ function AppRoutes() {
             <Route path="purchase/purchase-challan" element={<PurchasePlaceholderPage pageKey="purchase-challan" />} />
             <Route path="purchase/rejection-replacements" element={<PurchasePlaceholderPage pageKey="rejection-replacements" />} />
             <Route path="purchase/qc-document" element={<PurchasePlaceholderPage pageKey="qc-document" />} />
-            <Route path="purchase/purchase-return" element={<PurchasePlaceholderPage pageKey="purchase-return" />} />
+            <Route path="purchase/purchase-return" element={<PurchaseReturnListPage />} />
             <Route path="purchase/purchase-return/:id" element={<PurchaseReturnPage />} />
             <Route path="purchase/purchase-return-challan" element={<PurchasePlaceholderPage pageKey="purchase-return-challan" />} />
             <Route path="purchase/purchase-return-replacements" element={<PurchasePlaceholderPage pageKey="purchase-return-replacements" />} />

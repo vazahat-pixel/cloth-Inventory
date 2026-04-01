@@ -158,7 +158,7 @@ export const postPurchase = createAsyncThunk('purchase/post', async (id, { rejec
 
 export const fetchPurchaseReturns = createAsyncThunk('purchase/fetchReturns', async (_, { rejectWithValue }) => {
   try {
-    const response = await api.get('/returns?type=STORE_TO_FACTORY');
+    const response = await api.get('/purchase/returns/list');
     const raw = response.data.returns || response.data.data || [];
     return normalizeResponse(raw, 'return');
   } catch (error) {
@@ -168,10 +168,8 @@ export const fetchPurchaseReturns = createAsyncThunk('purchase/fetchReturns', as
 
 export const addPurchaseReturn = createAsyncThunk('purchase/addReturn', async (returnData, { rejectWithValue }) => {
   try {
-    const payload = { ...returnData };
-    if (!payload.type) payload.type = 'PURCHASE_RETURN';
-    const response = await api.post('/returns', payload);
-    const raw = response.data.returnEntry || response.data.data;
+    const response = await api.post('/purchase/returns/add', returnData);
+    const raw = response.data.purchaseReturn || response.data.data;
     return normalizeResponse(raw, 'return');
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);

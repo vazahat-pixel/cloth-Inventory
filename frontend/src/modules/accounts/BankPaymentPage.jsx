@@ -23,7 +23,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import { addBankPayment, fetchBankPayments } from './accountsSlice';
 import { fetchMasters } from '../masters/mastersSlice';
-import { fetchPurchases } from '../purchase/purchaseSlice';
+import { fetchPurchases, fetchPurchaseReturns } from '../purchase/purchaseSlice';
 import { getPendingPurchaseBills } from './pendingBillsService';
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
@@ -43,6 +43,7 @@ function BankPaymentPage({ mode }) {
   const suppliers = useSelector((state) => state.masters.suppliers) || [];
   const purchases = useSelector((state) => state.purchase.records) || [];
   const bankPayments = useSelector((state) => state.accounts.bankPayments) || [];
+  const purchaseReturns = useSelector((state) => state.purchase.returns) || [];
 
   const [bankId, setBankId] = useState('');
   const [supplierId, setSupplierId] = useState('');
@@ -57,6 +58,7 @@ function BankPaymentPage({ mode }) {
     dispatch(fetchMasters('banks'));
     dispatch(fetchMasters('suppliers'));
     dispatch(fetchPurchases());
+    dispatch(fetchPurchaseReturns());
     dispatch(fetchBankPayments());
   }, [dispatch]);
 
@@ -83,8 +85,8 @@ function BankPaymentPage({ mode }) {
   }, [id, bankPayments]);
 
   const pendingBills = useMemo(
-    () => getPendingPurchaseBills(purchases, bankPayments, supplierId),
-    [purchases, bankPayments, supplierId],
+    () => getPendingPurchaseBills(purchases, bankPayments, supplierId, purchaseReturns),
+    [purchases, bankPayments, supplierId, purchaseReturns],
   );
 
   const totalAllocated = useMemo(
@@ -109,10 +111,10 @@ function BankPaymentPage({ mode }) {
       if (id && sId === supplierId) return true;
 
       // Check if this supplier has any pending bills
-      const supplierBills = getPendingPurchaseBills(purchases, bankPayments, sId);
+      const supplierBills = getPendingPurchaseBills(purchases, bankPayments, sId, purchaseReturns);
       return supplierBills.length > 0;
     });
-  }, [suppliers, purchases, bankPayments, supplierId, id]);
+  }, [suppliers, purchases, bankPayments, supplierId, id, purchaseReturns]);
 
   const handleBillAllocationChange = (purchaseId, checked, billAmount) => {
     setAllocations((prev) => {
@@ -331,8 +333,10 @@ function BankPaymentPage({ mode }) {
                     {!isView && <TableCell sx={{ fontWeight: 700 }}>Allocate</TableCell>}
                     <TableCell sx={{ fontWeight: 700 }}>Bill No</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }} align="right">{isView ? "Original Amt" : "Pending"}</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }} align="right">Paid Amount</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">Net Amt</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">Returned</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">Pending</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">{isView ? "Settled Amt" : "Pay Now"}</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -351,10 +355,14 @@ function BankPaymentPage({ mode }) {
                       )}
                       <TableCell>{bill.billNumber}</TableCell>
                       <TableCell>{bill.billDate}</TableCell>
-                      <TableCell align="right">{(isView ? (bill.netAmount || 0) : bill.pendingAmount).toFixed(2)}</TableCell>
+                      <TableCell align="right">{bill.netAmount?.toFixed(2)}</TableCell>
+                      <TableCell align="right" sx={{ color: bill.returnedAmount > 0 ? '#ef4444' : 'inherit' }}>
+                        {bill.returnedAmount > 0 ? `-${bill.returnedAmount?.toFixed(2)}` : '-'}
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>{bill.pendingAmount?.toFixed(2)}</TableCell>
                       <TableCell align="right">
                         {isView ? (
-                           <Typography variant="body2" sx={{ fontWeight: 700 }}>₹{bill.pendingAmount?.toFixed(2)}</Typography>
+                           <Typography variant="body2" sx={{ fontWeight: 700 }}>₹{(bill.paidAmount || bill.pendingAmount)?.toFixed(2)}</Typography>
                         ) : (bill.purchaseId in allocations ? (
                           <TextField
                             size="small"

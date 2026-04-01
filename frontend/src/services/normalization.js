@@ -50,18 +50,19 @@ const normalizeItem = (item, entityType) => {
             // Product mapping in purchases
             if (item.products) {
                 normalized.items = item.products.map(p => {
-                    const prod = (p.productId && typeof p.productId === 'object') ? p.productId : {};
+                    const prod = (p.itemId && typeof p.itemId === 'object') ? p.itemId : ((p.productId && typeof p.productId === 'object') ? p.productId : {});
                     return {
                         ...p,
-                        productId: prod._id || p.productId,
-                        variantId: prod._id || p.productId, // Alias
-                        itemName: prod.name || p.name || '',
-                        size: prod.size || '',
-                        color: prod.color || '',
+                        itemId: prod._id || p.itemId?._id || p.itemId,
+                        productId: prod._id || p.productId?._id || p.productId || p.itemId?._id || p.itemId,
+                        variantId: p.variantId || prod._id || p.productId?._id || p.productId, 
+                        itemName: prod.itemName || prod.name || p.itemName || p.name || '',
+                        size: prod.size || p.size || '',
+                        color: prod.color || p.color || '',
                         sku: prod.sku || p.sku || '',
                         rate: p.rate || p.price || 0,
                         amount: p.total || (p.rate * p.quantity) || 0,
-                        tax: p.gstPercent || 0,
+                        tax: p.gstPercent || p.tax || 0,
                         discount: p.discount || 0
                     };
                 });
@@ -155,6 +156,11 @@ const normalizeItem = (item, entityType) => {
             normalized.returnNumber = item.returnNumber;
             normalized.type = item.type;
             normalized.reason = item.reason;
+
+            if (item.supplierId && typeof item.supplierId === 'object') {
+                normalized.supplierId = item.supplierId._id || item.supplierId.id;
+                normalized.supplierName = item.supplierId.supplierName || item.supplierId.name;
+            }
 
             if (item.productId) {
                 const p = (typeof item.productId === 'object') ? item.productId : {};

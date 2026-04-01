@@ -19,7 +19,7 @@ import ReportExportButton from './ReportExportButton';
 import { SummaryChip } from './SalesReportPage';
 import { fetchBankPayments, fetchBankReceipts } from '../accounts/accountsSlice';
 import { fetchSales } from '../sales/salesSlice';
-import { fetchPurchases } from '../purchase/purchaseSlice';
+import { fetchPurchases, fetchPurchaseReturns } from '../purchase/purchaseSlice';
 
 const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
@@ -31,10 +31,12 @@ function LedgerReportPage() {
   const bankPayments = useSelector((state) => state.accounts?.bankPayments || []);
   const customers = useSelector((state) => state.masters?.customers || []);
   const suppliers = useSelector((state) => state.masters?.suppliers || []);
+  const returns = useSelector((state) => state.purchase?.returns || []);
 
   useEffect(() => {
     dispatch(fetchSales());
     dispatch(fetchPurchases());
+    dispatch(fetchPurchaseReturns());
     dispatch(fetchBankPayments());
     dispatch(fetchBankReceipts());
   }, [dispatch]);
@@ -87,6 +89,7 @@ function LedgerReportPage() {
       return entries;
     }
 
+
     const entries = [];
     purchases.forEach((p) => {
       if (!inRange(p.billDate)) return;
@@ -96,12 +99,28 @@ function LedgerReportPage() {
       entries.push({
         date: p.billDate,
         reference: p.billNumber,
-        narration: `Purchase ${p.billNumber}`,
+        narration: `Purchase Invoice: ${p.billNumber}`,
         debit: 0,
         credit: amt,
         type: 'Purchase',
       });
     });
+
+    returns.forEach((r) => {
+      if (!inRange(r.createdAt?.slice(0, 10))) return;
+      if (partyId !== 'all' && r.supplierId !== partyId) return;
+      const amt = toNum(r.netAmount || r.totalAmount);
+      if (amt <= 0) return;
+      entries.push({
+        date: r.createdAt?.slice(0, 10),
+        reference: r.returnNumber,
+        narration: `Purchase Return (Debit Note): ${r.returnNumber}`,
+        debit: amt,
+        credit: 0,
+        type: 'Return',
+      });
+    });
+
     bankPayments.forEach((r) => {
       if (!inRange(r.date)) return;
       if (partyId !== 'all' && r.supplierId !== partyId) return;

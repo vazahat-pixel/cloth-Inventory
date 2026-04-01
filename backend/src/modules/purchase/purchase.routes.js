@@ -20,5 +20,7 @@ router.route('/:id')
 
 router.patch('/:id/cancel', purchaseController.cancelPurchase);
 router.post('/:id/post', purchaseController.postVoucher);
+router.get('/returns/list', purchaseController.getAllPurchaseReturns);
+router.post('/returns/add', purchaseController.createPurchaseReturn);
 
 module.exports = router;

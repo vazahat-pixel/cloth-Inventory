@@ -25,6 +25,7 @@ import {
   Breadcrumbs,
   Link,
   CircularProgress,
+  Autocomplete,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
@@ -94,13 +95,14 @@ function PurchaseReturnPage() {
     setLines(
       rawItems.map((item, index) => {
         // Handle both populated and raw item structures
-        const pId = item.productId?._id || item.productId || item.variantId;
-        const itemName = item.itemName || item.name || item.productId?.name || 'Item';
+        const itemId = item.itemId?._id || item.itemId || item.productId?._id || item.productId;
+        const itemName = item.itemName || item.name || item.itemId?.name || item.productId?.name || 'Item';
         const rate = Number(item.rate || item.price || 0);
 
         return {
-          id: pId || index,
-          productId: pId,
+          id: item.variantId || itemId || index,
+          itemId: itemId,
+          variantId: item.variantId,
           itemName,
           sku: item.sku || item.productId?.sku || '',
           size: item.size || item.productId?.size || '',
@@ -157,13 +159,18 @@ function PurchaseReturnPage() {
         return;
     }
 
+    const locationId = purchase.storeId || purchase.warehouseId || purchase.locationId;
+    const locationType = purchase.storeType ? purchase.storeType.toUpperCase() : 'WAREHOUSE';
+
     const payload = {
       referenceId: purchase.id || purchase._id,
-      locationId: purchase.storeId || purchase.warehouseId || purchase.locationId,
+      locationId,
+      locationType,
       reason: formValues.remarks,
       type: 'PURCHASE_RETURN',
       items: selectedLines.map(line => ({
-        variantId: line.productId,
+        itemId: line.itemId,
+        variantId: line.variantId,
         quantity: Number(line.returnQty)
       }))
     };
@@ -182,6 +189,33 @@ function PurchaseReturnPage() {
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 2 }}>
         <CircularProgress size={40} />
         <Typography color="textSecondary">Loading purchase details...</Typography>
+      </Box>
+    );
+  }
+
+  if (id === 'new') {
+    return (
+      <Box sx={{ p: 3, bgcolor: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <Paper elevation={0} sx={{ p: 5, mt: 10, textAlign: 'center', borderRadius: 3, border: '1px solid #e2e8f0', minWidth: 400 }}>
+          <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mb: 1 }}>Select a Bill to Return</Typography>
+          <Typography variant="body2" sx={{ color: '#64748b', mb: 4 }}>Search by Invoice Number or Supplier Name to begin processing a return.</Typography>
+          <Autocomplete
+            options={purchases}
+            getOptionLabel={(opt) => {
+               const supName = opt.supplierId?.supplierName || opt.supplierId?.name || '';
+               const billNo = opt.invoiceNumber || opt.billNumber || opt.purchaseNumber || 'PV-UNKNOWN';
+               return `${billNo} ${supName ? `(${supName})` : ''}`;
+            }}
+            onChange={(e, value) => {
+               if (value) {
+                 navigate(`/purchase/purchase-return/${value._id || value.id}`, { replace: true });
+               }
+            }}
+            renderInput={(params) => <TextField {...params} label="Search Purchase Bill" variant="outlined" />}
+            sx={{ width: '100%' }}
+          />
+          <Button variant="text" sx={{ mt: 3 }} onClick={() => navigate(returnHomePath)}>Cancel and Go Back</Button>
+        </Paper>
       </Box>
     );
   }
