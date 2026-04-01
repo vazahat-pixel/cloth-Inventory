@@ -122,25 +122,37 @@ export function normalizePurchaseOrderRecord(record = {}) {
           grandTotal: toNumber(record.totals.grandTotal || record.totals.netAmount, 0),
           totalQty: toNumber(record.totals.totalQty || record.totals.totalQuantity, 0),
         }
-      : calculatePurchaseOrderTotals(items);
+      : {
+          subtotal: toNumber(record.subTotal || record.grossAmount, 0),
+          discountTotal: toNumber(record.discountAmount || record.lineDiscount, 0),
+          taxTotal: toNumber(record.taxAmount || record.taxAmount, 0),
+          grandTotal: toNumber(record.totalAmount || record.netAmount, 0),
+          totalQty: toNumber(record.totalQty || record.totalQuantity, 0),
+        };
+
+  // If both are zero, re-calculate as safety fallback
+  const finalTotals = (totals.grandTotal === 0 && totals.totalQty === 0 && items.length > 0) 
+    ? calculatePurchaseOrderTotals(items) 
+    : totals;
 
   return {
     id: record.id || record._id || `po-${Date.now()}`,
     poNumber: record.poNumber || record.orderNumber || `PO-${String(Date.now()).slice(-6)}`,
     poDate: record.poDate ? new Date(record.poDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
     supplierId: typeof record.supplierId === 'object' ? record.supplierId?._id : (record.supplierId || ''),
-    supplierName: record.supplierName || (typeof record.supplierId === 'object' ? record.supplierId?.name : ''),
+    supplierName: record.supplierName || (typeof record.supplierId === 'object' ? record.supplierId?.name : (record.supplierName || '')),
     expectedDeliveryDate: record.expectedDeliveryDate ? new Date(record.expectedDeliveryDate).toISOString().slice(0, 10) : '',
     billingAddress: record.billingAddress || '',
     deliveryAddress: record.deliveryAddress || '',
     paymentTerms: record.paymentTerms || '',
     notes: record.notes || '',
     status: record.status || 'DRAFT',
+    warehouseId: record.warehouseId?._id || record.warehouseId || '',
     createdBy: (typeof record.createdBy === 'object' ? record.createdBy?.name : record.createdBy) || 'HO Admin',
     createdAt: record.createdAt || new Date().toISOString(),
     updatedAt: record.updatedAt || record.createdAt || new Date().toISOString(),
     items,
-    totals,
+    totals: finalTotals,
   };
 }
 

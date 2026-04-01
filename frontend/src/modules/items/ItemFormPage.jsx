@@ -381,6 +381,7 @@ function ItemFormPage({ mode = 'edit' }) {
                           disabled={isViewMode}
                           error={Boolean(errors.brand)}
                           helperText={errors.brand?.message || ' '}
+                          InputLabelProps={{ shrink: true }}
                         >
                           {renderAsyncValueOption(field.value, brands)}
                           <MenuItem value="">Select Brand</MenuItem>
@@ -406,6 +407,7 @@ function ItemFormPage({ mode = 'edit' }) {
                           label="Season"
                           value={field.value ?? ''}
                           disabled={isViewMode}
+                          InputLabelProps={{ shrink: true }}
                         >
                           {renderAsyncValueOption(field.value, seasons)}
                           <MenuItem value="">Select Season</MenuItem>
@@ -443,6 +445,7 @@ function ItemFormPage({ mode = 'edit' }) {
                           label="Section"
                           value={field.value ?? ''}
                           disabled={isViewMode}
+                          InputLabelProps={{ shrink: true }}
                         >
                           {renderAsyncValueOption(field.value, sections)}
                           <MenuItem value="">Select Section</MenuItem>
@@ -464,6 +467,7 @@ function ItemFormPage({ mode = 'edit' }) {
                           label="Category"
                           value={field.value ?? ''}
                           disabled={!selectedSectionId || isViewMode}
+                          InputLabelProps={{ shrink: true }}
                         >
                           {renderAsyncValueOption(field.value, categoryOptions)}
                           <MenuItem value="">Select Category</MenuItem>
@@ -485,6 +489,7 @@ function ItemFormPage({ mode = 'edit' }) {
                           label="Sub Category"
                           value={field.value ?? ''}
                           disabled={!selectedCategoryId || isViewMode}
+                          InputLabelProps={{ shrink: true }}
                         >
                           {renderAsyncValueOption(field.value, subCategoryOptions)}
                           <MenuItem value="">Select Sub Category</MenuItem>
@@ -506,6 +511,7 @@ function ItemFormPage({ mode = 'edit' }) {
                           label="Style / Type"
                           value={field.value ?? ''}
                           disabled={!selectedSubCategoryId || isViewMode}
+                          InputLabelProps={{ shrink: true }}
                         >
                           {renderAsyncValueOption(field.value, styleOptions)}
                           <MenuItem value="">Select Style / Type</MenuItem>
