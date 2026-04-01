@@ -39,5 +39,10 @@ router.get('/collection', reportController.getCollectionReport);
 router.get('/bank-book', reportController.getBankBookReport);
 router.get('/age-analysis', requireAdmin, reportController.getAgeAnalysisReport);
 
-module.exports = router;
+// Added missing endpoints from implementation plan
+router.get('/sale-challans', reportController.getSaleChallanReport);
+router.get('/schemes', reportController.getSchemeReport);
+router.get('/orders', reportController.getOrderReport);
+router.get('/agent-wise', reportController.getAgentWiseReport);
 
+module.exports = router;

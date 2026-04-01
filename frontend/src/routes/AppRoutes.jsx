@@ -121,7 +121,6 @@ const BarcodePrintingPage = lazy(() => import('../modules/setup/BarcodePrintingP
 const DiscountSetupPage = lazy(() => import('../modules/setup/DiscountSetupPage'));
 const CounterMasterPage = lazy(() => import('../modules/setup/CounterMasterPage'));
 
-
 // Tax & GST Reports
 const TaxRatesPage = lazy(() => import('../modules/gst/TaxRatesPage'));
 const TaxGroupPage = lazy(() => import('../modules/gst/TaxGroupPage'));
@@ -150,6 +149,12 @@ const LedgerReportPage = lazy(() => import('../modules/reports/LedgerReportPage'
 const BankBookPage = lazy(() => import('../modules/reports/BankBookPage'));
 const CollectionReportPage = lazy(() => import('../modules/reports/CollectionReportPage'));
 
+// --- NEW REPORTS LAYOUT & ENGINE ---
+const ReportsQueriesLayout = lazy(() => import('../modules/reports/ReportsQueriesLayout'));
+const DynamicReportPage = lazy(() => import('../modules/reports/DynamicReportPage'));
+const GstSummaryReportPage = lazy(() => import('../modules/reports/GstSummaryReportPage'));
+const OrderReportPage = lazy(() => import('../modules/reports/OrderReportPage'));
+
 // Misc
 const SettingsLayout = lazy(() => import('../modules/settings/SettingsLayout'));
 const CompanyProfilePage = lazy(() => import('../modules/settings/CompanyProfilePage'));
@@ -167,6 +172,74 @@ const GRNFormPage = lazy(() => import('../modules/grn/GRNFormPage'));
 const HoMasterDashboard = lazy(() => import('../modules/reports/HoMasterDashboard'));
 const LogicERPManager = lazy(() => import('../modules/erp/LogicERPManager'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
+
+// --- CONFIGURATIONS FOR DYNAMIC REPORTS ---
+const CHALLAN_REPORT_CONFIG = {
+  title: 'Sale Challan Report',
+  description: 'Summary of delivery challans and current delivery statuses.',
+  endpoint: '/sale-challans',
+  columns: [
+    { field: 'status', headerName: 'Status' },
+    { field: 'count', headerName: 'Total Challans' },
+    { field: 'totalAmount', headerName: 'Total Amount', transform: (v) => `₹${Number(v || 0).toLocaleString()}` }
+  ],
+  filterConfig: { showDateRange: true }
+};
+
+const SCHEME_REPORT_CONFIG = {
+  title: 'Active Schemes Report',
+  description: 'Overview of active promotional schemes and discouts.',
+  endpoint: '/schemes',
+  columns: [
+    { field: 'name', headerName: 'Scheme Name' },
+    { field: 'type', headerName: 'Type' },
+    { field: 'value', headerName: 'Value' },
+    { field: 'startDate', headerName: 'Start Date', transform: (v) => v ? new Date(v).toLocaleDateString() : 'N/A' },
+    { field: 'endDate', headerName: 'End Date', transform: (v) => v ? new Date(v).toLocaleDateString() : 'N/A' }
+  ]
+};
+
+const AGENT_WISE_REPORT_CONFIG = {
+  title: 'Agent performance',
+  description: 'Sales performance tracking by Handled By / Cashier / Agent.',
+  endpoint: '/agent-wise',
+  columns: [
+    { field: 'agentName', headerName: 'Agent / Salesperson' },
+    { field: 'totalSales', headerName: 'Gross Sales', transform: (v) => `₹${Number(v || 0).toLocaleString()}` },
+    { field: 'count', headerName: 'Invoice Count' }
+  ],
+  filterConfig: { showDateRange: true }
+};
+
+const STOCK_AGING_CONFIG = {
+  title: 'Stock Aging Analysis',
+  description: 'Monitoring slow-moving and fast-moving inventory based on duration in stock.',
+  endpoint: '/stock-aging',
+  columns: [
+    { field: 'sku', headerName: 'SKU' },
+    { field: 'name', headerName: 'Item Name' },
+    { field: 'currentStock', headerName: 'Current Stock' },
+    { field: 'daysInStock', headerName: 'Days In Inventory' },
+    { field: 'category', headerName: 'Aging Category' }
+  ]
+};
+
+const TRIAL_BALANCE_CONFIG = {
+  title: 'Trial Balance',
+  description: 'Consolidated summary of all ledger balances.',
+  endpoint: '/trial-balance',
+  dataKey: 'trialBalance',
+  columns: [
+    { field: 'code', headerName: 'Account Code' },
+    { field: 'name', headerName: 'Account Name' },
+    { field: 'type', headerName: 'Group' },
+    { field: 'totalDebit', headerName: 'Debit', transform: v => Number(v || 0).toLocaleString() },
+    { field: 'totalCredit', headerName: 'Credit', transform: v => Number(v || 0).toLocaleString() },
+    { field: 'balance', headerName: 'Net Balance', transform: v => Number(v || 0).toLocaleString() }
+  ],
+  filterConfig: { showDateRange: true }
+};
+
 
 function AppRoutes() {
   return (
@@ -325,19 +398,42 @@ function AppRoutes() {
             <Route path="setup/other-account-details" element={<SetupGenericTablePage title="Other Account Details" description="Configure budgets, limits, and advanced account-level flags." />} />
             <Route path="setup/configurations" element={<SetupGenericTablePage title="System Configurations" description="Refine system behaviors, voucher parameters, and POS rules." />} />
 
-            <Route path="reports" element={<Navigate to="dashboard" replace />} />
-            <Route path="reports/dashboard" element={<ReportsDashboard />} />
-            <Route path="reports/sales" element={<SalesReportPage />} />
-            <Route path="reports/purchase" element={<PurchaseReportPage />} />
-            <Route path="reports/ledger" element={<LedgerReportPage />} />
-            <Route path="reports/bank-book" element={<BankBookPage />} />
-            <Route path="reports/stock" element={<StockReportPage />} />
-            <Route path="reports/profit" element={<ProfitReportPage />} />
-            <Route path="reports/collection" element={<CollectionReportPage />} />
-            <Route path="reports/customers" element={<CustomerReportPage />} />
-            <Route path="reports/vendors" element={<VendorReportPage />} />
-            <Route path="reports/movement" element={<MovementReportPage />} />
-            <Route path="reports/age-analysis" element={<AgeAnalysisPage />} />
+            {/* ENHANCED REPORTS SECTION */}
+            <Route path="reports" element={<ReportsQueriesLayout />}>
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<ReportsDashboard />} />
+              
+              {/* Specialized Reports */}
+              <Route path="sales" element={<SalesReportPage />} />
+              <Route path="purchase" element={<PurchaseReportPage />} />
+              <Route path="ledger" element={<LedgerReportPage />} />
+              <Route path="bank-book" element={<BankBookPage />} />
+              <Route path="stock" element={<StockReportPage />} />
+              <Route path="profit" element={<ProfitReportPage />} />
+              <Route path="collection" element={<CollectionReportPage />} />
+              <Route path="customers" element={<CustomerReportPage />} />
+              <Route path="vendors" element={<VendorReportPage />} />
+              <Route path="movement" element={<MovementHistoryPage />} />
+              <Route path="age-analysis" element={<AgeAnalysisPage />} />
+              
+              {/* Dynamic Engine Reports */}
+              <Route path="sale-challan-reports" element={<DynamicReportPage config={CHALLAN_REPORT_CONFIG} />} />
+              <Route path="scheme-reports" element={<DynamicReportPage config={SCHEME_REPORT_CONFIG} />} />
+              <Route path="agent-wise-reports" element={<DynamicReportPage config={AGENT_WISE_REPORT_CONFIG} />} />
+              <Route path="order-reports" element={<OrderReportPage />} />
+              <Route path="item-reports" element={<DynamicReportPage config={STOCK_AGING_CONFIG} />} />
+              <Route path="stock-reports" element={<StockReportPage />} />
+              
+              {/* Financial Analysis / Master Reports */}
+              <Route path="financial-reports" element={<DynamicReportPage config={TRIAL_BALANCE_CONFIG} />} />
+              <Route path="balance-sheet" element={<DynamicReportPage config={{ title: 'Balance Sheet', endpoint: '/balance-sheet', filterConfig: { showDateTo: true } }} />} />
+              <Route path="financial-analysis" element={<GstSummaryReportPage />} />
+              
+              {/* Fallback for others */}
+              <Route path="sale-registers" element={<SalesReportPage />} />
+              <Route path="customer-item-sale-analysis" element={<CustomerReportPage />} />
+              <Route path="excise-reports" element={<GstSummaryReportPage />} />
+            </Route>
 
             <Route path="gst" element={<Navigate to="tax-rates" replace />} />
             <Route path="gst/tax-rates" element={<TaxRatesPage />} />
