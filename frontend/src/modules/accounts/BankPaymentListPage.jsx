@@ -65,7 +65,7 @@ function BankPaymentListPage() {
         <Button
           variant="contained"
           startIcon={<AddIcon />}
-          onClick={() => navigate('/ho/accounts/bank-payment')}
+          onClick={() => navigate('/accounts/bank-payment')}
           sx={{ borderRadius: 2 }}
         >
           Record New Payment
@@ -108,7 +108,12 @@ function BankPaymentListPage() {
                     <Chip size="small" label="SUCCESS" sx={{ bgcolor: '#dcfce7', color: '#166534', fontWeight: 600 }} />
                   </TableCell>
                   <TableCell align="center">
-                    <Button size="small" startIcon={<DescriptionOutlinedIcon />} sx={{ color: '#6366f1' }}>
+                    <Button 
+                        size="small" 
+                        startIcon={<DescriptionOutlinedIcon />} 
+                        sx={{ color: '#6366f1' }}
+                        onClick={() => navigate(`/accounts/bank-payment/${pmt._id || pmt.id}`)}
+                    >
                       View
                     </Button>
                   </TableCell>

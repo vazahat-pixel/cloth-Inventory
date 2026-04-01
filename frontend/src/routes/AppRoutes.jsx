@@ -348,6 +348,7 @@ function AppRoutes() {
             <Route path="accounts" element={<Navigate to="a-c-vouchers" replace />} />
             <Route path="accounts/a-c-vouchers" element={<AccountsDashboard />} />
             <Route path="accounts/bank-payment" element={<BankPaymentPage />} />
+            <Route path="accounts/bank-payment/:id" element={<BankPaymentPage mode="view" />} />
             <Route path="accounts/bank-payment-list" element={<BankPaymentListPage />} />
             <Route path="accounts/bank-receipt" element={<BankReceiptPage />} />
             <Route path="accounts/continuous-printing" element={<ContinuousPrintingPage />} />

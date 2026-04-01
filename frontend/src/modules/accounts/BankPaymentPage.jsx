@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import {
@@ -16,7 +17,7 @@ import {
   TableHead,
   TableRow,
   TextField,
-  Typography,
+  Typography
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
@@ -32,7 +33,9 @@ const toNumber = (value, fallback = 0) => {
   return Number.isFinite(n) ? n : fallback;
 };
 
-function BankPaymentPage() {
+function BankPaymentPage({ mode }) {
+  const { id } = useParams();
+  const isView = mode === 'view' || !!id;
   const dispatch = useDispatch();
   const navigate = useAppNavigate();
 
@@ -57,6 +60,28 @@ function BankPaymentPage() {
     dispatch(fetchBankPayments());
   }, [dispatch]);
 
+  // View Mode: Populate data
+  useEffect(() => {
+    if (id && bankPayments.length > 0) {
+      const pmt = bankPayments.find(p => (p._id || p.id) === id);
+      if (pmt) {
+        setBankId(typeof pmt.bankId === 'object' ? (pmt.bankId._id || pmt.bankId.id) : pmt.bankId);
+        setSupplierId(typeof pmt.supplierId === 'object' ? (pmt.supplierId._id || pmt.supplierId.id) : pmt.supplierId);
+        setDate(pmt.date?.slice(0, 10) || getTodayDate());
+        setChequeNo(pmt.chequeNo || '');
+        setAmount(pmt.amount?.toString() || '0');
+        setNarration(pmt.narration || '');
+
+        // Map allocated bills
+        const nextAlloc = {};
+        (pmt.allocatedBills || []).forEach(ab => {
+          nextAlloc[ab.purchaseId] = ab.allocated;
+        });
+        setAllocations(nextAlloc);
+      }
+    }
+  }, [id, bankPayments]);
+
   const pendingBills = useMemo(
     () => getPendingPurchaseBills(purchases, bankPayments, supplierId),
     [purchases, bankPayments, supplierId],
@@ -72,6 +97,23 @@ function BankPaymentPage() {
     [pendingBills]
   );
 
+  // Smart Filter: Only show suppliers who actually have something to pay
+  const filteredSuppliers = useMemo(() => {
+    // Collect unique supplier IDs from the purchases list
+    const supplierIdsWithPurchases = new Set(purchases.map((p) => p.supplierId));
+    
+    return suppliers.filter((s) => {
+      // Always show selected or existing supplier in view mode
+      const sId = s.id || s._id;
+      if (sId === supplierId) return true;
+      if (id && sId === supplierId) return true;
+
+      // Check if this supplier has any pending bills
+      const supplierBills = getPendingPurchaseBills(purchases, bankPayments, sId);
+      return supplierBills.length > 0;
+    });
+  }, [suppliers, purchases, bankPayments, supplierId, id]);
+
   const handleBillAllocationChange = (purchaseId, checked, billAmount) => {
     setAllocations((prev) => {
       const next = { ...prev };
@@ -81,15 +123,8 @@ function BankPaymentPage() {
         delete next[purchaseId];
       }
 
-      // AUTO-SUM: Update master amount based on selections if user hasn't manually set it yet
-      // Or if master amount matches the previous total exactly, update it to new total.
       const newTotalAllocated = Object.values(next).reduce((sum, val) => sum + toNumber(val), 0);
-      if (checked || Object.keys(next).length > 0) {
-          setAmount(newTotalAllocated.toString());
-      } else {
-          setAmount('0');
-      }
-
+      setAmount(newTotalAllocated.toString());
       return next;
     });
   };
@@ -147,8 +182,23 @@ function BankPaymentPage() {
         allocatedBills,
       }),
     );
-    navigate('/ho/accounts/bank-payment-list');
+    navigate('/accounts/bank-payment-list');
   };
+
+  const displayedBills = useMemo(() => {
+    if (!isView) return pendingBills;
+    
+    const pmt = bankPayments.find(p => (p._id || p.id) === id);
+    if (!pmt) return [];
+
+    return (pmt.allocatedBills || []).map(ab => ({
+        purchaseId: ab.purchaseId,
+        billNumber: ab.billNumber || 'Bill',
+        billDate: '-',
+        pendingAmount: ab.allocated,
+        netAmount: ab.amount || 0
+    }));
+  }, [isView, pendingBills, bankPayments, id]);
 
   return (
     <Box>
@@ -156,7 +206,7 @@ function BankPaymentPage() {
         <Button
           size="small"
           startIcon={<ArrowBackIcon />}
-          onClick={() => navigate('/ho/accounts/bank-payment-list')}
+          onClick={() => navigate('/accounts/bank-payment-list')}
           sx={{ color: '#64748b' }}
         >
           Back
@@ -185,6 +235,7 @@ function BankPaymentPage() {
             label="Bank Account"
             value={bankId}
             onChange={(e) => setBankId(e.target.value)}
+            disabled={isView}
             required
           >
             <MenuItem value="">Select bank</MenuItem>
@@ -206,11 +257,12 @@ function BankPaymentPage() {
                 setAllocations({});
                 setAmount('0');
                 }}
+                disabled={isView}
                 required
             >
                 <MenuItem value="">Select supplier</MenuItem>
-                {suppliers.map((s) => (
-                <MenuItem key={s.id} value={s.id}>
+                {filteredSuppliers.map((s) => (
+                <MenuItem key={s.id || s._id} value={s.id || s._id}>
                     {s.supplierName}
                 </MenuItem>
                 ))}
@@ -230,6 +282,7 @@ function BankPaymentPage() {
               value={date}
               onChange={(e) => setDate(e.target.value)}
               InputLabelProps={{ shrink: true }}
+              disabled={isView}
               fullWidth
             />
             <TextField
@@ -237,6 +290,7 @@ function BankPaymentPage() {
               label="Cheque No"
               value={chequeNo}
               onChange={(e) => setChequeNo(e.target.value)}
+              disabled={isView}
               fullWidth
             />
           </Stack>
@@ -247,9 +301,10 @@ function BankPaymentPage() {
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             inputProps={{ min: 0, step: 0.01 }}
+            disabled={isView}
             required
-            helperText="Auto-calculated from selected bills below"
-            variant="filled"
+            helperText={isView ? "" : "Auto-calculated from selected bills below"}
+            variant={isView ? "outlined" : "filled"}
             sx={{ '& .MuiFilledInput-root': { bgcolor: '#f0f9ff' } }}
           />
           <TextField
@@ -257,6 +312,7 @@ function BankPaymentPage() {
             label="Narration"
             value={narration}
             onChange={(e) => setNarration(e.target.value)}
+            disabled={isView}
             fullWidth
             multiline
             rows={2}
@@ -266,36 +322,40 @@ function BankPaymentPage() {
         {supplierId && pendingBills.length > 0 && (
           <Box sx={{ mb: 2 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0f172a', mb: 1 }}>
-              Pending Purchase Bills – Allocate Payment
+              {isView ? "Bill Settlements" : "Pending Purchase Bills – Allocate Payment"}
             </Typography>
             <TableContainer sx={{ border: '1px solid #e2e8f0', borderRadius: 1 }}>
               <Table size="small">
                 <TableHead>
                   <TableRow sx={{ backgroundColor: '#f8fafc' }}>
-                    <TableCell sx={{ fontWeight: 700 }}>Allocate</TableCell>
+                    {!isView && <TableCell sx={{ fontWeight: 700 }}>Allocate</TableCell>}
                     <TableCell sx={{ fontWeight: 700 }}>Bill No</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }} align="right">Pending</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }} align="right">Amount</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">{isView ? "Original Amt" : "Pending"}</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">Paid Amount</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {pendingBills.map((bill) => (
+                  {displayedBills.map((bill) => (
                     <TableRow key={bill.purchaseId}>
-                      <TableCell>
-                        <Checkbox
-                          size="small"
-                          checked={bill.purchaseId in allocations}
-                          onChange={(e) =>
-                            handleBillAllocationChange(bill.purchaseId, e.target.checked, bill.pendingAmount)
-                          }
-                        />
-                      </TableCell>
+                      {!isView && (
+                        <TableCell>
+                          <Checkbox
+                            size="small"
+                            checked={bill.purchaseId in allocations}
+                            onChange={(e) =>
+                              handleBillAllocationChange(bill.purchaseId, e.target.checked, bill.pendingAmount)
+                            }
+                          />
+                        </TableCell>
+                      )}
                       <TableCell>{bill.billNumber}</TableCell>
                       <TableCell>{bill.billDate}</TableCell>
-                      <TableCell align="right">{bill.pendingAmount.toFixed(2)}</TableCell>
+                      <TableCell align="right">{(isView ? (bill.netAmount || 0) : bill.pendingAmount).toFixed(2)}</TableCell>
                       <TableCell align="right">
-                        {bill.purchaseId in allocations ? (
+                        {isView ? (
+                           <Typography variant="body2" sx={{ fontWeight: 700 }}>₹{bill.pendingAmount?.toFixed(2)}</Typography>
+                        ) : (bill.purchaseId in allocations ? (
                           <TextField
                             size="small"
                             type="number"
@@ -308,7 +368,7 @@ function BankPaymentPage() {
                           />
                         ) : (
                           '-'
-                        )}
+                        ))}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -327,13 +387,15 @@ function BankPaymentPage() {
           </Typography>
         )}
 
-        <Button
-          variant="contained"
-          startIcon={<SaveOutlinedIcon />}
-          onClick={handleSave}
-        >
-          Save Payment
-        </Button>
+        {!isView && (
+          <Button
+            variant="contained"
+            startIcon={<SaveOutlinedIcon />}
+            onClick={handleSave}
+          >
+            Save Payment
+          </Button>
+        )}
       </Paper>
     </Box>
   );
