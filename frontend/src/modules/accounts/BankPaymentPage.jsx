@@ -67,6 +67,11 @@ function BankPaymentPage() {
     [allocations],
   );
 
+  const totalOutstanding = useMemo(
+    () => pendingBills.reduce((sum, b) => sum + b.pendingAmount, 0),
+    [pendingBills]
+  );
+
   const handleBillAllocationChange = (purchaseId, checked, billAmount) => {
     setAllocations((prev) => {
       const next = { ...prev };
@@ -75,13 +80,28 @@ function BankPaymentPage() {
       } else {
         delete next[purchaseId];
       }
+
+      // AUTO-SUM: Update master amount based on selections if user hasn't manually set it yet
+      // Or if master amount matches the previous total exactly, update it to new total.
+      const newTotalAllocated = Object.values(next).reduce((sum, val) => sum + toNumber(val), 0);
+      if (checked || Object.keys(next).length > 0) {
+          setAmount(newTotalAllocated.toString());
+      } else {
+          setAmount('0');
+      }
+
       return next;
     });
   };
 
   const handleAllocationAmountChange = (purchaseId, value) => {
     const num = toNumber(value, 0);
-    setAllocations((prev) => ({ ...prev, [purchaseId]: num }));
+    setAllocations((prev) => {
+        const next = { ...prev, [purchaseId]: num };
+        const newTotalAllocated = Object.values(next).reduce((sum, val) => sum + toNumber(val), 0);
+        setAmount(newTotalAllocated.toString());
+        return next;
+    });
   };
 
   const handleSave = () => {
@@ -127,7 +147,7 @@ function BankPaymentPage() {
         allocatedBills,
       }),
     );
-    navigate('/accounts');
+    navigate('/ho/accounts/bank-payment-list');
   };
 
   return (
@@ -136,7 +156,7 @@ function BankPaymentPage() {
         <Button
           size="small"
           startIcon={<ArrowBackIcon />}
-          onClick={() => navigate('/accounts')}
+          onClick={() => navigate('/ho/accounts/bank-payment-list')}
           sx={{ color: '#64748b' }}
         >
           Back
@@ -174,25 +194,34 @@ function BankPaymentPage() {
               </MenuItem>
             ))}
           </TextField>
-          <TextField
-            select
-            fullWidth
-            size="small"
-            label="Supplier"
-            value={supplierId}
-            onChange={(e) => {
-              setSupplierId(e.target.value);
-              setAllocations({});
-            }}
-            required
-          >
-            <MenuItem value="">Select supplier</MenuItem>
-            {suppliers.map((s) => (
-              <MenuItem key={s.id} value={s.id}>
-                {s.supplierName}
-              </MenuItem>
-            ))}
-          </TextField>
+          <Stack direction="row" spacing={1} alignItems="flex-start">
+            <TextField
+                select
+                fullWidth
+                size="small"
+                label="Supplier"
+                value={supplierId}
+                onChange={(e) => {
+                setSupplierId(e.target.value);
+                setAllocations({});
+                setAmount('0');
+                }}
+                required
+            >
+                <MenuItem value="">Select supplier</MenuItem>
+                {suppliers.map((s) => (
+                <MenuItem key={s.id} value={s.id}>
+                    {s.supplierName}
+                </MenuItem>
+                ))}
+            </TextField>
+            {supplierId && totalOutstanding > 0 && (
+                <Box sx={{ minWidth: 150, p: 1, bgcolor: '#fff1f2', border: '1px solid #fecaca', borderRadius: 1.5, textAlign: 'center' }}>
+                    <Typography variant="caption" sx={{ color: '#991b1b', fontWeight: 700, display: 'block' }}>TOTAL OUTSTANDING</Typography>
+                    <Typography variant="subtitle2" sx={{ color: '#dc2626', fontWeight: 900 }}>₹{totalOutstanding.toLocaleString()}</Typography>
+                </Box>
+            )}
+          </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField
               size="small"
@@ -214,11 +243,14 @@ function BankPaymentPage() {
           <TextField
             size="small"
             type="number"
-            label="Amount"
+            label="Total Payment Amount"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             inputProps={{ min: 0, step: 0.01 }}
             required
+            helperText="Auto-calculated from selected bills below"
+            variant="filled"
+            sx={{ '& .MuiFilledInput-root': { bgcolor: '#f0f9ff' } }}
           />
           <TextField
             size="small"

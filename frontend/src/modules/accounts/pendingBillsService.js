@@ -3,9 +3,17 @@
  * Outstanding = purchase.netAmount - sum of allocations in bank payments
  */
 export function getPendingPurchaseBills(purchases, bankPayments, supplierId) {
-  const supplierPurchases = purchases.filter((p) => p.supplierId === supplierId);
-  const allocated = bankPayments.reduce((acc, pmt) => {
-    if (pmt.supplierId !== supplierId) return acc;
+  // Only include POSTED or APPROVED purchase vouchers for payment
+  const supplierPurchases = (purchases || []).filter((p) => {
+    const sId = (p.supplierId?._id || p.supplierId || "").toString();
+    const selId = (supplierId || "").toString();
+    return sId === selId && (p.status === 'POSTED' || p.status === 'APPROVED');
+  });
+
+  const allocated = (bankPayments || []).reduce((acc, pmt) => {
+    const pId = (pmt.supplierId?._id || pmt.supplierId || "").toString();
+    const selId = (supplierId || "").toString();
+    if (pId !== selId) return acc;
     (pmt.allocatedBills || []).forEach((ab) => {
       acc[ab.purchaseId] = (acc[ab.purchaseId] || 0) + Number(ab.allocated || 0);
     });
@@ -13,13 +21,14 @@ export function getPendingPurchaseBills(purchases, bankPayments, supplierId) {
   }, {});
 
   return supplierPurchases.map((p) => {
-    const net = Number(p.totals?.netAmount || 0);
-    const paid = Number(allocated[p.id] || 0);
+    const net = Number(p.grandTotal || 0);
+    const pId = (p._id || p.id).toString();
+    const paid = Number(allocated[pId] || 0);
     const pending = Math.max(0, net - paid);
     return {
-      purchaseId: p.id,
-      billNumber: p.billNumber,
-      billDate: p.billDate,
+      purchaseId: pId,
+      billNumber: p.purchaseNumber || p.invoiceNumber,
+      billDate: p.invoiceDate?.slice(0, 10),
       netAmount: net,
       paidAmount: paid,
       pendingAmount: pending,
