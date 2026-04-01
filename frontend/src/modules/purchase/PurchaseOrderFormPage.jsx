@@ -62,6 +62,7 @@ const defaultForm = {
   deliveryAddress: '',
   paymentTerms: '',
   notes: '',
+  warehouseId: '',
   status: 'DRAFT',
 };
 
@@ -78,7 +79,7 @@ function buildVariantOptions(records = []) {
           itemName: item.itemName || item.name || '',
           size: v.size || '',
           color: item.shade || item.color || '',
-          sku: v.sku || '',
+          sku: v.sku || item.itemCode || item.code || '',
           rate: Number(v.costPrice || v.salePrice || 0),
           mrp: Number(v.mrp || 0),
           uom: item.uom || 'PCS'
@@ -115,6 +116,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
 
   const backendOrders = useSelector((state) => state.purchase.orders || []);
   const backendSuppliers = useSelector((state) => state.masters.suppliers || []);
+  const backendWarehouses = useSelector((state) => state.masters.warehouses || []);
   const backendItems = useSelector((state) => state.items.records || []);
 
   const [formValues, setFormValues] = useState(defaultForm);
@@ -132,6 +134,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
   useEffect(() => {
     dispatch(fetchPurchaseOrders());
     dispatch(fetchMasters('suppliers'));
+    dispatch(fetchMasters('warehouses'));
     dispatch(fetchItems());
   }, [dispatch]);
 
@@ -159,6 +162,12 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
     });
     return Array.from(merged.values());
   }, [backendSuppliers]);
+  
+  const warehouses = useMemo(() => (backendWarehouses || []).map(w => ({
+    id: w.id || w._id || '',
+    name: w.name || '',
+    address: w.location ? [w.location.address, w.location.city, w.location.state, w.location.pincode].filter(Boolean).join(', ') : ''
+  })), [backendWarehouses]);
 
   const variantOptions = useMemo(() => buildVariantOptions(backendItems), [backendItems]);
 
@@ -184,7 +193,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
         billingAddress: normalized.billingAddress,
         deliveryAddress: normalized.deliveryAddress,
         paymentTerms: normalized.paymentTerms,
-        notes: normalized.notes,
+        warehouseId: normalized.warehouseId || '',
         status: normalized.status,
       });
       setLines(normalized.items || []);
@@ -213,6 +222,17 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
       paymentTerms: previous.paymentTerms || (supplier.creditDays ? `${supplier.creditDays} days credit` : ''),
     }));
   }, [formValues.supplierId, suppliers]);
+
+  // AUTO-FILL DELIVERY ADDRESS FROM WAREHOUSE
+  useEffect(() => {
+    const warehouse = warehouses.find((item) => item.id === formValues.warehouseId);
+    if (!warehouse) return;
+
+    setFormValues((previous) => ({
+      ...previous,
+      deliveryAddress: warehouse.address || previous.deliveryAddress
+    }));
+  }, [formValues.warehouseId, warehouses]);
 
   const updateFormValue = (key, value) => {
     setFormError('');
@@ -247,7 +267,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
         itemName: option.itemName,
         size: option.size,
         color: option.color,
-        sku: option.sku,
+        sku: option.sku || '',
         qty: 1,
         rate: option.rate || 0,
         discountPercent: 0,
@@ -320,6 +340,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
       deliveryAddress: formValues.deliveryAddress,
       paymentTerms: formValues.paymentTerms,
       notes: formValues.notes,
+      warehouseId: formValues.warehouseId,
       status: status || 'DRAFT',
       items: lines.map((line) => ({
         itemId: line.itemId,
@@ -328,7 +349,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
         itemName: line.itemName,
         size: line.size,
         color: line.color,
-        sku: line.sku,
+        sku: line.sku || '',
         qty: Number(line.qty || 0),
         price: Number(line.rate || 0),
         discountPercent: Number(line.discountPercent || 0),
@@ -498,6 +519,22 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
             <TextField
               fullWidth
               size="small"
+              select
+              label="Receiving Warehouse"
+              value={formValues.warehouseId}
+              onChange={(event) => updateFormValue('warehouseId', event.target.value)}
+              disabled={isLocked}
+            >
+              <MenuItem value="">Select Warehouse</MenuItem>
+              {warehouses.map((w) => (
+                <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth
+              size="small"
               label="Billing Address"
               value={formValues.billingAddress}
               onChange={(event) => updateFormValue('billingAddress', event.target.value)}
@@ -570,6 +607,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
                 <TableCell sx={{ fontWeight: 700 }}>Item Name</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Size</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Color</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">Qty</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">Rate</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">Discount %</TableCell>
@@ -586,6 +624,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
                   <TableCell>{line.itemName}</TableCell>
                   <TableCell>{line.size || '--'}</TableCell>
                   <TableCell>{line.color || '--'}</TableCell>
+                  <TableCell>{line.sku || '--'}</TableCell>
                   <TableCell align="right">
                     {isLocked ? (
                       line.qty

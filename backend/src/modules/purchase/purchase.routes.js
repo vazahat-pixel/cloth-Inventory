@@ -16,8 +16,9 @@ router.route('/')
 
 router.route('/:id')
     .get(purchaseController.getPurchaseById)
-    .patch(purchaseController.cancelPurchase); 
+    .patch(purchaseController.updatePurchase); 
 
-router.post('/:id/approve-grn', purchaseController.approveGRN);
+router.patch('/:id/cancel', purchaseController.cancelPurchase);
+router.post('/:id/post', purchaseController.postVoucher);
 
 module.exports = router;

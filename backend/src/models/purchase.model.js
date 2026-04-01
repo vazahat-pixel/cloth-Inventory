@@ -15,8 +15,14 @@ const purchaseSchema = new mongoose.Schema(
         },
         storeId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'Store',
-            required: false // Optional for backward compatibility with existing data
+            refPath: 'storeType',
+            required: false // Optional for backward compatibility
+        },
+        storeType: {
+            type: String,
+            required: true,
+            enum: ['Store', 'Warehouse'],
+            default: 'Warehouse'
         },
         invoiceNumber: {
             type: String,

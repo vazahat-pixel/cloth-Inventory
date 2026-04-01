@@ -15,18 +15,29 @@ export const fetchPurchases = createAsyncThunk('purchase/fetchAll', async (_, { 
 
 export const addPurchase = createAsyncThunk('purchase/add', async (purchaseData, { rejectWithValue }) => {
   try {
-    // Map fields for backend
     const payload = {
       supplierId: purchaseData.supplierId,
-      storeId: purchaseData.storeId || purchaseData.warehouseId,
-      invoiceNumber: purchaseData.invoiceNumber || purchaseData.billNumber,
+      // Support both warehouseId (new form) and storeId (legacy)
+      warehouseId: purchaseData.warehouseId || purchaseData.storeId,
+      storeId: purchaseData.warehouseId || purchaseData.storeId,
+      invoiceNumber: purchaseData.invoiceNumber || purchaseData.billNumber || '',
       invoiceDate: purchaseData.invoiceDate || purchaseData.billDate,
-      notes: purchaseData.notes || purchaseData.remarks,
-      products: (purchaseData.products || purchaseData.items || []).map(p => ({
-        productId: p.productId || p.id || p.variantId,
-        quantity: p.quantity,
-        rate: p.rate || p.price,
-        lotNumber: p.lotNumber || ''
+      notes: purchaseData.notes || purchaseData.remarks || '',
+      otherCharges: Number(purchaseData.otherCharges) || 0,
+      // Link to GRN for document traceability
+      grnId: purchaseData.grnId || undefined,
+      // Send all item fields — backend needs itemId + variantId (NOT p.id which is a React key)
+      items: (purchaseData.items || purchaseData.products || []).map(p => ({
+        itemId: p.itemId,
+        variantId: p.variantId,
+        sku: p.sku || '',
+        size: p.size || '',
+        color: p.color || '',
+        quantity: Number(p.quantity) || 0,
+        rate: Number(p.rate || p.price) || 0,
+        discount: Number(p.discount ?? p.discountPercentage) || 0,
+        tax: Number(p.tax ?? p.taxPercentage) || 0,
+        lotNumber: p.lotNumber || p.batchNumber || '',
       }))
     };
 
@@ -40,18 +51,26 @@ export const addPurchase = createAsyncThunk('purchase/add', async (purchaseData,
 
 export const updatePurchase = createAsyncThunk('purchase/update', async ({ id, purchaseData }, { rejectWithValue }) => {
   try {
-    // Map fields for backend consistency (same as addPurchase)
     const payload = {
       supplierId: purchaseData.supplierId,
-      storeId: purchaseData.storeId || purchaseData.warehouseId,
-      invoiceNumber: purchaseData.invoiceNumber || purchaseData.billNumber,
+      warehouseId: purchaseData.warehouseId || purchaseData.storeId,
+      storeId: purchaseData.warehouseId || purchaseData.storeId,
+      invoiceNumber: purchaseData.invoiceNumber || purchaseData.billNumber || '',
       invoiceDate: purchaseData.invoiceDate || purchaseData.billDate,
-      notes: purchaseData.notes || purchaseData.remarks,
-      products: (purchaseData.products || purchaseData.items || []).map(p => ({
-        productId: p.productId || p.id || p.variantId,
-        quantity: p.quantity,
-        rate: p.rate || p.price,
-        lotNumber: p.lotNumber || ''
+      notes: purchaseData.notes || purchaseData.remarks || '',
+      otherCharges: Number(purchaseData.otherCharges) || 0,
+      grnId: purchaseData.grnId || undefined,
+      items: (purchaseData.items || purchaseData.products || []).map(p => ({
+        itemId: p.itemId,
+        variantId: p.variantId,
+        sku: p.sku || '',
+        size: p.size || '',
+        color: p.color || '',
+        quantity: Number(p.quantity) || 0,
+        rate: Number(p.rate || p.price) || 0,
+        discount: Number(p.discount ?? p.discountPercentage) || 0,
+        tax: Number(p.tax ?? p.taxPercentage) || 0,
+        lotNumber: p.lotNumber || p.batchNumber || '',
       }))
     };
     const response = await api.patch(`/purchase/${id}`, payload);
@@ -127,6 +146,16 @@ export const generatePOFromVoucher = createAsyncThunk('purchase/generatePOFromVo
   }
 });
 
+export const postPurchase = createAsyncThunk('purchase/post', async (id, { rejectWithValue }) => {
+  try {
+    const response = await api.post(`/purchase/${id}/post`);
+    const raw = response.data.purchase || response.data.data;
+    return normalizeResponse(raw, 'purchase');
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || 'Failed to post voucher');
+  }
+});
+
 export const fetchPurchaseReturns = createAsyncThunk('purchase/fetchReturns', async (_, { rejectWithValue }) => {
   try {
     const response = await api.get('/returns?type=STORE_TO_FACTORY');
@@ -199,6 +228,11 @@ const purchaseSlice = createSlice({
         if (index !== -1) {
           state.records[index] = action.payload;
         }
+      })
+      // Post Purchase
+      .addCase(postPurchase.fulfilled, (state, action) => {
+        const index = state.records.findIndex((r) => r.id === action.payload.id || r._id === action.payload._id);
+        if (index !== -1) { state.records[index] = action.payload; }
       })
       // Purchase Orders
       .addCase(fetchPurchaseOrders.pending, (state) => {

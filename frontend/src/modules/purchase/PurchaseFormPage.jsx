@@ -1,14 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import {
-  Alert,
-  Autocomplete,
   Box,
   Button,
+  Chip,
   Grid,
   IconButton,
   MenuItem,
@@ -22,10 +21,9 @@ import {
   TableRow,
   TextField,
   Typography,
+  Autocomplete,
 } from '@mui/material';
-import Chip from '@mui/material/Chip';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 
@@ -48,12 +46,10 @@ const calculateTotals = (lines, otherCharges) => {
     const r = toNumber(l.rate);
     const dPct = toNumber(l.discount);
     const tPct = toNumber(l.tax);
-
     const gross = q * r;
     const dVal = (gross * dPct) / 100;
     const taxable = gross - dVal;
     const tVal = (taxable * tPct) / 100;
-
     acc.totalQuantity += q;
     acc.grossAmount += gross;
     acc.totalDiscount += dVal;
@@ -73,18 +69,24 @@ function PurchaseFormPage() {
   const navigate = useAppNavigate();
   const basePath = useRoleBasePath();
 
-  const purchases = useSelector((state) => state.purchase.records || []);
-  const grns = useSelector((state) => state.grn.records || []);
-  const suppliers = useSelector((state) => state.masters.suppliers || []);
-  const warehouses = useSelector((state) => state.masters.warehouses || []);
-  const stores = useSelector((state) => state.masters.stores || []);
-  const items = useSelector((state) => state.items.records || []);
+  const purchases = useSelector((s) => s.purchase.records || []);
+  const grns = useSelector((s) => s.grn.records || []);
+  const suppliers = useSelector((s) => s.masters.suppliers || []);
+  const warehouses = useSelector((s) => s.masters.warehouses || []);
+  const stores = useSelector((s) => s.masters.stores || []);
+  const items = useSelector((s) => s.items.records || []);
 
-  const availableLocations = useMemo(() => [...warehouses, ...stores], [warehouses, stores]);
+  const availableLocations = useMemo(() => {
+    // Return only warehouses as per user requirement (Procurement to Warehouse ONLY)
+    return warehouses.map(w => ({ ...w, _id: w._id || w.id, name: w.name }));
+  }, [warehouses]);
 
-  const existingPurchase = useMemo(() => isEditMode ? purchases.find(p => (p.id || p._id) === id) : null, [id, isEditMode, purchases]);
+  const existingPurchase = useMemo(() =>
+    isEditMode ? purchases.find(p => (p.id || p._id) === id) : null,
+    [id, isEditMode, purchases]
+  );
 
-  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm({
+  const { control, register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm({
     defaultValues: {
       supplierId: '',
       warehouseId: '',
@@ -96,6 +98,7 @@ function PurchaseFormPage() {
   });
 
   const [lines, setLines] = useState([]);
+  const [linkedGrnId, setLinkedGrnId] = useState(grnId || null); // track selected GRN for PV linking
   const otherChargesWatch = watch('otherCharges', 0);
   const totals = useMemo(() => calculateTotals(lines, otherChargesWatch), [lines, otherChargesWatch]);
 
@@ -108,184 +111,473 @@ function PurchaseFormPage() {
     dispatch(fetchGrns());
   }, [dispatch]);
 
-  // Handle URL grnId Redirect
+  // Handle URL ?grnId= redirect (from GRN list "Generate Bill" button)
   useEffect(() => {
-    if (grnId && !isEditMode) {
-      const grn = grns.find(g => (g._id || g.id) === grnId);
-      if (grn) {
-        populateFromGRN(grn);
-      } else {
-         dispatch(fetchGrnById(grnId)).unwrap().then(populateFromGRN);
-      }
+    if (!grnId || isEditMode) return;
+    const grn = grns.find(g => (g._id || g.id) === grnId);
+    if (grn) {
+      populateFromGRN(grn);
+    } else {
+      dispatch(fetchGrnById(grnId)).unwrap().then(populateFromGRN).catch(console.error);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [grnId, grns, isEditMode]);
 
+  // Load existing purchase for edit mode
+  useEffect(() => {
+    if (!isEditMode || !existingPurchase) return;
+    
+    const supplierId = String(existingPurchase.supplierId?._id || existingPurchase.supplierId || '');
+    const warehouseId = String(existingPurchase.storeId?._id || existingPurchase.storeId || '');
+    const grnIdFromRec = String(existingPurchase.grnId?._id || existingPurchase.grnId || '');
+
+    reset({
+      supplierId,
+      warehouseId,
+      invoiceNumber: existingPurchase.invoiceNumber || '',
+      invoiceDate: (existingPurchase.invoiceDate || '').slice(0, 10),
+      otherCharges: existingPurchase.otherCharges || 0,
+      notes: existingPurchase.notes || ''
+    });
+
+    if (grnIdFromRec) {
+      setLinkedGrnId(grnIdFromRec);
+    }
+
+    const linesFromDb = (existingPurchase.products || []).map(i => ({
+      id: i._id || Math.random().toString(36).substring(2, 9),
+      itemId: String(i.itemId?._id || i.itemId || ''),
+      itemName: i.itemName || i.itemId?.itemName || 'Item',
+      variantId: i.variantId,
+      sku: i.sku || '',
+      size: i.size || '-',
+      color: i.color || '-',
+      quantity: i.quantity || 0,
+      rate: i.rate || 0,
+      discount: i.discountPercentage || 0,
+      tax: i.taxPercentage || 0,
+      total: i.total || 0,
+      lotNumber: i.batchNo || i.lotNumber || ''
+    }));
+    setLines(linesFromDb);
+  }, [isEditMode, existingPurchase, reset, availableLocations.length]);
+
+  // Sync effect: Ensure dropdowns are set once masters are loaded
   useEffect(() => {
     if (isEditMode && existingPurchase) {
-      reset({
-        supplierId: existingPurchase.supplierId?._id || existingPurchase.supplierId,
-        warehouseId: existingPurchase.warehouseId?._id || existingPurchase.warehouseId || existingPurchase.storeId,
-        invoiceNumber: existingPurchase.invoiceNumber || '',
-        invoiceDate: (existingPurchase.invoiceDate || '').slice(0, 10),
-        otherCharges: existingPurchase.totals?.otherCharges || 0,
-        notes: existingPurchase.remarks || ''
-      });
-      setLines((existingPurchase.items || []).map(i => ({
-        id: i._id || Math.random().toString(),
-        itemId: i.itemId?._id || i.itemId,
-        itemName: i.itemId?.name || i.itemName || 'Item',
-        variantId: i.variantId,
-        sku: i.sku || '',
-        size: i.size || '-',
-        color: i.color || '-',
-        quantity: i.quantity || 0,
-        rate: i.rate || 0,
-        discount: i.discount || 0,
-        tax: i.tax || 0,
-        lotNumber: i.batchNumber || ''
-      })));
+      const sId = String(existingPurchase.supplierId?._id || existingPurchase.supplierId || '');
+      const wId = String(existingPurchase.storeId?._id || existingPurchase.storeId || '');
+      
+      // If we have IDs and the respective master lists are not empty
+      if (sId && suppliers.length > 0) {
+        setValue('supplierId', sId, { shouldDirty: false });
+      }
+      if (wId && availableLocations.length > 0) {
+        setValue('warehouseId', wId, { shouldDirty: false });
+      }
+      if (existingPurchase.grnId && !linkedGrnId) {
+        setLinkedGrnId(String(existingPurchase.grnId?._id || existingPurchase.grnId || ''));
+      }
     }
-  }, [isEditMode, existingPurchase, reset]);
+  }, [isEditMode, existingPurchase, suppliers.length, availableLocations.length, setValue, linkedGrnId]);
 
   const populateFromGRN = (grn) => {
-    setValue('supplierId', grn.supplierId?._id || grn.supplierId || '', { shouldValidate: true });
-    setValue('warehouseId', grn.warehouseId?._id || grn.warehouseId || '', { shouldValidate: true });
-    setValue('notes', `Lined to GRN: ${grn.grnNumber}`);
-    
+    if (!grn) return;
+
+    // CRITICAL: Convert ObjectId to string for MUI Select value matching
+    const supplierId = String(grn.supplierId?._id || grn.supplierId || '');
+    const warehouseId = String(grn.warehouseId?._id || grn.warehouseId || '');
+
+    // Use setValue with shouldDirty + shouldTouch to force react-hook-form + Controller re-render
+    setValue('supplierId', supplierId, { shouldValidate: true, shouldDirty: true, shouldTouch: true });
+    setValue('warehouseId', warehouseId, { shouldValidate: true, shouldDirty: true, shouldTouch: true });
+    setValue('notes', `Billed against GRN: ${grn.grnNumber}`, { shouldDirty: true });
+
+    // Track linked GRN ID for PV creation (enables GRN-PV linking in backend)
+    setLinkedGrnId(String(grn._id || grn.id || ''));
+
+    // Auto-fill vendor invoice number from GRN (supplier's bill ref captured at receipt)
+    // This is correct ERP behavior: GRN invoice # flows into PV as vendor bill reference
+    if (grn.invoiceNumber) {
+      setValue('invoiceNumber', grn.invoiceNumber, { shouldValidate: true, shouldDirty: true });
+    }
+
     const mapped = (grn.items || []).map(item => {
-      const itm = item.itemId || {};
-      const vrnt = (itm.sizes || []).find(v => String(v._id || v.id) === String(item.variantId)) || {};
+      // item.itemId is populated from backend (has itemName, shade, gstTax, sizes)
+      const itemDoc = item.itemId || {};
+      const itemDocId = String(itemDoc._id || itemDoc.id || item.itemId || '');
+
+      // Also check local Redux items store as fallback
+      const localItem = items.find(i => String(i._id || i.id) === itemDocId);
+      const mergedItem = { ...localItem, ...itemDoc };
+
+      // Find variant in sizes array for size label
+      const variantDoc = (mergedItem.sizes || []).find(
+        v => String(v._id || v.id) === String(item.variantId)
+      ) || {};
+
+      // Tax priority: GRN item tax > item's gstTax from master > 0
+      const tax = toNumber(item.tax) || toNumber(mergedItem.gstTax) || 0;
+      // Discount priority: GRN item discount > 0
+      const discount = toNumber(item.discount) || 0;
+
       return {
         id: Math.random().toString(36).substr(2, 9),
-        itemId: itm._id || itm.id || item.itemId,
-        itemName: itm.name || itm.itemName || item.itemName || 'Item',
+        itemId: itemDocId,
+        itemName: mergedItem.itemName || item.itemName || 'Item',
         variantId: item.variantId,
-        sku: item.sku || vrnt.sku || '',
-        size: item.size || vrnt.size || '-',
-        color: item.color || vrnt.color || '-',
+        sku: item.sku || variantDoc.sku || '',
+        size: item.size || variantDoc.size || '-',
+        color: item.color || mergedItem.shade || '-',
         quantity: item.receivedQty || 0,
         rate: item.costPrice || 0,
-        discount: item.discount || 0,
-        tax: item.tax || 0,
+        discount,
+        tax,
         lotNumber: item.batchNumber || ''
       };
     });
     setLines(mapped);
   };
 
-  const updateLineField = (id, field, value) => {
-    setLines(prev => prev.map(l => l.id === id ? { ...l, [field]: value } : l));
+  const updateLineField = (lineId, field, value) => {
+    setLines(prev => prev.map(l => l.id === lineId ? { ...l, [field]: value } : l));
   };
 
   const onSubmit = async (data) => {
-    if (!lines.length) return alert('Add at least one item');
-    const payload = { ...data, items: lines.map(l => ({ ...l, batchNumber: l.lotNumber })), totals };
+    if (!lines.length) return alert('Add at least one item line.');
+    const payload = {
+      ...data,
+      // Explicitly send otherCharges at root level (backend reads it directly)
+      otherCharges: toNumber(data.otherCharges),
+      // Send items array (backend supports both 'items' and 'products' key)
+      items: lines.map(l => ({
+        ...l,
+        batchNumber: l.lotNumber,
+        // ensure numeric fields are numbers not strings
+        quantity: toNumber(l.quantity),
+        rate: toNumber(l.rate),
+        discount: toNumber(l.discount),
+        tax: toNumber(l.tax),
+      })),
+      // Link to GRN for traceability (GRN gets marked as INVOICED)
+      grnId: linkedGrnId || undefined,
+      totals
+    };
     try {
-      if (isEditMode) await dispatch(updatePurchase({ id, purchaseData: payload })).unwrap();
-      else await dispatch(addPurchase(payload)).unwrap();
-      navigate(basePath === '/ho' ? '/purchase/purchase-voucher' : '/purchase');
-    } catch (e) { alert(e); }
+      if (isEditMode) {
+        await dispatch(updatePurchase({ id, purchaseData: payload })).unwrap();
+      } else {
+        await dispatch(addPurchase(payload)).unwrap();
+      }
+      navigate('/purchase/purchase-voucher');
+    } catch (e) {
+      alert(typeof e === 'string' ? e : e?.message || 'Failed to save voucher.');
+    }
   };
 
+  // Approved GRNs not yet billed (INVOICED ones are excluded - already have a PV)
+  const approvedGrns = useMemo(() =>
+    grns.filter(g => {
+      const status = String(g.status).toUpperCase();
+      return status === 'APPROVED' && !g.purchaseId;
+    }),
+    [grns]
+  );
+
   return (
-    <Box sx={{ p: 4, bgcolor: '#f8fafc', minHeight: '100vh' }}>
-      <Stack direction="row" spacing={2} sx={{ justifyContent: 'space-between', mb: 3 }}>
+    <Box sx={{ p: { xs: 2, md: 4 }, bgcolor: '#f8fafc', minHeight: '100vh' }}>
+      {/* Page Header */}
+      <Stack direction="row" spacing={2} justifyContent="space-between" alignItems="flex-start" sx={{ mb: 3 }}>
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 800, color: '#0f172a' }}>{isEditMode ? 'Edit' : 'New'} Purchase Voucher</Typography>
-          <Typography variant="body2" sx={{ color: '#64748b' }}>Process supplier invoices and record inward stock details.</Typography>
+          <Typography variant="h4" sx={{ fontWeight: 800, color: '#0f172a' }}>
+            {isEditMode ? 'Edit' : 'New'} Purchase Voucher
+          </Typography>
+          <Typography variant="body2" sx={{ color: '#64748b' }}>
+            Process supplier invoices and record inward stock details.
+          </Typography>
         </Box>
         <Stack direction="row" spacing={1}>
           <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate(-1)}>Back</Button>
-          <Button variant="contained" startIcon={<SaveOutlinedIcon />} onClick={handleSubmit(onSubmit)}>{isEditMode ? 'Update' : 'Save'} Voucher</Button>
+          <Button variant="contained" startIcon={<SaveOutlinedIcon />} onClick={handleSubmit(onSubmit)}>
+            {isEditMode ? 'Update' : 'Save'} Voucher
+          </Button>
         </Stack>
       </Stack>
 
-      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3, p: 4, mb: 3 }}>
-        <Grid container spacing={4}>
-          <Grid item xs={12} md={9}>
-            <Grid container spacing={3}>
-              {/* Row 1: Primary Automation */}
-              <Grid item xs={12}>
-                <Autocomplete
-                  size="small"
-                  fullWidth
-                  options={grns.filter(g => String(g.status).toUpperCase() === 'APPROVED' && !g.purchaseId)}
-                  getOptionLabel={(o) => `${o.grnNumber} ${o.invoiceNumber ? `| Ref: ${o.invoiceNumber}` : ''} | ${o.supplierId?.name || o.supplierId?.supplierName || 'Unknown'}`}
-                  renderInput={(params) => <TextField {...params} label="Import Approved GRN (Auto-fill)" placeholder="Search GRN Number..." sx={{ '& .MuiInputBase-root': { bgcolor: '#f1f5f9' } }} />}
-                  onChange={(_, val) => val && populateFromGRN(val)}
-                  disabled={isEditMode}
-                />
-              </Grid>
+      {/* Form Header Card */}
+      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3, p: 3, mb: 3 }}>
 
-              {/* Row 2: Crucial Dropdowns - FIXED WIDTH */}
-              <Grid item xs={12} md={6}>
-                <TextField select fullWidth size="small" label="Supplier / Vendor" {...register('supplierId', { required: true })} error={Boolean(errors.supplierId)}>
-                  {suppliers.map(s => <MenuItem key={s._id || s.id} value={s._id || s.id}>{s.name || s.supplierName}</MenuItem>)}
-                </TextField>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField select fullWidth size="small" label="Warehouse / Location" {...register('warehouseId', { required: true })} error={Boolean(errors.warehouseId)}>
-                  {availableLocations.map(l => <MenuItem key={l.id} value={l.id}>{l.name}</MenuItem>)}
-                </TextField>
-              </Grid>
+        {/* Row 1: GRN Link — Full Width */}
+        <Box sx={{ mb: 2 }}>
+          <Autocomplete
+            size="small"
+            fullWidth
+            options={approvedGrns}
+            value={grns.find(g => String(g._id || g.id) === linkedGrnId) || null}
+            getOptionLabel={(o) =>
+              typeof o === 'string' ? o :
+              `${o.grnNumber || ''}${o.invoiceNumber ? ` · Bill: ${o.invoiceNumber}` : ''} — ${o.supplierId?.name || o.supplierId?.supplierName || 'Supplier'}`
+            }
+            renderOption={(props, option) => (
+              <Box component="li" {...props}>
+                <Box>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>{option.grnNumber}</Typography>
+                  <Typography variant="caption" sx={{ color: '#64748b' }}>
+                    {option.supplierId?.name || option.supplierId?.supplierName || '—'}
+                    {option.invoiceNumber ? ` · Bill# ${option.invoiceNumber}` : ''}
+                  </Typography>
+                </Box>
+              </Box>
+            )}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Link Approved GRN to Auto-fill"
+                placeholder="Search by GRN Number or Supplier..."
+                InputProps={{
+                  ...params.InputProps,
+                  startAdornment: (
+                    <>
+                      <Box component="span" sx={{ color: '#10b981', mr: 0.5, fontSize: '1rem' }}>🔗</Box>
+                      {params.InputProps.startAdornment}
+                    </>
+                  ),
+                }}
+                sx={{ '& .MuiInputBase-root': { bgcolor: '#f0fdf4' } }}
+              />
+            )}
+            onChange={(_, val) => val && populateFromGRN(val)}
+            disabled={isEditMode}
+            isOptionEqualToValue={(opt, val) => String(opt._id || opt.id) === String(val._id || val.id)}
+          />
+        </Box>
 
-              {/* Row 3: Tracking Info */}
-              <Grid item xs={12} md={4}>
-                <TextField fullWidth size="small" label="PV Number" value={existingPurchase?.purchaseNumber || 'PV-NEW'} disabled helperText="System generated ID" />
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <TextField fullWidth size="small" label="Vendor Bill / Invoice No." {...register('invoiceNumber', { required: true })} error={Boolean(errors.invoiceNumber)} placeholder="e.g. BILL-9921" />
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <TextField fullWidth size="small" type="date" label="Bill Date" InputLabelProps={{ shrink: true }} {...register('invoiceDate', { required: true })} />
-              </Grid>
-            </Grid>
+        {/* Row 2: Supplier & Warehouse — 2 equal columns */}
+        <Grid container spacing={2} sx={{ mb: 2 }}>
+          <Grid item xs={12} md={6}>
+            <Controller
+              name="supplierId"
+              control={control}
+              rules={{ required: 'Supplier is required' }}
+              render={({ field }) => (
+                <TextField
+                  select fullWidth size="small"
+                  label="Supplier / Vendor"
+                  value={field.value || ''}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  error={Boolean(errors.supplierId)}
+                  helperText={errors.supplierId?.message}
+                >
+                  <MenuItem value=""><em>— Select Supplier —</em></MenuItem>
+                  {suppliers.map(s => (
+                    <MenuItem key={s._id || s.id} value={String(s._id || s.id)}>
+                      {s.name || s.supplierName}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              )}
+            />
           </Grid>
-
-          {/* Amount Summary Box */}
-          <Grid item xs={12} md={3}>
-            <Box sx={{ p: 3, bgcolor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 3, textAlign: 'center', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <Typography variant="overline" sx={{ color: '#166534', fontWeight: 800, mb: 1 }}>Total Payable</Typography>
-              <Typography variant="h3" sx={{ color: '#166534', fontWeight: 900 }}>₹{totals.netAmount.toLocaleString()}</Typography>
-              <Typography variant="caption" sx={{ color: '#166534', mt: 1, opacity: 0.8 }}>Inclusive of Taxes & Discounts</Typography>
-            </Box>
+          <Grid item xs={12} md={6}>
+            <Controller
+              name="warehouseId"
+              control={control}
+              rules={{ required: 'Warehouse is required' }}
+              render={({ field }) => (
+                <TextField
+                  select fullWidth size="small"
+                  label="Receiving Warehouse / Store"
+                  value={field.value || ''}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  error={Boolean(errors.warehouseId)}
+                  helperText={errors.warehouseId?.message}
+                >
+                  <MenuItem value=""><em>— Select Location —</em></MenuItem>
+                  {availableLocations.map(loc => (
+                    <MenuItem key={loc._id || loc.id} value={String(loc._id || loc.id)}>
+                      {loc.name}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              )}
+            />
           </Grid>
         </Grid>
+
+        {/* Row 3: Document Reference — 3 equal columns */}
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth size="small"
+              label="System PV Number"
+              value={existingPurchase?.purchaseNumber || 'PV-NEW'}
+              disabled
+              helperText="Auto-generated on save"
+              sx={{ '& .MuiInputBase-root': { bgcolor: '#f8fafc' } }}
+            />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth size="small"
+              label="Vendor Bill / Invoice No."
+              {...register('invoiceNumber', { required: 'Invoice number required' })}
+              error={Boolean(errors.invoiceNumber)}
+              helperText={errors.invoiceNumber?.message || 'From supplier physical bill'}
+              placeholder="e.g. INV/2024/0091"
+            />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth size="small"
+              type="date"
+              label="Bill Date"
+              InputLabelProps={{ shrink: true }}
+              {...register('invoiceDate', { required: true })}
+            />
+          </Grid>
+        </Grid>
+
+        {/* Financial Summary Strip */}
+        <Box sx={{
+          display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center',
+          p: 2, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0'
+        }}>
+          <Box sx={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
+            <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, display: 'block' }}>
+              Subtotal
+            </Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1e293b' }}>
+              ₹{totals.grossAmount.toLocaleString('en-IN')}
+            </Typography>
+          </Box>
+          <Box sx={{ color: '#cbd5e1', fontSize: 20 }}>—</Box>
+          <Box sx={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
+            <Typography variant="caption" sx={{ color: '#dc2626', fontWeight: 600, display: 'block' }}>
+              Discount
+            </Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#dc2626' }}>
+              ₹{totals.totalDiscount.toFixed(2)}
+            </Typography>
+          </Box>
+          <Box sx={{ color: '#cbd5e1', fontSize: 20 }}>+</Box>
+          <Box sx={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
+            <Typography variant="caption" sx={{ color: '#2563eb', fontWeight: 600, display: 'block' }}>
+              GST / Tax
+            </Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#2563eb' }}>
+              ₹{totals.totalTax.toFixed(2)}
+            </Typography>
+          </Box>
+          <Box sx={{ color: '#cbd5e1', fontSize: 20 }}>+</Box>
+          <Box sx={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
+            <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, display: 'block' }}>
+              Other Charges
+            </Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#64748b' }}>
+              ₹{toNumber(otherChargesWatch).toFixed(2)}
+            </Typography>
+          </Box>
+          <Box sx={{ color: '#cbd5e1', fontSize: 20 }}>=</Box>
+          <Box sx={{
+            flex: 2, minWidth: 160, textAlign: 'center',
+            p: 1.5, bgcolor: '#166534', borderRadius: 2
+          }}>
+            <Typography variant="caption" sx={{ color: '#bbf7d0', fontWeight: 700, display: 'block' }}>
+              TOTAL PAYABLE
+            </Typography>
+            <Typography variant="h5" sx={{ fontWeight: 900, color: '#fff' }}>
+              ₹{totals.netAmount.toLocaleString('en-IN')}
+            </Typography>
+          </Box>
+        </Box>
+
       </Paper>
 
-      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3, overflow: 'hidden' }}>
-        <Box sx={{ p: 2.5, bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1e293b' }}>Itemized Entries</Typography>
+      {/* Item Lines Table */}
+      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3, overflow: 'hidden', mb: 3 }}>
+        <Box sx={{ p: 2, bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1e293b' }}>
+            Itemized Entries
+          </Typography>
         </Box>
         <TableContainer>
           <Table size="small">
             <TableHead>
               <TableRow sx={{ bgcolor: '#f1f5f9' }}>
-                <TableCell sx={{ fontWeight: 700 }}>Item Name</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Variant</TableCell>
+                <TableCell sx={{ fontWeight: 700, minWidth: 160 }}>Item Name</TableCell>
+                <TableCell sx={{ fontWeight: 700, minWidth: 120 }}>Variant</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">Qty</TableCell>
-                <TableCell sx={{ fontWeight: 700 }} align="right">Rate</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Rate (₹)</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">Disc %</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">GST %</TableCell>
-                <TableCell sx={{ fontWeight: 700 }} align="right">Amount</TableCell>
-                <TableCell align="center">Action</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Amount (₹)</TableCell>
+                <TableCell align="center">Del</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {lines.map((line) => {
-                const amount = (line.quantity * line.rate * (1 - line.discount/100) * (1 + line.tax/100)).toFixed(2);
+                const gross = line.quantity * line.rate;
+                const discAmt = (gross * line.discount) / 100;
+                const taxAmt = ((gross - discAmt) * line.tax) / 100;
+                const amount = (gross - discAmt + taxAmt).toFixed(2);
                 return (
-                  <TableRow key={line.id}>
+                  <TableRow key={line.id} hover>
                     <TableCell sx={{ fontWeight: 600 }}>{line.itemName}</TableCell>
-                    <TableCell><Chip size="small" label={`${line.size} / ${line.color}`} variant="outlined" /></TableCell>
-                    <TableCell sx={{ color: '#64748b', fontSize: '0.8rem' }}>{line.sku}</TableCell>
-                    <TableCell align="right"><TextField size="small" type="number" sx={{ width: 80 }} value={line.quantity} onChange={(e) => updateLineField(line.id, 'quantity', toNumber(e.target.value))} /></TableCell>
-                    <TableCell align="right"><TextField size="small" type="number" sx={{ width: 100 }} value={line.rate} onChange={(e) => updateLineField(line.id, 'rate', toNumber(e.target.value))} /></TableCell>
-                    <TableCell align="right"><TextField size="small" type="number" sx={{ width: 70 }} value={line.discount} onChange={(e) => updateLineField(line.id, 'discount', toNumber(e.target.value))} /></TableCell>
-                    <TableCell align="right"><TextField size="small" type="number" sx={{ width: 70 }} value={line.tax} onChange={(e) => updateLineField(line.id, 'tax', toNumber(e.target.value))} /></TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 700 }}>₹{amount}</TableCell>
-                    <TableCell align="center"><IconButton color="error" size="small" onClick={() => setLines(prev => prev.filter(l => l.id !== line.id))}><DeleteOutlineIcon fontSize="small" /></IconButton></TableCell>
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        label={`${line.size} / ${line.color}`}
+                        variant="outlined"
+                        sx={{ fontSize: '0.75rem' }}
+                      />
+                    </TableCell>
+                    <TableCell sx={{ color: '#64748b', fontSize: '0.78rem' }}>{line.sku}</TableCell>
+                    <TableCell align="right">
+                      <TextField
+                        size="small" type="number" sx={{ width: 80 }}
+                        value={line.quantity}
+                        onChange={(e) => updateLineField(line.id, 'quantity', toNumber(e.target.value))}
+                        inputProps={{ min: 0 }}
+                      />
+                    </TableCell>
+                    <TableCell align="right">
+                      <TextField
+                        size="small" type="number" sx={{ width: 100 }}
+                        value={line.rate}
+                        onChange={(e) => updateLineField(line.id, 'rate', toNumber(e.target.value))}
+                        inputProps={{ min: 0 }}
+                      />
+                    </TableCell>
+                    <TableCell align="right">
+                      <TextField
+                        size="small" type="number" sx={{ width: 70 }}
+                        value={line.discount}
+                        onChange={(e) => updateLineField(line.id, 'discount', toNumber(e.target.value))}
+                        inputProps={{ min: 0, max: 100 }}
+                      />
+                    </TableCell>
+                    <TableCell align="right">
+                      <TextField
+                        size="small" type="number" sx={{ width: 70 }}
+                        value={line.tax}
+                        onChange={(e) => updateLineField(line.id, 'tax', toNumber(e.target.value))}
+                        inputProps={{ min: 0, max: 100 }}
+                      />
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700 }}>
+                      {Number(amount).toLocaleString('en-IN')}
+                    </TableCell>
+                    <TableCell align="center">
+                      <IconButton
+                        color="error" size="small"
+                        onClick={() => setLines(prev => prev.filter(l => l.id !== line.id))}
+                      >
+                        <DeleteOutlineIcon fontSize="small" />
+                      </IconButton>
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -293,15 +585,30 @@ function PurchaseFormPage() {
           </Table>
         </TableContainer>
         {!lines.length && (
-          <Box sx={{ p: 6, textAlign: 'center' }}>
-            <Typography variant="body2" sx={{ color: '#64748b' }}>No variants imported. Use the dropdown above to auto-fill from a GRN.</Typography>
+          <Box sx={{ py: 6, textAlign: 'center' }}>
+            <Typography variant="body2" sx={{ color: '#94a3b8' }}>
+              No items yet. Select an Approved GRN above to auto-fill.
+            </Typography>
           </Box>
         )}
       </Paper>
 
-      <Stack direction="row" spacing={2} sx={{ mt: 3, justifyContent: 'flex-end', alignItems: 'center' }}>
-        <TextField size="small" type="number" label="Freight / Other Charges" {...register('otherCharges')} sx={{ width: 220 }} />
-        <Button variant="contained" size="large" startIcon={<SaveOutlinedIcon />} sx={{ px: 4 }} onClick={handleSubmit(onSubmit)}>Post Voucher</Button>
+      {/* Footer Actions */}
+      <Stack direction="row" spacing={2} justifyContent="flex-end" alignItems="center">
+        <TextField
+          size="small" type="number"
+          label="Freight / Other Charges"
+          sx={{ width: 220 }}
+          {...register('otherCharges')}
+        />
+        <Button
+          variant="contained" size="large"
+          startIcon={<SaveOutlinedIcon />}
+          sx={{ px: 5 }}
+          onClick={handleSubmit(onSubmit)}
+        >
+          Post Voucher
+        </Button>
       </Stack>
     </Box>
   );

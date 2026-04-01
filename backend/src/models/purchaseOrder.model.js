@@ -12,6 +12,11 @@ const purchaseOrderSchema = new mongoose.Schema({
         ref: 'Supplier',
         required: true
     },
+    warehouseId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Warehouse',
+        required: false // Optional for backward compatibility, but recommended for flow
+    },
     poDate: { type: Date, default: Date.now },
     expectedDeliveryDate: { type: Date },
     billingAddress: { type: String },

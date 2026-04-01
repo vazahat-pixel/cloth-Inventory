@@ -13,11 +13,15 @@ const systemLogSchema = new mongoose.Schema({
       'Setup',
       'Item',
       'Purchase',
+      'PURCHASE',
       'GRN',
       'Barcode',
       'Inventory',
+      'INVENTORY',
       'Transfer',
+      'TRANSFER',
       'Sales',
+      'SALE',
       'Accounting',
       'Groups',
       'Import',
@@ -27,7 +31,8 @@ const systemLogSchema = new mongoose.Schema({
       'Suppliers',
       'Production',
       'Reports',
-      'Auth'
+      'Auth',
+      'AUTH'
     ]
   },
   userId: {
