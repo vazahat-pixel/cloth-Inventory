@@ -30,6 +30,7 @@ const registerRoutes = (app) => {
     // Both roles (Filtered by controller internal logic)
     app.use('/api/items', itemRoutes);      
     app.use('/api/inventory', inventoryRoutes); 
+    app.use('/api/store-inventory', protect, require('./modules/storeInventory/storeInventory.routes'));
     app.use('/api/sales', require('./modules/sales/sales.routes'));
 
     // Existing ERP Modules (Role validation inside routers)
@@ -58,6 +59,7 @@ const registerRoutes = (app) => {
     app.use('/api/returns', require('./modules/returns/return.routes'));
     app.use('/api/dispatch', require('./modules/dispatch/dispatch.routes'));
     app.use('/api/barcodes', require('./modules/barcodes/barcodes.routes'));
+    app.use('/api/dashboard', require('./modules/dashboard/dashboard.routes'));
 };
 
 module.exports = registerRoutes;

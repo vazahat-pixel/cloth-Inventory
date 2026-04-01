@@ -128,6 +128,8 @@ export const purchaseOrderSeed = [
     items: [
       {
         id: 'po-line-1',
+        itemId: itemsData[0]?.id || '65f1a2c3b4d5e6f7a8b9c201',
+        variantId: itemsData[0]?.variants?.[0]?.id || 'var-1',
         itemCode: 'STY-CTN-TEE',
         itemName: 'Essential Cotton Tee',
         size: 'M',

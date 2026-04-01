@@ -35,6 +35,7 @@ import { fetchMasters } from '../masters/mastersSlice';
 import { stockOverviewSeed } from '../erp/erpUiMocks';
 import { loadModuleRecords, upsertModuleRecord } from '../erp/erpLocalStore';
 import { fallbackStockTransfers, normalizeStockTransfer, stockTransferStorageKey } from './stockTransferUi';
+import api from '../../services/api';
 
 const defaultForm = {
   transferNumber: '',
@@ -48,15 +49,23 @@ const defaultForm = {
 };
 
 const normalizeStockRows = (rows = []) =>
-  rows.map((row, index) => ({
-    id: row.id || `stock-row-${index + 1}`,
-    itemCode: row.itemCode || row.styleCode || row.sku || '',
-    itemName: row.itemName || row.name || '',
-    size: row.size || '',
-    availableQty: Number(row.availableStock != null ? row.availableStock : row.quantity || 0),
-    warehouse: row.warehouse || row.warehouseName || row.storeName || '',
-    uom: row.uom || 'PCS',
-  }));
+  rows.map((row, index) => {
+    // Handle populated backend data vs flat mock data
+    const product = row.productId || {};
+    const warehouseObj = row.warehouseId || row.storeId || {};
+    
+    return {
+      id: row._id || row.id || `stock-row-${index + 1}`,
+      itemCode: product.sku || row.itemCode || row.styleCode || '',
+      itemName: product.name || row.itemName || row.name || '',
+      size: product.size || row.size || '',
+      availableQty: Number(row.quantityAvailable != null ? row.quantityAvailable : row.availableStock != null ? row.availableStock : row.quantity || 0),
+      locationId: warehouseObj._id || row.warehouseId || row.storeId || row.locationId || row.warehouse || '', // ID for mapping
+      locationName: warehouseObj.name || row.warehouse || row.warehouseName || row.storeName || '',
+      uom: row.uom || 'PCS',
+      productId: product._id || row.productId || row.id,
+    };
+  });
 
 function StockTransferFormPage({ mode = 'edit' }) {
   const dispatch = useDispatch();
@@ -100,8 +109,8 @@ function StockTransferFormPage({ mode = 'edit' }) {
       setFormValues({
         transferNumber: existingTransfer.transferNumber,
         transferDate: existingTransfer.transferDate,
-        fromLocation: existingTransfer.fromLocation,
-        toLocation: existingTransfer.toLocation,
+        fromLocation: existingTransfer.fromLocationId || existingTransfer.fromLocation,
+        toLocation: existingTransfer.toLocationId || existingTransfer.toLocation,
         notes: existingTransfer.notes || '',
         vehicleDetails: existingTransfer.vehicleDetails || '',
         transferType: existingTransfer.transferType || 'HO_TO_STORE',
@@ -117,17 +126,31 @@ function StockTransferFormPage({ mode = 'edit' }) {
     setLines([]);
   }, [existingTransfer, isEditMode]);
 
-  const locationOptions = useMemo(
-    () =>
-      [
-        ...warehouses.map((warehouse) => warehouse.warehouseName || warehouse.name),
-        ...stores.map((store) => store.name),
-      ].filter(Boolean),
-    [stores, warehouses],
-  );
+  const fromLocationOptions = useMemo(() => {
+    if (formValues.transferType === 'HO_TO_STORE' || formValues.transferType === 'WAREHOUSE_TO_STORE') {
+      return warehouses.map((w) => ({ id: w._id || w.id, name: w.warehouseName || w.name }));
+    }
+    if (formValues.transferType === 'INTER_STORE') {
+      return stores.map((s) => ({ id: s._id || s.id, name: s.name }));
+    }
+    return [
+      ...warehouses.map((w) => ({ id: w._id || w.id, name: w.warehouseName || w.name })),
+      ...stores.map((s) => ({ id: s._id || s.id, name: s.name })),
+    ].filter(l => l.id && l.name);
+  }, [formValues.transferType, stores, warehouses]);
+
+  const toLocationOptions = useMemo(() => {
+    if (formValues.transferType === 'HO_TO_STORE' || formValues.transferType === 'WAREHOUSE_TO_STORE' || formValues.transferType === 'INTER_STORE') {
+      return stores.map((s) => ({ id: s._id || s.id, name: s.name }));
+    }
+    return [
+      ...warehouses.map((w) => ({ id: w._id || w.id, name: w.warehouseName || w.name })),
+      ...stores.map((s) => ({ id: s._id || s.id, name: s.name })),
+    ].filter(l => l.id && l.name);
+  }, [formValues.transferType, stores, warehouses]);
 
   const stockRows = useMemo(
-    () => normalizeStockRows([...stockOverviewSeed, ...backendStock]),
+    () => normalizeStockRows([...(Array.isArray(backendStock) ? backendStock : [])]),
     [backendStock],
   );
 
@@ -138,7 +161,7 @@ function StockTransferFormPage({ mode = 'edit' }) {
     const selectedIds = new Set(lines.map((line) => line.id));
     return stockRows.filter(
       (row) =>
-        row.warehouse === formValues.fromLocation &&
+        String(row.locationId) === String(formValues.fromLocation) &&
         Number(row.availableQty || 0) > 0 &&
         !selectedIds.has(`line-${row.itemCode}-${row.size}`),
     );
@@ -155,6 +178,7 @@ function StockTransferFormPage({ mode = 'edit' }) {
       ...previous,
       {
         id: `line-${row.itemCode}-${row.size}`,
+        productId: row.productId,
         itemCode: row.itemCode,
         itemName: row.itemName,
         size: row.size,
@@ -186,30 +210,63 @@ function StockTransferFormPage({ mode = 'edit' }) {
       return;
     }
 
-    upsertModuleRecord(
-      stockTransferStorageKey,
-      normalizeStockTransfer({
-        id: existingTransfer?.id || `transfer-${Date.now()}`,
-        transferNumber: formValues.transferNumber,
-        transferDate: formValues.transferDate,
-        fromLocation: formValues.fromLocation,
-        toLocation: formValues.toLocation,
-        notes: formValues.notes,
-        vehicleDetails: formValues.vehicleDetails,
-        transferType: formValues.transferType,
-        status,
-        createdBy: existingTransfer?.createdBy || 'Warehouse Admin',
-        createdAt: existingTransfer?.createdAt || new Date().toISOString(),
-        items: lines,
-      }),
-    );
+    const transferData = normalizeStockTransfer({
+      id: existingTransfer?.id || `transfer-${Date.now()}`,
+      transferNumber: formValues.transferNumber,
+      transferDate: formValues.transferDate,
+      fromLocation: formValues.fromLocation,
+      toLocation: formValues.toLocation,
+      notes: formValues.notes,
+      vehicleDetails: formValues.vehicleDetails,
+      transferType: formValues.transferType,
+      status,
+      createdBy: existingTransfer?.createdBy || 'Warehouse Admin',
+      createdAt: existingTransfer?.createdAt || new Date().toISOString(),
+      items: lines,
+    });
 
-    setFormValues((previous) => ({ ...previous, status }));
-    setErrorMessage('');
-    setSuccessMessage(status === 'Draft' ? 'Transfer saved as draft.' : 'Transfer submitted as in transit.');
-    if (status !== 'Draft') {
-      navigate('/inventory/transfer');
+    if (status === 'Draft') {
+      upsertModuleRecord(stockTransferStorageKey, transferData);
+      setFormValues((previous) => ({ ...previous, status }));
+      setSuccessMessage('Transfer saved as draft locally.');
+      return;
     }
+
+    // ACTUAL API CALL FOR DISPATCH
+    const executeTransfer = async () => {
+      try {
+        setErrorMessage('');
+        setSuccessMessage('Processing transfer...');
+        
+        const payload = {
+          sourceWarehouseId: formValues.fromLocation,
+          destinationStoreId: formValues.toLocation,
+          notes: formValues.notes,
+          vehicleDetails: formValues.vehicleDetails,
+          products: lines.map(line => ({
+            productId: line.productId,
+            quantity: Number(line.transferQty)
+          }))
+        };
+
+        const res = await api.post('/dispatch', payload);
+        
+        if (res.data?.success) {
+          setSuccessMessage(`Transfer successful! Dispatch No: ${res.data.dispatchNumber}`);
+          // Clear local draft if it exists
+          if (existingTransfer?.id) {
+            // (Optional logic to remove from local storage)
+          }
+          setTimeout(() => navigate('/inventory/transfer'), 2000);
+        }
+      } catch (err) {
+        console.error('Transfer failed:', err);
+        setErrorMessage(err.response?.data?.message || 'Failed to execute transfer. Please try again.');
+        setSuccessMessage('');
+      }
+    };
+
+    executeTransfer();
   };
 
   return (
@@ -260,9 +317,9 @@ function StockTransferFormPage({ mode = 'edit' }) {
           <Grid size={{ xs: 12, md: 3 }}>
             <TextField fullWidth size="small" select label="From Location" value={formValues.fromLocation} onChange={(event) => setFormValues((previous) => ({ ...previous, fromLocation: event.target.value }))} disabled={isViewMode}>
               <MenuItem value="">Select Source</MenuItem>
-              {locationOptions.map((location) => (
-                <MenuItem key={`from-${location}`} value={location}>
-                  {location}
+              {fromLocationOptions.map((location) => (
+                <MenuItem key={`from-${location.id}`} value={location.id}>
+                  {location.name}
                 </MenuItem>
               ))}
             </TextField>
@@ -270,9 +327,9 @@ function StockTransferFormPage({ mode = 'edit' }) {
           <Grid size={{ xs: 12, md: 3 }}>
             <TextField fullWidth size="small" select label="To Location" value={formValues.toLocation} onChange={(event) => setFormValues((previous) => ({ ...previous, toLocation: event.target.value }))} disabled={isViewMode}>
               <MenuItem value="">Select Destination</MenuItem>
-              {locationOptions.map((location) => (
-                <MenuItem key={`to-${location}`} value={location}>
-                  {location}
+              {toLocationOptions.map((location) => (
+                <MenuItem key={`to-${location.id}`} value={location.id}>
+                  {location.name}
                 </MenuItem>
               ))}
             </TextField>
@@ -281,7 +338,23 @@ function StockTransferFormPage({ mode = 'edit' }) {
             <TextField fullWidth size="small" label="Vehicle / Dispatch Details" value={formValues.vehicleDetails} onChange={(event) => setFormValues((previous) => ({ ...previous, vehicleDetails: event.target.value }))} disabled={isViewMode} />
           </Grid>
           <Grid size={{ xs: 12, md: 4 }}>
-            <TextField fullWidth size="small" select label="Transfer Type" value={formValues.transferType} onChange={(event) => setFormValues((previous) => ({ ...previous, transferType: event.target.value }))} disabled={isViewMode}>
+            <TextField
+              fullWidth
+              size="small"
+              select
+              label="Transfer Type"
+              value={formValues.transferType}
+              onChange={(event) => {
+                const newType = event.target.value;
+                setFormValues((previous) => ({
+                  ...previous,
+                  transferType: newType,
+                  fromLocation: '',
+                  toLocation: '',
+                }));
+              }}
+              disabled={isViewMode}
+            >
               <MenuItem value="HO_TO_STORE">HO to Store</MenuItem>
               <MenuItem value="WAREHOUSE_TO_STORE">Warehouse to Store</MenuItem>
               <MenuItem value="INTER_STORE">Inter Store</MenuItem>

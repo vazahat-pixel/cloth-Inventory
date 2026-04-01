@@ -8,10 +8,42 @@ export const fetchStockOverview = createAsyncThunk(
   async (params, { rejectWithValue }) => {
     try {
       const response = await api.get('/store-inventory', { params });
-      const raw = response.data.inventory || response.data.data || [];
+      // Backend returns { success: true, data: { inventory: [...] } }
+      const data = response.data.data || response.data;
+      const raw = data.inventory || data.data || (Array.isArray(data) ? data : []);
       return normalizeResponse(raw, 'inventory');
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch stock');
+    }
+  }
+);
+
+export const fetchDispatches = createAsyncThunk(
+  'inventory/fetchDispatches',
+  async (params, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/dispatch', { params });
+      // Backend returns { success: true, data: { dispatches: [...] } }
+      const data = response.data.data || response.data;
+      const raw = data.dispatches || data.data || (Array.isArray(data) ? data : []);
+      return raw;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch dispatches');
+    }
+  }
+);
+
+
+export const receiveStock = createAsyncThunk(
+  'inventory/receive',
+  async (id, { dispatch, rejectWithValue }) => {
+    try {
+      const response = await api.post(`/dispatch/${id}/receive`);
+      dispatch(fetchStockOverview());
+      dispatch(fetchDispatches());
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to receive stock');
     }
   }
 );
@@ -37,24 +69,15 @@ export const transferStock = createAsyncThunk(
         sourceWarehouseId: transferData.sourceWarehouseId,
         destinationStoreId: transferData.destinationStoreId,
         products: (transferData.products || transferData.items || []).map(p => ({
-          productId: p.productId || p.variantId || p.id,
-          qty: p.quantity || p.qty
+            productId: p.productId || p.variantId || p.id,
+            quantity: p.quantity || p.qty
         })),
         notes: transferData.notes
       };
 
-      // 1. Create Pending Dispatch
       const response = await api.post('/dispatch', payload);
-      const resData = response.data.dispatch || response.data.data;
-      const dispatchId = resData._id || resData.id;
-
-      // 2. Transition to DISPATCHED to trigger ATOMIC STOCK MOVEMENT
-      const statusResponse = await api.patch(`/dispatch/${dispatchId}/status`, { status: 'DISPATCHED' });
-      
-      // 3. Refresh local stock overview to reflect change
       dispatch(fetchStockOverview());
-
-      return statusResponse.data;
+      return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to transfer stock');
     }
@@ -92,12 +115,11 @@ export const applyStockAudit = createAsyncThunk(
   }
 );
 
-// Added to satisfy "Replace with: ... POST /api/sales, POST /api/returns"
+// Added for compatibility
 export const applySaleDispatch = createAsyncThunk(
   'inventory/sale',
   async (saleData, { rejectWithValue }) => {
     try {
-      // Backend: POST /api/sales
       const response = await api.post('/sales', saleData);
       return response.data;
     } catch (error) {
@@ -110,7 +132,6 @@ export const applySalesReturnReceipt = createAsyncThunk(
   'inventory/salesReturn',
   async (returnData, { rejectWithValue }) => {
     try {
-      // Backend: POST /api/returns
       const response = await api.post('/returns', returnData);
       return response.data;
     } catch (error) {
@@ -123,7 +144,6 @@ export const applyPurchaseReturn = createAsyncThunk(
   'inventory/purchaseReturn',
   async (returnData, { rejectWithValue }) => {
     try {
-      // Backend: POST /api/returns
       const response = await api.post('/returns', returnData);
       return response.data;
     } catch (error) {
@@ -135,6 +155,7 @@ export const applyPurchaseReturn = createAsyncThunk(
 const initialState = {
   warehouses: [],
   stock: [],
+  dispatches: [],
   movements: [],
   loading: false,
   error: null,
@@ -150,7 +171,7 @@ const inventorySlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // Fetch - Update state with fresh data
+      // Fetch Stock
       .addCase(fetchStockOverview.pending, (state) => {
         state.loading = true;
       })
@@ -162,25 +183,22 @@ const inventorySlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       })
+      // Fetch Dispatches
+      .addCase(fetchDispatches.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(fetchDispatches.fulfilled, (state, action) => {
+        state.loading = false;
+        state.dispatches = action.payload || [];
+      })
+      .addCase(fetchDispatches.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
       .addCase(fetchMovements.fulfilled, (state, action) => {
         state.movements = action.payload || [];
       })
-      // Mutations - NO LOCAL STATE MUTATION OF STOCK.
-      .addMatcher(
-        (action) =>
-          action.type.endsWith('/fulfilled') &&
-          [
-            'inventory/transfer',
-            'inventory/adjust',
-            'inventory/audit',
-            'inventory/sale',
-            'inventory/salesReturn',
-            'inventory/purchaseReturn',
-          ].some((prefix) => action.type.startsWith(prefix)),
-        (state) => {
-          state.loading = false;
-        }
-      )
+      // Global loading/error matchers
       .addMatcher(
         (action) =>
           action.type.endsWith('/pending') &&
@@ -188,13 +206,24 @@ const inventorySlice = createSlice({
             'inventory/transfer',
             'inventory/adjust',
             'inventory/audit',
-            'inventory/sale',
-            'inventory/salesReturn',
-            'inventory/purchaseReturn',
+            'inventory/receive',
           ].some((prefix) => action.type.startsWith(prefix)),
         (state) => {
           state.loading = true;
           state.error = null;
+        }
+      )
+      .addMatcher(
+        (action) =>
+          action.type.endsWith('/fulfilled') &&
+          [
+            'inventory/transfer',
+            'inventory/adjust',
+            'inventory/audit',
+            'inventory/receive',
+          ].some((prefix) => action.type.startsWith(prefix)),
+        (state) => {
+          state.loading = false;
         }
       )
       .addMatcher(
@@ -204,9 +233,7 @@ const inventorySlice = createSlice({
             'inventory/transfer',
             'inventory/adjust',
             'inventory/audit',
-            'inventory/sale',
-            'inventory/salesReturn',
-            'inventory/purchaseReturn',
+            'inventory/receive',
           ].some((prefix) => action.type.startsWith(prefix)),
         (state, action) => {
           state.loading = false;

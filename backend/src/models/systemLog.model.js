@@ -26,8 +26,9 @@ const systemLogSchema = new mongoose.Schema({
       'Warehouses',
       'Suppliers',
       'Production',
-      'Reports',
-      'Auth'
+      'REPORTS',
+      'AUTH',
+      'SALES'
     ]
   },
   userId: {

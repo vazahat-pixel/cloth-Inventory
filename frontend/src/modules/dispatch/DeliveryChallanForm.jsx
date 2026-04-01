@@ -124,12 +124,27 @@ function DeliveryChallanForm({
         }
     }, [activeLocations, sourceId, storeId]);
 
+    const totals = useMemo(() => {
+        const subTotal = lines.reduce((acc, l) => acc + (l.rate * l.quantity), 0);
+        // Estimate 12% GST for preview if in Invoice mode (Standard for most garments)
+        const isInvoice = dispatchMode?.type === 'INVOICE';
+        const taxRate = isInvoice ? 0.12 : 0;
+        const tax = subTotal * taxRate;
+        return {
+            subTotal,
+            tax,
+            grandTotal: subTotal + tax
+        };
+    }, [lines, dispatchMode]);
+
     const handleSave = () => {
         setError('');
         if (!sourceId) { setError("Please select a source warehouse"); return; }
         if (!storeId) { setError("Please select a destination store"); return; }
         if (sourceId === storeId) { setError("Source and destination cannot be same"); return; }
         if (!lines.length) { setError("Add at least one item to dispatch"); return; }
+
+        const isInvoice = dispatchMode?.type === 'INVOICE';
 
         const payload = {
             dispatchDate: date,
@@ -143,7 +158,13 @@ function DeliveryChallanForm({
                 rate: l.rate
             })),
             status: 'SHIPPED',
-            dispatchMode: dispatchMode?.type
+            dispatchMode: dispatchMode?.type,
+            // Additional fields for Internal Sale (Tax Invoice)
+            type: isInvoice ? 'INTERNAL_SALE' : 'STOCK_TRANSFER',
+            subTotal: totals.subTotal,
+            totalTax: totals.tax,
+            grandTotal: totals.grandTotal,
+            paymentMode: 'CREDIT'
         };
 
         dispatch(addChallan(payload))
@@ -187,10 +208,10 @@ function DeliveryChallanForm({
                                 setLines([]);
                             }}
                         >
-                            {activeLocations.map((s) => (
-                                <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+                            <MenuItem value="">Select Warehouse</MenuItem>
+                            {warehouses.filter(w => String(w.status || w.isActive).toLowerCase() !== 'false').map((s) => (
+                                <MenuItem key={s.id} value={s.id}>{s.name || s.warehouseName}</MenuItem>
                             ))}
-
                         </Select>
                     </FormControl>
                     <FormControl fullWidth size="small">
@@ -200,10 +221,10 @@ function DeliveryChallanForm({
                             label="Destination Store"
                             onChange={(e) => setStoreId(e.target.value)}
                         >
-                            {activeLocations.map((s) => (
-                                <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+                            <MenuItem value="">Select Store</MenuItem>
+                            {stores.filter(s => String(s.status || s.isActive).toLowerCase() !== 'false').map((s) => (
+                                <MenuItem key={s.id} value={s.id}>{s.name || s.storeName}</MenuItem>
                             ))}
-
                         </Select>
                     </FormControl>
                 </Stack>
@@ -299,6 +320,30 @@ function DeliveryChallanForm({
                         </TableBody>
                     </Table>
                 </TableContainer>
+
+                {(dispatchMode?.type === 'INVOICE' || lines.length > 0) && (
+                    <Box sx={{ alignSelf: 'flex-end', width: { xs: '100%', md: 300 }, textAlign: 'right' }}>
+                        <Stack spacing={1}>
+                            <Stack direction="row" justifyContent="space-between">
+                                <Typography color="text.secondary">Total Subtotal:</Typography>
+                                <Typography sx={{ fontWeight: 700 }}>₹{totals.subTotal.toLocaleString()}</Typography>
+                            </Stack>
+                            {dispatchMode?.type === 'INVOICE' && (
+                                <Stack direction="row" justifyContent="space-between">
+                                    <Typography color="text.secondary">Estimated Tax (12%):</Typography>
+                                    <Typography sx={{ fontWeight: 700, color: '#10b981' }}>₹{totals.tax.toLocaleString()}</Typography>
+                                </Stack>
+                            )}
+                            <Divider />
+                            <Stack direction="row" justifyContent="space-between">
+                                <Typography variant="h6" sx={{ fontWeight: 800 }}>Total Value:</Typography>
+                                <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a' }}>
+                                    ₹{totals.grandTotal.toLocaleString()}
+                                </Typography>
+                            </Stack>
+                        </Stack>
+                    </Box>
+                )}
             </Stack>
 
             <Stack direction="row" spacing={2} sx={{ mt: 4, justifyContent: 'flex-end' }}>

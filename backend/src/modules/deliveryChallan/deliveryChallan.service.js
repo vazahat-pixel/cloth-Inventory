@@ -31,37 +31,20 @@ const createChallan = async (challanData, userId, sessionOuter = null) => {
 
         await challan.save({ session });
 
-        // 1. REDUCE PHYSICAL STOCK FROM SOURCE AND ADD TO DESTINATION IF TRANSFER
+        // 1. DEDUCT PHYSICAL STOCK FROM SOURCE (Mark as Dispatched/In-Transit)
         const stockService = require('../../services/stock.service');
         for (const item of challanData.items) {
-            if (challan.type === 'STOCK_TRANSFER') {
-                await stockService.transferStock({
-                    variantId: item.productId,
-                    fromLocationId: challan.sourceId,
-                    fromLocationType: 'WAREHOUSE',
-                    toLocationId: challan.storeId,
-                    toLocationType: 'STORE',
-                    qty: item.quantity,
-                    type: 'TRANSFER',
-                    referenceId: challan._id,
-                    referenceType: 'DeliveryChallan',
-                    performedBy: userId,
-                    session
-                });
-            } else {
-                // Customer Dispatch
-                await stockService.removeStock({
-                    variantId: item.productId,
-                    locationId: challan.sourceId || challan.storeId,
-                    locationType: 'STORE',
-                    qty: item.quantity,
-                    type: StockMovementType.SALE,
-                    referenceId: challan._id,
-                    referenceType: 'DeliveryChallan',
-                    performedBy: userId,
-                    session
-                });
-            }
+            await stockService.removeStock({
+                variantId: item.productId,
+                locationId: challan.sourceId || challan.storeId,
+                locationType: challan.sourceId ? 'WAREHOUSE' : 'STORE',
+                qty: item.quantity,
+                type: 'TRANSFER',
+                referenceId: challan._id,
+                referenceType: 'DeliveryChallan',
+                performedBy: userId,
+                session
+            });
         }
         
         // Update workflow

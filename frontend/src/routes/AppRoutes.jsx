@@ -33,6 +33,7 @@ const PackingSlipPage = lazy(() => import('../modules/orders/PackingSlipPage'));
 const OrderProcessingPlaceholderPage = lazy(() => import('../modules/orders/OrderProcessingPlaceholderPage'));
 const DataImportPlaceholderPage = lazy(() => import('../modules/data/DataImportPlaceholderPage'));
 const PurchaseReturnPageStaff = lazy(() => import('../modules/store/PurchaseReturnPage'));
+const StoreReceiptPage = lazy(() => import('../modules/store/StoreReceiptPage'));
 
 // --- Modules (Lazy loaded by feature set to reduce network flood) ---
 
@@ -162,6 +163,7 @@ const ProfilePage = lazy(() => import('../modules/profile/ProfilePage'));
 const DataImportExportPage = lazy(() => import('../modules/data/DataImportExportPage'));
 const GRNListPage = lazy(() => import('../modules/grn/GRNListPage'));
 const GRNFormPage = lazy(() => import('../modules/grn/GRNFormPage'));
+const HoMasterDashboard = lazy(() => import('../modules/reports/HoMasterDashboard'));
 const LogicERPManager = lazy(() => import('../modules/erp/LogicERPManager'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
 
@@ -184,6 +186,7 @@ function AppRoutes() {
         <Route element={<RoleProtectedRoute allowedRoles={['admin', 'Admin']} />}>
           <Route path="/ho" element={<RoleDashboardLayout />}>
             <Route index element={<DashboardHome />} />
+            <Route path="master-dashboard" element={<HoMasterDashboard />} />
 
             <Route path="masters" element={<MastersLayout />}>
               <Route index element={<Navigate to="suppliers" replace />} />
@@ -376,11 +379,13 @@ function AppRoutes() {
           <Route path="/store" element={<RoleDashboardLayout />}>
             <Route index element={<DashboardHome />} />
             <Route path="inventory/stock-overview" element={<StockOverviewPage />} />
+            <Route path="inventory/receipt" element={<StoreReceiptPage />} />
             <Route path="inventory/audit-view" element={<StockAuditView />} />
             <Route path="sales/sale-bill" element={<SalesListPage pageTitle="Sale Bill" primaryActionPath="/sales/sale-bill/new" />} />
             <Route path="sales/sale-bill/new" element={<BillingPage listPath="/sales/sale-bill" />} />
             <Route path="sales/sales-return" element={<SalesListPage pageTitle="Sales Return" showPrimaryAction={false} />} />
             <Route path="sales/sales-return/:id" element={<SalesReturnPage listPath="/sales/sales-return" />} />
+            <Route path="reports/sales" element={<SalesReportPage />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route>
         </Route>

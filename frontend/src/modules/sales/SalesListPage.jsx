@@ -204,11 +204,9 @@ function SalesListPage({
                     <TableCell sx={{ fontWeight: 700 }}>Customer / Mobile</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Type</TableCell>
                     <TableCell sx={{ fontWeight: 700 }} align="right">
-                      Total Qty
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 700 }} align="right">
                       Net Amount
                     </TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Store</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Payment Status</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Actions</TableCell>
                   </TableRow>
@@ -219,6 +217,7 @@ function SalesListPage({
                     const customerName =
                       row.customerName || customer?.customerName || 'Walk-in Customer';
                     const customerMobile = row.customerMobile || customer?.mobileNumber || '-';
+                    const storeName = warehouseMap[row.storeId || row.warehouseId] || '...';
 
                     return (
                       <TableRow key={row.id} hover>
@@ -242,6 +241,11 @@ function SalesListPage({
                         </TableCell>
                         <TableCell align="right">{row.totals?.totalQuantity ?? '-'}</TableCell>
                         <TableCell align="right">{row.totals?.netPayable != null ? Number(row.totals.netPayable).toFixed(2) : '-'}</TableCell>
+                        <TableCell>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {storeName}
+                          </Typography>
+                        </TableCell>
                         <TableCell>
                           <PaymentStatusChip status={row.payment?.status || 'Pending'} />
                         </TableCell>

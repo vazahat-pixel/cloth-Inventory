@@ -155,6 +155,12 @@ const approveGRN = async (id, userId) => {
 
         await workflowService.updateStatus(grn._id, DocumentType.GRN, oldStatus, GrnStatus.APPROVED, userId, `Approved GRN ${grn.grnNumber} and posted stock to warehouse.`);
         
+        // 3. Update PO fulfillment status if linked
+        if (grn.purchaseOrderId) {
+            const poService = require('../purchaseOrder/purchaseOrder.service');
+            await poService.syncPoStatus(grn.purchaseOrderId, session);
+        }
+
         return grn;
     });
 };

@@ -93,7 +93,7 @@ function BarcodePrintingPage() {
     const fetchProducts = async () => {
       setLoading(true);
       try {
-        const res = await api.get('/item/all'); // Correct product route
+        const res = await api.get('/items'); // Correct Items route for ERP
         const apiProducts = res.data?.items || res.data?.products || [];
         
         if (apiProducts.length) {
@@ -104,8 +104,8 @@ function BarcodePrintingPage() {
                     flattened.push({
                         id: v._id || p._id,
                         name: p.itemName || p.name,
-                        sku: v.barcode || p.itemCode || p.sku,
-                        barcode: v.barcode || p.barcode || p.itemCode,
+                        sku: v.barcode || v.sku || p.itemCode || p.sku,
+                        barcode: v.barcode || v.sku || p.barcode || p.itemCode,
                         salePrice: v.salePrice || p.salePrice || 0,
                         size: v.size || 'N/A',
                         color: p.shade || p.color || 'N/A',

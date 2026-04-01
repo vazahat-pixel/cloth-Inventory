@@ -32,9 +32,15 @@ function SalesReportPage() {
   const itemGroups = useSelector((state) => state.masters?.itemGroups || []);
   const items = useSelector((state) => state.items?.records || []);
 
+  const user = useSelector((state) => state.auth.user);
+  const isStoreStaff = user?.role !== 'Admin' && user?.role !== 'admin';
+
   useEffect(() => {
     dispatch(fetchSales());
-  }, [dispatch]);
+    if (isStoreStaff && user?.shopId) {
+       setFilters(prev => ({ ...prev, warehouseId: user.shopId }));
+    }
+  }, [dispatch, isStoreStaff, user?.shopId]);
   const warehouseMap = useMemo(
     () => warehouses.reduce((acc, w) => ({ ...acc, [w.id]: w.name }), {}),
     [warehouses],

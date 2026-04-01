@@ -33,15 +33,16 @@ const createStore = async (storeData, userId) => {
     const store = new Store({
         ...storeData,
         storeCode,
-        createdBy: userId
+        createdBy: userId,
+        gstNumber: storeData.gstNumber || null
     });
 
     const savedStore = await store.save();
 
-    // Automatically create a manager user for this store if email is provided
+    // Automatically create OR link a manager user for this store if email is provided
     if (storeData.email) {
-        const userExists = await User.findOne({ email: storeData.email.toLowerCase() });
-        if (!userExists) {
+        let user = await User.findOne({ email: storeData.email.toLowerCase() });
+        if (!user) {
             await User.create({
                 name: storeData.managerName || storeData.name,
                 email: storeData.email.toLowerCase(),
@@ -51,6 +52,15 @@ const createStore = async (storeData, userId) => {
                 shopName: savedStore.name,
                 mobile: storeData.managerPhone
             });
+        } else {
+            // Link existing user to this store
+            user.shopId = savedStore._id;
+            user.shopName = savedStore.name;
+            user.role = 'store_staff';
+            if (storeData.password) {
+                user.passwordHash = storeData.password;
+            }
+            await user.save();
         }
     }
 
@@ -110,18 +120,75 @@ const getStoreById = async (id) => {
     return store;
 };
 
-/**
- * Update store details
- */
 const updateStore = async (id, updateData) => {
+    // 1. Get current store state for synchronization
+    const existingStore = await Store.findOne({ _id: id, isDeleted: false });
+    if (!existingStore) {
+        throw new Error('Store not found');
+    }
+
+    // 2. Perform the store update
     const store = await Store.findOneAndUpdate(
         { _id: id, isDeleted: false },
         { $set: updateData },
         { new: true, runValidators: true }
     );
 
-    if (!store) {
-        throw new Error('Store not found or updated failed');
+    // 3. Find and sync the associated User account
+    // Try by: 1. shopId, 2. current store email, 3. manager phone
+    let user = await User.findOne({ shopId: id });
+    
+    if (!user) {
+        user = await User.findOne({ email: existingStore.email.toLowerCase() });
+    }
+    
+    if (!user && store.managerPhone) {
+        user = await User.findOne({ mobile: store.managerPhone });
+    }
+
+    if (user) {
+        let userModified = false;
+        
+        // Sync shopId if it was missing or mismatched (healing)
+        if (!user.shopId || user.shopId.toString() !== id.toString()) {
+            user.shopId = id;
+            userModified = true;
+        }
+
+        // Always sync the email if store email is provided
+        if (updateData.email && user.email !== updateData.email.toLowerCase()) {
+            user.email = updateData.email.toLowerCase();
+            userModified = true;
+        }
+
+        if (updateData.managerName) {
+            user.name = updateData.managerName;
+            userModified = true;
+        }
+        if (updateData.managerPhone) {
+            user.mobile = updateData.managerPhone;
+            userModified = true;
+        }
+        
+        // Use a clearer check for password
+        if (updateData.password && String(updateData.password).trim().length >= 6) {
+            user.passwordHash = updateData.password;
+            userModified = true;
+        }
+
+        if (updateData.name) {
+            user.shopName = updateData.name;
+            userModified = true;
+        }
+
+        if (updateData.isActive !== undefined) {
+            user.isActive = updateData.isActive;
+            userModified = true;
+        }
+
+        if (userModified) {
+            await user.save();
+        }
     }
 
     return store;

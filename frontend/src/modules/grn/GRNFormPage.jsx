@@ -76,20 +76,23 @@ function GRNFormPage({ mode = 'edit' }) {
 
   const existingGrn = useMemo(() => grns.find(g => (g._id || g.id) === id), [grns, id]);
 
+  // 1. Initial Data Fetching
   useEffect(() => {
     dispatch(fetchPurchaseOrders());
     dispatch(fetchMasters('warehouses'));
     dispatch(fetchMasters('suppliers'));
     dispatch(fetchItems());
     if (id) {
-        dispatch(fetchGrnById(id));
+      dispatch(fetchGrnById(id));
     }
   }, [dispatch, id]);
 
+  // 2. Handle Data Population (Edit mode OR PO auto-fill)
   useEffect(() => {
+    // If edit/view mode: populate from existing GRN
     if (id && existingGrn) {
       setFormValues({
-        grnNumber: existingGrn.grnNumber,
+        grnNumber: existingGrn.grnNumber || '',
         grnDate: existingGrn.grnDate?.slice(0, 10) || defaultForm.grnDate,
         purchaseOrderId: existingGrn.purchaseOrderId?._id || existingGrn.purchaseOrderId || '',
         supplierId: existingGrn.supplierId?._id || existingGrn.supplierId || '',
@@ -100,33 +103,41 @@ function GRNFormPage({ mode = 'edit' }) {
         status: existingGrn.status || 'DRAFT',
       });
       setLines(existingGrn.items || []);
-    } else if (!id) {
-        const poId = searchParams.get('poId');
-        if (poId) {
-            const po = purchaseOrders.find(o => o.id === poId || o._id === poId);
-            if (po) {
-                setFormValues(prev => ({
-                    ...prev,
-                    purchaseOrderId: poId,
-                    supplierId: po.supplierId,
-                    remarks: po.notes || ''
-                }));
-                // Auto-fill lines from PO
-                setLines((po.items || []).map((item, idx) => ({
-                    id: `new-${idx}`,
-                    productId: item.productId,
-                    itemName: item.itemName || 'Item',
-                    orderedQty: item.qty || item.quantity,
-                    receivedQty: item.qty || item.quantity,
-                    acceptedQty: item.qty || item.quantity,
-                    rejectedQty: 0,
-                    rate: item.price || item.rate,
-                    batchNumber: ''
-                })));
-            }
-        }
+    } 
+    // If new mode and PO selected (either via URL or dropdown)
+    else if (!id && formValues.purchaseOrderId) {
+      const po = purchaseOrders.find(o => (o.id || o._id) === formValues.purchaseOrderId);
+      if (po) {
+        setFormValues(prev => ({
+          ...prev,
+          supplierId: po.supplierId?._id || po.supplierId || '',
+          remarks: po.notes || ''
+        }));
+        
+        const poItems = po.items || [];
+        setLines(poItems.map((item, idx) => ({
+          id: `line-${idx}-${Date.now()}`,
+          itemId: item.itemId?._id || item.itemId,
+          variantId: item.variantId,
+          itemName: item.itemName || 'Item',
+          itemCode: item.itemCode || '',
+          size: item.size || 'N/A',
+          sku: item.sku || '',
+          orderedQty: item.qty || 0,
+          receivedQty: item.qty || 0,
+          costPrice: item.price || 0,
+          batchNumber: `B-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`
+        })));
+      }
     }
-  }, [id, existingGrn, purchaseOrders, searchParams]);
+    // Handle initial poId from searchParams
+    else if (!id && !formValues.purchaseOrderId) {
+      const poIdFromUrl = searchParams.get('poId');
+      if (poIdFromUrl) {
+        setFormValues(prev => ({ ...prev, purchaseOrderId: poIdFromUrl }));
+      }
+    }
+  }, [id, existingGrn, purchaseOrders, formValues.purchaseOrderId, searchParams]);
 
   const totals = useMemo(() => {
     return lines.reduce((acc, curr) => {
@@ -170,31 +181,6 @@ function GRNFormPage({ mode = 'edit' }) {
     setLines(lines.filter((_, i) => i !== idx));
   };
 
-  useEffect(() => {
-    if (!id && formValues.purchaseOrderId) {
-        const po = purchaseOrders.find(o => (o.id || o._id) === formValues.purchaseOrderId);
-        if (po) {
-            setFormValues(prev => ({
-                ...prev,
-                supplierId: po.supplierId?._id || po.supplierId || '',
-                remarks: po.notes || ''
-            }));
-            const poItems = po.items || [];
-            setLines(poItems.map((item, idx) => ({
-                id: `line-${idx}`,
-                productId: item.productId?._id || item.productId,
-                itemName: item.productId?.name || item.itemName || 'Item',
-                orderedQty: item.qty || item.quantity,
-                receivedQty: item.qty || item.quantity,
-                acceptedQty: item.qty || item.quantity,
-                rejectedQty: 0,
-                rate: item.price || item.rate,
-                batchNumber: ''
-            })));
-        }
-    }
-  }, [formValues.purchaseOrderId, purchaseOrders, id]);
-
   const handleSave = async (isDraft = true) => {
     try {
         setErrorMessage('');
@@ -224,7 +210,7 @@ function GRNFormPage({ mode = 'edit' }) {
 
         setTimeout(() => navigate('/ho/grn'), 1500);
     } catch (err) {
-        setErrorMessage(err || 'Failed to save GRN');
+        setErrorMessage(String(err?.message || err || 'Failed to save GRN'));
     }
   };
 

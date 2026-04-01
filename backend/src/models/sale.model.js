@@ -62,6 +62,14 @@ const saleSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Customer'
         },
+        customerName: {
+            type: String,
+            trim: true
+        },
+        customerMobile: {
+            type: String,
+            trim: true
+        },
         type: {
             type: String,
             enum: ['RETAIL', 'EXCHANGE', 'INTERNAL_SALE'],

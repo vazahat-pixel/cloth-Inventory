@@ -38,33 +38,51 @@ const importExcelAndGenerateBarcodes = async (req, res, next) => {
 const getLabelsByGrn = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const grn = await GRN.findById(id).populate('items.productId');
+        // Explicitly populate items.itemId to ensure we get sizes array
+        const grn = await GRN.findById(id).populate({
+            path: 'items.itemId',
+            model: 'Item'
+        });
+        
         if (!grn) return sendError(res, 'GRN not found', 404);
 
-        if (!grn.items || !Array.isArray(grn.items)) {
-            return sendSuccess(res, { labels: [] }, 'GRN has no items.');
+        if (!grn.items || !Array.isArray(grn.items) || grn.items.length === 0) {
+            return sendSuccess(res, { labels: [] }, 'GRN has no items recorded.');
         }
 
         const labels = [];
         for (const item of grn.items) {
-            const product = item.productId;
+            const product = item.itemId; 
             
-            // Generate labels ONLY if product data exists
+            // Generate labels ONLY if product data exists and we have received qty
             if (product && item.receivedQty > 0) {
-                for (let i = 0; i < item.receivedQty; i++) {
+                // Find the specific variant in the Item model's sizes array
+                const variantIdStr = item.variantId?.toString();
+                const variant = (product.sizes || []).find(s => 
+                    s._id?.toString() === variantIdStr || 
+                    s.id?.toString() === variantIdStr ||
+                    s.sku === item.sku
+                );
+                
+                const receivedQty = Number(item.receivedQty || 0);
+                for (let i = 0; i < receivedQty; i++) {
                     labels.push({
-                        barcode: product.barcode || product.sku || product.itemCode || `BAR-${product._id || i}`,
-                        article: product.sku || product.itemCode || product.name || 'N/A',
-                        size: item.size || product.size || 'N/A',
-                        color: product.shade || product.color || 'N/A',
-                        mrp: product.salePrice || product.mrp || 0,
-                        design: product.itemName || product.name || 'N/A'
+                        barcode: variant?.sku || item.sku || product.itemCode || `BAR-${product._id}-${i}`,
+                        article: product.itemCode || product.itemName || 'N/A',
+                        size: variant?.size || item.size || 'N/A',
+                        color: product.shade || 'N/A',
+                        mrp: variant?.mrp || variant?.salePrice || product.salePrice || 0,
+                        design: product.itemName || 'N/A'
                     });
                 }
             }
         }
 
-        return sendSuccess(res, { labels }, `Extracted ${labels.length} labels from GRN ${grn.grnNumber || 'N/A'}.`);
+        const message = labels.length > 0 
+            ? `Extracted ${labels.length} labels from GRN ${grn.grnNumber || 'N/A'}.`
+            : `GRN found but no valid labels could be extracted (Check if items have received quantities).`;
+
+        return sendSuccess(res, { labels }, message);
     } catch (error) {
         console.error('getLabelsByGrn Full Error:', error);
         next(error);
