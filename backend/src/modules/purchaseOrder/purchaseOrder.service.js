@@ -56,9 +56,55 @@ const getPOById = async (id) => {
         .populate('items.itemId');
 };
 
+/**
+ * SYNC PO STATUS: Triggers after GRN approval to check if PO is partially or fully received.
+ */
+const syncPoStatus = async (id, session = null) => {
+    const GRN = require('../../models/grn.model');
+    const { GrnStatus } = require('../../core/enums');
+
+    const po = await PurchaseOrder.findById(id).session(session);
+    if (!po) return;
+
+    const grns = await GRN.find({ purchaseOrderId: id, status: GrnStatus.APPROVED, isDeleted: false }).session(session);
+    
+    const receivedMap = new Map();
+    grns.forEach(g => {
+        g.items.forEach(item => {
+            const key = item.variantId.toString();
+            receivedMap.set(key, (receivedMap.get(key) || 0) + item.receivedQty);
+        });
+    });
+
+    let anyReceived = false;
+    let allReceived = true;
+
+    po.items.forEach(item => {
+        const variantId = item.variantId.toString();
+        const received = receivedMap.get(variantId) || 0;
+        const ordered = item.qty || 0;
+
+        if (received > 0) anyReceived = true;
+        if (received < ordered) allReceived = false;
+    });
+
+    let newStatus = po.status;
+    if (allReceived) {
+        newStatus = PurchaseOrderStatus.COMPLETED;
+    } else if (anyReceived) {
+        newStatus = PurchaseOrderStatus.PARTIALLY_RECEIVED;
+    }
+
+    if (newStatus !== po.status) {
+        po.status = newStatus;
+        await po.save({ session });
+    }
+};
+
 module.exports = {
     createPO,
     updateStatus,
     getPOs,
-    getPOById
+    getPOById,
+    syncPoStatus
 };

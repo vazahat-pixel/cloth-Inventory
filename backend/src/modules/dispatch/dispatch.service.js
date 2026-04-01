@@ -31,18 +31,36 @@ const createDispatch = async (dispatchData, userId) => {
         // 2. Compare GSTINs
         const sourceGst = (source.gstNumber || '').trim().toUpperCase();
         const destGst = (destination.gstNumber || '').trim().toUpperCase();
-
-        // Standard ERP Logic: Same GSTIN = Stock Transfer (DC), Different GSTIN = Sale (Invoice)
         const isSameEntity = sourceGst === destGst;
+
+        // 3. Prepare items with Prices (CRITICAL: Every move needs a price for model validation)
+        const Product = require('../../models/product.model');
+        const enrichedItems = [];
+        for (const p of products) {
+            let rate = p.rate;
+            if (!rate || rate <= 0) {
+                const product = await Product.findById(p.productId).session(session);
+                rate = product ? product.salePrice : 0;
+            }
+            enrichedItems.push({
+                productId: p.productId,
+                quantity: p.quantity,
+                price: Number(rate || 0),
+                appliedPrice: Number(rate || 0),
+                total: Number((rate || 0) * (p.quantity || 0))
+            });
+        }
+        const totalAmount = enrichedItems.reduce((sum, item) => sum + item.total, 0);
+
         let generatedDoc = null;
 
         if (isSameEntity) {
-            // ACTION: CREATE DELIVERY CHALLAN
+            // ACTION: CREATE DELIVERY CHALLAN (Stock Transfer)
             const challan = await challanService.createChallan({
                 ...rest,
-                storeId: destinationStoreId, // Target
-                sourceId: sourceWarehouseId, // From
-                items: products,
+                storeId: destinationStoreId,
+                sourceId: sourceWarehouseId,
+                items: enrichedItems,
                 type: 'STOCK_TRANSFER'
             }, userId, session);
 
@@ -57,12 +75,10 @@ const createDispatch = async (dispatchData, userId) => {
                 ...rest,
                 storeId: sourceWarehouseId,
                 destinationStoreId,
-                items: products.map(p => ({
-                    productId: p.productId,
-                    quantity: p.quantity,
-                    price: p.rate || 0,
-                })),
+                items: enrichedItems,
                 type: 'INTERNAL_SALE',
+                subTotal: totalAmount,
+                grandTotal: totalAmount,
                 customerId: null,
                 paymentMode: 'CREDIT',
                 amountPaid: 0,
@@ -76,9 +92,9 @@ const createDispatch = async (dispatchData, userId) => {
             };
         }
 
-        // 3. Create Dispatch Master Record
+        // 4. Create Dispatch Master Record
         const dispatchYear = new Date().getFullYear();
-        const { sequence } = await getNextSequence(`DISPATCH_${dispatchYear}`, session);
+        const sequence = await getNextSequence(`DISPATCH_${dispatchYear}`, session);
         const dispatchNumber = `DSP-${dispatchYear}-${sequence.toString().padStart(5, '0')}`;
 
         const dispatchMaster = new Dispatch({
@@ -90,6 +106,8 @@ const createDispatch = async (dispatchData, userId) => {
                 qty: p.quantity
             })),
             status: 'DISPATCHED',
+            referenceId: generatedDoc.documentId,
+            referenceType: generatedDoc.type === 'TAX_INVOICE' ? 'Sale' : 'DeliveryChallan',
             dispatchedAt: new Date(),
             notes: rest.notes || `Auto-generated ${generatedDoc.type}: ${generatedDoc.documentNumber}`,
             createdBy: userId
@@ -131,22 +149,42 @@ const getDispatchById = async (id) => {
     return dispatch;
 };
 
-const updateDispatchStatus = async (id, status, userId) => {
-    const dispatch = await Dispatch.findById(id);
-    if (!dispatch) throw new Error('Dispatch not found');
-
-    dispatch.status = status;
-    if (status === 'RECEIVED') {
-        dispatch.receivedAt = new Date();
-    }
+const receiveDispatch = async (id, userId) => {
+    const stockService = require('../../services/stock.service');
     
-    return await dispatch.save();
+    return await withTransaction(async (session) => {
+        const dispatch = await Dispatch.findById(id).session(session);
+        if (!dispatch) throw new Error('Dispatch record not found');
+        if (dispatch.status === 'RECEIVED') throw new Error('Dispatch already received');
+
+        // 1. Add Stock to Destination Store
+        for (const item of dispatch.items) {
+            await stockService.addStock({
+                variantId: item.variantId,
+                locationId: dispatch.destinationStoreId,
+                locationType: 'STORE',
+                qty: item.qty,
+                type: 'TRANSFER',
+                referenceId: dispatch._id,
+                referenceType: 'Dispatch',
+                performedBy: userId,
+                session
+            });
+        }
+
+        // 2. Update Status
+        dispatch.status = 'RECEIVED';
+        dispatch.receivedAt = new Date();
+        await dispatch.save({ session });
+
+        return dispatch;
+    });
 };
 
 module.exports = {
     createDispatch,
     getDispatches,
     getDispatchById,
-    updateDispatchStatus,
+    receiveDispatch,
     processDispatch: createDispatch // for compatibility
 };

@@ -58,12 +58,12 @@ const defaultFormValues = {
 const toLocalRows = (rows) =>
   rows.map((row) => ({
     id: row.id || row._id,
-    supplierName: row.supplierName || row.name || '',
+    supplierName: row.name || row.supplierName || '',
     contactPerson: row.contactPerson || '',
     phone: row.phone || '',
     alternatePhone: row.alternatePhone || '',
     email: row.email || '',
-    gstNo: row.gstNo || row.gstNumber || '',
+    gstNo: row.gstNumber || row.gstNo || '',
     panNo: row.panNo || '',
     addressLine1: row.addressLine1 || row.address || '',
     addressLine2: row.addressLine2 || '',
@@ -74,7 +74,7 @@ const toLocalRows = (rows) =>
     openingBalance: row.openingBalance || 0,
     creditDays: row.creditDays || 0,
     supplierType: row.supplierType || 'General',
-    status: row.status || 'Active',
+    status: row.isActive === false ? 'Inactive' : 'Active',
     notes: row.notes || '',
     createdAt: row.createdAt || '',
     updatedAt: row.updatedAt || '',
@@ -171,6 +171,9 @@ function SuppliersListPage() {
     try {
       const payload = {
         ...formValues,
+        name: formValues.supplierName,
+        gstNumber: formValues.gstNo,
+        isActive: formValues.status === 'Active',
         openingBalance: Number(formValues.openingBalance || 0),
         creditDays: Number(formValues.creditDays || 0),
       };

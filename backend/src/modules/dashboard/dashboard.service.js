@@ -1,45 +1,101 @@
+const mongoose = require('mongoose');
 const Sale = require('../../models/sale.model');
+const Purchase = require('../../models/purchase.model');
 const Product = require('../../models/product.model');
-const StoreInventory = require('../../models/storeInventory.model');
-const WarehouseInventory = require('../../models/warehouseInventory.model');
-const ApprovalRequest = require('../../models/approvalRequest.model');
 
 /**
- * EXECUTIVE DASHBOARD INSIGHTS
- * 1. Total Sales Today
- * 2. Total Stock Value
- * 3. Low Stock Alerts
- * 4. Top Selling Products
+ * DAILY DASHBOARD SUMMARY (For HO)
  */
-const getDashboardStats = async (storeId = null) => {
+/**
+ * DAILY DASHBOARD SUMMARY
+ * Supports global (HO) and store-specific (Branch) views
+ */
+const getDailyDashSummary = async (user) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const tonight = new Date(today);
+    tonight.setHours(23, 59, 59, 999);
 
-    // 1. Total Sales Today
-    const saleQuery = { saleDate: { $gte: today }, isDeleted: false };
-    if (storeId) saleQuery.storeId = storeId;
-    const salesToday = await Sale.aggregate([
-        { $match: saleQuery },
-        { $group: { _id: null, total: { $sum: '$grandTotal' }, count: { $sum: 1 } } }
+    const isStoreStaff = user?.role === 'store_staff';
+    const shopId = user?.shopId;
+
+    const matchTodaySale = { saleDate: { $gte: today, $lte: tonight }, isDeleted: false };
+    const matchTodayPurchase = { invoiceDate: { $gte: today, $lte: tonight } };
+
+    if (isStoreStaff && shopId) {
+        matchTodaySale.storeId = new mongoose.Types.ObjectId(shopId);
+        matchTodayPurchase.storeId = new mongoose.Types.ObjectId(shopId);
+    }
+
+    // 1. Today's Revenue
+    const salesStats = await Sale.aggregate([
+        { $match: matchTodaySale },
+        {
+            $group: {
+                _id: null,
+                totalRevenue: { $sum: '$grandTotal' },
+                count: { $sum: 1 }
+            }
+        }
     ]);
-    // 2. Stock Value (Cost Price based)
-    const productStats = await Product.aggregate([
-        { $match: { isDeleted: false } },
-        { $group: { _id: null, totalValue: { $sum: { $multiply: ['$costPrice', '$factoryStock'] } } } }
+
+    // 2. Today's Purchases (GRN / Inward)
+    const purchaseStats = await Purchase.aggregate([
+        { $match: matchTodayPurchase },
+        {
+            $group: {
+                _id: null,
+                totalCost: { $sum: '$grandTotal' },
+                count: { $sum: 1 }
+            }
+        }
     ]);
-    // 3. Low Stock Count
-    const lowStockAlerts = await StoreInventory.countDocuments({
-        $expr: { $lte: ['$quantityAvailable', '$minStockLevel'] }
-    });
-    // 4. Pending Approvals Count
-    const pendingApprovals = await ApprovalRequest.countDocuments({ status: 'PENDING' });
-    // 5. Top 5 Products
-    const topProducts = await Sale.aggregate([
-        { $match: { isDeleted: false } }, // Global top
+
+    // 3. Store-wise Sales (Only for HO, Stores only see their own)
+    let storeStats = [];
+    if (!isStoreStaff) {
+        storeStats = await Sale.aggregate([
+            { $match: matchTodaySale },
+            {
+                $group: {
+                    _id: '$storeId',
+                    revenue: { $sum: '$grandTotal' }
+                }
+            },
+            {
+                $lookup: {
+                    from: 'stores',
+                    localField: '_id',
+                    foreignField: '_id',
+                    as: 'store'
+                }
+            },
+            { $unwind: { path: '$store', preserveNullAndEmptyArrays: true } },
+            {
+                $project: {
+                    name: { $ifNull: ['$store.name', 'Walk-in/Direct'] },
+                    revenue: 1
+                }
+            },
+            { $sort: { revenue: -1 } }
+        ]);
+    } else {
+        // For store staff, just return their current store's name and revenue
+        const myRevenue = salesStats[0]?.totalRevenue || 0;
+        storeStats = [{ name: user.shopName || 'My Store', revenue: myRevenue }];
+    }
+
+    // 4. Top 5 Items Today
+    const topItems = await Sale.aggregate([
+        { $match: matchTodaySale },
         { $unwind: '$products' },
-        { $group: { _id: '$products.productId', totalQty: { $sum: '$products.quantity' } } },
-        { $sort: { totalQty: -1 } },
-        { $limit: 5 },
+        {
+            $group: {
+                _id: '$products.productId',
+                qty: { $sum: '$products.quantity' },
+                revenue: { $sum: '$products.total' }
+            }
+        },
         {
             $lookup: {
                 from: 'products',
@@ -49,19 +105,25 @@ const getDashboardStats = async (storeId = null) => {
             }
         },
         { $unwind: '$product' },
-        { $project: { name: '$product.name', sku: '$product.sku', totalQty: 1 } }
+        {
+            $project: {
+                name: '$product.name',
+                qty: 1,
+                revenue: 1
+            }
+        },
+        { $sort: { qty: -1 } },
+        { $limit: 5 }
     ]);
 
     return {
-        revenueToday: salesToday[0]?.total || 0,
-        salesCountToday: salesToday[0]?.count || 0,
-        inventoryValue: productStats[0]?.totalValue || 0,
-        lowStockAlerts,
-        pendingApprovals,
-        topProducts
+        sales: salesStats[0] || { totalRevenue: 0, count: 0 },
+        purchase: purchaseStats[0] || { totalCost: 0, count: 0 },
+        storeBreakdown: storeStats,
+        topItems
     };
 };
 
 module.exports = {
-    getDashboardStats
+    getDailyDashSummary
 };

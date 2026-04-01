@@ -57,9 +57,10 @@ const getStoreInventory = async (query, user) => {
             .populate('productId', 'name sku barcode size color category brand salePrice')
     ]);
 
-    // Combine results
-    const combined = [...storeInventory, ...warehouseInventory].slice(skip, skip + parseInt(limit));
-    const total = storeInventory.length + warehouseInventory.length;
+    // Combine results and filter out orphaned records
+    const combinedFull = [...storeInventory, ...warehouseInventory].filter(item => item && item.productId);
+    const combined = combinedFull.slice(skip, skip + parseInt(limit));
+    const total = combinedFull.length;
 
     return {
         inventory: combined,

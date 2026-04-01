@@ -83,6 +83,8 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             grandTotal,
             paymentMode,
             customerId,
+            customerName,
+            customerMobile,
             redeemPoints,
             creditNoteId,
             type = 'RETAIL',
@@ -127,24 +129,42 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             }).session(session);
 
             const originalPrice = product.salePrice;
-            const appliedPrice = storePriceRule ? storePriceRule.price : originalPrice;
-            const pricingSource = storePriceRule ? 'STORE_SPECIFIC' : 'DEFAULT';
+            const appliedPrice = storePriceRule ? storePriceRule.price : (originalPrice !== undefined ? originalPrice : item.price);
+            const pricingSource = storePriceRule ? 'STORE_SPECIFIC' : (originalPrice !== undefined ? 'DEFAULT' : 'MANUAL');
 
-            // Override price in item for downstream calculations
-            item.price = appliedPrice;
-            item.originalPrice = originalPrice;
-            item.appliedPrice = appliedPrice;
+            // Override price in item for downstream calculations, ensuring we have a number
+            item.price = Number(appliedPrice || item.price || 0);
+            item.originalPrice = Number(originalPrice || item.price || 0);
+            item.appliedPrice = item.price;
             item.pricingSource = pricingSource;
             // --------------------------------
 
-            const taxableAmount = item.price * item.quantity;
+            const taxableAmount = (item.price || 0) * (item.quantity || 0);
+            calculatedSubTotal += taxableAmount;
 
             let gstData = { cgst: 0, sgst: 0, igst: 0, totalTax: 0 };
 
             if (product.gstSlabId) {
                 const slab = await GstSlab.findById(product.gstSlabId).session(session);
                 if (slab) {
-                    gstData = calculateGST(taxableAmount, slab.percentage, slab.type);
+                    let gstType = slab.type; // Default from slab
+
+                    // Logic for Internal Sales: Force GST type based on state comparison
+                    if (type === 'INTERNAL_SALE' && saleData.destinationStoreId) {
+                        const Warehouse = require('../../models/warehouse.model');
+                        const Store = require('../../models/store.model');
+                        
+                        const source = await Warehouse.findById(storeId).session(session) || await Store.findById(storeId).session(session);
+                        const destination = await Store.findById(saleData.destinationStoreId).session(session);
+                        
+                        if (source && destination) {
+                            const sourceState = (source.location?.state || '').trim().toUpperCase();
+                            const destState = (destination.location?.state || '').trim().toUpperCase();
+                            gstType = (sourceState === destState) ? 'CGST_SGST' : 'IGST';
+                        }
+                    }
+
+                    gstData = calculateGST(taxableAmount, slab.percentage, gstType);
                 }
             }
 
@@ -167,8 +187,6 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
                 referenceModel: 'Sale',
                 notes: `Sale ${saleNumber} ${(type || 'RETAIL').toUpperCase() === 'EXCHANGE' && item.quantity < 0 ? '(Exchange Return)' : ''}`,
             });
-            
-            calculatedSubTotal += taxableAmount;
         }
 
         // 2.1. Handle Loyalty Redemption
@@ -231,6 +249,8 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             destinationStoreId: saleData.destinationStoreId,
             cashierId: cashierId,
             customerId: saleData.customerId,
+            customerName: saleData.customerName,
+            customerMobile: saleData.customerMobile,
             type: saleData.type || 'RETAIL',
             parentSaleId,
             products: products.map(p => ({

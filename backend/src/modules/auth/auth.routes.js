@@ -30,8 +30,8 @@ router.get('/me', protect, getMe);
 router.post('/logout', protect, logout);
 router.patch('/change-password', protect, changePassword);
 
-// User Management (Admin Only)
-router.get('/users', protect, requireAdmin, getAllUsers);
+// User Management
+router.get('/users', protect, getAllUsers);
 router.post('/users', protect, requireAdmin, createUser);
 router.patch('/users/:id', protect, requireAdmin, updateUser);
 

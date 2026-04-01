@@ -141,6 +141,7 @@ function BillingPage({
   const [storeId, setStoreId] = useState(user?.shopId || warehouses[0]?.id || stores[0]?.id || '');
   const [salesmanId, setSalesmanId] = useState('');
   const [mobileInput, setMobileInput] = useState('');
+  const [customerName, setCustomerName] = useState('');
   const [customerId, setCustomerId] = useState('');
   const [billDiscount, setBillDiscount] = useState('');
   const [loyaltyRedeemed, setLoyaltyRedeemed] = useState('');
@@ -171,6 +172,7 @@ function BillingPage({
 
   useEffect(() => {
     dispatch(fetchMasters('customers'));
+    dispatch(fetchMasters('salesmen'));
     dispatch(fetchMasters('warehouses'));
     dispatch(fetchMasters('stores'));
     dispatch(fetchItems());
@@ -216,10 +218,24 @@ function BillingPage({
     () => customers.filter((customer) => String(customer.status).toLowerCase() === 'active'),
     [customers],
   );
-  const activeSalesmen = useMemo(
-    () => salesmen.filter((entry) => String(entry.status).toLowerCase() === 'active'),
-    [salesmen],
-  );
+  const activeSalesmen = useMemo(() => {
+    const raw = salesmen || [];
+    // 1. Basic Status Filter
+    const active = raw.filter((entry) => 
+        entry.isActive !== false && (
+            !entry.status || 
+            ['active', 'on duty'].includes(String(entry.status).toLowerCase())
+        )
+    );
+    
+    // 2. Store-Specific Filter (Privacy)
+    // If you're a store staff, you should ONLY see salesmen assigned to your store.
+    if (isStoreStaff && storeId) {
+        return active.filter(s => String(s.shopId || s.storeId || '') === String(storeId));
+    }
+    
+    return active;
+  }, [salesmen, isStoreStaff, storeId]);
 
   const customerMap = useMemo(
     () =>
@@ -297,11 +313,15 @@ function BillingPage({
 
   const handleMobileChange = (value) => {
     setMobileInput(value);
-    if (!isDetailMode && value?.trim()) {
+    if (!isDetailMode && value?.trim() && value.length >= 10) {
       const matched = activeCustomers.find((customer) => customer.mobileNumber === value.trim());
       if (matched) {
         setCustomerId(matched.id);
+        setCustomerName(matched.customerName || '');
         setLoyaltyRedeemed('');
+      } else {
+        setCustomerId('');
+        setCustomerName('');
       }
     }
   };
@@ -425,11 +445,12 @@ function BillingPage({
 
     try {
       setErrorMessage('');
-      const response = await api.get(`/products/barcode/${scannedCode}`);
+      // Use the dedicated Sales barcode endpoint that checks store specific stock
+      const response = await api.get(`/sales/barcode/${scannedCode}?storeId=${storeId}`);
       const product = response.data.product || response.data.data;
       
       if (!product) {
-        setErrorMessage('Product not found for this barcode');
+        setErrorMessage('Product not found for this barcode in this store.');
         return;
       }
 
@@ -446,7 +467,7 @@ function BillingPage({
         color: product.color || '',
         sku: product.sku || '',
         barcode: product.barcode || '',
-        available: available,
+        available: product.available || 0,
         rate: toNumber(product.salePrice),
         tax: 0, // Should come from linked HSN -> GST
       });
@@ -546,6 +567,8 @@ function BillingPage({
     const payload = {
       storeId,
       customerId: selectedCustomer?.id || null,
+      customerName: selectedCustomer?.name || selectedCustomer?.customerName || customerName,
+      customerMobile: selectedCustomer?.mobileNumber || mobileInput,
       products: preparedProducts,
       subTotal: totals.grossAmount,
       discount: toNumber(billDiscount) + toNumber(couponDiscountAmount) + toNumber(schemeDiscountAmount),
@@ -799,45 +822,65 @@ function BillingPage({
                   </TextField>
                 </Grid>
               )}
-              <Grid item xs={12} md={3}>
+              <Grid item xs={12} md={6}>
                 <TextField
                   select
                   fullWidth
                   size="small"
-                  label="Salesman"
+                  label="Assign Salesman"
                   value={salesmanId}
                   onChange={(event) => setSalesmanId(event.target.value)}
                 >
                   <MenuItem value="">Not Assigned</MenuItem>
                   {activeSalesmen.map((salesman) => (
-                    <MenuItem key={salesman.id} value={salesman.id}>
+                    <MenuItem key={salesman._id || salesman.id} value={salesman._id || salesman.id}>
                       {salesman.name}
                     </MenuItem>
                   ))}
                 </TextField>
               </Grid>
 
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
                   size="small"
-                  label="Customer Mobile"
+                  label="Customer Mobile Number"
                   value={mobileInput}
+                  autoComplete="off"
                   onChange={(event) => handleMobileChange(event.target.value)}
                 />
               </Grid>
-              <Grid item xs={12} md={5}>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                   fullWidth
+                   size="small"
+                   label="Customer Full Name (Walk-in)"
+                   value={customerName}
+                   autoComplete="off"
+                   onChange={(e) => setCustomerName(e.target.value)}
+                   disabled={Boolean(customerId)}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
                 <TextField
                   select
                   fullWidth
                   size="small"
-                  label="Customer"
+                  label="Select Registered Customer"
                   value={customerId}
                   onChange={(event) => {
                     const selectedId = event.target.value;
                     setCustomerId(selectedId);
                     const selected = customerMap[selectedId];
-                    setMobileInput(selected?.mobileNumber || '');
+                    if (selected) {
+                        setMobileInput(selected.mobileNumber || '');
+                        setCustomerName(selected.customerName || '');
+                    } else {
+                        setMobileInput('');
+                        setCustomerName('');
+                    }
                     setLoyaltyRedeemed('');
                     setCreditNoteId('');
                     if (billingMode === 'fromDO') {
@@ -846,7 +889,7 @@ function BillingPage({
                     }
                   }}
                 >
-                  <MenuItem value="">Walk-in Customer</MenuItem>
+                  <MenuItem value="">-- No Record Found / Manual Entry --</MenuItem>
                   {activeCustomers.map((customer) => (
                     <MenuItem key={customer.id} value={customer.id}>
                       {`${customer.customerName} (${customer.mobileNumber})`}
@@ -854,19 +897,20 @@ function BillingPage({
                   ))}
                 </TextField>
               </Grid>
-              <Grid item xs={12} md={3}>
+
+              <Grid item xs={12}>
                 <Button
-                  fullWidth
                   variant="outlined"
                   onClick={() => {
                     setCustomerId('');
                     setMobileInput('');
+                    setCustomerName('');
                     setLoyaltyRedeemed('');
                     setCreditNoteId('');
                   }}
-                  sx={{ height: 40 }}
+                  sx={{ height: 32, textTransform: 'none', px: 3, borderRadius: 2 }}
                 >
-                  Walk-in
+                  Clear Fields / Reset to Walk-in
                 </Button>
               </Grid>
               {billingMode === 'fromDO' && customerId && (

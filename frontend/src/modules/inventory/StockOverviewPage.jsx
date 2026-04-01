@@ -32,30 +32,33 @@ import stockOverviewExportColumns from '../../config/exportColumns/stockOverview
 import { fetchStockOverview } from './inventorySlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import { stockOverviewSeed } from '../erp/erpUiMocks';
+import api from '../../services/api';
 
 const normalizeStockRows = (rows = []) =>
-  rows.map((row, index) => ({
-    id: row.id || `stock-${index + 1}`,
-    itemCode: row.itemCode || row.styleCode || row.sku || '',
-    itemName: row.itemName || row.name || '',
-    size: row.size || '',
-    color: row.color || '',
-    warehouse: row.warehouse || row.warehouseName || row.storeName || '',
-    availableStock:
-      row.availableStock != null
-        ? Number(row.availableStock)
-        : Math.max(Number(row.quantity || 0) - Number(row.reserved || 0), 0),
-    reservedStock: Number(row.reservedStock != null ? row.reservedStock : row.reserved || 0),
-    inTransit: Number(row.inTransit || 0),
-    reorderLevel: Number(row.reorderLevel || 0),
-    status:
-      row.status ||
-      (Number(row.availableStock || row.quantity || 0) <= 0
+  rows.map((row, index) => {
+    // These rows are already normalized by inventorySlice.js using normalization.js 'inventory' case.
+    // They should already have flat fields: itemName, sku, size, color, locationName, etc.
+    
+    return {
+      id: row._id || row.id || `stock-${index + 1}`,
+      itemCode: row.itemCode || row.sku || row.styleCode || '',
+      itemName: row.itemName || row.name || '',
+      size: row.size || '',
+      color: row.color || '',
+      warehouse: row.warehouseName || row.storeName || row.warehouse || '',
+      availableStock: Number(row.available ?? row.availableStock ?? 0),
+      reservedStock: Number(row.reserved ?? row.reservedStock ?? 0),
+      inTransit: Number(row.inTransit || 0),
+      reorderLevel: Number(row.reorderLevel || 0),
+      status: row.status || (
+        (Number(row.available ?? row.availableStock ?? 0) <= 0)
         ? 'Out_Of_Stock'
-        : Number(row.availableStock || row.quantity || 0) <= Number(row.reorderLevel || 0)
+        : (Number(row.available ?? row.availableStock ?? 0) <= Number(row.reorderLevel || 0))
           ? 'Low_Stock'
-          : 'Active'),
-  }));
+          : 'Active'
+      ),
+    };
+  });
 
 const toExportRows = (rows = []) =>
   rows.map((row) => ({
@@ -146,6 +149,29 @@ function StockOverviewPage() {
     [filteredRows],
   );
 
+  const [pendingShipments, setPendingShipments] = useState(0);
+  const authUser = useSelector((state) => state.auth?.user);
+  const isStoreStaff = authUser?.role === 'store_staff';
+  const shopId = authUser?.shopId;
+
+  useEffect(() => {
+    const checkPendingShipments = async () => {
+      if (!shopId) return;
+      try {
+        const res = await api.get('/dispatch', { 
+          params: { destinationId: shopId, status: 'DISPATCHED' } 
+        });
+        setPendingShipments(res.data?.dispatches?.length || 0);
+      } catch (err) {
+        console.error('Failed to fetch pending shipments', err);
+      }
+    };
+
+    if (isStoreStaff) {
+      checkPendingShipments();
+    }
+  }, [shopId, isStoreStaff]);
+
   const exportRows = useMemo(() => toExportRows(filteredRows), [filteredRows]);
 
   return (
@@ -161,6 +187,48 @@ function StockOverviewPage() {
           <ExportButton key="export" rows={exportRows} columns={stockOverviewExportColumns} filename="stock-overview.xlsx" sheetName="Stock Overview" />,
         ]}
       />
+
+      {isStoreStaff && !shopId && (
+        <Paper 
+          sx={{ 
+            p: 2, mb: 2, 
+            bgcolor: '#fee2e2', 
+            border: '1px solid #ef4444', 
+            borderRadius: 2,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}
+        >
+          <Typography sx={{ color: '#991b1b', fontWeight: 700 }}>
+            ⚠️ LOGOUT & LOGIN REQUIRED: Your session is missing the Store Link. Please login again to see your store's stock.
+          </Typography>
+          <Button variant="contained" color="error" size="small" onClick={() => navigate('/logout')}>
+            Logout Now
+          </Button>
+        </Paper>
+      )}
+
+      {pendingShipments > 0 && (
+        <Paper 
+          sx={{ 
+            p: 2, mb: 2, 
+            bgcolor: '#eff6ff', 
+            border: '1px solid #3b82f6', 
+            borderRadius: 2,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}
+        >
+          <Typography sx={{ color: '#1e40af', fontWeight: 700 }}>
+            📦 You have {pendingShipments} pending inbound shipments from Head Office.
+          </Typography>
+          <Button variant="contained" color="primary" size="small" onClick={() => navigate('/store/receipt')}>
+            Go to Receive Stock
+          </Button>
+        </Paper>
+      )}
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' }, gap: 2, mb: 2 }}>
         <SummaryCard label="Stock Rows" value={summary.totalRows} helper="Visible variant/location rows." />

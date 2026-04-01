@@ -39,11 +39,11 @@ function generateBarcodeDataUrl(text) {
   const canvas = document.createElement('canvas');
   try {
     JsBarcode(canvas, text, {
-        format: 'CODE128',
-        width: 1.5,
-        height: 40,
-        displayValue: false,
-        margin: 0,
+      format: 'CODE128',
+      width: 1.5,
+      height: 40,
+      displayValue: false,
+      margin: 0,
     });
     return canvas.toDataURL('image/png');
   } catch (e) {
@@ -70,7 +70,7 @@ function BarcodePrintingPage() {
   const [mfgLine1, setMfgLine1] = useState('Plot No 418, Sector-53, Phase 3');
   const [mfgLine2, setMfgLine2] = useState('Kundli, Sonipat (Haryana)');
   const [mfgLine3, setMfgLine3] = useState('');
-  
+
   useEffect(() => {
     if (grnId) {
       setActiveTab(1); // Bulk Tab
@@ -93,27 +93,28 @@ function BarcodePrintingPage() {
     const fetchProducts = async () => {
       setLoading(true);
       try {
-        const res = await api.get('/items'); // Correct product route
+        const res = await api.get('/item/all'); // Correct product route
         const apiProducts = res.data?.items || res.data?.products || [];
-        
+
         if (apiProducts.length) {
-            const flattened = [];
-            apiProducts.forEach(p => {
-                const variants = p.sizes || p.variants || [{}];
-                variants.forEach(v => {
-                    flattened.push({
-                        id: v._id || p._id,
-                        name: p.itemName || p.name,
-                        sku: v.barcode || p.itemCode || p.sku,
-                        barcode: v.barcode || p.barcode || p.itemCode,
-                        salePrice: v.salePrice || p.salePrice || 0,
-                        size: v.size || 'N/A',
-                        color: p.shade || p.color || 'N/A',
-                        category: p.categoryId?.name || 'GARMENT'
-                    });
-                });
+          const flattened = [];
+          apiProducts.forEach(p => {
+            const variants = p.sizes || p.variants || [{}];
+            const categoryObj = (p.groupIds || []).find(g => g.groupType === 'Category');
+            variants.forEach(v => {
+              flattened.push({
+                id: v._id || p._id,
+                name: p.itemName || p.name,
+                sku: v.sku || v.barcode || p.itemCode || p.sku,
+                barcode: v.barcode || v.sku || p.barcode || p.itemCode,
+                salePrice: v.salePrice || p.salePrice || 0,
+                size: v.size || 'N/A',
+                color: p.shade || p.color || 'N/A',
+                category: categoryObj?.name || categoryObj?.groupName || 'GARMENT'
+              });
             });
-            setProducts(flattened);
+          });
+          setProducts(flattened);
         }
       } catch (error) {
         console.error('Fetch failed', error);
@@ -203,15 +204,15 @@ function BarcodePrintingPage() {
                 </Stack>
               </Grid>
               <Grid size={{ xs: 12, md: 5 }}>
-                 {selectedProduct && (
-                   <Card variant="outlined">
-                     <CardContent sx={{ textAlign: 'center' }}>
-                       <img src={barcodeImgData} style={{ width: '200px' }} />
-                       <Typography variant="h6">{selectedProduct.name}</Typography>
-                       <Typography>MRP: {selectedProduct.salePrice}</Typography>
-                     </CardContent>
-                   </Card>
-                 )}
+                {selectedProduct && (
+                  <Card variant="outlined">
+                    <CardContent sx={{ textAlign: 'center' }}>
+                      <img src={barcodeImgData} style={{ width: '200px' }} />
+                      <Typography variant="h6">{selectedProduct.name}</Typography>
+                      <Typography>MRP: {selectedProduct.salePrice}</Typography>
+                    </CardContent>
+                  </Card>
+                )}
               </Grid>
             </Grid>
           ) : (
@@ -226,28 +227,28 @@ function BarcodePrintingPage() {
                   Print All Queued Labels ({importResults.length})
                 </Button>
               </Stack>
-              
+
               <TableContainer component={Paper} variant="outlined">
-                 <Table size="small">
-                   <TableHead>
-                     <TableRow>
-                       <TableCell>Barcode</TableCell>
-                       <TableCell>Article</TableCell>
-                       <TableCell>Size</TableCell>
-                       <TableCell>Price</TableCell>
-                     </TableRow>
-                   </TableHead>
-                   <TableBody>
-                     {importResults.map((r, i) => (
-                       <TableRow key={i}>
-                         <TableCell>{r.barcode}</TableCell>
-                         <TableCell>{r.article}</TableCell>
-                         <TableCell>{r.size}</TableCell>
-                         <TableCell>{r.mrp}</TableCell>
-                       </TableRow>
-                     ))}
-                   </TableBody>
-                 </Table>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Barcode</TableCell>
+                      <TableCell>Article</TableCell>
+                      <TableCell>Size</TableCell>
+                      <TableCell>Price</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {importResults.map((r, i) => (
+                      <TableRow key={i}>
+                        <TableCell>{r.barcode}</TableCell>
+                        <TableCell>{r.article}</TableCell>
+                        <TableCell>{r.size}</TableCell>
+                        <TableCell>{r.mrp}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </TableContainer>
             </Stack>
           )}

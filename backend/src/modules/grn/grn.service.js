@@ -40,9 +40,9 @@ const createGRN = async (grnData, userId) => {
         }
 
         const processedItems = [];
-        const existingGrns = await GRN.find({ 
+        const existingGrns = await GRN.find({
             $or: [{ purchaseId }, { purchaseOrderId }],
-            isDeleted: false 
+            isDeleted: false
         }).session(session);
 
         for (const item of items) {
@@ -51,15 +51,15 @@ const createGRN = async (grnData, userId) => {
             let sku = item.sku;
             
             let orderedQty = item.orderedQty || 0;
-            
+
             // If linked to a parent document, validate quantities
             if (parentDoc) {
                 const parentItems = parentDoc.items || parentDoc.products || [];
-                const originalItem = parentItems.find(p => 
+                const originalItem = parentItems.find(p =>
                     (p.itemId || p.productId || p._id).toString() === itemId.toString() &&
                     (p.variantId || p._id).toString() === variantId.toString()
                 );
-                
+
                 if (originalItem) {
                     orderedQty = originalItem.quantity || originalItem.qty || orderedQty;
                 }
@@ -73,7 +73,7 @@ const createGRN = async (grnData, userId) => {
                         const prevItem = g.items.find(i => {
                             const curItemId = (i.itemId || i.productId);
                             return curItemId && curItemId.toString() === itemId.toString() &&
-                                   i.variantId && i.variantId.toString() === variantId.toString();
+                                i.variantId && i.variantId.toString() === variantId.toString();
                         });
                         if (prevItem) {
                             totalPreviouslyReceived += (prevItem.receivedQty || 0);
@@ -86,8 +86,8 @@ const createGRN = async (grnData, userId) => {
 
             // Overage Error Check (Optional but helpful)
             if (orderedQty > 0 && currentTotalReceived > orderedQty) {
-                 // Throwing error or warning? Let's stay strict for now or disable if not linked.
-                 // throw new Error(`Overage for SKU ${sku}. Total received (${currentTotalReceived}) exceeds ordered (${orderedQty}).`);
+                // Throwing error or warning? Let's stay strict for now or disable if not linked.
+                // throw new Error(`Overage for SKU ${sku}. Total received (${currentTotalReceived}) exceeds ordered (${orderedQty}).`);
             }
 
             const originalItem = parentDoc ? parentDoc.items.find(p => 
@@ -140,13 +140,13 @@ const createGRN = async (grnData, userId) => {
         });
 
         await grn.save({ session });
-        
+
         const parentId = purchaseOrderId || purchaseId;
         const parentType = purchaseOrderId ? DocumentType.PO : DocumentType.PURCHASE;
-        
+
         await workflowService.linkDocuments(parentId, grn._id, parentType, DocumentType.GRN);
         await workflowService.updateStatus(grn._id, DocumentType.GRN, null, GrnStatus.DRAFT, userId, `Created Draft GRN ${grnNumber} from ${purchaseOrderId ? 'PO' : 'Purchase'}`);
-        
+
         return grn;
     });
 };
@@ -182,33 +182,6 @@ const approveGRN = async (id, userId) => {
         }
 
         await workflowService.updateStatus(grn._id, DocumentType.GRN, oldStatus, GrnStatus.APPROVED, userId, `Approved GRN ${grn.grnNumber} and posted stock to warehouse.`);
-        
-        // 3. Sync Parent PO Status (Close if fully received)
-        if (grn.purchaseOrderId) {
-            const PurchaseOrder = require('../../models/purchaseOrder.model');
-            const parentPO = await PurchaseOrder.findById(grn.purchaseOrderId).session(session);
-            if (parentPO) {
-                const siblingGRNs = await GRN.find({ purchaseOrderId: grn.purchaseOrderId, status: GrnStatus.APPROVED, isDeleted: false }).session(session);
-                const totalReceivedMap = new Map();
-                siblingGRNs.forEach(g => {
-                    (g.items || []).forEach(item => {
-                        const key = item.variantId.toString();
-                        totalReceivedMap.set(key, (totalReceivedMap.get(key) || 0) + item.receivedQty);
-                    });
-                });
-
-                const allReceived = (parentPO.items || []).every(item => {
-                    const received = totalReceivedMap.get(item.variantId.toString()) || 0;
-                    return received >= (item.qty || item.quantity);
-                });
-
-                if (allReceived) {
-                    parentPO.status = 'COMPLETED';
-                    await parentPO.save({ session });
-                    await workflowService.updateStatus(parentPO._id, DocumentType.PO, 'APPROVED', 'COMPLETED', userId, `PO automatically marked as COMPLETED as all items are received via GRN ${grn.grnNumber}.`);
-                }
-            }
-        }
 
         return grn;
     });

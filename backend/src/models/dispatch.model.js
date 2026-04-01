@@ -41,6 +41,15 @@ const dispatchSchema = new mongoose.Schema(
             enum: Object.values(DispatchStatus),
             default: DispatchStatus.PENDING,
         },
+        referenceId: {
+            type: mongoose.Schema.Types.ObjectId,
+            required: false // Link to DeliveryChallan or Sale
+        },
+        referenceType: {
+            type: String,
+            enum: ['Sale', 'DeliveryChallan'],
+            required: false
+        },
         dispatchedAt: {
             type: Date
         },
@@ -62,5 +71,7 @@ const dispatchSchema = new mongoose.Schema(
 dispatchSchema.index({ sourceWarehouseId: 1 });
 dispatchSchema.index({ destinationStoreId: 1 });
 dispatchSchema.index({ status: 1 });
+dispatchSchema.index({ referenceId: 1 });
+dispatchSchema.index({ referenceType: 1 });
 
 module.exports = mongoose.model('Dispatch', dispatchSchema);

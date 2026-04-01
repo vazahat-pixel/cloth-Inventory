@@ -46,6 +46,15 @@ export const approveGrn = createAsyncThunk('grn/approveGrn', async (id, { reject
   }
 });
 
+export const updateGrn = createAsyncThunk('grn/updateGrn', async ({ id, updateData }, { rejectWithValue }) => {
+  try {
+    const response = await api.put(`/grn/${id}`, updateData);
+    return response.data.grn || response.data.data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Failed to update GRN');
+  }
+});
+
 const grnSlice = createSlice({
   name: 'grn',
   initialState: {
@@ -88,6 +97,10 @@ const grnSlice = createSlice({
         else state.records.push(action.payload);
       })
       .addCase(approveGrn.fulfilled, (state, action) => {
+        const index = state.records.findIndex(r => (r._id || r.id) === (action.payload._id || action.payload.id));
+        if (index !== -1) state.records[index] = action.payload;
+      })
+      .addCase(updateGrn.fulfilled, (state, action) => {
         const index = state.records.findIndex(r => (r._id || r.id) === (action.payload._id || action.payload.id));
         if (index !== -1) state.records[index] = action.payload;
       });

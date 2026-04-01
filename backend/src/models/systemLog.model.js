@@ -32,7 +32,9 @@ const systemLogSchema = new mongoose.Schema({
       'Production',
       'Reports',
       'Auth',
-      'AUTH'
+      'AUTH',
+      'REPORTS',
+      'SALES'
     ]
   },
   userId: {
