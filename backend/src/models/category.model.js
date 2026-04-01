@@ -40,7 +40,7 @@ const categorySchema = new mongoose.Schema(
     { timestamps: true }
 );
 
-categorySchema.index({ name: 1 });
+// Category Name index is handled by unique: true
 categorySchema.index({ parentId: 1 });
 
 module.exports = mongoose.model('Category', categorySchema);

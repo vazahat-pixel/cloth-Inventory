@@ -93,7 +93,7 @@ function BarcodePrintingPage() {
     const fetchProducts = async () => {
       setLoading(true);
       try {
-        const res = await api.get('/item/all'); // Correct product route
+        const res = await api.get('/items'); // Correct product route
         const apiProducts = res.data?.items || res.data?.products || [];
         
         if (apiProducts.length) {

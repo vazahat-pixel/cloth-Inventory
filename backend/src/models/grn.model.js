@@ -90,7 +90,6 @@ const grnSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
-grnSchema.index({ grnNumber: 1 });
 grnSchema.index({ purchaseId: 1 });
 grnSchema.index({ status: 1 });
 

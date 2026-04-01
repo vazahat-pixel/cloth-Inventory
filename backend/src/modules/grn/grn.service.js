@@ -66,15 +66,20 @@ const createGRN = async (grnData, userId) => {
 
             // Calculate historical total received for this specific variant
             let totalPreviouslyReceived = 0;
-            existingGrns.forEach(g => {
-                const prevItem = g.items.find(i => 
-                    (i.itemId || i.productId).toString() === itemId.toString() &&
-                    i.variantId.toString() === variantId.toString()
-                );
-                if (prevItem) {
-                    totalPreviouslyReceived += prevItem.receivedQty;
-                }
-            });
+            if (existingGrns.length > 0 && itemId && variantId) {
+                existingGrns.forEach(g => {
+                    if (g.items && Array.isArray(g.items)) {
+                        const prevItem = g.items.find(i => {
+                            const curItemId = (i.itemId || i.productId);
+                            return curItemId && curItemId.toString() === itemId.toString() &&
+                                   i.variantId && i.variantId.toString() === variantId.toString();
+                        });
+                        if (prevItem) {
+                            totalPreviouslyReceived += (prevItem.receivedQty || 0);
+                        }
+                    }
+                });
+            }
 
             const currentTotalReceived = totalPreviouslyReceived + item.receivedQty;
 
@@ -89,7 +94,9 @@ const createGRN = async (grnData, userId) => {
                 variantId,
                 sku,
                 receivedQty: item.receivedQty,
-                costPrice: item.costPrice || 0,
+                costPrice: item.costPrice || (originalItem ? (originalItem.rate || originalItem.costPrice) : 0),
+                tax: item.tax || (originalItem ? originalItem.tax : 0),
+                discount: item.discount || (originalItem ? originalItem.discount : 0),
                 batchNumber: item.lotNumber || item.batchNumber || `BATCH-${Date.now()}`
             });
         }
@@ -112,9 +119,8 @@ const createGRN = async (grnData, userId) => {
 
         await grn.save({ session });
         
-        // Link document and log transition
         const parentId = purchaseOrderId || purchaseId;
-        const parentType = purchaseOrderId ? DocumentType.PURCHASE_ORDER : DocumentType.PURCHASE;
+        const parentType = purchaseOrderId ? DocumentType.PO : DocumentType.PURCHASE;
         
         await workflowService.linkDocuments(parentId, grn._id, parentType, DocumentType.GRN);
         await workflowService.updateStatus(grn._id, DocumentType.GRN, null, GrnStatus.DRAFT, userId, `Created Draft GRN ${grnNumber} from ${purchaseOrderId ? 'PO' : 'Purchase'}`);
@@ -155,6 +161,33 @@ const approveGRN = async (id, userId) => {
 
         await workflowService.updateStatus(grn._id, DocumentType.GRN, oldStatus, GrnStatus.APPROVED, userId, `Approved GRN ${grn.grnNumber} and posted stock to warehouse.`);
         
+        // 3. Sync Parent PO Status (Close if fully received)
+        if (grn.purchaseOrderId) {
+            const PurchaseOrder = require('../../models/purchaseOrder.model');
+            const parentPO = await PurchaseOrder.findById(grn.purchaseOrderId).session(session);
+            if (parentPO) {
+                const siblingGRNs = await GRN.find({ purchaseOrderId: grn.purchaseOrderId, status: GrnStatus.APPROVED, isDeleted: false }).session(session);
+                const totalReceivedMap = new Map();
+                siblingGRNs.forEach(g => {
+                    (g.items || []).forEach(item => {
+                        const key = item.variantId.toString();
+                        totalReceivedMap.set(key, (totalReceivedMap.get(key) || 0) + item.receivedQty);
+                    });
+                });
+
+                const allReceived = (parentPO.items || []).every(item => {
+                    const received = totalReceivedMap.get(item.variantId.toString()) || 0;
+                    return received >= (item.qty || item.quantity);
+                });
+
+                if (allReceived) {
+                    parentPO.status = 'COMPLETED';
+                    await parentPO.save({ session });
+                    await workflowService.updateStatus(parentPO._id, DocumentType.PO, 'APPROVED', 'COMPLETED', userId, `PO automatically marked as COMPLETED as all items are received via GRN ${grn.grnNumber}.`);
+                }
+            }
+        }
+
         return grn;
     });
 };
@@ -163,7 +196,8 @@ const getGRNById = async (id) => {
     return await GRN.findOne({ _id: id, isDeleted: false })
         .populate('supplierId', 'name')
         .populate('warehouseId', 'name')
-        .populate('items.itemId', 'itemName itemCode shade');
+        .populate('purchaseOrderId', 'poNumber items')
+        .populate('items.itemId', 'itemName itemCode shade sizes');
 };
 
 const getGrnsByPurchase = async (purchaseId) => {
@@ -176,10 +210,17 @@ const getAllGrns = async () => {
         .sort({ createdAt: -1 });
 };
 
+const getNextSuggestedNumber = async () => {
+    // Note: In this simple implementation, we generate it. 
+    // Usually, we'd peek, but here we just return a generated one for now.
+    return await generateGrnNumber();
+};
+
 module.exports = {
     createGRN,
     approveGRN,
     getGRNById,
     getGrnsByPurchase,
-    getAllGrns
+    getAllGrns,
+    getNextSuggestedNumber
 };

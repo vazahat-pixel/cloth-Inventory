@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams, useSearchParams } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
 
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import {
@@ -22,41 +23,41 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import Chip from '@mui/material/Chip';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
-import { useForm } from 'react-hook-form';
-import { addPurchase, updatePurchase, fetchPurchases, fetchPurchaseOrderById } from './purchaseSlice';
 
-import { parsePurchaseExcel } from './purchaseImportService';
+import { addPurchase, updatePurchase, fetchPurchases } from './purchaseSlice';
+import { fetchGrns, fetchGrnById } from '../grn/grnSlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchItems } from '../items/itemsSlice';
 import useRoleBasePath from '../../hooks/useRoleBasePath';
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
 
-const toNumber = (value, fallback = 0) => {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : fallback;
+const toNumber = (v, fallback = 0) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
 };
 
-const calculateTotals = (items, otherCharges) => {
-  return items.reduce((acc, item) => {
-    const qty = toNumber(item.quantity);
-    const rate = toNumber(item.rate);
-    const discPercent = toNumber(item.discount);
-    const taxPercent = toNumber(item.tax);
+const calculateTotals = (lines, otherCharges) => {
+  return lines.reduce((acc, l) => {
+    const q = toNumber(l.quantity);
+    const r = toNumber(l.rate);
+    const dPct = toNumber(l.discount);
+    const tPct = toNumber(l.tax);
 
-    const gross = qty * rate;
-    const disc = Number(((gross * discPercent) / 100).toFixed(2));
-    const taxable = gross - disc;
-    const tax = Number(((taxable * taxPercent) / 100).toFixed(2));
+    const gross = q * r;
+    const dVal = (gross * dPct) / 100;
+    const taxable = gross - dVal;
+    const tVal = (taxable * tPct) / 100;
 
-    acc.totalQuantity += qty;
+    acc.totalQuantity += q;
     acc.grossAmount += gross;
-    acc.totalDiscount += disc;
-    acc.totalTax += tax;
+    acc.totalDiscount += dVal;
+    acc.totalTax += tVal;
     acc.netAmount = Number((acc.grossAmount - acc.totalDiscount + acc.totalTax + toNumber(otherCharges)).toFixed(2));
     return acc;
   }, { totalQuantity: 0, grossAmount: 0, totalDiscount: 0, totalTax: 0, otherCharges: toNumber(otherCharges), netAmount: 0 });
@@ -65,748 +66,243 @@ const calculateTotals = (items, otherCharges) => {
 function PurchaseFormPage() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
-  const orderId = searchParams.get('orderId');
+  const grnId = searchParams.get('grnId');
   const isEditMode = Boolean(id);
-
 
   const dispatch = useDispatch();
   const navigate = useAppNavigate();
   const basePath = useRoleBasePath();
 
   const purchases = useSelector((state) => state.purchase.records || []);
+  const grns = useSelector((state) => state.grn.records || []);
   const suppliers = useSelector((state) => state.masters.suppliers || []);
   const warehouses = useSelector((state) => state.masters.warehouses || []);
   const stores = useSelector((state) => state.masters.stores || []);
-  const user = useSelector((state) => state.auth.user);
   const items = useSelector((state) => state.items.records || []);
 
-  const existingPurchase = useMemo(
-    () => (isEditMode ? purchases.find((entry) => entry.id === id) : null),
-    [id, isEditMode, purchases],
-  );
-  const purchaseListPath = basePath === '/ho' ? '/purchase/purchase-voucher' : '/purchase';
-  const pageTitle = isEditMode
-    ? (basePath === '/ho' ? 'Edit Purchase Voucher' : 'Edit Purchase Bill')
-    : (basePath === '/ho' ? 'New Purchase Voucher' : 'New Purchase Bill');
-  const saveButtonLabel = basePath === '/ho' ? 'Save Voucher' : 'Save Bill';
+  const availableLocations = useMemo(() => [...warehouses, ...stores], [warehouses, stores]);
 
-  const [lines, setLines] = useState([]);
-  const [variantPickerValue, setVariantPickerValue] = useState(null);
-  const [formError, setFormError] = useState('');
-  const [importError, setImportError] = useState('');
-  const importInputRef = useRef(null);
+  const existingPurchase = useMemo(() => isEditMode ? purchases.find(p => (p.id || p._id) === id) : null, [id, isEditMode, purchases]);
 
-  const {
-    register,
-    handleSubmit,
-    watch,
-    reset,
-    setValue,
-    getValues,
-    formState: { errors },
-  } = useForm({
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm({
     defaultValues: {
       supplierId: '',
+      warehouseId: '',
       invoiceNumber: '',
       invoiceDate: getTodayDate(),
-      warehouseId: '',
-      notes: '',
       otherCharges: 0,
-    },
+      notes: ''
+    }
   });
+
+  const [lines, setLines] = useState([]);
+  const otherChargesWatch = watch('otherCharges', 0);
+  const totals = useMemo(() => calculateTotals(lines, otherChargesWatch), [lines, otherChargesWatch]);
 
   useEffect(() => {
     dispatch(fetchMasters('suppliers'));
     dispatch(fetchMasters('warehouses'));
     dispatch(fetchMasters('stores'));
     dispatch(fetchItems());
-  }, [dispatch]);
-
-  useEffect(() => {
-    if (orderId && !isEditMode) {
-      dispatch(fetchPurchaseOrderById(orderId))
-        .unwrap()
-        .then((order) => {
-          reset({
-            supplierId: order.supplierId,
-            warehouseId: order.warehouseId,
-            invoiceNumber: '',
-            invoiceDate: getTodayDate(),
-            notes: `Converted from PO: ${order.orderNumber}`,
-            otherCharges: order.totals?.otherCharges || 0,
-          });
-          setLines(
-            (order.items || []).map((item, index) => {
-              const itemInfo = item.itemId && typeof item.itemId === 'object' ? item.itemId : {};
-              let variantDetails = {};
-              if (itemInfo.sizes && item.variantId) {
-                variantDetails = itemInfo.sizes.find(s => String(s._id || s.id) === String(item.variantId)) || {};
-              }
-
-              return {
-                id: `${item.variantId}-${index}-${Date.now()}`,
-                itemId: item.itemId?._id || item.itemId,
-                variantId: item.variantId,
-                itemName: item.itemName || itemInfo.itemName || itemInfo.name || 'Item',
-                styleCode: item.itemCode || itemInfo.itemCode || itemInfo.code || '',
-                size: item.size || variantDetails.size || '',
-                color: item.color || itemInfo.shade || itemInfo.color || '',
-                sku: item.sku || variantDetails.sku || '',
-                quantity: item.qty || item.quantity,
-                rate: item.price || item.rate,
-                discount: item.discountPercent || item.discount || 0,
-                tax: item.taxPercent || item.tax || 0,
-              };
-            }),
-          );
-        })
-        .catch(err => setFormError("Failed to load Purchase Order details"));
-    }
-  }, [orderId, isEditMode, dispatch, reset, items]);
-
-  useEffect(() => {
-    if (!existingPurchase) {
-      if (!orderId) {
-        reset({
-          supplierId: '',
-          invoiceNumber: '',
-          invoiceDate: getTodayDate(),
-          warehouseId: '',
-          notes: '',
-          otherCharges: 0,
-        });
-        setLines([]);
-      }
-      return;
-    }
-
-    reset({
-      supplierId: existingPurchase.supplierId,
-      invoiceNumber: existingPurchase.invoiceNumber,
-      invoiceDate: existingPurchase.invoiceDate ? new Date(existingPurchase.invoiceDate).toISOString().split('T')[0] : getTodayDate(),
-      warehouseId: existingPurchase.warehouseId,
-      notes: existingPurchase.notes || '',
-      otherCharges: existingPurchase.otherCharges || 0,
-    });
-    setLines(
-      (existingPurchase.products || existingPurchase.items || []).map((item, index) => {
-        const itemInfo = item.itemId && typeof item.itemId === 'object' ? item.itemId : {};
-        let variantDetails = {};
-        if (itemInfo.sizes && item.variantId) {
-          variantDetails = itemInfo.sizes.find(s => String(s._id || s.id) === String(item.variantId)) || {};
-        }
-
-        return {
-          id: `${item.variantId}-${index}`,
-          itemId: item.itemId?._id || item.itemId,
-          variantId: item.variantId,
-          itemName: item.itemName || itemInfo.itemName || itemInfo.name || '',
-          styleCode: item.itemCode || itemInfo.itemCode || itemInfo.code || '',
-          size: item.size || variantDetails.size || '',
-          color: item.color || itemInfo.shade || itemInfo.color || '',
-          sku: item.sku || variantDetails.sku || '',
-          quantity: item.quantity || item.qty,
-          rate: item.rate || item.price,
-          discount: item.discountPercentage || item.discount || 0,
-          tax: item.taxPercentage || item.tax || 0,
-          lotNumber: item.lotNumber || '',
-        };
-      }),
-    );
-  }, [existingPurchase, reset, orderId]);
-
-
-  const activeWarehouses = useMemo(
-    () => (warehouses || []).filter((w) => String(w.status).toLowerCase() === 'active'),
-    [warehouses],
-  );
-
-  const isStoreStaff = user?.role !== 'Admin';
-
-  const availableLocations = useMemo(() => {
-    // If user is Staff/Manager, they only see their assigned shop
-    if (isStoreStaff && user?.shopId) {
-      const combined = [...warehouses, ...stores];
-      return combined.filter(l => l.id === user.shopId || l._id === user.shopId);
-    }
-    
-    // For HO / Admin, show only Warehouses to keep the list clear of retail stores.
-    // This addresses the user's feedback that showing all stores is unnecessary here.
-    return warehouses.length > 0 ? warehouses : [...warehouses, ...stores];
-  }, [warehouses, stores, isStoreStaff, user?.shopId]);
-
-  useEffect(() => {
-    if (!isEditMode && (warehouses.length > 0 || stores.length > 0)) {
-      if (!getValues('warehouseId')) {
-        const defaultId = user?.shopId || warehouses[0]?.id || stores[0]?.id;
-        if (defaultId) setValue('warehouseId', defaultId);
-      }
-    }
-  }, [warehouses, stores, user, isEditMode, setValue, getValues]);
-
-  const otherCharges = watch('otherCharges');
-
-  // Each product in the backend IS a variant (has size, color, sku, salePrice directly)
-  const variantOptions = useMemo(() => {
-    const options = [];
-    (items || []).forEach(product => {
-      if (product.sizes && product.sizes.length > 0) {
-        product.sizes.forEach(v => {
-          options.push({
-            itemId: product._id || product.id,
-            variantId: v._id || v.id,
-            itemName: product.itemName || product.name || '',
-            styleCode: product.itemCode || product.sku || '',
-            size: v.size || '',
-            color: product.shade || product.color || '',
-            sku: v.sku || '',
-            brand: product.brand || '',
-            category: product.category || '',
-            defaultRate: Number(v.costPrice || v.salePrice || 0),
-            status: product.isActive === false ? 'Inactive' : 'Active',
-          });
-        });
-      } else {
-        options.push({
-          itemId: product._id || product.id,
-          variantId: product._id || product.id,
-          itemName: product.itemName || product.name || '',
-          styleCode: product.itemCode || product.sku || '',
-          size: '--',
-          color: product.shade || '',
-          sku: product.sku || '',
-          brand: product.brand || '',
-          category: product.category || '',
-          defaultRate: Number(product.costPrice || 0),
-          status: product.isActive === false ? 'Inactive' : 'Active',
-        });
-      }
-    });
-    return options;
-  }, [items]);
-
-  useEffect(() => {
-    dispatch(fetchMasters('suppliers'));
-    dispatch(fetchMasters('warehouses'));
-    dispatch(fetchItems());
     dispatch(fetchPurchases());
+    dispatch(fetchGrns());
   }, [dispatch]);
 
-  const filteredOptions = useMemo(() => {
-    const selectedVariantIds = new Set(lines.map((line) => line.variantId));
-    return variantOptions.filter((option) => !selectedVariantIds.has(option.variantId));
-  }, [lines, variantOptions]);
-
-  const totals = useMemo(() => calculateTotals(lines, otherCharges), [lines, otherCharges]);
-
-  const addLine = () => {
-    if (!variantPickerValue) return;
-
-    setLines((previous) => [
-      ...previous,
-      {
-        id: `${variantPickerValue.variantId}-${Date.now()}`,
-        itemId: variantPickerValue.itemId,
-        variantId: variantPickerValue.variantId,
-        lotNumber: '',
-        itemName: variantPickerValue.itemName,
-        styleCode: variantPickerValue.styleCode,
-        size: variantPickerValue.size,
-        color: variantPickerValue.color,
-        sku: variantPickerValue.sku,
-        brand: variantPickerValue.brand,
-        category: variantPickerValue.category,
-        status: variantPickerValue.status,
-        quantity: 1,
-        rate: variantPickerValue.defaultRate,
-        discount: 0,
-        tax: 0,
-      },
-    ]);
-
-    setVariantPickerValue(null);
-    setFormError('');
-  };
-
-  const updateLineField = (lineId, field, value) => {
-    setLines((previous) =>
-      previous.map((line) => {
-        if (line.id !== lineId) return line;
-        return { ...line, [field]: value };
-      }),
-    );
-  };
-
-  const addNextSizeOfSameItem = (currentLine) => {
-    const selectedIds = new Set(lines.map((l) => l.variantId));
-    const nextVariant = variantOptions.find(
-      (opt) =>
-        opt.itemName === currentLine.itemName &&
-        !selectedIds.has(opt.variantId),
-    );
-    if (!nextVariant) return;
-    const rate = toNumber(currentLine.rate);
-    setLines((prev) => [
-      ...prev,
-      {
-        id: `${nextVariant.variantId}-${Date.now()}`,
-        variantId: nextVariant.variantId,
-        lotNumber: '',
-        itemName: nextVariant.itemName,
-        styleCode: nextVariant.styleCode,
-        size: nextVariant.size,
-        color: nextVariant.color,
-        sku: nextVariant.sku,
-        brand: nextVariant.brand,
-        category: nextVariant.category,
-        status: nextVariant.status,
-        quantity: 1,
-        rate,
-        discount: toNumber(currentLine.discount),
-        tax: 0,
-      },
-    ]);
-  };
-
-  const removeLine = (lineId) => {
-    setLines((previous) => previous.filter((line) => line.id !== lineId));
-  };
-
-  const handleImportExcel = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setImportError('');
-    setFormError('');
-    try {
-      const { rows, errors } = await parsePurchaseExcel(file);
-      if (errors?.length) {
-        setImportError(errors.join(' '));
-        return;
+  // Handle URL grnId Redirect
+  useEffect(() => {
+    if (grnId && !isEditMode) {
+      const grn = grns.find(g => (g._id || g.id) === grnId);
+      if (grn) {
+        populateFromGRN(grn);
+      } else {
+         dispatch(fetchGrnById(grnId)).unwrap().then(populateFromGRN);
       }
-      const skuToVariant = variantOptions.reduce((acc, opt) => {
-        acc[opt.sku] = opt;
-        return acc;
-      }, {});
-      const invalid = rows.filter((r) => !skuToVariant[r.sku]);
-      if (invalid.length) {
-        setImportError(`Invalid SKUs: ${invalid.map((r) => r.sku).join(', ')}`);
-        return;
-      }
-      const newLines = rows
-        .filter((r) => skuToVariant[r.sku])
-        .map((r) => {
-          const opt = skuToVariant[r.sku];
-          const rate = toNumber(r.rate);
-          const tax = r.tax;
-          return {
-            id: `${opt.variantId}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-            variantId: opt.variantId,
-            lotNumber: r.lotNumber || '',
-            itemName: opt.itemName,
-            styleCode: opt.styleCode,
-            size: opt.size,
-            color: opt.color,
-            sku: opt.sku,
-            brand: opt.brand,
-            category: opt.category,
-            status: opt.status,
-            quantity: toNumber(r.quantity),
-            rate,
-            discount: toNumber(r.discount),
-            tax,
-          };
-        });
-      setLines((prev) => [...prev, ...newLines]);
-      setImportError('');
-    } catch (err) {
-      setImportError(err?.message || 'Import failed.');
     }
-    e.target.value = '';
-  };
+  }, [grnId, grns, isEditMode]);
 
-  const onSubmit = (values) => {
-    setFormError('');
-
-    if (!lines.length) {
-      setFormError('Add at least one item variant to the purchase bill.');
-      return;
+  useEffect(() => {
+    if (isEditMode && existingPurchase) {
+      reset({
+        supplierId: existingPurchase.supplierId?._id || existingPurchase.supplierId,
+        warehouseId: existingPurchase.warehouseId?._id || existingPurchase.warehouseId || existingPurchase.storeId,
+        invoiceNumber: existingPurchase.invoiceNumber || '',
+        invoiceDate: (existingPurchase.invoiceDate || '').slice(0, 10),
+        otherCharges: existingPurchase.totals?.otherCharges || 0,
+        notes: existingPurchase.remarks || ''
+      });
+      setLines((existingPurchase.items || []).map(i => ({
+        id: i._id || Math.random().toString(),
+        itemId: i.itemId?._id || i.itemId,
+        itemName: i.itemId?.name || i.itemName || 'Item',
+        variantId: i.variantId,
+        sku: i.sku || '',
+        size: i.size || '-',
+        color: i.color || '-',
+        quantity: i.quantity || 0,
+        rate: i.rate || 0,
+        discount: i.discount || 0,
+        tax: i.tax || 0,
+        lotNumber: i.batchNumber || ''
+      })));
     }
+  }, [isEditMode, existingPurchase, reset]);
 
-    const preparedItems = lines.map((line) => {
-      const quantity = toNumber(line.quantity);
-      const rate = toNumber(line.rate);
-      const discountPercentage = toNumber(line.discount);
-      const taxPercentage = toNumber(line.tax);
-
+  const populateFromGRN = (grn) => {
+    setValue('supplierId', grn.supplierId?._id || grn.supplierId || '', { shouldValidate: true });
+    setValue('warehouseId', grn.warehouseId?._id || grn.warehouseId || '', { shouldValidate: true });
+    setValue('notes', `Lined to GRN: ${grn.grnNumber}`);
+    
+    const mapped = (grn.items || []).map(item => {
+      const itm = item.itemId || {};
+      const vrnt = (itm.sizes || []).find(v => String(v._id || v.id) === String(item.variantId)) || {};
       return {
-        itemId: line.itemId,
-        variantId: line.variantId,
-        sku: line.sku,
-        quantity,
-        rate,
-        discountPercentage,
-        taxPercentage,
-        lotNumber: line.lotNumber || '',
+        id: Math.random().toString(36).substr(2, 9),
+        itemId: itm._id || itm.id || item.itemId,
+        itemName: itm.name || itm.itemName || item.itemName || 'Item',
+        variantId: item.variantId,
+        sku: item.sku || vrnt.sku || '',
+        size: item.size || vrnt.size || '-',
+        color: item.color || vrnt.color || '-',
+        quantity: item.receivedQty || 0,
+        rate: item.costPrice || 0,
+        discount: item.discount || 0,
+        tax: item.tax || 0,
+        lotNumber: item.batchNumber || ''
       };
     });
-
-    const invalidLine = preparedItems.find((item) => item.quantity <= 0 || item.rate < 0);
-    if (invalidLine) {
-      setFormError('Quantity must be greater than 0 and rate cannot be negative.');
-      return;
-    }
-
-
-    const payload = {
-      supplierId: values.supplierId,
-      warehouseId: values.warehouseId,
-      invoiceNumber: values.invoiceNumber.trim(),
-      invoiceDate: values.invoiceDate,
-      notes: values.notes,
-      otherCharges: toNumber(values.otherCharges),
-      products: preparedItems,
-    };
-
-    dispatch(isEditMode ? updatePurchase({ id, purchaseData: payload }) : addPurchase(payload))
-      .unwrap()
-      .then(() => {
-        navigate(purchaseListPath);
-      })
-      .catch((err) => {
-        setFormError(err || 'Failed to save purchase');
-      });
+    setLines(mapped);
   };
 
-  if (isEditMode && !existingPurchase) {
-    return (
-      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3 }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a', mb: 1 }}>
-          Purchase bill not found
-        </Typography>
-        <Button variant="contained" onClick={() => navigate(purchaseListPath)}>
-          Back to Purchase List
-        </Button>
-      </Paper>
-    );
-  }
+  const updateLineField = (id, field, value) => {
+    setLines(prev => prev.map(l => l.id === id ? { ...l, [field]: value } : l));
+  };
+
+  const onSubmit = async (data) => {
+    if (!lines.length) return alert('Add at least one item');
+    const payload = { ...data, items: lines.map(l => ({ ...l, batchNumber: l.lotNumber })), totals };
+    try {
+      if (isEditMode) await dispatch(updatePurchase({ id, purchaseData: payload })).unwrap();
+      else await dispatch(addPurchase(payload)).unwrap();
+      navigate(basePath === '/ho' ? '/purchase/purchase-voucher' : '/purchase');
+    } catch (e) { alert(e); }
+  };
 
   return (
-    <Box component="form" onSubmit={handleSubmit(onSubmit)}>
-      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3, mb: 2 }}>
-        <Stack
-          direction={{ xs: 'column', md: 'row' }}
-          spacing={2}
-          sx={{ justifyContent: 'space-between', alignItems: { md: 'center' } }}
-        >
-          <Box>
-            <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
-              {pageTitle}
-            </Typography>
-            <Typography variant="body2" sx={{ color: '#64748b' }}>
-              Capture supplier invoice and inward stock details.
-            </Typography>
-          </Box>
-
-          <Stack direction="row" spacing={1.5}>
-            <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate(purchaseListPath)}>
-              Back
-            </Button>
-            <Button type="submit" variant="contained" startIcon={<SaveOutlinedIcon />}>
-              {saveButtonLabel}
-            </Button>
-          </Stack>
+    <Box sx={{ p: 4, bgcolor: '#f8fafc', minHeight: '100vh' }}>
+      <Stack direction="row" spacing={2} sx={{ justifyContent: 'space-between', mb: 3 }}>
+        <Box>
+          <Typography variant="h4" sx={{ fontWeight: 800, color: '#0f172a' }}>{isEditMode ? 'Edit' : 'New'} Purchase Voucher</Typography>
+          <Typography variant="body2" sx={{ color: '#64748b' }}>Process supplier invoices and record inward stock details.</Typography>
+        </Box>
+        <Stack direction="row" spacing={1}>
+          <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate(-1)}>Back</Button>
+          <Button variant="contained" startIcon={<SaveOutlinedIcon />} onClick={handleSubmit(onSubmit)}>{isEditMode ? 'Update' : 'Save'} Voucher</Button>
         </Stack>
-      </Paper>
+      </Stack>
 
-      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3, mb: 2 }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a', mb: 2 }}>
-          Supplier & Bill Info
-        </Typography>
+      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3, p: 4, mb: 3 }}>
+        <Grid container spacing={4}>
+          <Grid item xs={12} md={9}>
+            <Grid container spacing={3}>
+              {/* Row 1: Primary Automation */}
+              <Grid item xs={12}>
+                <Autocomplete
+                  size="small"
+                  fullWidth
+                  options={grns.filter(g => String(g.status).toUpperCase() === 'APPROVED' && !g.purchaseId)}
+                  getOptionLabel={(o) => `${o.grnNumber} ${o.invoiceNumber ? `| Ref: ${o.invoiceNumber}` : ''} | ${o.supplierId?.name || o.supplierId?.supplierName || 'Unknown'}`}
+                  renderInput={(params) => <TextField {...params} label="Import Approved GRN (Auto-fill)" placeholder="Search GRN Number..." sx={{ '& .MuiInputBase-root': { bgcolor: '#f1f5f9' } }} />}
+                  onChange={(_, val) => val && populateFromGRN(val)}
+                  disabled={isEditMode}
+                />
+              </Grid>
 
-        <Grid container spacing={2}>
+              {/* Row 2: Crucial Dropdowns - FIXED WIDTH */}
+              <Grid item xs={12} md={6}>
+                <TextField select fullWidth size="small" label="Supplier / Vendor" {...register('supplierId', { required: true })} error={Boolean(errors.supplierId)}>
+                  {suppliers.map(s => <MenuItem key={s._id || s.id} value={s._id || s.id}>{s.name || s.supplierName}</MenuItem>)}
+                </TextField>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField select fullWidth size="small" label="Warehouse / Location" {...register('warehouseId', { required: true })} error={Boolean(errors.warehouseId)}>
+                  {availableLocations.map(l => <MenuItem key={l.id} value={l.id}>{l.name}</MenuItem>)}
+                </TextField>
+              </Grid>
+
+              {/* Row 3: Tracking Info */}
+              <Grid item xs={12} md={4}>
+                <TextField fullWidth size="small" label="PV Number" value={existingPurchase?.purchaseNumber || 'PV-NEW'} disabled helperText="System generated ID" />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField fullWidth size="small" label="Vendor Bill / Invoice No." {...register('invoiceNumber', { required: true })} error={Boolean(errors.invoiceNumber)} placeholder="e.g. BILL-9921" />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField fullWidth size="small" type="date" label="Bill Date" InputLabelProps={{ shrink: true }} {...register('invoiceDate', { required: true })} />
+              </Grid>
+            </Grid>
+          </Grid>
+
+          {/* Amount Summary Box */}
           <Grid item xs={12} md={3}>
-            <TextField
-              select
-              fullWidth
-              size="small"
-              label="Supplier"
-              {...register('supplierId', { required: 'Supplier is required.' })}
-              error={Boolean(errors.supplierId)}
-              helperText={errors.supplierId?.message || ' '}
-            >
-              {suppliers.map((supplier) => (
-                <MenuItem key={supplier._id || supplier.id} value={supplier._id || supplier.id}>
-                  {supplier.name || supplier.supplierName || ''}
-                </MenuItem>
-              ))}
-            </TextField>
-          </Grid>
-
-          <Grid item xs={12} md={3}>
-            <TextField
-              select
-              fullWidth
-              size="small"
-              label="Location"
-              {...register('warehouseId', { required: 'Location is required.' })}
-              error={Boolean(errors.warehouseId)}
-              helperText={errors.warehouseId?.message || ' '}
-              disabled={isStoreStaff && availableLocations.length === 1}
-            >
-              {availableLocations.map((loc) => (
-                <MenuItem key={loc.id} value={loc.id}>
-                  {loc.name} ({warehouses.find(w => w.id === loc.id) ? 'Warehouse' : 'Store'})
-                </MenuItem>
-              ))}
-            </TextField>
-          </Grid>
-
-          <Grid item xs={12} md={3}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Invoice Number"
-              {...register('invoiceNumber', { required: 'Invoice number is required.' })}
-              error={Boolean(errors.invoiceNumber)}
-              helperText={errors.invoiceNumber?.message || ' '}
-            />
-          </Grid>
-
-          <Grid item xs={12} md={3}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Invoice Date"
-              type="date"
-              InputLabelProps={{ shrink: true }}
-              {...register('invoiceDate', { required: true })}
-            />
-          </Grid>
-
-          <Grid item xs={12} md={8}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Notes / Remarks"
-              {...register('notes')}
-            />
-          </Grid>
-
-          <Grid item xs={12} md={4}>
-            <TextField
-              fullWidth
-              size="small"
-              type="number"
-              label="Other Charges"
-              {...register('otherCharges')}
-            />
+            <Box sx={{ p: 3, bgcolor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 3, textAlign: 'center', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <Typography variant="overline" sx={{ color: '#166534', fontWeight: 800, mb: 1 }}>Total Payable</Typography>
+              <Typography variant="h3" sx={{ color: '#166534', fontWeight: 900 }}>₹{totals.netAmount.toLocaleString()}</Typography>
+              <Typography variant="caption" sx={{ color: '#166534', mt: 1, opacity: 0.8 }}>Inclusive of Taxes & Discounts</Typography>
+            </Box>
           </Grid>
         </Grid>
       </Paper>
 
-      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3, mb: 2 }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a', mb: 1.5 }}>
-          Item Entry
-        </Typography>
-
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mb: 2 }} alignItems="center">
-          <input
-            ref={importInputRef}
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            style={{ display: 'none' }}
-            onChange={handleImportExcel}
-          />
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={() => importInputRef.current?.click()}
-          >
-            Import from Excel
-          </Button>
-          <Autocomplete
-            fullWidth
-            size="small"
-            options={filteredOptions}
-            value={variantPickerValue}
-            onChange={(_, value) => setVariantPickerValue(value)}
-            getOptionLabel={(option) =>
-              `${option.styleCode} | ${option.itemName} | ${option.size} | ${option.color} | ₹${option.defaultRate}`
-            }
-            renderInput={(params) => <TextField {...params} label="Add Variant" />}
-          />
-          <Button variant="outlined" startIcon={<AddCircleOutlineIcon />} onClick={addLine} disabled={!variantPickerValue}>
-            Add
-          </Button>
-        </Stack>
-
-        {lines.length ? (
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 700 }}>Item Name</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Variant</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Lot No.</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }} align="right">
-                    Quantity
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 700 }} align="right">
-                    Rate
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 700 }} align="right">
-                    Discount %
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 700 }} align="right">
-                    GST %
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 700 }} align="right">
-                    Amount
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Remove</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {lines.map((line) => {
-                  return (
-                    <TableRow key={line.id}>
-                      <TableCell>{line.itemName}</TableCell>
-                      <TableCell>{`${line.size}/${line.color}`}</TableCell>
-                      <TableCell>
-                        <TextField
-                          size="small"
-                          value={line.lotNumber || ''}
-                          onChange={(e) =>
-                            updateLineField(line.id, 'lotNumber', e.target.value)
-                          }
-                          placeholder="LOT-001"
-                          sx={{ width: 100 }}
-                        />
-                      </TableCell>
-                      <TableCell>{line.sku}</TableCell>
-                      <TableCell align="right">
-                        <TextField
-                          size="small"
-                          type="number"
-                          value={line.quantity}
-                          onChange={(event) =>
-                            updateLineField(line.id, 'quantity', Math.max(0, toNumber(event.target.value)))
-                          }
-                          sx={{ width: 90 }}
-                        />
-                      </TableCell>
-                      <TableCell align="right">
-                        <TextField
-                          size="small"
-                          type="number"
-                          value={line.rate}
-                          onChange={(event) =>
-                            updateLineField(line.id, 'rate', Math.max(0, toNumber(event.target.value)))
-                          }
-                          sx={{ width: 110 }}
-                        />
-                      </TableCell>
-                      <TableCell align="right">
-                        <TextField
-                          size="small"
-                          type="number"
-                          value={line.discount}
-                          onChange={(event) =>
-                            updateLineField(line.id, 'discount', Math.max(0, toNumber(event.target.value)))
-                          }
-                          sx={{ width: 90 }}
-                        />
-                      </TableCell>
-                      <TableCell align="right">
-                        <TextField
-                          size="small"
-                          type="number"
-                          value={line.tax}
-                          onChange={(event) =>
-                            updateLineField(line.id, 'tax', Math.max(0, toNumber(event.target.value)))
-                          }
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && purchaseConfig?.carryForwardPackSize) {
-                              e.preventDefault();
-                              addNextSizeOfSameItem(line);
-                            }
-                          }}
-                          sx={{ width: 90 }}
-                        />
-                      </TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 700 }}>
-                        {(toNumber(line.quantity) * toNumber(line.rate) * (1 - toNumber(line.discount) / 100) * (1 + toNumber(line.tax) / 100)).toFixed(2)}
-                      </TableCell>
-                      <TableCell>
-                        <IconButton color="error" size="small" onClick={() => removeLine(line.id)}>
-                          <DeleteOutlineIcon fontSize="small" />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        ) : (
-          <Box sx={{ py: 5, textAlign: 'center' }}>
-            <Typography variant="body2" sx={{ color: '#64748b' }}>
-              No variants added yet.
-            </Typography>
+      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3, overflow: 'hidden' }}>
+        <Box sx={{ p: 2.5, bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1e293b' }}>Itemized Entries</Typography>
+        </Box>
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ bgcolor: '#f1f5f9' }}>
+                <TableCell sx={{ fontWeight: 700 }}>Item Name</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Variant</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Qty</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Rate</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Disc %</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">GST %</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Amount</TableCell>
+                <TableCell align="center">Action</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {lines.map((line) => {
+                const amount = (line.quantity * line.rate * (1 - line.discount/100) * (1 + line.tax/100)).toFixed(2);
+                return (
+                  <TableRow key={line.id}>
+                    <TableCell sx={{ fontWeight: 600 }}>{line.itemName}</TableCell>
+                    <TableCell><Chip size="small" label={`${line.size} / ${line.color}`} variant="outlined" /></TableCell>
+                    <TableCell sx={{ color: '#64748b', fontSize: '0.8rem' }}>{line.sku}</TableCell>
+                    <TableCell align="right"><TextField size="small" type="number" sx={{ width: 80 }} value={line.quantity} onChange={(e) => updateLineField(line.id, 'quantity', toNumber(e.target.value))} /></TableCell>
+                    <TableCell align="right"><TextField size="small" type="number" sx={{ width: 100 }} value={line.rate} onChange={(e) => updateLineField(line.id, 'rate', toNumber(e.target.value))} /></TableCell>
+                    <TableCell align="right"><TextField size="small" type="number" sx={{ width: 70 }} value={line.discount} onChange={(e) => updateLineField(line.id, 'discount', toNumber(e.target.value))} /></TableCell>
+                    <TableCell align="right"><TextField size="small" type="number" sx={{ width: 70 }} value={line.tax} onChange={(e) => updateLineField(line.id, 'tax', toNumber(e.target.value))} /></TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700 }}>₹{amount}</TableCell>
+                    <TableCell align="center"><IconButton color="error" size="small" onClick={() => setLines(prev => prev.filter(l => l.id !== line.id))}><DeleteOutlineIcon fontSize="small" /></IconButton></TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableContainer>
+        {!lines.length && (
+          <Box sx={{ p: 6, textAlign: 'center' }}>
+            <Typography variant="body2" sx={{ color: '#64748b' }}>No variants imported. Use the dropdown above to auto-fill from a GRN.</Typography>
           </Box>
         )}
       </Paper>
 
-      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 2.5 }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0f172a', mb: 1.5 }}>
-          Bill Totals
-        </Typography>
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="flex-end">
-          <SummaryField label="Gross Amount" value={totals.grossAmount} />
-          <SummaryField label="Total Discount" value={totals.totalDiscount} />
-          <SummaryField label="Total Tax" value={totals.totalTax} />
-          <SummaryField label="Other Charges" value={totals.otherCharges} />
-          <SummaryField label="Net Amount" value={totals.netAmount} strong />
-        </Stack>
-      </Paper>
-
-      {(formError || importError) && (
-        <Alert severity="error" sx={{ mt: 2 }}>
-          {formError || importError}
-        </Alert>
-      )}
-
-      <Stack direction="row" justifyContent="flex-end" spacing={1.5} sx={{ mt: 2 }}>
-        <Button variant="outlined" onClick={() => navigate(purchaseListPath)}>
-          Cancel
-        </Button>
-        <Button type="submit" variant="contained" startIcon={<SaveOutlinedIcon />}>
-          {saveButtonLabel}
-        </Button>
+      <Stack direction="row" spacing={2} sx={{ mt: 3, justifyContent: 'flex-end', alignItems: 'center' }}>
+        <TextField size="small" type="number" label="Freight / Other Charges" {...register('otherCharges')} sx={{ width: 220 }} />
+        <Button variant="contained" size="large" startIcon={<SaveOutlinedIcon />} sx={{ px: 4 }} onClick={handleSubmit(onSubmit)}>Post Voucher</Button>
       </Stack>
-    </Box>
-  );
-}
-
-function SummaryField({ label, value, strong }) {
-  return (
-    <Box
-      sx={{
-        border: '1px solid #e2e8f0',
-        borderRadius: 1.5,
-        px: 1.5,
-        py: 1,
-        minWidth: 145,
-        textAlign: 'right',
-      }}
-    >
-      <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 700 }}>
-        {label}
-      </Typography>
-      <Typography variant="body2" sx={{ color: '#0f172a', fontWeight: strong ? 800 : 700 }}>
-        {Number(value || 0).toFixed(2)}
-      </Typography>
     </Box>
   );
 }

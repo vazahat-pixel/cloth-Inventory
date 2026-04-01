@@ -114,8 +114,6 @@ const productSchema = new mongoose.Schema(
 
 // Text Indexes
 productSchema.index({ name: 'text', category: 'text' });
-productSchema.index({ sku: 1 });
-productSchema.index({ barcode: 1 });
 productSchema.index({ isDeleted: 1 });
 productSchema.index({ isActive: 1 });
 

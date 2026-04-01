@@ -22,6 +22,7 @@ import {
   TableRow,
   TextField,
   Typography,
+  Alert,
 } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import SearchIcon from '@mui/icons-material/Search';
@@ -40,6 +41,8 @@ function PurchaseListPage() {
   const purchases = useSelector((state) => state.purchase.records || []);
   const suppliers = useSelector((state) => state.masters.suppliers || []);
   const warehouses = useSelector((state) => state.masters.warehouses || []);
+  const stores = useSelector((state) => state.masters.stores || []);
+  const user = useSelector((state) => state.auth.user);
 
   const [searchText, setSearchText] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState('all');
@@ -49,9 +52,6 @@ function PurchaseListPage() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selectedPurchase, setSelectedPurchase] = useState(null);
   const [barcodePrintPurchase, setBarcodePrintPurchase] = useState(null);
-
-  const user = useSelector((state) => state.auth.user);
-  const stores = useSelector((state) => state.masters.stores || []);
 
   const isStoreStaff = user?.role !== 'Admin';
   const purchaseNewPath = basePath === '/ho' ? '/purchase/purchase-voucher/new' : '/purchase/new';
@@ -79,222 +79,99 @@ function PurchaseListPage() {
     return combined;
   }, [warehouses, stores, isStoreStaff, user?.shopId]);
 
-  const supplierMap = useMemo(
-    () =>
-      suppliers.reduce((acc, supplier) => {
-        acc[supplier.id] = supplier.supplierName;
-        return acc;
-      }, {}),
-    [suppliers],
-  );
+  const supplierMap = useMemo(() => 
+    suppliers.reduce((acc, s) => ({ ...acc, [s._id || s.id]: s.name || s.supplierName }), {}),
+  [suppliers]);
 
-  const warehouseMap = useMemo(
-    () =>
-      warehouses.reduce((acc, warehouse) => {
-        acc[warehouse.id] = warehouse.name;
-        return acc;
-      }, {}),
-    [warehouses],
-  );
+  const warehouseMap = useMemo(() => 
+    [...warehouses, ...stores].reduce((acc, w) => ({ ...acc, [w._id || w.id]: w.name }), {}),
+  [warehouses, stores]);
 
   const filteredRows = useMemo(() => {
     const query = searchText.trim().toLowerCase();
-
     return purchases.filter((row) => {
-      const supplierName = supplierMap[row.supplierId] || '';
-      const invoiceNo = row.invoiceNumber || row.billNumber || '';
-      const matchesSearch = query
-        ? invoiceNo.toLowerCase().includes(query) ||
-        supplierName.toLowerCase().includes(query)
-        : true;
-
-      const matchesWarehouse =
-        warehouseFilter === 'all' ? true : row.warehouseId === warehouseFilter;
-
-      const invoiceDate = row.invoiceDate || row.billDate || '';
-      const matchesDateFrom = dateFrom ? invoiceDate >= dateFrom : true;
-      const matchesDateTo = dateTo ? invoiceDate <= dateTo : true;
-
-      return matchesSearch && matchesWarehouse && matchesDateFrom && matchesDateTo;
+      const sName = supplierMap[row.supplierId] || '';
+      const invNo = row.purchaseNumber || row.invoiceNumber || '';
+      const matchesSearch = query ? (invNo.toLowerCase().includes(query) || sName.toLowerCase().includes(query)) : true;
+      const matchesWarehouse = warehouseFilter === 'all' ? true : row.storeId === warehouseFilter || row.warehouseId === warehouseFilter;
+      const date = row.invoiceDate || row.createdAt;
+      const matchesFrom = dateFrom ? date >= dateFrom : true;
+      const matchesTo = dateTo ? date <= dateTo : true;
+      return matchesSearch && matchesWarehouse && matchesFrom && matchesTo;
     });
-  }, [dateFrom, dateTo, purchases, searchText, supplierMap, warehouseFilter]);
+  }, [purchases, searchText, supplierMap, warehouseFilter, dateFrom, dateTo]);
 
-  const paginatedRows = useMemo(() => {
-    const startIndex = page * rowsPerPage;
-    return filteredRows.slice(startIndex, startIndex + rowsPerPage);
-  }, [filteredRows, page, rowsPerPage]);
+  const paginatedRows = useMemo(() => filteredRows.slice(page * rowsPerPage, (page + 1) * rowsPerPage), [filteredRows, page, rowsPerPage]);
 
   return (
     <>
       <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2 }}>
-        <Stack spacing={2} sx={{ px: { xs: 2, sm: 3 }, pt: { xs: 2, sm: 3 }, pb: 2 }}>
-          <Stack
-            direction={{ xs: 'column', md: 'row' }}
-            spacing={2}
-            sx={{ justifyContent: 'space-between', alignItems: { md: 'center' } }}
-          >
+        <Stack spacing={2} sx={{ p: 3 }}>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' } }}>
             <Box>
-              <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
-                {pageTitle}
-              </Typography>
-              <Typography variant="body2" sx={{ color: '#64748b' }}>
-                Manage supplier purchase entries and stock inward transactions.
-              </Typography>
+              <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>{pageTitle}</Typography>
+              <Typography variant="body2" sx={{ color: '#64748b' }}>Manage supplier bills and financial voucher entries.</Typography>
             </Box>
-
-            <Button
-              variant="contained"
-              startIcon={<AddCircleOutlineIcon />}
-              onClick={() => navigate(purchaseNewPath)}
-            >
-              {addButtonLabel}
-            </Button>
+            <Button variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={() => navigate(purchaseNewPath)}>{addButtonLabel}</Button>
           </Stack>
 
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
             <TextField
               size="small"
+              placeholder="Search PV # or Supplier"
               value={searchText}
-              onChange={(event) => {
-                setPage(0);
-                setSearchText(event.target.value);
-              }}
-              placeholder="Search by bill no or supplier"
+              onChange={(e) => { setSearchText(e.target.value); setPage(0); }}
               sx={{ flex: 1 }}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon fontSize="small" />
-                  </InputAdornment>
-                ),
-              }}
+              InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
             />
-
             {availableLocations.length > 1 && (
-              <TextField
-                size="small"
-                select
-                label="Location"
-                value={warehouseFilter}
-                onChange={(event) => {
-                  setPage(0);
-                  setWarehouseFilter(event.target.value);
-                }}
-                sx={{ minWidth: 180 }}
-              >
+              <TextField select size="small" label="Location" value={warehouseFilter} onChange={(e) => { setWarehouseFilter(e.target.value); setPage(0); }} sx={{ minWidth: 180 }}>
                 <MenuItem value="all">All Locations</MenuItem>
-                {availableLocations.map((loc) => (
-                  <MenuItem key={loc.id} value={loc.id}>
-                    {loc.name}
-                  </MenuItem>
-                ))}
+                {availableLocations.map(l => <MenuItem key={l.id} value={l.id}>{l.name}</MenuItem>)}
               </TextField>
             )}
-
-            <TextField
-              size="small"
-              type="date"
-              label="From"
-              value={dateFrom}
-              onChange={(event) => {
-                setPage(0);
-                setDateFrom(event.target.value);
-              }}
-              InputLabelProps={{ shrink: true }}
-            />
-            <TextField
-              size="small"
-              type="date"
-              label="To"
-              value={dateTo}
-              onChange={(event) => {
-                setPage(0);
-                setDateTo(event.target.value);
-              }}
-              InputLabelProps={{ shrink: true }}
-            />
+            <TextField size="small" type="date" label="From" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(0); }} InputLabelProps={{ shrink: true }} />
+            <TextField size="small" type="date" label="To" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(0); }} InputLabelProps={{ shrink: true }} />
           </Stack>
         </Stack>
 
-        {filteredRows.length ? (
+        {filteredRows.length > 0 ? (
           <>
             <TableContainer>
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 700 }}>Invoice No.</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Voucher / Bill No</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Supplier</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Invoice Date</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Warehouse</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }} align="right">
-                      Total Qty
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 700 }} align="right">
-                      Net Amount
-                    </TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Location</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">Qty</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">Amount</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {paginatedRows.map((row) => (
-                    <TableRow key={row.id} hover>
-                      <TableCell sx={{ fontWeight: 700 }}>{row.invoiceNumber || row.billNumber || '-'}</TableCell>
-                      <TableCell>
-                        {typeof row.supplierId === 'object' ? row.supplierId?.name : (supplierMap[row.supplierId] || '')}
+                    <TableRow key={row._id || row.id} hover>
+                      <TableCell sx={{ py: 1.5 }}>
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 700, color: '#1e293b' }}>{row.purchaseNumber || 'PV-NEW'}</Typography>
+                          <Typography variant="caption" sx={{ color: '#64748b', display: 'block', mt: -0.2 }}>Ref: {row.invoiceNumber || '-'}</Typography>
+                        </Box>
                       </TableCell>
-                      <TableCell>{row.invoiceDate || row.billDate || '-'}</TableCell>
-                      <TableCell>
-                        {typeof row.warehouseId === 'object' ? row.warehouseId?.name : (warehouseMap[row.warehouseId] || row.warehouseName || '')}
-                      </TableCell>
-                      <TableCell align="right">{row.totals?.totalQuantity ?? '-'}</TableCell>
-                      <TableCell align="right">{row.totals?.netAmount != null ? Number(row.totals.netAmount).toFixed(2) : '-'}</TableCell>
-                      <TableCell>
-                        <PurchaseStatusChip status={row.status} />
-                      </TableCell>
+                      <TableCell>{supplierMap[row.supplierId] || 'Unknown'}</TableCell>
+                      <TableCell>{new Date(row.invoiceDate || row.createdAt).toLocaleDateString()}</TableCell>
+                      <TableCell>{warehouseMap[row.storeId || row.warehouseId] || 'N/A'}</TableCell>
+                      <TableCell align="right">{row.totalQuantity || row.totals?.totalQuantity || '-'}</TableCell>
+                      <TableCell align="right">₹ {(row.grandTotal || row.totals?.netAmount || 0).toFixed(2)}</TableCell>
+                      <TableCell><PurchaseStatusChip status={row.status} /></TableCell>
                       <TableCell>
                         <Stack direction="row" spacing={0.5}>
-                          <IconButton size="small" color="info" onClick={() => setSelectedPurchase(row)} title="View">
-                            <VisibilityOutlinedIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            color="primary"
-                            onClick={() => navigate(getPurchaseEditPath(row.id))}
-                            title="Edit"
-                          >
-                            <EditOutlinedIcon fontSize="small" />
-                          </IconButton>
-                          {basePath === '/ho' && !row.purchaseOrderId && (
-                            <IconButton
-                              size="small"
-                              sx={{ color: '#10b981' }}
-                              onClick={() => {
-                                if (window.confirm('Generate Purchase Order from this voucher?')) {
-                                  dispatch(generatePOFromVoucher(row.id));
-                                }
-                              }}
-                              title="Generate PO"
-                            >
-                              <ReceiptLongOutlinedIcon fontSize="small" />
-                            </IconButton>
-                          )}
-                          <IconButton
-                            size="small"
-                            color="secondary"
-                            onClick={() => setBarcodePrintPurchase(row)}
-                            title="Print Barcodes"
-                          >
-                            <LocalPrintshopOutlinedIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            color="warning"
-                            onClick={() => navigate(getPurchaseReturnPath(row.id))}
-                            title="Return"
-                          >
-                            <KeyboardReturnOutlinedIcon fontSize="small" />
-                          </IconButton>
+                          <IconButton size="small" color="info" onClick={() => setSelectedPurchase(row)}><VisibilityOutlinedIcon fontSize="small" /></IconButton>
+                          <IconButton size="small" color="primary" onClick={() => navigate(getPurchaseEditPath(row._id || row.id))}><EditOutlinedIcon fontSize="small" /></IconButton>
+                          <IconButton size="small" color="secondary" onClick={() => setBarcodePrintPurchase(row)}><LocalPrintshopOutlinedIcon fontSize="small" /></IconButton>
+                          <IconButton size="small" color="warning" onClick={() => navigate(getPurchaseReturnPath(row._id || row.id))}><KeyboardReturnOutlinedIcon fontSize="small" /></IconButton>
                         </Stack>
                       </TableCell>
                     </TableRow>
@@ -302,87 +179,26 @@ function PurchaseListPage() {
                 </TableBody>
               </Table>
             </TableContainer>
-
-            <TablePagination
-              component="div"
-              count={filteredRows.length}
-              page={page}
-              onPageChange={(_, nextPage) => setPage(nextPage)}
-              rowsPerPage={rowsPerPage}
-              onRowsPerPageChange={(event) => {
-                setRowsPerPage(Number(event.target.value));
-                setPage(0);
-              }}
-              rowsPerPageOptions={[5, 10, 20]}
-            />
+            <TablePagination component="div" count={filteredRows.length} page={page} onPageChange={(_, p) => setPage(p)} rowsPerPage={rowsPerPage} onRowsPerPageChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(0); }} rowsPerPageOptions={[10, 25, 50]} />
           </>
         ) : (
-          <Box sx={{ py: 7, textAlign: 'center' }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0f172a', mb: 1 }}>
-              No purchase bills found.
-            </Typography>
-            <Typography variant="body2" sx={{ color: '#64748b', mb: 2 }}>
-              Create your first supplier bill to begin procurement workflow.
-            </Typography>
-            <Button variant="contained" onClick={() => navigate(purchaseNewPath)}>
-              {addButtonLabel}
-            </Button>
+          <Box sx={{ py: 10, textAlign: 'center' }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0f172a', mb: 1 }}>No purchase vouchers found.</Typography>
+            <Button variant="contained" onClick={() => navigate(purchaseNewPath)}>{addButtonLabel}</Button>
           </Box>
         )}
       </Paper>
 
-      <BarcodePrintDialog
-        open={Boolean(barcodePrintPurchase)}
-        onClose={() => setBarcodePrintPurchase(null)}
-        purchase={barcodePrintPurchase}
-        lines={(barcodePrintPurchase?.products || barcodePrintPurchase?.items || []).map((item) => {
-          const itemInfo = item.itemId && typeof item.itemId === 'object' ? item.itemId : {};
-          let variantDetails = {};
-          if (itemInfo.sizes && item.variantId) {
-            variantDetails = itemInfo.sizes.find(s => String(s._id || s.id) === String(item.variantId)) || {};
-          }
-          return {
-            sku: item.sku || variantDetails.sku || itemInfo.itemCode || '',
-            itemName: item.itemName || itemInfo.itemName || itemInfo.name || '',
-            size: item.size || variantDetails.size || '',
-            color: item.color || itemInfo.shade || itemInfo.color || '',
-            category: item.category || itemInfo.category || '',
-            type: item.type || 'REGULAR PLAIN',
-            design: item.itemName || itemInfo.itemName || itemInfo.name || '',
-            mrp: item.rate || item.price || variantDetails.mrp || 0,
-            quantity: item.quantity || item.qty || 1,
-            rate: item.rate || item.price || 0,
-            variantId: item.variantId || item._id,
-          };
-        })}
-        warehouseMap={warehouseMap}
-      />
-
-      <PurchaseDetailDialog
-        open={Boolean(selectedPurchase)}
-        onClose={() => setSelectedPurchase(null)}
-        purchase={selectedPurchase}
-        supplierName={
-          selectedPurchase ? supplierMap[selectedPurchase.supplierId] : ''
-        }
-        warehouseName={
-          selectedPurchase ? warehouseMap[selectedPurchase.warehouseId] : ''
-        }
-      />
+      <PurchaseDetailDialog open={Boolean(selectedPurchase)} onClose={() => setSelectedPurchase(null)} purchase={selectedPurchase} supplierName={selectedPurchase ? supplierMap[selectedPurchase.supplierId] : ''} warehouseName={selectedPurchase ? warehouseMap[selectedPurchase.storeId || selectedPurchase.warehouseId] : ''} />
+      {barcodePrintPurchase && <BarcodePrintDialog open={true} onClose={() => setBarcodePrintPurchase(null)} purchase={barcodePrintPurchase} lines={(barcodePrintPurchase?.products || []).map(p => ({ ...p, sku: p.sku, itemName: p.itemName, size: p.size, color: p.color, quantity: p.quantity, rate: p.rate, variantId: p.variantId }))} warehouseMap={warehouseMap} />}
     </>
   );
 }
 
 function PurchaseStatusChip({ status }) {
-  const normalized = String(status || '').toLowerCase();
-  const color =
-    normalized === 'received'
-      ? 'success'
-      : normalized === 'partially returned'
-        ? 'warning'
-        : 'default';
-
-  return <Chip size="small" color={color} variant="outlined" label={status || 'Unknown'} />;
+  const s = String(status || '').toUpperCase();
+  const color = (s === 'POSTED' || s === 'APPROVED' || s === 'RECEIVED') ? 'success' : s === 'DRAFT' ? 'info' : s === 'CANCELLED' ? 'error' : 'default';
+  return <Chip size="small" color={color} variant="filled" label={status || 'Unknown'} sx={{ fontWeight: 600 }} />;
 }
 
 export default PurchaseListPage;

@@ -18,9 +18,11 @@ import {
   Tooltip,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import ReceiptIcon from '@mui/icons-material/Receipt';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import PrintIcon from '@mui/icons-material/Print';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import api from '../../services/api';
 
 const GRNListPage = () => {
@@ -34,13 +36,13 @@ const GRNListPage = () => {
 
   const fetchGrns = async () => {
     try {
-      const res = await api.get('/grn/all');
+      const res = await api.get('/grn');
       setGrns(res.data.grns || res.data.data || []);
     } catch (err) {
       console.error('Fetch GRNs failed', err);
       // Fallback: search in purchases to show something if /all isn't ready
       try {
-          const fallback = await api.get('/purchase/purchase-voucher');
+          const fallback = await api.get('/purchase');
           // Mock some status for demo if needed
       } catch (e) {}
     } finally {
@@ -151,15 +153,26 @@ const GRNListPage = () => {
                       )}
                       
                       {grn.status === 'APPROVED' && (
-                        <Tooltip title="Print Barcodes / Labels">
-                          <IconButton 
-                            size="small" 
-                            color="info" 
-                            onClick={() => navigate(`/ho/setup/barcode-print?grnId=${grn._id}`)}
-                          >
-                            <PrintIcon sx={{ fontSize: 18 }} />
-                          </IconButton>
-                        </Tooltip>
+                        <>
+                          <Tooltip title="Generate Bill">
+                            <IconButton 
+                              size="small" 
+                              color="primary" 
+                              onClick={() => navigate(`/purchase/purchase-voucher/new?grnId=${grn._id}`)}
+                            >
+                              <ReceiptIcon sx={{ fontSize: 18 }} />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Print Barcodes / Labels">
+                            <IconButton 
+                              size="small" 
+                              color="info" 
+                              onClick={() => navigate(`/ho/setup/barcode-print?grnId=${grn._id}`)}
+                            >
+                              <PrintIcon sx={{ fontSize: 18 }} />
+                            </IconButton>
+                          </Tooltip>
+                        </>
                       )}
                     </Stack>
                   </TableCell>

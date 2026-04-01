@@ -11,11 +11,17 @@ const router = express.Router();
 
 router.use(protect);
 
-router.post('/', createGRNValidation, validate, grnController.create);
-router.get('/', grnController.getAll);
+router.route('/')
+    .get(grnController.getAll)
+    .post(createGRNValidation, validate, grnController.create);
+
 router.get('/all', grnController.getAll);
-router.get('/:id', grnController.getById);
+router.get('/suggested-number', grnController.getNextNumber);
 router.get('/purchase/:purchaseId', grnController.getByPurchase);
+
+router.route('/:id')
+    .get(grnController.getById);
+
 router.patch('/:id/approve', requireAdmin, grnController.approve);
 
 module.exports = router;

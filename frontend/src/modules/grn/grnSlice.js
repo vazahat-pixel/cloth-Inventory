@@ -19,6 +19,15 @@ export const fetchGrnById = createAsyncThunk('grn/fetchGrnById', async (id, { re
   }
 });
 
+export const fetchNextGrnNumber = createAsyncThunk('grn/fetchNextNumber', async (_, { rejectWithValue }) => {
+  try {
+    const response = await api.get('/grn/suggested-number');
+    return response.data.nextNumber || response.data.data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Failed to fetch next GRN number');
+  }
+});
+
 export const addGrn = createAsyncThunk('grn/addGrn', async (grnData, { rejectWithValue }) => {
   try {
     const response = await api.post('/grn', grnData);

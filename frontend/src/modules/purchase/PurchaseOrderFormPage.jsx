@@ -37,7 +37,7 @@ import { useAppNavigate } from '../../hooks/useAppNavigate';
 import useRoleBasePath from '../../hooks/useRoleBasePath';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchItems } from '../items/itemsSlice';
-import { fetchPurchaseOrders, addPurchaseOrder, updatePurchaseOrder } from './purchaseSlice';
+import { fetchPurchaseOrders, addPurchaseOrder, updatePurchaseOrder, updatePurchaseOrderStatus } from './purchaseSlice';
 import { loadModuleRecords } from '../erp/erpLocalStore';
 import {
   buildFallbackSuppliers,
@@ -123,6 +123,11 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
   const [formError, setFormError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+
+  const auth = useSelector((state) => state.auth || {});
+  const currentUser = auth.user || {};
+  const isAdmin = currentUser.role?.toLowerCase() === 'admin';
+  const isLocked = isViewMode || (isEditMode && formValues.status !== 'DRAFT');
 
   useEffect(() => {
     dispatch(fetchPurchaseOrders());
@@ -349,6 +354,18 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
     }
   };
 
+  const handleStatusChange = async (newStatus) => {
+    try {
+      await dispatch(updatePurchaseOrderStatus({ id, status: newStatus })).unwrap();
+      setSuccessMessage(`Order status updated to ${newStatus}.`);
+      setTimeout(() => {
+        dispatch(fetchPurchaseOrders());
+      }, 500);
+    } catch (err) {
+      setFormError(err.message || 'Failed to update status.');
+    }
+  };
+
   if (isEditMode && !existingOrder && backendOrders.length) {
     return (
       <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3 }}>
@@ -376,14 +393,24 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
           <Button key="back" variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate(listPath)}>
             Back
           </Button>,
-          !isViewMode ? (
+          !isLocked ? (
             <Button key="draft" variant="outlined" startIcon={<SaveOutlinedIcon />} onClick={() => saveOrder('DRAFT')}>
               Save Draft
             </Button>
           ) : null,
-          !isViewMode ? (
+          !isLocked ? (
             <Button key="submit" variant="contained" startIcon={<SendOutlinedIcon />} onClick={() => saveOrder('PENDING')}>
               Submit
+            </Button>
+          ) : null,
+          isAdmin && formValues.status === 'PENDING' ? (
+            <Button key="approve" variant="contained" color="success" onClick={() => handleStatusChange('APPROVED')}>
+              Approve Order
+            </Button>
+          ) : null,
+          isAdmin && formValues.status === 'PENDING' ? (
+            <Button key="reject" variant="outlined" color="error" onClick={() => handleStatusChange('DRAFT')}>
+              Reject to Draft
             </Button>
           ) : null,
         ].filter(Boolean)}
@@ -394,7 +421,12 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' }, gap: 2, mb: 2 }}>
         <SummaryCard label="PO Number" value={formValues.poNumber || '--'} helper="Auto-generated reference placeholder." />
-        <SummaryCard label="Current Status" value={<StatusBadge value={formValues.status} />} helper="Drafts are editable and safe to revise." tone="warning" />
+        <SummaryCard 
+          label="Current Status" 
+          value={<StatusBadge value={formValues.status} />} 
+          helper={isLocked ? "Confirmed orders are locked. Reject to Draft for editing." : "Drafts are editable and safe to revise."} 
+          tone={formValues.status === 'APPROVED' ? 'success' : 'warning'} 
+        />
         <SummaryCard label="Total Quantity" value={totals.totalQty} helper="Sum of all quantity lines in this PO." tone="info" />
         <SummaryCard label="Grand Total" value={formatCurrency(totals.grandTotal)} helper="Discount and tax included." tone="success" />
       </Box>
@@ -413,7 +445,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
               value={formValues.poDate}
               onChange={(event) => updateFormValue('poDate', event.target.value)}
               InputLabelProps={{ shrink: true }}
-              disabled={isViewMode}
+              disabled={isLocked}
             />
           </Grid>
           <Grid item xs={12} md={3}>
@@ -425,7 +457,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
               value={formValues.expectedDeliveryDate}
               onChange={(event) => updateFormValue('expectedDeliveryDate', event.target.value)}
               InputLabelProps={{ shrink: true }}
-              disabled={isViewMode}
+              disabled={isLocked}
             />
           </Grid>
           <Grid item xs={12} md={3}>
@@ -436,7 +468,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
               label="Status"
               value={formValues.status}
               onChange={(event) => updateFormValue('status', event.target.value)}
-              disabled={isViewMode}
+              disabled={true}
             >
               <MenuItem value="DRAFT">Draft</MenuItem>
               <MenuItem value="PENDING">Pending</MenuItem>
@@ -452,7 +484,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
               label="Supplier"
               value={formValues.supplierId}
               onChange={(event) => updateFormValue('supplierId', event.target.value)}
-              disabled={isViewMode}
+              disabled={isLocked}
             >
               <MenuItem value="">Select Supplier</MenuItem>
               {suppliers.map((supplier) => (
@@ -469,7 +501,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
               label="Billing Address"
               value={formValues.billingAddress}
               onChange={(event) => updateFormValue('billingAddress', event.target.value)}
-              disabled={isViewMode}
+              disabled={isLocked}
             />
           </Grid>
           <Grid item xs={12} md={4}>
@@ -479,7 +511,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
               label="Delivery Address"
               value={formValues.deliveryAddress}
               onChange={(event) => updateFormValue('deliveryAddress', event.target.value)}
-              disabled={isViewMode}
+              disabled={isLocked}
             />
           </Grid>
           <Grid item xs={12} md={4}>
@@ -489,7 +521,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
               label="Payment Terms"
               value={formValues.paymentTerms}
               onChange={(event) => updateFormValue('paymentTerms', event.target.value)}
-              disabled={isViewMode}
+              disabled={isLocked}
             />
           </Grid>
           <Grid item xs={12} md={8}>
@@ -499,14 +531,14 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
               label="Notes"
               value={formValues.notes}
               onChange={(event) => updateFormValue('notes', event.target.value)}
-              disabled={isViewMode}
+              disabled={isLocked}
               placeholder="Internal notes, delivery instructions, or special vendor remarks"
             />
           </Grid>
         </Grid>
       </FormSection>
 
-      {!isViewMode ? (
+      {!isLocked ? (
         <FilterBar sx={{ mb: 2 }}>
           <TextField
             fullWidth
@@ -544,7 +576,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
                 <TableCell sx={{ fontWeight: 700 }} align="right">Tax %</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">Amount</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Remarks</TableCell>
-                {!isViewMode ? <TableCell sx={{ fontWeight: 700 }} align="right">Remove</TableCell> : null}
+                {!isLocked ? <TableCell sx={{ fontWeight: 700 }} align="right">Remove</TableCell> : null}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -555,7 +587,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
                   <TableCell>{line.size || '--'}</TableCell>
                   <TableCell>{line.color || '--'}</TableCell>
                   <TableCell align="right">
-                    {isViewMode ? (
+                    {isLocked ? (
                       line.qty
                     ) : (
                       <TextField
@@ -568,7 +600,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
                     )}
                   </TableCell>
                   <TableCell align="right">
-                    {isViewMode ? (
+                    {isLocked ? (
                       formatCurrency(line.rate)
                     ) : (
                       <TextField
@@ -581,7 +613,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
                     )}
                   </TableCell>
                   <TableCell align="right">
-                    {isViewMode ? (
+                    {isLocked ? (
                       line.discountPercent
                     ) : (
                       <TextField
@@ -596,7 +628,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
                     )}
                   </TableCell>
                   <TableCell align="right">
-                    {isViewMode ? (
+                    {isLocked ? (
                       line.taxPercent
                     ) : (
                       <TextField
@@ -612,7 +644,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
                   </TableCell>
                   <TableCell align="right">{formatCurrency(calculatePurchaseOrderLine(line).amount)}</TableCell>
                   <TableCell>
-                    {isViewMode ? (
+                    {isLocked ? (
                       line.remarks || '--'
                     ) : (
                       <TextField
@@ -623,7 +655,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
                       />
                     )}
                   </TableCell>
-                  {!isViewMode ? (
+                  {!isLocked ? (
                     <TableCell align="right">
                       <IconButton color="error" size="small" onClick={() => removeLine(line.id)}>
                         <DeleteOutlineIcon fontSize="small" />
@@ -651,7 +683,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
         <SummaryCard label="Grand Total" value={formatCurrency(totals.grandTotal)} helper="Final payable amount for supplier approval." tone="success" />
       </Box>
 
-      {!isViewMode ? (
+      {!isLocked ? (
         <Paper
           elevation={0}
           sx={{
@@ -671,7 +703,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
               Save Draft
             </Button>
             <Button variant="contained" startIcon={<SendOutlinedIcon />} onClick={() => saveOrder('PENDING')}>
-              Submit
+              Submit Approval
             </Button>
           </Stack>
         </Paper>

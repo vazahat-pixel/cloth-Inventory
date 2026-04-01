@@ -167,8 +167,9 @@ function PurchaseOrderListPage() {
   const summary = useMemo(
     () => ({
       totalOrders: filteredRows.length,
-      draftOrders: filteredRows.filter((row) => row.status === 'Draft').length,
-      approvedOrders: filteredRows.filter((row) => row.status === 'Approved').length,
+      draftOrders: filteredRows.filter((row) => (row.status || '').toUpperCase() === 'DRAFT').length,
+      pendingOrders: filteredRows.filter((row) => (row.status || '').toUpperCase() === 'PENDING').length,
+      approvedOrders: filteredRows.filter((row) => (row.status || '').toUpperCase() === 'APPROVED').length,
       orderValue: filteredRows.reduce((sum, row) => sum + Number(row.totals?.grandTotal || 0), 0),
     }),
     [filteredRows],
@@ -180,7 +181,7 @@ function PurchaseOrderListPage() {
       ...row,
       id: `po-${now.getTime()}`,
       poNumber: `PO-${String(now.getTime()).slice(-6)}`,
-      status: 'Draft',
+      status: 'DRAFT',
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
       items: (row.items || []).map((line, index) => ({

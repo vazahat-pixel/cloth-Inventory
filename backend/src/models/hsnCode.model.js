@@ -29,6 +29,6 @@ const hsnCodeSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
-hsnCodeSchema.index({ code: 1 });
+// HSN Indexing is handled by unique: true on the code field
 
 module.exports = mongoose.model('HsnCode', hsnCodeSchema);

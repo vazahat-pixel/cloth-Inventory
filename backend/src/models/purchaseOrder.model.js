@@ -55,6 +55,13 @@ const purchaseOrderSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
+    approvedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    approvedAt: {
+        type: Date
+    },
     notes: { type: String }
 }, {
     timestamps: true
