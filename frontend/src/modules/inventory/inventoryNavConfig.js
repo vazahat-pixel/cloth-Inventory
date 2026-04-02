@@ -40,7 +40,7 @@ export const inventoryNavItems = [
   {
     key: 'stock-dispatch',
     label: 'Stock Dispatch (Warehouse to Store)',
-    path: '/orders/delivery-challan',
+    path: '/ho/orders/delivery-challan',
     icon: LocalShippingOutlinedIcon,
   },
   {

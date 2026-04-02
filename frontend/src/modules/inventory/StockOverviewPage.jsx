@@ -38,16 +38,16 @@ const normalizeStockRows = (rows = []) =>
   rows.map((row, index) => {
     return {
       id: row.id || row._id || `stock-${index + 1}`,
-      itemCode: row.itemCode || '',
+      itemCode: row.itemCode || row.sku || row.styleCode || row.barcode || '',
       itemName: row.itemName || '',
       size: row.size || '',
       color: row.color || '',
-      warehouse: row.locationName || '',
-      availableStock: Number(row.availableStock || 0),
-      reservedStock: Number(row.reservedStock || 0),
+      warehouse: row.warehouseName || '',
+      availableStock: Number(row.available ?? 0),
+      reservedStock: Number(row.reserved ?? 0),
       inTransit: Number(row.inTransit || 0),
       reorderLevel: Number(row.reorderLevel || 0),
-      status: row.status || 'Active',
+      status: row.status || 'OK',
     };
   });
 

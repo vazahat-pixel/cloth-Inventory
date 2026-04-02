@@ -12,6 +12,7 @@ import accountsReducer from '../modules/accounts/accountsSlice';
 import ordersReducer from '../modules/orders/ordersSlice';
 import customerRewardsReducer from '../modules/customers/customersSlice';
 import grnReducer from '../modules/grn/grnSlice';
+import dispatchReducer from '../modules/dispatch/dispatchSlice';
 
 export const store = configureStore({
   reducer: {
@@ -28,5 +29,6 @@ export const store = configureStore({
     accounts: accountsReducer,
     orders: ordersReducer,
     grn: grnReducer,
+    dispatch: dispatchReducer,
   },
 });

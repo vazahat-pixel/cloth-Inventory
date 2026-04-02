@@ -2,6 +2,7 @@ const StoreInventory = require('../../models/storeInventory.model');
 const WarehouseInventory = require('../../models/warehouseInventory.model');
 const Item = require('../../models/item.model');
 const Product = require('../../models/product.model');
+const mongoose = require('mongoose');
 
 const populateInventoryManual = async (inventoryItems) => {
     if (!inventoryItems || inventoryItems.length === 0) return [];
@@ -44,7 +45,6 @@ const populateInventoryManual = async (inventoryItems) => {
  */
 const getStoreInventory = async (query, user) => {
     const { page = 1, limit = 1000, search, storeId, lowStock } = query;
-    const Item = require('../../models/item.model');
 
     const storeFilter = {};
     const warehouseFilter = {};
@@ -62,7 +62,7 @@ const getStoreInventory = async (query, user) => {
     }
 
     if (lowStock === 'true') {
-        filter.$expr = { $lte: ['$quantityAvailable', '$minStockLevel'] };
+        storeFilter.$expr = { $lte: ['$quantityAvailable', '$minStockLevel'] };
     }
 
     // If search exists, find matching product IDs first
@@ -77,30 +77,34 @@ const getStoreInventory = async (query, user) => {
         }).select('_id');
 
         const pIds = products.map(p => p._id);
-        filter.productId = { $in: pIds };
+        storeFilter.productId = { $in: pIds };
         warehouseFilter.productId = { $in: pIds };
     }
 
     const skip = (page - 1) * limit;
 
     const [storeInventory, warehouseInventory] = await Promise.all([
-        StoreInventory.find(filter)
+        StoreInventory.find(storeFilter)
             .sort({ lastUpdated: -1 })
             .populate('storeId', 'name location')
-            .populate('productId', 'name sku barcode size color category brand salePrice'),
+            .lean(),
         WarehouseInventory.find(warehouseFilter)
             .sort({ lastUpdated: -1 })
             .populate('warehouseId', 'name location')
-            .populate('productId', 'name sku barcode size color category brand salePrice')
+            .lean()
     ]);
 
-    // Combine results and filter out orphaned records
-    const combinedFull = [...storeInventory, ...warehouseInventory].filter(item => item && item.productId);
+    // Combine results
+    const rawCombined = [...storeInventory, ...warehouseInventory];
+    const populatedCombined = await populateInventoryManual(rawCombined);
+
+    // Filter out orphaned records
+    const combinedFull = populatedCombined.filter(item => item && item.productId);
     const combined = combinedFull.slice(skip, skip + parseInt(limit));
     const total = combinedFull.length;
 
     return {
-        inventory: paginated,
+        inventory: combined,
         total,
         page: parseInt(page),
         limit: parseInt(limit)
