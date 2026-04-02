@@ -318,10 +318,18 @@ function StockOverviewPage() {
                   </TableCell>
                   <TableCell align="right">
                     <Stack direction="row" spacing={0.25} sx={{ justifyContent: 'flex-end' }}>
-                      <IconButton size="small" color="info" onClick={() => navigate('/inventory/audit-view')}>
+                      <IconButton 
+                        size="small" 
+                        color="info" 
+                        onClick={() => navigate(`/inventory/audit-view?item=${row.itemCode}&warehouse=${row.warehouse}`)}
+                      >
                         <VisibilityOutlinedIcon fontSize="small" />
                       </IconButton>
-                      <IconButton size="small" color="primary" onClick={() => navigate(`/inventory/item-journey?item=${row.itemCode}`)}>
+                      <IconButton 
+                        size="small" 
+                        color="primary" 
+                        onClick={() => navigate(`/inventory/item-journey?item=${row.itemCode}`)}
+                      >
                         <TimelineOutlinedIcon fontSize="small" />
                       </IconButton>
                     </Stack>
