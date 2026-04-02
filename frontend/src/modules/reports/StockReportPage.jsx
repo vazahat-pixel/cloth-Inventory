@@ -288,16 +288,36 @@ function StockReportPage() {
       </Paper>
 
       <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2 }}>
-        {viewMode === 'groupWise' && (
-          <Stack direction="row" justifyContent="flex-end" sx={{ p: 1.5 }}>
+        <Stack direction="row" justifyContent="flex-end" alignItems="center" spacing={1} sx={{ p: 1.5 }}>
+          {viewMode === 'groupWise' ? (
             <ReportExportButton
               headers={['Item Group', 'Variants', 'Quantity', 'Value']}
               headerKeys={['Item Group', 'Variants', 'Quantity', 'Value']}
               rows={exportGroupWiseRows}
               filename="group-wise-stock.csv"
             />
-          </Stack>
-        )}
+          ) : (
+            <ReportExportButton
+              headers={['Item Name', 'Variant', 'SKU', 'Warehouse', 'Opening', 'Added', 'Removed', 'Transfer', 'Adjustment', 'Damaged', 'Closing', 'Value']}
+              headerKeys={['itemName', 'variant', 'sku', 'warehouseName', 'openingStock', 'added', 'removed', 'transferNet', 'adjustmentNet', 'damaged', 'closingStock', 'value']}
+              rows={filteredRows.map(r => ({
+                  itemName: r.itemName,
+                  variant: `${r.size} / ${r.color}`,
+                  sku: r.sku,
+                  warehouseName: r.warehouseName,
+                  openingStock: r.openingStock,
+                  added: r.added,
+                  removed: r.removed,
+                  transferNet: r.transferNet,
+                  adjustmentNet: r.adjustmentNet,
+                  damaged: r.damaged,
+                  closingStock: r.closingStock,
+                  value: r.value.toFixed(2)
+              }))}
+              filename="stock-report-detail.csv"
+            />
+          )}
+        </Stack>
         <TableContainer>
           <Table size="small">
             {viewMode === 'groupWise' ? (

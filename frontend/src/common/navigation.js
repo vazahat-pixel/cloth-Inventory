@@ -45,7 +45,6 @@ export const purchaseNavigationItems = [
 ];
 
 export const salesNavigationItems = [
-  { label: "Delivery Challans", path: "/orders/delivery-challan" },
   { label: "Sale Invoices", path: "/sales" },
   { label: "New Sale (POS)", path: "/sales/new" },
   { label: "Sales Return", path: "/sales/returns" },

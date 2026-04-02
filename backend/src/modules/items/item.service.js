@@ -93,6 +93,11 @@ class ItemService {
         stock: Number(s.stock || 0)
       }));
     }
+
+    // Robust mapping for incoming fields (Frontend compatibility)
+    if (data.hsnCodeId && !data.hsCodeId) data.hsCodeId = data.hsnCodeId;
+    if (data.gstSlabId && !data.gstTax) data.gstTax = data.gstSlabId;
+    if (data.season && !data.session) data.session = data.season;
   }
 
   async createItem(data = {}) {
@@ -138,7 +143,7 @@ class ItemService {
 
     // Update fields dynamically if they are provided in normalized data
     const fieldsToUpdate = [
-      'itemName', 'itemCode', 'brand', 'shade', 'description', 'session', 'hsCodeId', 
+      'itemName', 'itemCode', 'brand', 'shade', 'description', 'session', 'hsCodeId', 'gstTax',
       'fabric', 'pattern', 'fit', 'gender', 'uom', 'images', 'groupIds', 'sizes',
       'reorderLevel', 'reorderQty', 'openingStock', 'openingStockRate', 
       'stockTrackingEnabled', 'barcodeEnabled', 'isActive', 'customFields'

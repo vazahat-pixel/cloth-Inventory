@@ -54,7 +54,7 @@ function ItemListPage() {
       mainGroup: getGroup('Section') || getGroup('Category') || '--',
       subGroup: getGroup('Sub Category') || '--',
       hsnCode: item.hsCodeId?.code || item.hsCodeId?.hsnCode || item.hsnCode || '--',
-      gstRate: item.hsCodeId?.gstPercent !== undefined ? `${item.hsCodeId.gstPercent}%` : (item.hsCodeId?.gstRate ? `${item.hsCodeId.gstRate}%` : '--'),
+      gstRate: item.hsCodeId?.gstPercent !== undefined ? `${item.hsCodeId.gstPercent}%` : (item.hsCodeId?.gstRate ? `${item.hsCodeId.gstRate}%` : (item.gstTax !== undefined ? `${item.gstTax}%` : '--')),
       color: item.shade || item.color || item.shadeColor || '--',
       variantCount: item.sizes?.length || item.variants?.length || 0,
       status: item.status || 'Active',

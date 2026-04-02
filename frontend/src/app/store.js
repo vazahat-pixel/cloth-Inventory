@@ -11,7 +11,6 @@ import settingsReducer from '../modules/settings/settingsSlice';
 import accountsReducer from '../modules/accounts/accountsSlice';
 import ordersReducer from '../modules/orders/ordersSlice';
 import customerRewardsReducer from '../modules/customers/customersSlice';
-import dispatchReducer from '../modules/dispatch/dispatchSlice';
 import grnReducer from '../modules/grn/grnSlice';
 
 export const store = configureStore({
@@ -28,7 +27,6 @@ export const store = configureStore({
     settings: settingsReducer,
     accounts: accountsReducer,
     orders: ordersReducer,
-    dispatch: dispatchReducer,
     grn: grnReducer,
   },
 });

@@ -43,7 +43,7 @@ const tabs = [
 ];
 
 const defaultValues = {
-  itemCode: '', itemName: '', brand: '', hsnCodeId: '', gstSlabId: '', shadeColor: '', uom: 'PCS', skuPrefix: '', description: '', status: 'Active',
+  itemCode: '', itemName: '', brand: '', hsCodeId: '', gstSlabId: '', shadeColor: '', uom: 'PCS', skuPrefix: '', description: '', status: 'Active',
   fabric: '', pattern: '', fit: '', gender: '', season: '', notes: '',
   sectionId: '', categoryId: '', subCategoryId: '', subSubCategoryId: '',
   defaultWarehouse: '', reorderLevel: 0, reorderQty: 0, openingStock: 0, openingStockRate: 0,
@@ -115,7 +115,7 @@ function ItemFormPage({ mode = 'edit' }) {
         itemName: existingItem.itemName || '', 
         brand: getId(existingItem.brand) ? String(getId(existingItem.brand)) : '',
         season: getId(existingItem.season || existingItem.session) ? String(getId(existingItem.season || existingItem.session)) : '',
-        hsnCodeId: getId(existingItem.hsnCodeId || existingItem.hsCodeId) ? String(getId(existingItem.hsnCodeId || existingItem.hsCodeId)) : '', 
+        hsCodeId: getId(existingItem.hsCodeId || existingItem.hsnCodeId) ? String(getId(existingItem.hsCodeId || existingItem.hsnCodeId)) : '', 
         shadeColor: existingItem.shade || '', 
         uom: existingItem.uom || 'PCS', 
         description: existingItem.description || '', 
@@ -162,7 +162,7 @@ function ItemFormPage({ mode = 'edit' }) {
   }, [existingItem, isEditMode, reset, brands.length, itemGroups.length, seasons.length, hsnCodes.length]);
 
   useEffect(() => {
-    const selected = hsnCodes.find((item) => String(item.id || item._id || '') === String(watch('hsnCodeId') || ''));
+    const selected = hsnCodes.find((item) => String(item.id || item._id || '') === String(watch('hsCodeId') || ''));
     if (selected?.gstSlabId && !watch('gstSlabId')) setValue('gstSlabId', selected.gstSlabId);
   }, [hsnCodes, setValue, watch]);
 
@@ -222,8 +222,8 @@ function ItemFormPage({ mode = 'edit' }) {
       category: data.categoryId, // Backward compatibility
       shade: data.shadeColor,
       uom: data.uom,
-      hsnCodeId: data.hsnCodeId,
-      gstSlabId: data.gstSlabId,
+      hsCodeId: data.hsCodeId,
+      gstTax: data.gstSlabId, // Maps to backend gstTax if needed, though hsCodeId is primary
       fabric: data.fabric,
       pattern: data.pattern,
       fit: data.fit,
@@ -336,7 +336,7 @@ function ItemFormPage({ mode = 'edit' }) {
                   <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="SKU Prefix" {...register('skuPrefix')} disabled={isViewMode} /></Grid>
                   <Grid size={{ xs: 12, md: 3 }}>
                     <Controller
-                      name="hsnCodeId"
+                      name="hsCodeId"
                       control={control}
                       rules={{ required: 'HSN is required' }}
                       render={({ field }) => (
@@ -348,9 +348,9 @@ function ItemFormPage({ mode = 'edit' }) {
                           label="HSN Code *"
                           value={field.value ?? ''}
                           disabled={isViewMode}
-                          error={Boolean(errors.hsnCodeId)}
+                          error={Boolean(errors.hsCodeId)}
                           helperText={
-                            errors.hsnCodeId?.message || 
+                            errors.hsCodeId?.message || 
                             (field.value ? `Applied GST Slab: ${hsnCodes.find(h => String(h.id || h._id) === String(field.value))?.gstPercent || 0}%` : 'Select HSN to view tax slab.')
                           }
                         >
