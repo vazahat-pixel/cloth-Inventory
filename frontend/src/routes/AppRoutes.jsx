@@ -87,7 +87,9 @@ const PurchaseReturnPage = lazy(() => import('../modules/purchase/PurchaseReturn
 const SaleOrderListPage = lazy(() => import('../modules/orders/SaleOrderListPage'));
 const SaleOrderFormPage = lazy(() => import('../modules/orders/SaleOrderFormPage'));
 const DeliveryOrderPage = lazy(() => import('../modules/orders/DeliveryOrderPage'));
-// Delivery Challan module removed
+// Delivery Challan
+const DeliveryChallanPage = lazy(() => import('../modules/dispatch/DeliveryChallanPage'));
+const DeliveryChallanForm = lazy(() => import('../modules/dispatch/DeliveryChallanForm'));
 
 // Sales & Billing
 const SalesListPage = lazy(() => import('../modules/sales/SalesListPage'));
@@ -335,6 +337,7 @@ function AppRoutes() {
             <Route path="orders/delivery" element={<DeliveryOrderPage />} />
             <Route path="orders/delivery-challan" element={<DeliveryChallanPage />} />
             <Route path="orders/delivery-challan/new" element={<DeliveryChallanForm />} />
+            <Route path="orders/delivery-challan/:id/edit" element={<DeliveryChallanForm mode="edit" />} />
 
             <Route path="sales" element={<Navigate to="sale-bill" replace />} />
             <Route path="sales/sale-bill" element={<SalesListPage pageTitle="Sale Bill" pageDescription="Review sale bills, payment status, and customer return access..." primaryActionLabel="New Sale Bill" primaryActionPath="/sales/sale-bill/new" returnPathBuilder={(saleId) => `/sales/sales-return/${saleId}`} />} />
