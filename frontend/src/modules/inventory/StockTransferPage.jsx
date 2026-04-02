@@ -179,12 +179,12 @@ function StockTransferPage() {
                             <VisibilityOutlinedIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      {row.referenceId && (
-                        <Tooltip title={`View ${row.referenceType === 'Sale' ? 'Tax Invoice' : 'Delivery Challan'}`}>
+                      {row.referenceId && row.referenceType === 'Sale' && (
+                        <Tooltip title="View Tax Invoice">
                             <IconButton 
                                 size="small" 
                                 color="primary" 
-                                onClick={() => navigate(row.referenceType === 'Sale' ? `/sales/sale-bill/${row.referenceId}` : `/orders/delivery-challan/${row.referenceId}`)}
+                                onClick={() => navigate(`/sales/sale-bill/${row.referenceId}`)}
                             >
                                 <DescriptionOutlinedIcon fontSize="small" />
                             </IconButton>

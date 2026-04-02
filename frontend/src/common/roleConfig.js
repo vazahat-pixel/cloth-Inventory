@@ -76,7 +76,7 @@ const adminSidebarItems = [
   { label: 'Payroll Setups', path: '/payroll-setups', icon: RequestQuoteIcon, matchPaths: payrollSetupsMatchPaths, drilldown: true },
   { label: 'Payroll Entry', path: '/payroll-entry', icon: ReceiptIcon, matchPaths: payrollEntryMatchPaths, drilldown: true },
   { label: 'Payroll Reports', path: '/payroll-reports', icon: AssessmentOutlinedIcon, matchPaths: payrollReportsMatchPaths, drilldown: true },
-  { label: 'Reports/Queries', path: '/reports', icon: AssessmentOutlinedIcon, matchPaths: reportsQueriesMatchPaths, drilldown: true },
+  { label: 'Reports Dashboard / रिपोट्स', path: '/reports', icon: AssessmentOutlinedIcon, matchPaths: reportsQueriesMatchPaths, drilldown: true },
   { label: 'Business Insights', path: '/reports/profit', icon: TrendingUpIcon },
   { label: 'Utilities', path: '/utilities', icon: BuildOutlinedIcon, matchPaths: utilitiesMatchPaths, drilldown: true },
   { label: 'User Access', path: '/user-access', icon: PeopleIcon, matchPaths: userAccessMatchPaths, drilldown: true },

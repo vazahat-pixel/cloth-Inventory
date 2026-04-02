@@ -11,10 +11,17 @@ import ShoppingCartOutlinedIcon from '@mui/icons-material/ShoppingCartOutlined';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined';
 import GavelOutlinedIcon from '@mui/icons-material/GavelOutlined';
+import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
 
 export const reportsQueriesMatchPaths = ['/reports'];
 
 export const reportsQueriesNavItems = [
+  {
+    key: 'reports-dashboard',
+    label: 'Reports Dashboard / रिपोट्स',
+    path: '/reports/dashboard',
+    icon: DashboardOutlinedIcon,
+  },
   {
     key: 'financial-reports',
     label: 'Financial Reports',
