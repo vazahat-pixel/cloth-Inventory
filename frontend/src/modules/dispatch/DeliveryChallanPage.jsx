@@ -42,14 +42,14 @@ function DeliveryChallanPage({
     const renderStatusChip = (status) => {
         const value = status || 'PENDING';
         let color = 'default';
-        if (value === 'SHIPPED') color = 'warning';
+        if (value === 'DISPATCHED') color = 'warning';
         if (value === 'RECEIVED') color = 'success';
         return <Chip label={value} color={color} size="small" />;
     };
 
     const canReceive = (row) => {
         const status = row.status || 'PENDING';
-        return status === 'SHIPPED';
+        return status === 'DISPATCHED';
     };
 
     return (

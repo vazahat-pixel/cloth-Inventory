@@ -26,7 +26,8 @@ export const updateChallanStatus = createAsyncThunk(
     'dispatch/updateStatus',
     async ({ id, status }, { rejectWithValue }) => {
         try {
-            const response = await api.patch(`/dispatch/${id}/status`, { status });
+            // Using the streamlined /receive endpoint for receipt flow
+            const response = await api.post(`/dispatch/${id}/receive`);
             const raw = response.data.dispatch || response.data.data;
             return normalizeResponse(raw, 'dispatch');
         } catch (error) {
