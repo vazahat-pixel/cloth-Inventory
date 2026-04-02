@@ -67,7 +67,6 @@ const returnSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
-returnSchema.index({ returnNumber: 1 });
 returnSchema.index({ type: 1 });
 returnSchema.index({ referenceId: 1 });
 returnSchema.index({ locationId: 1 });

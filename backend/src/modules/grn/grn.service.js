@@ -167,9 +167,12 @@ const approveGRN = async (id, userId) => {
 
         // 2. Post to Stock Ledger and Master Inventory for each item
         const stockService = require('../../services/stock.service');
+        console.log(`[GRN-APPROVAL] Posting stock for GRN: ${grn.grnNumber}, Warehouse: ${grn.warehouseId}`);
+        
         for (const item of grn.items) {
+            console.log(`   -> Item: ${item.sku}, Variant: ${item.variantId}, Qty: ${item.receivedQty}`);
             await stockService.addStock({
-                variantId: item.variantId, // This is the size _id
+                variantId: item.variantId,
                 locationId: grn.warehouseId,
                 locationType: 'WAREHOUSE',
                 qty: item.receivedQty,
@@ -181,6 +184,7 @@ const approveGRN = async (id, userId) => {
             });
         }
 
+        console.log(`[GRN-APPROVAL] Successfully posted all items to Warehouse stock.`);
         await workflowService.updateStatus(grn._id, DocumentType.GRN, oldStatus, GrnStatus.APPROVED, userId, `Approved GRN ${grn.grnNumber} and posted stock to warehouse.`);
 
         return grn;

@@ -23,8 +23,9 @@ export const fetchWarehouseStock = createAsyncThunk(
   async (warehouseId, { rejectWithValue }) => {
     try {
       const response = await api.get(`/inventory/warehouse-stock/${warehouseId}`);
-      // Backend now sends { success: true, data: [...] }
-      return response.data.data || [];
+      // Backend now sends { success: true, items: [...] }
+      const data = response.data.data || response.data;
+      return data.items || data.data || [];
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch warehouse stock');
     }

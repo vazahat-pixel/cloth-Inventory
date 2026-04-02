@@ -109,8 +109,12 @@ function DeliveryChallanPage({
                                         <TableCell sx={{ fontWeight: 700 }}>
                                             {row.challanNumber || row.dispatchNumber}
                                         </TableCell>
-                                        <TableCell>{row.date || row.dispatchDate}</TableCell>
-                                        <TableCell>{row.storeName || row.destination?.name || 'Store'}</TableCell>
+                                        <TableCell>
+                                            {row.dispatchedAt ? new Date(row.dispatchedAt).toLocaleDateString() : (row.date || row.dispatchDate || '-')}
+                                        </TableCell>
+                                        <TableCell>
+                                            {row.destinationStoreId?.name || row.storeName || row.destination?.name || 'Store'}
+                                        </TableCell>
                                         <TableCell>
                                             {row.vehicleNumber || '-'} / {row.driverName || '-'}
                                         </TableCell>

@@ -61,12 +61,13 @@ const deliveryChallanSchema = new mongoose.Schema(
         notes: {
             type: String,
             trim: true
-        }
+        },
+        vehicleNumber: { type: String, trim: true },
+        driverName: { type: String, trim: true }
     },
     { timestamps: true }
 );
 
-deliveryChallanSchema.index({ dcNumber: 1 });
 deliveryChallanSchema.index({ customerId: 1 });
 deliveryChallanSchema.index({ storeId: 1 });
 

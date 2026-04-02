@@ -69,6 +69,8 @@ const _updateInventory = async ({ variantId, locationId, locationType, qty, sess
     inventory.lastUpdated = Date.now();
     await inventory.save({ session });
     
+    console.log(`[INVENTORY-UPDATE] Location: ${locationId} (${locationType}), Variant: ${variantId}, Balance: ${inventory.quantity} (Change: ${delta})`);
+    
     // MASTER STOCK UPDATE: Sync with Item model for global/master view
     // Note: We use atomic update to prevent race conditions in subdocuments
     await Item.updateOne(

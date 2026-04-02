@@ -99,72 +99,53 @@ class InventoryController {
     try {
       const { warehouseId } = req.params;
       const WarehouseInventory = require('../../models/warehouseInventory.model');
-      const Product = require('../../models/product.model');
       const Item = require('../../models/item.model');
       
-      const stock = await WarehouseInventory.find({ warehouseId })
-        .populate({
-          path: 'productId',
-          select: 'name sku barcode size color category brand salePrice'
-        })
-        .sort({ lastUpdated: -1 });
+      // 1. Fetch all stock records for the warehouse
+      const stockRecords = await WarehouseInventory.find({ warehouseId }).lean();
 
-      const normalized = [];
-      for (const s of stock) {
-        let entry = null;
-
-        if (s.productId) {
-          // Scenario 1: Linked to a standard Product
-          entry = {
-            id: s._id,
-            productId: s.productId._id,
-            variantId: s.productId._id,
-            itemName: s.productId.name || 'Unknown Product',
-            sku: s.productId.sku || 'N/A',
-            barcode: s.productId.barcode || '',
-            size: s.productId.size || '-',
-            color: s.productId.color || '-',
-            quantity: s.quantity,
-            price: s.productId.salePrice || 0
-          };
-        } else {
-          // Scenario 2: Orphaned from Product, check Master Item table (Historical/Sync data)
-          // The productId field in WarehouseInventory might effectively be an ItemId in some flows
-          const masterItem = await Item.findById(s.productId || s.id).populate('brand');
-          if (masterItem) {
-            entry = {
-              id: s._id,
-              productId: masterItem._id,
-              variantId: masterItem._id,
-              itemName: masterItem.itemName || 'Master Item',
-              sku: masterItem.itemCode || 'N/A',
-              barcode: masterItem.barcode || '',
-              size: (masterItem.sizes && masterItem.sizes[0]?.size) || '-',
-              color: masterItem.shade || '-',
-              quantity: s.quantity,
-              price: (masterItem.sizes && masterItem.sizes[0]?.salePrice) || 0
-            };
-          } else {
-             // Scenario 3: Absolute orphan, keep raw data but fix labels
-             entry = {
-               id: s._id,
-               productId: s.productId || s._id,
-               variantId: s.productId || s._id,
-               itemName: `Legacy Item (${s._id.toString().slice(-4)})`,
-               sku: 'LOG-N/A',
-               barcode: '',
-               size: '-',
-               color: '-',
-               quantity: s.quantity,
-               price: 0
-             };
-          }
-        }
-        normalized.push(entry);
+      if (!stockRecords || stockRecords.length === 0) {
+        return sendSuccess(res, { items: [] }, 'No warehouse stock found');
       }
 
-      return sendSuccess(res, { data: normalized }, 'Warehouse stock retrieved');
+      // 2. Identify unique parent Item IDs. 
+      // The productId field in WarehouseInventory effectively stores the Variant _id.
+      // We need to find the parent Items that own these variant IDs.
+      const variantIds = stockRecords.map(s => s.productId);
+      
+      // 3. Fetch full Item details for these variants
+      const items = await Item.find({ "sizes._id": { $in: variantIds } })
+        .populate('brand', 'name brandName')
+        .populate('groupIds', 'name groupType level parentId isActive')
+        .populate('hsCodeId', 'code hsnCode gstRate gstPercent')
+        .populate('session', 'name seasonName')
+        .lean();
+
+      // 4. Update the stock field in each size variant of the items with real-time Warehouse balance
+      // Create a lookup for variant stock balances
+      const stockMap = new Map();
+      stockRecords.forEach(s => stockMap.set(s.productId.toString(), s.quantity));
+
+      const enrichedItems = items.map(item => {
+        // Deep copy the sizes and update them with the warehouse-specific stock
+        const sizesWithStock = item.sizes.map(sz => {
+          const variantIdStr = sz._id.toString();
+          return {
+            ...sz,
+            stock: stockMap.has(variantIdStr) ? stockMap.get(variantIdStr) : 0
+          };
+        });
+
+        return {
+          ...item,
+          sizes: sizesWithStock
+        };
+      });
+
+      console.log(`[WAREHOUSE-STOCK-FULL] Returning ${enrichedItems.length} Master Items for Warehouse: ${warehouseId}`);
+      return sendSuccess(res, { items: enrichedItems }, 'Items fetched successfully');
     } catch (e) {
+      console.error('[WAREHOUSE-STOCK-ERROR]', e);
       return sendError(res, e.message);
     }
   };

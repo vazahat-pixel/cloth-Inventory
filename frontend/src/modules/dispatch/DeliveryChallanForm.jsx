@@ -78,17 +78,32 @@ function DeliveryChallanForm({
     }, [stockRows, sourceId]);
 
     const variantOptions = useMemo(() => {
-        return warehouseStock.map((s) => ({
-            variantId: s.productId || s.variantId,
-            itemName: s.itemName,
-            sku: s.sku,
-            barcode: s.barcode,
-            size: s.size,
-            color: s.color,
-            available: s.quantity,
-            rate: s.price || 0
-        })).filter(o => o.available > 0);
-    }, [warehouseStock]);
+        const flattened = [];
+        // The thunk now returns the array directly to the stock state
+        const items = Array.isArray(stockRows) ? stockRows : (Array.isArray(stockRows?.items) ? stockRows.items : []);
+        
+        items.forEach(item => {
+            if (item.sizes && Array.isArray(item.sizes)) {
+                item.sizes.forEach(sz => {
+                    // Only show variants that actually have stock in the warehouse
+                    if (Number(sz.stock || 0) > 0) {
+                        flattened.push({
+                            variantId: sz._id,
+                            itemName: item.itemName,
+                            itemCode: item.itemCode,
+                            sku: sz.sku || item.itemCode,
+                            size: sz.size || '-',
+                            color: item.shade || '-',
+                            available: Number(sz.stock),
+                            rate: Number(sz.salePrice || item.salePrice || 0)
+                        });
+                    }
+                });
+            }
+        });
+
+        return flattened;
+    }, [stockRows]);
 
     const filteredOptions = useMemo(() => {
         const ids = new Set(lines.map((l) => l.variantId));
@@ -163,7 +178,7 @@ function DeliveryChallanForm({
                 quantity: l.quantity,
                 rate: l.rate
             })),
-            status: 'SHIPPED',
+            status: 'DISPATCHED',
             dispatchMode: dispatchMode?.type,
             // Additional fields for Internal Sale (Tax Invoice)
             type: isInvoice ? 'INTERNAL_SALE' : 'STOCK_TRANSFER',
@@ -275,6 +290,9 @@ function DeliveryChallanForm({
                         onChange={(_, v) => setVariantPickerValue(v)}
                         sx={{ flex: 1 }}
                         renderInput={(params) => <TextField {...params} label="Search Item in Source Stock" />}
+                        isOptionEqualToValue={(option, value) => option.variantId === value.variantId}
+                        openOnFocus
+                        clearOnBlur={false}
                     />
                     <Button variant="outlined" startIcon={<AddCircleOutlineIcon />} onClick={addLine} disabled={!variantPickerValue}>
                         Add Item

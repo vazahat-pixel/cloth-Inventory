@@ -84,7 +84,6 @@ const accountingVoucherSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
-accountingVoucherSchema.index({ voucherNumber: 1 });
 accountingVoucherSchema.index({ type: 1 });
 accountingVoucherSchema.index({ status: 1 });
 accountingVoucherSchema.index({ date: 1 });

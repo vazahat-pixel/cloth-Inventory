@@ -109,6 +109,8 @@ const createDispatch = async (dispatchData, userId) => {
             referenceId: generatedDoc.documentId,
             referenceType: generatedDoc.type === 'TAX_INVOICE' ? 'Sale' : 'DeliveryChallan',
             dispatchedAt: new Date(),
+            vehicleNumber: rest.vehicleNumber,
+            driverName: rest.driverName,
             notes: rest.notes || `Auto-generated ${generatedDoc.type}: ${generatedDoc.documentNumber}`,
             createdBy: userId
         });

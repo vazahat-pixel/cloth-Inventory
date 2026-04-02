@@ -59,6 +59,8 @@ const dispatchSchema = new mongoose.Schema(
         notes: {
             type: String
         },
+        vehicleNumber: { type: String, trim: true },
+        driverName: { type: String, trim: true },
         createdBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User',

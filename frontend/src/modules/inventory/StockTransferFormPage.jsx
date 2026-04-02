@@ -30,7 +30,7 @@ import StatusBadge from '../../components/erp/StatusBadge';
 import SummaryCard from '../../components/erp/SummaryCard';
 import { buildSizeLabelLookup, resolveSizeLabel } from '../../common/sizeDisplay';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
-import { fetchStockOverview } from './inventorySlice';
+import { fetchWarehouseStock } from './inventorySlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import { stockOverviewSeed } from '../erp/erpUiMocks';
 import { loadModuleRecords, upsertModuleRecord } from '../erp/erpLocalStore';
@@ -48,24 +48,31 @@ const defaultForm = {
   status: 'Draft',
 };
 
-const normalizeStockRows = (rows = []) =>
-  rows.map((row, index) => {
-    // Handle populated backend data vs flat mock data
-    const product = row.productId || {};
-    const warehouseObj = row.warehouseId || row.storeId || {};
-    
-    return {
-      id: row._id || row.id || `stock-row-${index + 1}`,
-      itemCode: product.sku || row.itemCode || row.styleCode || '',
-      itemName: product.name || row.itemName || row.name || '',
-      size: product.size || row.size || '',
-      availableQty: Number(row.quantityAvailable != null ? row.quantityAvailable : row.availableStock != null ? row.availableStock : row.quantity || 0),
-      locationId: warehouseObj._id || row.warehouseId || row.storeId || row.locationId || row.warehouse || '', // ID for mapping
-      locationName: warehouseObj.name || row.warehouse || row.warehouseName || row.storeName || '',
-      uom: row.uom || 'PCS',
-      productId: product._id || row.productId || row.id,
-    };
+const normalizeStockRows = (items = []) => {
+  const flattenedRows = [];
+  
+  items.forEach((item) => {
+    if (item.sizes && Array.isArray(item.sizes)) {
+      item.sizes.forEach((sz) => {
+        // Only include variants that have stock in the warehouse
+        if (Number(sz.stock || 0) > 0) {
+          flattenedRows.push({
+            id: sz._id,
+            itemCode: sz.sku || item.itemCode,
+            itemName: item.itemName,
+            size: sz._id, // Store size ID for label resolution
+            availableQty: Number(sz.stock || 0),
+            locationId: item.defaultWarehouse || '',
+            uom: item.uom || 'PCS',
+            productId: sz._id, // This is the variant ID needed for dispatch
+          });
+        }
+      });
+    }
   });
+
+  return flattenedRows;
+};
 
 function StockTransferFormPage({ mode = 'edit' }) {
   const dispatch = useDispatch();
@@ -86,11 +93,16 @@ function StockTransferFormPage({ mode = 'edit' }) {
   const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
-    dispatch(fetchStockOverview());
     dispatch(fetchMasters('warehouses'));
     dispatch(fetchMasters('stores'));
     dispatch(fetchMasters('sizes'));
   }, [dispatch]);
+
+  useEffect(() => {
+    if (formValues.fromLocation) {
+      dispatch(fetchWarehouseStock(formValues.fromLocation));
+    }
+  }, [dispatch, formValues.fromLocation]);
 
   const sizeLabelLookup = useMemo(() => buildSizeLabelLookup(sizes), [sizes]);
   const getSizeLabel = (value) => resolveSizeLabel(value, sizeLabelLookup);
@@ -150,7 +162,7 @@ function StockTransferFormPage({ mode = 'edit' }) {
   }, [formValues.transferType, stores, warehouses]);
 
   const stockRows = useMemo(
-    () => normalizeStockRows([...(Array.isArray(backendStock) ? backendStock : [])]),
+    () => normalizeStockRows([...(Array.isArray(backendStock?.items) ? backendStock.items : [])]),
     [backendStock],
   );
 
@@ -159,10 +171,9 @@ function StockTransferFormPage({ mode = 'edit' }) {
       return [];
     }
     const selectedIds = new Set(lines.map((line) => line.id));
+    // When using fetchWarehouseStock, stockRows (backendStock) is already filtered by locationId at source
     return stockRows.filter(
       (row) =>
-        String(row.locationId) === String(formValues.fromLocation) &&
-        Number(row.availableQty || 0) > 0 &&
         !selectedIds.has(`line-${row.itemCode}-${row.size}`),
     );
   }, [formValues.fromLocation, lines, stockRows]);
