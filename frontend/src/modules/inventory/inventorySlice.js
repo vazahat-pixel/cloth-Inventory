@@ -17,6 +17,18 @@ export const fetchStockOverview = createAsyncThunk(
   }
 );
 
+export const fetchInventoryExport = createAsyncThunk(
+  'inventory/fetchExport',
+  async (params, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/reports/inventory-export', { params });
+      return response.data.rows || [];
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch inventory export');
+    }
+  }
+);
+
 // Specific for Warehouse Dispatches
 export const fetchWarehouseStock = createAsyncThunk(
   'inventory/fetchWarehouseStock',
@@ -169,6 +181,7 @@ export const applyPurchaseReturn = createAsyncThunk(
 const initialState = {
   warehouses: [],
   stock: [],
+  export: [],
   dispatches: [],
   movements: [],
   loading: false,
@@ -194,6 +207,18 @@ const inventorySlice = createSlice({
         state.stock = action.payload || [];
       })
       .addCase(fetchStockOverview.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // Inventory Export
+      .addCase(fetchInventoryExport.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(fetchInventoryExport.fulfilled, (state, action) => {
+        state.loading = false;
+        state.export = action.payload || [];
+      })
+      .addCase(fetchInventoryExport.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })

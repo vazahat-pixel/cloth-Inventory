@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Box,
   MenuItem,
@@ -20,7 +21,9 @@ import ExportButton from '../../components/erp/ExportButton';
 import StatusBadge from '../../components/erp/StatusBadge';
 import SummaryCard from '../../components/erp/SummaryCard';
 import stockAuditLedgerExportColumns from '../../config/exportColumns/stockAuditLedger';
-import { stockAuditSeed } from '../erp/erpUiMocks';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchInventoryExport, fetchMovements } from './inventorySlice';
+import { fetchMasters } from '../masters/mastersSlice';
 
 const tabDefinitions = [
   { value: 0, label: 'Location Analytics' },
@@ -45,18 +48,58 @@ const ledgerExportRows = (rows = []) =>
   }));
 
 function StockAuditView({ defaultTab = 0 }) {
+  const dispatch = useDispatch();
+  const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(defaultTab);
-  const [itemFilter, setItemFilter] = useState('all');
+  
+  const initialItem = searchParams.get('item') || 'all';
+  const initialWarehouse = searchParams.get('warehouse') || 'all';
+
+  const [itemFilter, setItemFilter] = useState(initialItem);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [warehouseFilter, setWarehouseFilter] = useState('all');
+  const [warehouseFilter, setWarehouseFilter] = useState(initialWarehouse);
   const [movementTypeFilter, setMovementTypeFilter] = useState('all');
   const [sourceTypeFilter, setSourceTypeFilter] = useState('all');
   const [batchFilter, setBatchFilter] = useState('all');
 
-  const locationRows = stockAuditSeed.locationAnalytics || [];
-  const batchRows = stockAuditSeed.batchBreakdown || [];
-  const ledgerRows = stockAuditSeed.fullLedger || [];
+  const { export: exportRows = [], movements: rawLedgerRows = [], loading } = useSelector((state) => state.inventory);
+
+  useEffect(() => {
+    dispatch(fetchInventoryExport());
+    dispatch(fetchMovements());
+    dispatch(fetchMasters('warehouses'));
+    dispatch(fetchMasters('items'));
+  }, [dispatch]);
+
+  const locationRows = exportRows.map(r => ({
+    id: `${r.locationName}-${r.sku}`,
+    warehouse: r.locationType,
+    location: r.locationName,
+    itemCode: r.sku || r.barcode,
+    itemName: r.productName,
+    size: r.size,
+    batch: r.batch || '-',
+    balance: r.quantity,
+    lastMovementDate: '-'
+  }));
+
+  const batchRows = []; // Production batches not yet linked here
+  const ledgerRows = rawLedgerRows.map(r => ({
+    id: r.id || r._id,
+    date: r.date ? new Date(r.date).toLocaleDateString() : '-',
+    source: r.reference || r.source || '-',
+    movementType: r.type || 'IN',
+    itemCode: r.sku || r.styleCode || '-',
+    itemName: r.itemName || r.productName || '-',
+    size: r.size || '-',
+    qty: r.qty,
+    balanceAfter: r.balanceAfter || '-',
+    warehouse: r.warehouseId?.name || r.warehouse || '-',
+    batchNo: '-',
+    referenceId: r.id || r._id,
+    doneBy: r.user || r.performedBy || '-'
+  }));
 
   const itemOptions = useMemo(
     () => Array.from(new Set(ledgerRows.map((row) => row.itemCode).filter(Boolean))),
@@ -90,12 +133,13 @@ function StockAuditView({ defaultTab = 0 }) {
     () =>
       locationRows.filter((row) => {
         const matchesItem = itemFilter === 'all' ? true : row.itemCode === itemFilter;
-        const matchesWarehouse = warehouseFilter === 'all' ? true : row.warehouse === warehouseFilter;
+        const matchesWarehouse = warehouseFilter === 'all' ? true : (row.warehouse === warehouseFilter || row.location === warehouseFilter);
         const matchesBatch = batchFilter === 'all' ? true : row.batch === batchFilter;
         return matchesItem && matchesWarehouse && matchesBatch;
       }),
     [batchFilter, itemFilter, locationRows, warehouseFilter],
   );
+  
 
   const filteredBatchRows = useMemo(
     () =>

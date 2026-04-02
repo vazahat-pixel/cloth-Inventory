@@ -8,7 +8,50 @@ const salesService = require('../sales/sales.service');
 const { DocumentType } = require('../../core/enums');
 
 const Dispatch = require('../../models/dispatch.model');
+const Item = require('../../models/item.model');
 const { getNextSequence } = require('../../services/sequence.service');
+
+const populateDispatchItemsManual = async (dispatches) => {
+    const isSingle = !Array.isArray(dispatches);
+    const docs = isSingle ? [dispatches] : dispatches;
+
+    for (const doc of docs) {
+        if (!doc.items || doc.items.length === 0) continue;
+
+        const variantIds = doc.items.map(i => i.variantId ? (i.variantId._id || i.variantId) : null).filter(Boolean);
+
+        // Find Items containing these variations
+        const items = await Item.find({ "sizes._id": { $in: variantIds } })
+            .populate('brand', 'name brandName')
+            .populate('groupIds', 'name groupType groupName')
+            .lean();
+
+        // Map them back to the dispatch items
+        doc.items = doc.items.map(di => {
+            const vid = String(di.variantId?._id || di.variantId);
+            const parentItem = items.find(it => it.sizes.some(sz => String(sz._id) === vid));
+            if (parentItem) {
+                const variant = parentItem.sizes.find(sz => String(sz._id) === vid);
+                return {
+                    ...di.toObject ? di.toObject() : di,
+                    variantId: {
+                        _id: variant._id,
+                        name: `${parentItem.itemName} (${variant.size})`,
+                        sku: variant.sku || parentItem.itemCode,
+                        barcode: variant.barcode || variant.sku || parentItem.itemCode,
+                        size: variant.size,
+                        color: variant.color || parentItem.shade || 'N/A',
+                        brand: parentItem.brand || { name: 'Main' },
+                        category: parentItem.groupIds?.[0] || { name: 'General' }
+                    }
+                };
+            }
+            return di;
+        });
+    }
+
+    return isSingle ? docs[0] : docs;
+};
 
 /**
  * UNIFIED DISPATCH SYSTEM
@@ -20,8 +63,8 @@ const createDispatch = async (dispatchData, userId) => {
         const { sourceWarehouseId, destinationStoreId, products, ...rest } = dispatchData;
 
         // 1. Resolve source and destination entities
-        const source = await Warehouse.findById(sourceWarehouseId).session(session) 
-                    || await Store.findById(sourceWarehouseId).session(session);
+        const source = await Warehouse.findById(sourceWarehouseId).session(session)
+            || await Store.findById(sourceWarehouseId).session(session);
         const destination = await Store.findById(destinationStoreId).session(session);
 
         if (!source || !destination) {
@@ -327,60 +370,46 @@ const cancelDispatch = async (id, userId) => {
     });
 };
 
-const getDispatches = async (query) => {
+const getDispatches = async (query, user) => {
     const { status, sourceId, destinationId } = query;
     const filter = {};
+
+    // Security: Filter by shopId for store staff
+    if (user && user.role === 'store_staff') {
+        if (!user.shopId) throw new Error('User is not linked to any store.');
+        filter.$or = [
+            { sourceWarehouseId: user.shopId },
+            { destinationStoreId: user.shopId }
+        ];
+    }
+
     if (status) filter.status = status;
     if (sourceId) filter.sourceWarehouseId = sourceId;
     if (destinationId) filter.destinationStoreId = destinationId;
 
-    return await Dispatch.find(filter)
+    const dispatches = await Dispatch.find(filter)
         .sort({ createdAt: -1 })
         .populate('sourceWarehouseId', 'name')
         .populate('destinationStoreId', 'name')
         .populate('createdBy', 'name');
+
+    return await populateDispatchItemsManual(dispatches);
 };
 
-const getDispatchById = async (id) => {
+const getDispatchById = async (id, user) => {
     const dispatch = await Dispatch.findById(id)
         .populate('sourceWarehouseId')
         .populate('destinationStoreId')
         .populate('createdBy', 'name')
-        .lean();
-    
+        .populate('items.variantId', 'name sku barcode');
+
     if (!dispatch) throw new Error('Dispatch record not found');
-
-    // MANUAL POPULATION: Since variantId actually refers to a subdocument in Item.sizes
-    // and cannot be effortlessly populated via standard Mongoose 'Product' ref
-    const Item = require('../../models/item.model');
-    const variantIds = dispatch.items.map(it => it.variantId);
-    const parentItems = await Item.find({ "sizes._id": { $in: variantIds } }).lean();
-
-    dispatch.items = dispatch.items.map(it => {
-        const parent = parentItems.find(p => 
-            p.sizes && p.sizes.some(s => s._id.toString() === it.variantId.toString())
-        );
-        const sizeInfo = parent ? parent.sizes.find(s => s._id.toString() === it.variantId.toString()) : null;
-
-        return {
-            ...it,
-            variantId: {
-                _id: it.variantId,
-                name: parent ? parent.itemName : (it.variantId ? 'Unknown Product' : '-'),
-                sku: (sizeInfo ? sizeInfo.sku : (parent ? parent.itemCode : '-')),
-                size: sizeInfo ? sizeInfo.size : '-',
-                color: parent ? parent.shade : '-',
-                salePrice: sizeInfo ? sizeInfo.salePrice : 0
-            }
-        };
-    });
-
     return dispatch;
 };
 
 const receiveDispatch = async (id, userId) => {
     const stockService = require('../../services/stock.service');
-    
+
     return await withTransaction(async (session) => {
         const dispatch = await Dispatch.findById(id).session(session);
         if (!dispatch) throw new Error('Dispatch record not found');

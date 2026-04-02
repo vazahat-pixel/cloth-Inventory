@@ -16,6 +16,7 @@ const LoyaltyTransaction = require('../../models/loyaltyTransaction.model');
 const CreditNote = require('../../models/creditNote.model');
 const { calculateGST } = require('../../services/gst.service');
 const { getNextSequence } = require('../../services/sequence.service');
+const Item = require('../../models/item.model');
 const stockLedgerService = require('../inventory/stockLedger.service');
 
 const {
@@ -44,27 +45,30 @@ const generateSaleNumber = async (session = null) => {
  * Get product by barcode for scanning
  */
 const getProductForSale = async (barcode, storeId) => {
-    const product = await Product.findOne({ barcode, isDeleted: false, isActive: true });
-    if (!product) throw new Error('Product not found or inactive');
+    // Search in Item collection's sizes array
+    const parentItem = await Item.findOne({ "sizes.barcode": barcode, isActive: true });
+    if (!parentItem) throw new Error('Product not found for this barcode');
 
-        // High Precision Ledger Search
-    const history = await stockLedgerService.getLedgerByItem(product._id);
-    // Filter by location and barcode to get latest balance
-    const lastMovement = history.find(h => h.barcode === barcode && h.locationId?.toString() === storeId?.toString());
-    const availableQty = lastMovement ? lastMovement.balanceAfter : 0;
+    const variant = parentItem.sizes.find(sz => sz.barcode === barcode);
+    if (!variant) throw new Error('Variant not found for this barcode');
+
+    // Check stock from StoreInventory
+    const StoreInventory = require('../../models/storeInventory.model');
+    const inventory = await StoreInventory.findOne({ storeId, productId: variant._id });
+    const availableQty = inventory ? (inventory.quantityAvailable ?? inventory.quantity ?? 0) : 0;
 
     if (availableQty <= 0) {
-        throw new Error(`Out of stock for barcode ${barcode} in this store (Ledger Verified)`);
+        throw new Error(`Out of stock for barcode ${barcode} in this store`);
     }
 
     return {
-        _id: product._id,
-        name: product.name,
-        sku: product.sku,
-        barcode: product.barcode,
-        size: product.size,
-        color: product.color,
-        salePrice: product.salePrice,
+        _id: variant._id,
+        name: parentItem.itemName,
+        sku: variant.sku || parentItem.itemCode,
+        barcode: variant.barcode,
+        size: variant.size,
+        color: variant.color || parentItem.shade,
+        salePrice: variant.salePrice || 0,
         available: availableQty
     };
 };
@@ -103,10 +107,18 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
         const stockMovements = [];
 
         for (const item of products) {
-            const productId = item.productId || item.variantId;
+            const variantId = item.productId || item.variantId;
+            
+            // Search in Item collection's sizes array to get parent and variant
+            const parentItem = await Item.findOne({ "sizes._id": variantId }).session(session);
+            if (!parentItem) throw new Error('Product not found in Master Item list');
+            
+            const variant = parentItem.sizes.find(sz => String(sz._id) === String(variantId));
+            if (!variant) throw new Error('Variant not found in Master Item list');
+
             const inventory = await StoreInventory.findOne({
                 storeId,
-                productId
+                productId: variantId
             }).session(session);
 
             const availableQty = inventory ? (typeof inventory.quantityAvailable === 'number'
@@ -114,27 +126,29 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
                 : inventory.quantity || 0) : 0;
 
             if (item.quantity > 0 && (!inventory || availableQty < item.quantity)) {
-                const pName = await Product.findById(productId).session(session);
-                throw new Error(`Insufficient stock for ${pName ? pName.name : 'product'} (Available: ${availableQty})`);
+                throw new Error(`Insufficient stock for ${parentItem.itemName} (${variant.size}) (Available: ${availableQty})`);
             }
-
-            const product = await Product.findById(productId).session(session);
-            if (!product) throw new Error('Product not found');
 
             // --- PRICING ENGINE INJECTION ---
             const storePriceRule = await StorePricing.findOne({
                 storeId,
-                productId,
+                productId: variantId,
                 isActive: true
             }).session(session);
 
-            const originalPrice = product.salePrice;
-            const appliedPrice = storePriceRule ? storePriceRule.price : (originalPrice !== undefined ? originalPrice : item.price);
-            const pricingSource = storePriceRule ? 'STORE_SPECIFIC' : (originalPrice !== undefined ? 'DEFAULT' : 'MANUAL');
+            const originalPrice = variant.salePrice || 0;
+            const appliedPrice = storePriceRule ? storePriceRule.price : originalPrice;
+            const pricingSource = storePriceRule ? 'STORE_SPECIFIC' : 'DEFAULT';
 
             // Override price in item for downstream calculations, ensuring we have a number
-            item.price = Number(appliedPrice || item.price || 0);
-            item.originalPrice = Number(originalPrice || item.price || 0);
+            item.price = Number(appliedPrice || 0);
+            item.originalPrice = Number(originalPrice || 0);
+            item.appliedPrice = item.price;
+            item.pricingSource = pricingSource;
+            item.itemName = parentItem.itemName;
+            item.size = variant.size;
+            item.color = variant.color;
+            // --------------------------------
             item.appliedPrice = item.price;
             item.pricingSource = pricingSource;
             // --------------------------------
@@ -143,29 +157,28 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             calculatedSubTotal += taxableAmount;
 
             let gstData = { cgst: 0, sgst: 0, igst: 0, totalTax: 0 };
+            
+            // Handle GST using parentItem's gstTax or hsCodeId
+            const gstPercentage = parentItem.gstTax || 0;
+            if (gstPercentage > 0) {
+                let gstType = 'CGST_SGST'; // Default
 
-            if (product.gstSlabId) {
-                const slab = await GstSlab.findById(product.gstSlabId).session(session);
-                if (slab) {
-                    let gstType = slab.type; // Default from slab
-
-                    // Logic for Internal Sales: Force GST type based on state comparison
-                    if (type === 'INTERNAL_SALE' && saleData.destinationStoreId) {
-                        const Warehouse = require('../../models/warehouse.model');
-                        const Store = require('../../models/store.model');
-                        
-                        const source = await Warehouse.findById(storeId).session(session) || await Store.findById(storeId).session(session);
-                        const destination = await Store.findById(saleData.destinationStoreId).session(session);
-                        
-                        if (source && destination) {
-                            const sourceState = (source.location?.state || '').trim().toUpperCase();
-                            const destState = (destination.location?.state || '').trim().toUpperCase();
-                            gstType = (sourceState === destState) ? 'CGST_SGST' : 'IGST';
-                        }
+                // Logic for Internal Sales: Force GST type based on state comparison
+                if (type === 'INTERNAL_SALE' && saleData.destinationStoreId) {
+                    const Warehouse = require('../../models/warehouse.model');
+                    const Store = require('../../models/store.model');
+                    
+                    const source = await Warehouse.findById(storeId).session(session) || await Store.findById(storeId).session(session);
+                    const destination = await Store.findById(saleData.destinationStoreId).session(session);
+                    
+                    if (source && destination) {
+                        const sourceState = (source.location?.state || '').trim().toUpperCase();
+                        const destState = (destination.location?.state || '').trim().toUpperCase();
+                        gstType = (sourceState === destState) ? 'CGST_SGST' : 'IGST';
                     }
-
-                    gstData = calculateGST(taxableAmount, slab.percentage, gstType);
                 }
+
+                gstData = calculateGST(taxableAmount, gstPercentage, gstType);
             }
 
             totalCGST += gstData.cgst;
@@ -174,11 +187,11 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             totalTax += gstData.totalTax;
 
             item.taxAmount = gstData.totalTax;
-            item.taxPercentage = product.gstSlabId ? (await GstSlab.findById(product.gstSlabId)).percentage : 0;
+            item.taxPercentage = gstPercentage;
 
             stockMovements.push({
-                productId,
-                variantId: productId,
+                productId: variantId,
+                variantId: variantId,
                 storeId,
                 quantityChange: -item.quantity,
                 type: (type || 'RETAIL').toUpperCase() === 'EXCHANGE' && item.quantity < 0

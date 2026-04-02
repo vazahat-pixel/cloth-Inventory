@@ -38,16 +38,16 @@ const normalizeStockRows = (rows = []) =>
   rows.map((row, index) => {
     return {
       id: row.id || row._id || `stock-${index + 1}`,
-      itemCode: row.itemCode || '',
+      itemCode: row.itemCode || row.sku || row.styleCode || row.barcode || '',
       itemName: row.itemName || '',
       size: row.size || '',
       color: row.color || '',
-      warehouse: row.locationName || '',
-      availableStock: Number(row.availableStock || 0),
-      reservedStock: Number(row.reservedStock || 0),
+      warehouse: row.warehouseName || '',
+      availableStock: Number(row.available ?? 0),
+      reservedStock: Number(row.reserved ?? 0),
       inTransit: Number(row.inTransit || 0),
       reorderLevel: Number(row.reorderLevel || 0),
-      status: row.status || 'Active',
+      status: row.status || 'OK',
     };
   });
 
@@ -232,7 +232,7 @@ function StockOverviewPage() {
             setPage(0);
             setSearchText(event.target.value);
           }}
-          placeholder="Search item code, item name, color, or warehouse"
+          placeholder="Search item code, item name, color, or location"
           sx={{ flex: 1 }}
           InputProps={{
             startAdornment: (
@@ -242,8 +242,8 @@ function StockOverviewPage() {
             ),
           }}
         />
-        <TextField size="small" select label="Warehouse" value={warehouseFilter} onChange={(event) => setWarehouseFilter(event.target.value)} sx={{ minWidth: 180 }}>
-          <MenuItem value="all">All Warehouses</MenuItem>
+        <TextField size="small" select label="Location" value={warehouseFilter} onChange={(event) => setWarehouseFilter(event.target.value)} sx={{ minWidth: 180 }}>
+          <MenuItem value="all">All Locations</MenuItem>
           {warehouseOptions.map((option) => (
             <MenuItem key={option} value={option}>
               {option}
@@ -292,7 +292,7 @@ function StockOverviewPage() {
                 <TableCell sx={{ fontWeight: 700 }}>Item Name</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Size</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Color</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Warehouse</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Location</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">Available Stock</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">Reserved Stock</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">In Transit</TableCell>
@@ -318,10 +318,18 @@ function StockOverviewPage() {
                   </TableCell>
                   <TableCell align="right">
                     <Stack direction="row" spacing={0.25} sx={{ justifyContent: 'flex-end' }}>
-                      <IconButton size="small" color="info" onClick={() => navigate('/inventory/audit-view')}>
+                      <IconButton 
+                        size="small" 
+                        color="info" 
+                        onClick={() => navigate(`/inventory/audit-view?item=${row.itemCode}&warehouse=${row.warehouse}`)}
+                      >
                         <VisibilityOutlinedIcon fontSize="small" />
                       </IconButton>
-                      <IconButton size="small" color="primary" onClick={() => navigate(`/inventory/item-journey?item=${row.itemCode}`)}>
+                      <IconButton 
+                        size="small" 
+                        color="primary" 
+                        onClick={() => navigate(`/inventory/item-journey?item=${row.itemCode}`)}
+                      >
                         <TimelineOutlinedIcon fontSize="small" />
                       </IconButton>
                     </Stack>

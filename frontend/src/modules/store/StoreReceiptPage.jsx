@@ -274,12 +274,33 @@ function StoreReceiptPage() {
                   const isVerified = scannedItems[item.variantId?._id || item.variantId];
                   return (
                     <TableRow key={idx} sx={{ bgcolor: isVerified ? '#f0fdf4' : 'inherit' }}>
-                      <TableCell>
-                        <Typography sx={{ fontWeight: 700 }}>
-                          {item.variantId?.name || 'Product'} 
+                      <TableCell sx={{ py: 2 }}>
+                        <Typography sx={{ fontWeight: 900, color: '#0f172a', fontSize: '1rem', mb: 0.5 }}>
+                          {item.variantId?.name}
                         </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          SKU: {item.variantId?.sku} | Barcode: {item.variantId?.barcode}
+                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1, flexWrap: 'wrap', gap: 1 }}>
+                          <Box sx={{ border: '1px solid #cbd5e1', px: 1.25, py: 0.5, borderRadius: 2, bgcolor: '#f1f5f9' }}>
+                            <Typography variant="caption" sx={{ fontWeight: 800, color: '#334155', letterSpacing: '0.02em' }}>
+                              SIZE: {item.variantId?.size}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ border: '1px solid #cbd5e1', px: 1.25, py: 0.5, borderRadius: 2, bgcolor: '#f1f5f9' }}>
+                            <Typography variant="caption" sx={{ fontWeight: 800, color: '#334155' }}>
+                              COLOR: {item.variantId?.color || 'N/A'}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ border: '1px solid #cbd5e1', px: 1.25, py: 0.5, borderRadius: 2, bgcolor: '#eff6ff' }}>
+                            <Typography variant="caption" sx={{ fontWeight: 800, color: '#2563eb' }}>
+                              BRAND: {item.variantId?.brand?.brandName || item.variantId?.brand?.name || 'Main'}
+                            </Typography>
+                          </Box>
+                        </Stack>
+                        <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <span style={{ color: '#94a3b8' }}>SKU:</span> {item.variantId?.sku} 
+                          <span style={{ color: '#e2e8f0' }}>|</span> 
+                          <span style={{ color: '#94a3b8' }}>BARCODE:</span> {item.variantId?.barcode} 
+                          <span style={{ color: '#e2e8f0' }}>|</span> 
+                          <span style={{ color: '#94a3b8' }}>CATEGORY:</span> {item.variantId?.category?.name || 'General'}
                         </Typography>
                       </TableCell>
                       <TableCell align="right">
