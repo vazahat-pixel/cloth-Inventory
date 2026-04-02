@@ -38,9 +38,39 @@ const getById = async (req, res, next) => {
     }
 };
 
+const update = async (req, res, next) => {
+    try {
+        const dispatch = await dispatchService.updateDispatch(req.params.id, req.body, req.user._id);
+        return sendSuccess(res, { dispatch }, 'Dispatch updated successfully');
+    } catch (error) {
+        next(error);
+    }
+};
+
+const confirm = async (req, res, next) => {
+    try {
+        const dispatch = await dispatchService.confirmDispatch(req.params.id, req.user._id);
+        return sendSuccess(res, { dispatch }, 'Dispatch confirmed and stock deducted');
+    } catch (error) {
+        next(error);
+    }
+};
+
+const cancel = async (req, res, next) => {
+    try {
+        const dispatch = await dispatchService.cancelDispatch(req.params.id, req.user._id);
+        return sendSuccess(res, { dispatch }, 'Dispatch cancelled and stock released');
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     create,
+    update,
     receive,
     get,
-    getById
+    getById,
+    confirm,
+    cancel
 };

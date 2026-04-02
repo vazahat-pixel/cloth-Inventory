@@ -55,6 +55,7 @@ const DispatchStatus = {
     PENDING: 'PENDING',
     DISPATCHED: 'DISPATCHED',
     RECEIVED: 'RECEIVED',
+    CANCELLED: 'CANCELLED',
 };
 
 const PaymentMethod = {

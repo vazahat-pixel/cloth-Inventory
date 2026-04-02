@@ -390,10 +390,103 @@ const adjustStoreStockDamaged = async ({ productId, variantId, storeId, qty, typ
     return inventory;
 };
 
+/**
+ * Reserve stock for an order (increase reservedQuantity, does NOT decrease physical quantity yet)
+ */
+const reserveStock = async ({ variantId, locationId, locationType, qty, session }) => {
+    const delta = toFiniteNumber(qty);
+    if (delta <= 0) throw new Error('Reservation quantity must be positive');
+
+    const filter = { productId: variantId };
+    let InventoryModel;
+
+    if (locationType === 'STORE') {
+        filter.storeId = locationId;
+        InventoryModel = StoreInventory;
+    } else {
+        filter.warehouseId = locationId;
+        InventoryModel = WarehouseInventory;
+    }
+
+    let inventory = await InventoryModel.findOne(filter).session(session);
+    if (!inventory) {
+        if (locationType === 'STORE') {
+            inventory = new InventoryModel({ ...filter, quantity: 0, quantityAvailable: 0 });
+        } else {
+            inventory = new InventoryModel({ ...filter, quantity: 0, reservedQuantity: 0 });
+        }
+    }
+
+    // Fetch Ledger balance as the true physical source
+    const StockLedger = require('../models/stockLedger.model');
+    const Item = require('../models/item.model');
+    
+    let truePhysicalQuantity = inventory.quantity || 0;
+    
+    const itemDoc = await Item.findOne({ "sizes._id": variantId }).session(session);
+    if (itemDoc) {
+        const variantEntry = itemDoc.sizes.id(variantId);
+        const barcode = (variantEntry ? variantEntry.sku : null) || itemDoc.itemCode;
+        
+        const lastLog = await StockLedger.findOne({
+            barcode,
+            locationId,
+            locationType
+        }).sort({ createdAt: -1 }).session(session);
+        
+        if (lastLog) {
+            truePhysicalQuantity = lastLog.balanceAfter;
+        }
+    }
+
+    // Business Logic: Check if enough unreserved stock exists using true ledger balance
+    const availableToReserve = truePhysicalQuantity - (inventory.reservedQuantity || 0);
+    if (availableToReserve < delta) {
+        throw new Error(`Insufficient free stock to reserve. Available: ${availableToReserve}, Requested: ${delta}`);
+    }
+
+    if (locationType === 'WAREHOUSE') {
+        inventory.reservedQuantity = (inventory.reservedQuantity || 0) + delta;
+    } else {
+        // For Stores, we track it in quantityAvailable (Simplified logic)
+        inventory.quantityAvailable = (inventory.quantityAvailable || 0) - delta;
+    }
+
+    inventory.lastUpdated = Date.now();
+    await inventory.save({ session });
+    return inventory;
+};
+
+/**
+ * Release reserved stock (Cancel or Finalize)
+ */
+const releaseStock = async ({ variantId, locationId, locationType, qty, session }) => {
+    const delta = toFiniteNumber(qty);
+    
+    const filter = { productId: variantId };
+    let InventoryModel = locationType === 'STORE' ? StoreInventory : WarehouseInventory;
+    if (locationType === 'STORE') filter.storeId = locationId;
+    else filter.warehouseId = locationId;
+
+    let inventory = await InventoryModel.findOne(filter).session(session);
+    if (!inventory) return;
+
+    if (locationType === 'WAREHOUSE') {
+        inventory.reservedQuantity = Math.max(0, (inventory.reservedQuantity || 0) - delta);
+    } else {
+        inventory.quantityAvailable = Math.min(inventory.quantity, (inventory.quantityAvailable || 0) + delta);
+    }
+
+    await inventory.save({ session });
+    return inventory;
+};
+
 module.exports = {
     addStock,
     removeStock,
     transferStock,
+    reserveStock,
+    releaseStock,
     adjustWarehouseStock,
     adjustStoreStock,
     adjustWarehouseStockDamaged,

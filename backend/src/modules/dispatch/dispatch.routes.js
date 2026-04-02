@@ -10,6 +10,13 @@ router.use(protect);
 router.post('/', dispatchController.create);
 router.get('/', dispatchController.get);
 router.get('/:id', dispatchController.getById);
+router.put('/:id', dispatchController.update);
+
+// Mark as DISPATCHED (from DRAFT)
+router.post('/:id/confirm', dispatchController.confirm);
+
+// Mark as CANCELLED (from DRAFT)
+router.post('/:id/cancel-draft', dispatchController.cancel);
 
 // Mark as RECEIVED and Update Inventory
 router.post('/:id/receive', dispatchController.receive);

@@ -8,62 +8,132 @@ const Product = require('../../models/product.model');
  */
 const getStoreInventory = async (query, user) => {
     const { page = 1, limit = 1000, search, storeId, lowStock } = query;
+    const Item = require('../../models/item.model');
 
-    const filter = {};
+    const storeFilter = {};
     const warehouseFilter = {};
 
-    // Enforce store scoping for store staff
+    // 1. Enforce scoping
     if (user.role === 'store_staff') {
-        if (!user.shopId) {
-            throw new Error('User is not linked to any store. Please contact administrator.');
-        }
-        filter.storeId = user.shopId;
-        warehouseFilter.warehouseId = user.shopId; // unlikely but for completeness
+        if (!user.shopId) throw new Error('User is not linked to any store.');
+        storeFilter.storeId = user.shopId;
+        // In this ERP, store_staff usually only sees their store, 
+        // but we'll allow warehouse inventory for HO admins or if explicitly needed.
+        warehouseFilter._id = null; 
     } else if (storeId) {
-        filter.storeId = storeId;
+        storeFilter.storeId = storeId;
         warehouseFilter.warehouseId = storeId;
     }
 
-    if (lowStock === 'true') {
-        filter.$expr = { $lte: ['$quantityAvailable', '$minStockLevel'] };
-    }
-
-    // If search exists, find matching product IDs first
-    if (search) {
-        const searchRegex = new RegExp(search, 'i');
-        const products = await Product.find({
-            $or: [
-                { name: searchRegex },
-                { sku: searchRegex },
-                { barcode: searchRegex }
-            ]
-        }).select('_id');
-
-        const pIds = products.map(p => p._id);
-        filter.productId = { $in: pIds };
-        warehouseFilter.productId = { $in: pIds };
-    }
-
-    const skip = (page - 1) * limit;
-
-    const [storeInventory, warehouseInventory] = await Promise.all([
-        StoreInventory.find(filter)
-            .sort({ lastUpdated: -1 })
-            .populate('storeId', 'name location')
-            .populate('productId', 'name sku barcode size color category brand salePrice'),
-        WarehouseInventory.find(warehouseFilter)
-            .sort({ lastUpdated: -1 })
-            .populate('warehouseId', 'name location')
-            .populate('productId', 'name sku barcode size color category brand salePrice')
+    const [storeItems, warehouseItems, allStores, allWarehouses] = await Promise.all([
+        StoreInventory.find(storeFilter).lean(),
+        WarehouseInventory.find(warehouseFilter).lean(),
+        require('../../models/store.model').find({}).select('name').lean(),
+        require('../../models/warehouse.model').find({}).select('name').lean()
     ]);
 
-    // Combine results and filter out orphaned records
-    const combinedFull = [...storeInventory, ...warehouseInventory].filter(item => item && item.productId);
-    const combined = combinedFull.slice(skip, skip + parseInt(limit));
-    const total = combinedFull.length;
+    const storeMap = new Map(allStores.map(s => [s._id.toString(), s.name]));
+    const whMap = new Map(allWarehouses.map(w => [w._id.toString(), w.name]));
+
+    // 3. Extract unique variant IDs
+    const variantIds = [...new Set([
+        ...storeItems.map(si => si.productId.toString()),
+        ...warehouseItems.map(wi => wi.productId.toString())
+    ])];
+
+    // 4. Fetch Parent Master Items
+    const searchFilter = { "sizes._id": { $in: variantIds } };
+    if (search) {
+        const regex = new RegExp(search, 'i');
+        searchFilter.$or = [
+            { itemName: regex },
+            { itemCode: regex },
+            { "sizes.sku": regex }
+        ];
+    }
+
+    const masterItems = await Item.find(searchFilter)
+        .populate('brand', 'name')
+        .populate('groupIds', 'name')
+        .lean();
+
+    // 5. Fetch In Transit quantities
+    const Dispatch = require('../../models/dispatch.model');
+    const inTransitRecords = await Dispatch.find({ 
+        status: 'DISPATCHED',
+        "items.variantId": { $in: variantIds }
+    }).lean();
+
+    const transitMap = new Map();
+    inTransitRecords.forEach(d => {
+        d.items.forEach(item => {
+            const key = item.variantId.toString();
+            transitMap.set(key, (transitMap.get(key) || 0) + item.qty);
+        });
+    });
+
+    // 6. Flatten and Map
+    const rows = [];
+    
+    // Map Store Inventory
+    storeItems.forEach(si => {
+        const parent = masterItems.find(m => m.sizes.some(s => s._id.toString() === si.productId.toString()));
+        if (!parent) return;
+        const variant = parent.sizes.find(s => s._id.toString() === si.productId.toString());
+        const available = si.quantityAvailable || 0;
+        const reorder = parent.reorderLevel || 0;
+        
+        rows.push({
+            id: si._id,
+            itemCode: parent.itemCode,
+            itemName: parent.itemName,
+            size: variant.size,
+            sku: variant.sku,
+            color: parent.shade || '--',
+            locationName: storeMap.get(si.storeId.toString()) || 'Unknown Store',
+            locationId: si.storeId,
+            locationType: 'STORE',
+            availableStock: available,
+            reservedStock: 0,
+            inTransit: 0, // Transit is from WH to Store, so it shows on WH side or globally
+            reorderLevel: reorder,
+            status: available <= 0 ? 'Out_Of_Stock' : (available <= reorder ? 'Low_Stock' : 'Active')
+        });
+    });
+
+    // Map Warehouse Inventory
+    warehouseItems.forEach(wi => {
+        const parent = masterItems.find(m => m.sizes.some(s => s._id.toString() === wi.productId.toString()));
+        if (!parent) return;
+        const variant = parent.sizes.find(s => s._id.toString() === wi.productId.toString());
+        const available = wi.quantity || 0;
+        const reorder = parent.reorderLevel || 0;
+        const transit = transitMap.get(wi.productId.toString()) || 0;
+
+        rows.push({
+            id: wi._id,
+            itemCode: parent.itemCode,
+            itemName: parent.itemName,
+            size: variant.size,
+            sku: variant.sku,
+            color: parent.shade || '--',
+            locationName: whMap.get(wi.warehouseId.toString()) || 'Unknown Warehouse',
+            locationId: wi.warehouseId,
+            locationType: 'WAREHOUSE',
+            availableStock: available,
+            reservedStock: wi.reservedQuantity || 0,
+            inTransit: transit,
+            reorderLevel: reorder,
+            status: available <= 0 ? 'Out_Of_Stock' : (available <= reorder ? 'Low_Stock' : 'Active')
+        });
+    });
+
+    const total = rows.length;
+    const skip = (page - 1) * limit;
+    const paginated = rows.slice(skip, skip + parseInt(limit));
 
     return {
-        inventory: combined,
+        inventory: paginated,
         total,
         page: parseInt(page),
         limit: parseInt(limit)

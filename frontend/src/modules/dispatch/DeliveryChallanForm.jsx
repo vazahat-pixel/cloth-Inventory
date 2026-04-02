@@ -1,5 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useParams } from 'react-router-dom';
+import api from '../../services/api';
+import { updateChallan } from './dispatchSlice';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import {
     Autocomplete,
@@ -110,10 +113,13 @@ function DeliveryChallanForm({
         return variantOptions.filter((o) => !ids.has(o.variantId));
     }, [lines, variantOptions]);
 
+    const [inputValue, setInputValue] = useState('');
+
     const addLine = () => {
         if (!variantPickerValue) return;
         setLines(prev => [...prev, { ...variantPickerValue, quantity: 1 }]);
         setVariantPickerValue(null);
+        setInputValue('');
     };
 
     const updateQuantity = (variantId, val) => {
@@ -158,7 +164,41 @@ function DeliveryChallanForm({
         };
     }, [lines, dispatchMode]);
 
-    const handleSave = () => {
+    const { id } = useParams();
+    const isEditMode = !!id;
+
+    useEffect(() => {
+        if (isEditMode) {
+            api.get(`/dispatch/${id}`).then(res => {
+                const data = res.data.dispatch || res.data.data;
+                if (data) {
+                    setDate(data.dispatchedAt ? new Date(data.dispatchedAt).toISOString().slice(0, 10) : getTodayDate());
+                    setSourceId(data.sourceWarehouseId?._id || data.sourceWarehouseId || '');
+                    setStoreId(data.destinationStoreId?._id || data.destinationStoreId || '');
+                    setVehicleNumber(data.vehicleNumber || '');
+                    setDriverName(data.driverName || '');
+                    
+                    if (data.items && Array.isArray(data.items)) {
+                        const prefilledLines = data.items.map(item => ({
+                            variantId: item.variantId?._id || item.variantId,
+                            itemName: item.variantId?.name || '-',
+                            sku: item.variantId?.sku || item.variantId?.barcode || '-',
+                            size: item.variantId?.size || '-',
+                            color: item.variantId?.color || '-',
+                            available: Number(item.qty), // Treat currently booked qty as available for editing
+                            quantity: Number(item.qty),
+                            rate: Number(item.variantId?.salePrice || item.rate || 0)
+                        }));
+                        setLines(prefilledLines);
+                    }
+                }
+            }).catch(err => {
+                setError("Failed to load dispatch details for editing.");
+            });
+        }
+    }, [id]);
+
+    const handleSave = (status = 'DISPATCHED') => {
         setError('');
         if (!sourceId) { setError("Please select a source warehouse"); return; }
         if (!storeId) { setError("Please select a destination store"); return; }
@@ -178,9 +218,8 @@ function DeliveryChallanForm({
                 quantity: l.quantity,
                 rate: l.rate
             })),
-            status: 'DISPATCHED',
+            status: status, // Dynamic status: DRAFT or DISPATCHED
             dispatchMode: dispatchMode?.type,
-            // Additional fields for Internal Sale (Tax Invoice)
             type: isInvoice ? 'INTERNAL_SALE' : 'STOCK_TRANSFER',
             subTotal: totals.subTotal,
             totalTax: totals.tax,
@@ -188,10 +227,12 @@ function DeliveryChallanForm({
             paymentMode: 'CREDIT'
         };
 
-        dispatch(addChallan(payload))
+        const action = isEditMode ? updateChallan({ id, data: payload }) : addChallan(payload);
+
+        dispatch(action)
             .unwrap()
             .then((res) => {
-                alert(`Successfully generated: ${res.documentNumber} (${res.type})`);
+                alert(`Successfully ${isEditMode ? 'updated' : 'generated'} dispatch (${status === 'DRAFT' ? 'RESERVED' : 'DISPATCHED'})`);
                 navigate(listPath);
             })
             .catch(err => setError(err || "Failed to save challan"));
@@ -288,6 +329,8 @@ function DeliveryChallanForm({
                         getOptionLabel={(o) => `${o.sku} | ${o.itemName} (${o.size}/${o.color}) - Stock: ${o.available}`}
                         value={variantPickerValue}
                         onChange={(_, v) => setVariantPickerValue(v)}
+                        inputValue={inputValue}
+                        onInputChange={(_, newInputValue) => setInputValue(newInputValue)}
                         sx={{ flex: 1 }}
                         renderInput={(params) => <TextField {...params} label="Search Item in Source Stock" />}
                         isOptionEqualToValue={(option, value) => option.variantId === value.variantId}
@@ -372,8 +415,24 @@ function DeliveryChallanForm({
 
             <Stack direction="row" spacing={2} sx={{ mt: 4, justifyContent: 'flex-end' }}>
                 <Button variant="outlined" onClick={() => navigate(listPath)}>Cancel</Button>
-                <Button variant="contained" startIcon={<SaveOutlinedIcon />} onClick={handleSave}>
-                    {saveLabel}
+                
+                {/* Dual Mode Buttons: Save as Draft vs Save & Dispatch */}
+                <Button 
+                    variant="outlined" 
+                    color="secondary" 
+                    onClick={() => handleSave('DRAFT')}
+                    sx={{ borderColor: 'secondary.main', color: 'secondary.main', fontWeight: 700 }}
+                >
+                    Save as Draft (Reserve)
+                </Button>
+
+                <Button 
+                    variant="contained" 
+                    startIcon={<SaveOutlinedIcon />} 
+                    onClick={() => handleSave('DISPATCHED')}
+                    sx={{ boxShadow: '0 4px 12px rgba(37, 99, 235, 0.2)', fontWeight: 700 }}
+                >
+                    Save & Dispatch
                 </Button>
             </Stack>
         </Paper>

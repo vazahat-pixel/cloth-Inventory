@@ -121,28 +121,61 @@ class InventoryController {
         .populate('session', 'name seasonName')
         .lean();
 
-      // 4. Update the stock field in each size variant of the items with real-time Warehouse balance
-      // Create a lookup for variant stock balances
-      const stockMap = new Map();
-      stockRecords.forEach(s => stockMap.set(s.productId.toString(), s.quantity));
+      // 4. Fetch the real-time Ledger Balances for these variants
+      // This ensures we show exactly what the validation engine (StockLedgerService) sees.
+      const mongoose = require('mongoose');
+      const warehouseObjectId = new mongoose.Types.ObjectId(warehouseId);
+      const StockLedger = require('../../models/stockLedger.model');
+      
+      const ledgerBalances = await StockLedger.aggregate([
+          { $match: { locationId: warehouseObjectId, locationType: 'WAREHOUSE' } },
+          { $sort: { createdAt: -1 } },
+          { $group: {
+              _id: "$barcode",
+              balance: { $first: "$balanceAfter" }
+          }}
+      ]);
 
-      const enrichedItems = items.map(item => {
-        // Deep copy the sizes and update them with the warehouse-specific stock
-        const sizesWithStock = item.sizes.map(sz => {
-          const variantIdStr = sz._id.toString();
-          return {
-            ...sz,
-            stock: stockMap.has(variantIdStr) ? stockMap.get(variantIdStr) : 0
-          };
-        });
-
-        return {
-          ...item,
-          sizes: sizesWithStock
-        };
+      const ledgerMap = new Map();
+      ledgerBalances.forEach(lb => {
+          if (lb && lb._id) {
+              ledgerMap.set(lb._id.toString(), lb.balance || 0);
+          }
       });
 
-      console.log(`[WAREHOUSE-STOCK-FULL] Returning ${enrichedItems.length} Master Items for Warehouse: ${warehouseId}`);
+      // 5. Fetch Physical Fallback (WarehouseInventory)
+      // This is crucial if Stock Ledger is not yet initialized for some items.
+      const physicalMap = new Map();
+      const reservedMap = new Map();
+      stockRecords.forEach(s => {
+          physicalMap.set(s.productId.toString(), s.quantity || 0);
+          reservedMap.set(s.productId.toString(), s.reservedQuantity || 0);
+      });
+
+      const enrichedItems = items.map(item => {
+        const sizesWithStock = item.sizes.map(sz => {
+            const variantIdStr = sz._id.toString();
+            
+            // PRIORITY 1: Stock Ledger (Audit Trail) - tracked via SKUs/Barcodes
+            const ledgerBalance = sz.sku ? ledgerMap.get(sz.sku) : undefined;
+            
+            // PRIORITY 2: Physical Table (Fallback)
+            const physical = ledgerBalance !== undefined ? ledgerBalance : (physicalMap.get(variantIdStr) || 0);
+            const reserved = reservedMap.get(variantIdStr) || 0;
+            const netAvailable = Math.max(0, physical - reserved);
+            
+            return {
+                ...sz,
+                physicalStock: physical,
+                reservedStock: reserved,
+                availableStock: netAvailable,
+                stock: netAvailable 
+            };
+        });
+
+        return { ...item, sizes: sizesWithStock };
+      });
+
       return sendSuccess(res, { items: enrichedItems }, 'Items fetched successfully');
     } catch (e) {
       console.error('[WAREHOUSE-STOCK-ERROR]', e);
