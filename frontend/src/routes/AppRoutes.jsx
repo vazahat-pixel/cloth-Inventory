@@ -96,10 +96,6 @@ const SalesListPage = lazy(() => import('../modules/sales/SalesListPage'));
 const BillingPage = lazy(() => import('../modules/sales/BillingPage'));
 const SalesReturnPage = lazy(() => import('../modules/sales/SalesReturnPage'));
 
-// Dispatch
-const DeliveryChallanPage = lazy(() => import('../modules/dispatch/DeliveryChallanPage'));
-const DeliveryChallanForm = lazy(() => import('../modules/dispatch/DeliveryChallanForm'));
-
 // Pricing
 const PriceListPage = lazy(() => import('../modules/pricing/PriceListPage'));
 const PriceListFormPage = lazy(() => import('../modules/pricing/PriceListFormPage'));
