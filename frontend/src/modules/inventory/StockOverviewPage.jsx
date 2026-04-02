@@ -99,11 +99,7 @@ function StockOverviewPage() {
   const getSizeLabel = (value) => resolveSizeLabel(value, sizeLabelLookup);
 
   const rows = useMemo(() => {
-    const merged = new Map();
-    [...normalizeStockRows(stockOverviewSeed), ...normalizeStockRows(backendRows)].forEach((row) => {
-      merged.set(`${row.itemCode}-${row.size}-${row.warehouse}`, row);
-    });
-    return Array.from(merged.values());
+    return normalizeStockRows(backendRows);
   }, [backendRows]);
 
   const itemOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.itemCode).filter(Boolean))), [rows]);
@@ -245,7 +241,7 @@ function StockOverviewPage() {
             setPage(0);
             setSearchText(event.target.value);
           }}
-          placeholder="Search item code, item name, color, or warehouse"
+          placeholder="Search item code, item name, color, or location"
           sx={{ flex: 1 }}
           InputProps={{
             startAdornment: (
@@ -255,8 +251,8 @@ function StockOverviewPage() {
             ),
           }}
         />
-        <TextField size="small" select label="Warehouse" value={warehouseFilter} onChange={(event) => setWarehouseFilter(event.target.value)} sx={{ minWidth: 180 }}>
-          <MenuItem value="all">All Warehouses</MenuItem>
+        <TextField size="small" select label="Location" value={warehouseFilter} onChange={(event) => setWarehouseFilter(event.target.value)} sx={{ minWidth: 180 }}>
+          <MenuItem value="all">All Locations</MenuItem>
           {warehouseOptions.map((option) => (
             <MenuItem key={option} value={option}>
               {option}
@@ -305,7 +301,7 @@ function StockOverviewPage() {
                 <TableCell sx={{ fontWeight: 700 }}>Item Name</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Size</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Color</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Warehouse</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Location</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">Available Stock</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">Reserved Stock</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">In Transit</TableCell>

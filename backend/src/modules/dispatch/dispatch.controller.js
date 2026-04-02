@@ -22,7 +22,7 @@ const receive = async (req, res, next) => {
 
 const get = async (req, res, next) => {
     try {
-        const dispatches = await dispatchService.getDispatches(req.query);
+        const dispatches = await dispatchService.getDispatches(req.query, req.user);
         return sendSuccess(res, { dispatches }, 'Dispatches retrieved');
     } catch (error) {
         next(error);
@@ -31,7 +31,7 @@ const get = async (req, res, next) => {
 
 const getById = async (req, res, next) => {
     try {
-        const dispatch = await dispatchService.getDispatchById(req.params.id);
+        const dispatch = await dispatchService.getDispatchById(req.params.id, req.user);
         return sendSuccess(res, { dispatch }, 'Dispatch details retrieved');
     } catch (error) {
         next(error);

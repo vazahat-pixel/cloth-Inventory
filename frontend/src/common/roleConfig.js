@@ -130,7 +130,7 @@ export const staffNavConfig = {
     { label: 'Stock Overview', path: '/inventory/stock-overview', icon: Inventory2Icon },
     { label: 'POS - Billing', path: '/sales/sale-bill/new', icon: PointOfSaleIcon },
     { label: 'Sales Returns', path: '/sales/sales-return', icon: ReceiptLongIcon },
-    { label: 'Reports', path: '/reports/sales', icon: AssessmentOutlinedIcon },
+    { label: 'Reports', path: '/reports', icon: AssessmentOutlinedIcon, matchPaths: ['/reports'], drilldown: true },
   ],
   children: {
     '/inventory': [
@@ -140,6 +140,10 @@ export const staffNavConfig = {
     ],
     '/reports': [
       { label: 'Sales Report', path: '/reports/sales' },
+      { label: 'Purchase Report', path: '/reports/purchase' },
+      { label: 'Stock Report', path: '/reports/stock' },
+      { label: 'Collection Report', path: '/reports/collection' },
+      { label: 'Item Journey', path: '/reports/movement' },
     ],
     '/sales': billingNavItems.filter(i => ['/sales/sale-bill', '/sales/sales-return'].includes(i.path)),
   },

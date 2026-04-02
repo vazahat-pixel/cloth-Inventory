@@ -15,7 +15,30 @@ class StockLedgerService {
       batchNo 
     }).sort({ createdAt: -1 });
     
-    const currentBalance = lastLog ? lastLog.balanceAfter : 0;
+    let currentBalance = 0;
+
+    if (lastLog) {
+      currentBalance = lastLog.balanceAfter;
+    } else {
+      // Fallback: If no ledger history exists, try to get the baseline from the real inventory record
+      // first, find the variant ID for this barcode in this item
+      const itemDoc = await Item.findById(itemId);
+      if (itemDoc) {
+          const variant = itemDoc.sizes.find(sz => (sz.sku === barcode || sz.barcode === barcode || String(sz._id) === String(barcode)));
+          const targetProductId = variant ? variant._id : barcode;
+
+          const StoreInventory = require('../../models/storeInventory.model');
+          const WarehouseInventory = require('../../models/warehouseInventory.model');
+          const invModel = locationType === 'STORE' ? StoreInventory : WarehouseInventory;
+          const filter = locationType === 'STORE' ? { storeId: locationId } : { warehouseId: locationId };
+          filter.productId = targetProductId; 
+
+          const currentInv = await invModel.findOne(filter);
+          if (currentInv) {
+            currentBalance = currentInv.quantityAvailable ?? currentInv.quantity ?? 0;
+          }
+      }
+    }
     
     // 2. Calculate new balance
     let newBalance;

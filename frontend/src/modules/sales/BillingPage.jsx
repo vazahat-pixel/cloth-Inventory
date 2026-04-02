@@ -289,26 +289,33 @@ function BillingPage({
   );
 
   const variantOptions = useMemo(() => {
-    return warehouseStock
+    console.log('DEBUG: warehouseStock data', warehouseStock);
+    const options = warehouseStock
       .map((stock) => {
-        const available = toNumber(stock.quantity) - Math.abs(toNumber(stock.reserved || 0)); // Ensure valid number subtraction
-        const pricing = variantSellingPriceMap[stock.productId || stock.variantId] || {};
-        const rate = toNumber(pricing.rate);
-        return {
-          productId: stock.productId || stock.variantId,
-          variantId: stock.productId || stock.variantId,
-          itemName: stock.itemName || pricing.itemName || 'Unknown Item',
-          styleCode: stock.styleCode || pricing.styleCode || '',
-          size: stock.size || '',
-          color: stock.color || '',
-          sku: stock.sku || pricing.styleCode || '',
-          barcode: stock.barcode || pricing.barcode || '',
+        const available = toNumber(stock.availableStock ?? stock.quantity);
+        // CRITICAL FIX: The discount and rate should come from the populated productId object
+        // since stock.productId is now the populated Variant object from our manual population.
+        const rate = toNumber(stock.salePrice || (stock.productId && typeof stock.productId === 'object' ? stock.productId.salePrice : 0));
+        
+        const option = {
+          productId: stock.productId?._id || stock.productId || stock.variantId,
+          variantId: stock.productId?._id || stock.productId || stock.variantId,
+          itemName: stock.itemName || stock.name || (stock.productId && typeof stock.productId === 'object' ? stock.productId.name : 'Unknown Item'),
+          styleCode: stock.itemCode || stock.sku || (stock.productId && typeof stock.productId === 'object' ? stock.productId.sku : ''),
+          size: stock.size || (stock.productId && typeof stock.productId === 'object' ? stock.productId.size : ''),
+          color: stock.color || (stock.productId && typeof stock.productId === 'object' ? stock.productId.color : ''),
+          sku: stock.itemCode || stock.sku || (stock.productId && typeof stock.productId === 'object' ? stock.productId.sku : ''),
+          barcode: stock.barcode || (stock.productId && typeof stock.productId === 'object' ? stock.productId.barcode : ''),
           available: available > 0 ? available : 0,
           rate,
           tax: 0,
         };
+        return option;
       })
       .filter((option) => option.available > 0);
+    
+    console.log('DEBUG: variantOptions generated', options);
+    return options;
   }, [variantSellingPriceMap, warehouseStock]);
 
   const handleMobileChange = (value) => {
@@ -456,20 +463,20 @@ function BillingPage({
 
       // Check real-time stock from our inventory list (or handle lack of it)
       const stock = warehouseStock.find(s => (s.productId === product._id || s.barcode === product.barcode));
-      const available = stock ? toNumber(stock.quantity) : 0;
+      const available = product.available || 0;
 
       upsertLine({
         productId: product._id,
         variantId: product._id,
-        itemName: product.name,
+        itemName: product.name || 'Unknown Item',
         styleCode: product.sku || '',
         size: product.size || '',
         color: product.color || '',
         sku: product.sku || '',
         barcode: product.barcode || '',
-        available: product.available || 0,
+        available: available,
         rate: toNumber(product.salePrice),
-        tax: 0, // Should come from linked HSN -> GST
+        tax: 0, 
       });
       setBarcodeInput('');
     } catch (err) {

@@ -210,6 +210,7 @@ const normalizeItem = (item, entityType) => {
                 normalized.color = item.productId.color;
                 normalized.brand = item.productId.brand;
                 normalized.category = item.productId.category;
+                normalized.salePrice = item.productId.salePrice;
             }
             const sId = item.storeId?._id || item.storeId?.id || item.storeId || item.warehouseId?._id || item.warehouseId?.id || item.warehouseId;
             normalized.storeId = sId;

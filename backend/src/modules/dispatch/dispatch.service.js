@@ -8,7 +8,50 @@ const salesService = require('../sales/sales.service');
 const { DocumentType } = require('../../core/enums');
 
 const Dispatch = require('../../models/dispatch.model');
+const Item = require('../../models/item.model');
 const { getNextSequence } = require('../../services/sequence.service');
+
+const populateDispatchItemsManual = async (dispatches) => {
+    const isSingle = !Array.isArray(dispatches);
+    const docs = isSingle ? [dispatches] : dispatches;
+
+    for (const doc of docs) {
+        if (!doc.items || doc.items.length === 0) continue;
+
+        const variantIds = doc.items.map(i => i.variantId ? (i.variantId._id || i.variantId) : null).filter(Boolean);
+        
+        // Find Items containing these variations
+        const items = await Item.find({ "sizes._id": { $in: variantIds } })
+            .populate('brand', 'name brandName')
+            .populate('groupIds', 'name groupType groupName')
+            .lean();
+
+        // Map them back to the dispatch items
+        doc.items = doc.items.map(di => {
+            const vid = String(di.variantId?._id || di.variantId);
+            const parentItem = items.find(it => it.sizes.some(sz => String(sz._id) === vid));
+            if (parentItem) {
+                const variant = parentItem.sizes.find(sz => String(sz._id) === vid);
+                return {
+                    ...di.toObject ? di.toObject() : di,
+                    variantId: {
+                        _id: variant._id,
+                        name: `${parentItem.itemName} (${variant.size})`,
+                        sku: variant.sku || parentItem.itemCode,
+                        barcode: variant.barcode || variant.sku || parentItem.itemCode,
+                        size: variant.size,
+                        color: variant.color || parentItem.shade || 'N/A',
+                        brand: parentItem.brand || { name: 'Main' },
+                        category: parentItem.groupIds?.[0] || { name: 'General' }
+                    }
+                };
+            }
+            return di;
+        });
+    }
+
+    return isSingle ? docs[0] : docs;
+};
 
 /**
  * UNIFIED DISPATCH SYSTEM
@@ -126,29 +169,50 @@ const createDispatch = async (dispatchData, userId) => {
     });
 };
 
-const getDispatches = async (query) => {
+const getDispatches = async (query, user) => {
     const { status, sourceId, destinationId } = query;
     const filter = {};
+    
+    // Security: Filter by shopId for store staff
+    if (user && user.role === 'store_staff') {
+        if (!user.shopId) throw new Error('User is not linked to any store.');
+        filter.$or = [
+            { sourceWarehouseId: user.shopId },
+            { destinationStoreId: user.shopId }
+        ];
+    }
+
     if (status) filter.status = status;
     if (sourceId) filter.sourceWarehouseId = sourceId;
     if (destinationId) filter.destinationStoreId = destinationId;
 
-    return await Dispatch.find(filter)
+    const dispatches = await Dispatch.find(filter)
         .sort({ createdAt: -1 })
         .populate('sourceWarehouseId', 'name')
         .populate('destinationStoreId', 'name')
         .populate('createdBy', 'name');
+
+    return await populateDispatchItemsManual(dispatches);
 };
 
-const getDispatchById = async (id) => {
+const getDispatchById = async (id, user) => {
     const dispatch = await Dispatch.findById(id)
         .populate('sourceWarehouseId')
         .populate('destinationStoreId')
-        .populate('createdBy', 'name')
-        .populate('items.variantId', 'name sku barcode');
+        .populate('createdBy', 'name');
     
     if (!dispatch) throw new Error('Dispatch record not found');
-    return dispatch;
+
+    // Security: Check ownership for store staff
+    if (user && user.role === 'store_staff') {
+        const isSource = String(dispatch.sourceWarehouseId?._id || dispatch.sourceWarehouseId) === String(user.shopId);
+        const isDest = String(dispatch.destinationStoreId?._id || dispatch.destinationStoreId) === String(user.shopId);
+        if (!isSource && !isDest) {
+            throw new Error('Access denied: You can only view dispatches related to your store.');
+        }
+    }
+
+    return await populateDispatchItemsManual(dispatch);
 };
 
 const receiveDispatch = async (id, userId) => {

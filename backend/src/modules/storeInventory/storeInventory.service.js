@@ -1,7 +1,43 @@
-const mongoose = require('mongoose');
 const StoreInventory = require('../../models/storeInventory.model');
 const WarehouseInventory = require('../../models/warehouseInventory.model');
+const Item = require('../../models/item.model');
 const Product = require('../../models/product.model');
+
+const populateInventoryManual = async (inventoryItems) => {
+    if (!inventoryItems || inventoryItems.length === 0) return [];
+
+    const variantIds = inventoryItems.map(item => item.productId).filter(Boolean);
+    
+    // Find Items containing these variations
+    const items = await Item.find({ "sizes._id": { $in: variantIds } })
+        .populate('brand', 'name brandName')
+        .populate('groupIds', 'name groupType groupName')
+        .lean();
+
+    // Map them back
+    return inventoryItems.map(item => {
+        const vid = String(item.productId);
+        const parentItem = items.find(it => it.sizes.some(sz => String(sz._id) === vid));
+        if (parentItem) {
+            const variant = parentItem.sizes.find(sz => String(sz._id) === vid);
+            return {
+                ...item.toObject ? item.toObject() : item,
+                productId: {
+                    _id: variant._id,
+                    name: parentItem.itemName,
+                    sku: variant.sku || parentItem.itemCode,
+                    barcode: variant.barcode || variant.sku || parentItem.itemCode,
+                    size: variant.size,
+                    color: variant.color || parentItem.shade || 'N/A',
+                    brand: parentItem.brand || { name: 'Main' },
+                    category: parentItem.groupIds?.[0] || { name: 'General' },
+                    salePrice: variant.salePrice || 0
+                }
+            };
+        }
+        return item;
+    });
+};
 
 /**
  * Get store inventory with pagination and filters
@@ -28,18 +64,24 @@ const getStoreInventory = async (query, user) => {
         filter.$expr = { $lte: ['$quantityAvailable', '$minStockLevel'] };
     }
 
-    // If search exists, find matching product IDs first
+    // If search exists, find matching product IDs first (Searching from Item collection)
     if (search) {
         const searchRegex = new RegExp(search, 'i');
-        const products = await Product.find({
+        const searchItems = await Item.find({
             $or: [
-                { name: searchRegex },
-                { sku: searchRegex },
-                { barcode: searchRegex }
+                { itemName: searchRegex },
+                { itemCode: searchRegex },
+                { "sizes.sku": searchRegex },
+                { "sizes.barcode": searchRegex }
             ]
-        }).select('_id');
+        }).select('sizes._id');
 
-        const pIds = products.map(p => p._id);
+        const pIds = [];
+        searchItems.forEach(it => {
+            if (it.sizes) {
+                it.sizes.forEach(sz => pIds.push(sz._id));
+            }
+        });
         filter.productId = { $in: pIds };
         warehouseFilter.productId = { $in: pIds };
     }
@@ -50,15 +92,19 @@ const getStoreInventory = async (query, user) => {
         StoreInventory.find(filter)
             .sort({ lastUpdated: -1 })
             .populate('storeId', 'name location')
-            .populate('productId', 'name sku barcode size color category brand salePrice'),
+            .lean(),
         WarehouseInventory.find(warehouseFilter)
             .sort({ lastUpdated: -1 })
             .populate('warehouseId', 'name location')
-            .populate('productId', 'name sku barcode size color category brand salePrice')
+            .lean()
     ]);
 
-    // Combine results and filter out orphaned records
-    const combinedFull = [...storeInventory, ...warehouseInventory].filter(item => item && item.productId);
+    // Combine results
+    const rawCombined = [...storeInventory, ...warehouseInventory];
+    const populatedCombined = await populateInventoryManual(rawCombined);
+
+    // Filter out orphaned records (where product was not found)
+    const combinedFull = populatedCombined.filter(item => item && item.productId && item.productId._id);
     const combined = combinedFull.slice(skip, skip + parseInt(limit));
     const total = combinedFull.length;
 
@@ -76,12 +122,14 @@ const getStoreInventory = async (query, user) => {
 const getProductInStore = async (storeId, productId) => {
     const item = await StoreInventory.findOne({ storeId, productId })
         .populate('storeId', 'name')
-        .populate('productId');
+        .lean();
 
     if (!item) {
         throw new Error('Product not found in store inventory');
     }
-    return item;
+
+    const populated = await populateInventoryManual([item]);
+    return populated[0];
 };
 
 const { adjustStoreStock } = require('../../services/stock.service');
