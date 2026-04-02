@@ -22,12 +22,27 @@ export const addChallan = createAsyncThunk('dispatch/addChallan', async (challan
     }
 });
 
+export const updateChallan = createAsyncThunk('dispatch/updateChallan', async ({ id, data }, { rejectWithValue }) => {
+    try {
+        const response = await api.put(`/dispatch/${id}`, data);
+        const raw = response.data.dispatch || response.data.data;
+        return normalizeResponse(raw, 'dispatch');
+    } catch (error) {
+        return rejectWithValue(error.response?.data?.message || 'Failed to update delivery challan');
+    }
+});
+
 export const updateChallanStatus = createAsyncThunk(
     'dispatch/updateStatus',
     async ({ id, status }, { rejectWithValue }) => {
         try {
-            // Using the streamlined /receive endpoint for receipt flow
-            const response = await api.post(`/dispatch/${id}/receive`);
+            let endpoint = '';
+            if (status === 'RECEIVED') endpoint = `/dispatch/${id}/receive`;
+            else if (status === 'DISPATCHED') endpoint = `/dispatch/${id}/confirm`;
+            else if (status === 'CANCELLED') endpoint = `/dispatch/${id}/cancel-draft`;
+            else throw new Error(`Unsupported status update: ${status}`);
+
+            const response = await api.post(endpoint);
             const raw = response.data.dispatch || response.data.data;
             return normalizeResponse(raw, 'dispatch');
         } catch (error) {
@@ -73,6 +88,22 @@ const dispatchSlice = createSlice({
                 state.records.unshift(action.payload);
             })
             .addCase(addChallan.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.payload;
+            })
+            .addCase(updateChallan.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
+            .addCase(updateChallan.fulfilled, (state, action) => {
+                state.loading = false;
+                const updated = action.payload;
+                const idx = state.records.findIndex((r) => r.id === updated.id || r._id === updated._id);
+                if (idx !== -1) {
+                    state.records[idx] = updated;
+                }
+            })
+            .addCase(updateChallan.rejected, (state, action) => {
                 state.loading = false;
                 state.error = action.payload;
             })

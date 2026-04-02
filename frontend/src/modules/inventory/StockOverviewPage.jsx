@@ -36,27 +36,18 @@ import api from '../../services/api';
 
 const normalizeStockRows = (rows = []) =>
   rows.map((row, index) => {
-    // These rows are already normalized by inventorySlice.js using normalization.js 'inventory' case.
-    // They should already have flat fields: itemName, sku, size, color, locationName, etc.
-    
     return {
-      id: row._id || row.id || `stock-${index + 1}`,
-      itemCode: row.itemCode || row.sku || row.styleCode || '',
-      itemName: row.itemName || row.name || '',
+      id: row.id || row._id || `stock-${index + 1}`,
+      itemCode: row.itemCode || '',
+      itemName: row.itemName || '',
       size: row.size || '',
       color: row.color || '',
-      warehouse: row.warehouseName || row.storeName || row.warehouse || '',
-      availableStock: Number(row.available ?? row.availableStock ?? 0),
-      reservedStock: Number(row.reserved ?? row.reservedStock ?? 0),
+      warehouse: row.locationName || '',
+      availableStock: Number(row.availableStock || 0),
+      reservedStock: Number(row.reservedStock || 0),
       inTransit: Number(row.inTransit || 0),
       reorderLevel: Number(row.reorderLevel || 0),
-      status: row.status || (
-        (Number(row.available ?? row.availableStock ?? 0) <= 0)
-        ? 'Out_Of_Stock'
-        : (Number(row.available ?? row.availableStock ?? 0) <= Number(row.reorderLevel || 0))
-          ? 'Low_Stock'
-          : 'Active'
-      ),
+      status: row.status || 'Active',
     };
   });
 

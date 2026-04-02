@@ -31,20 +31,22 @@ const createChallan = async (challanData, userId, sessionOuter = null) => {
 
         await challan.save({ session });
 
-        // 1. DEDUCT PHYSICAL STOCK FROM SOURCE (Mark as Dispatched/In-Transit)
-        const stockService = require('../../services/stock.service');
-        for (const item of challanData.items) {
-            await stockService.removeStock({
-                variantId: item.productId,
-                locationId: challan.sourceId || challan.storeId,
-                locationType: challan.sourceId ? 'WAREHOUSE' : 'STORE',
-                qty: item.quantity,
-                type: 'TRANSFER',
-                referenceId: challan._id,
-                referenceType: 'DeliveryChallan',
-                performedBy: userId,
-                session
-            });
+        // 1. DEDUCT PHYSICAL STOCK FROM SOURCE (Only if NOT DRAFT)
+        if (challan.status !== 'DRAFT') {
+            const stockService = require('../../services/stock.service');
+            for (const item of challanData.items) {
+                await stockService.removeStock({
+                    variantId: item.productId,
+                    locationId: challan.sourceId || challan.storeId,
+                    locationType: challan.sourceId ? 'WAREHOUSE' : 'STORE',
+                    qty: item.quantity,
+                    type: 'TRANSFER',
+                    referenceId: challan._id,
+                    referenceType: 'DeliveryChallan',
+                    performedBy: userId,
+                    session
+                });
+            }
         }
         
         // Update workflow

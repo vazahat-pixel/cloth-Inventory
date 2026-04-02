@@ -38,11 +38,10 @@ export const inventoryNavItems = [
     icon: TimelineOutlinedIcon,
   },
   {
-    key: 'stock-transfer',
-    label: 'Stock Transfer',
-    path: '/inventory/transfer',
-    matchPaths: ['/inventory/transfer'],
-    icon: SyncAltOutlinedIcon,
+    key: 'stock-dispatch',
+    label: 'Stock Dispatch (Warehouse to Store)',
+    path: '/orders/delivery-challan',
+    icon: LocalShippingOutlinedIcon,
   },
   {
     key: 'batch-breakdown',

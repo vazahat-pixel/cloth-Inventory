@@ -44,6 +44,7 @@ function DeliveryChallanPage({
         let color = 'default';
         if (value === 'DISPATCHED') color = 'warning';
         if (value === 'RECEIVED') color = 'success';
+        if (value === 'CANCELLED') color = 'error';
         return <Chip label={value} color={color} size="small" />;
     };
 
@@ -120,7 +121,37 @@ function DeliveryChallanPage({
                                         </TableCell>
                                         <TableCell>{renderStatusChip(status)}</TableCell>
                                         <TableCell align="right">
-                                            {receiveAllowed && (
+                                            {status === 'PENDING' && (
+                                                <Stack direction="row" spacing={1} justifyContent="flex-end">
+                                                    <Button
+                                                        variant="text"
+                                                        size="small"
+                                                        disabled={loading}
+                                                        onClick={() => navigate(`/orders/delivery-challan/${row.id || row._id}/edit`)}
+                                                    >
+                                                        Edit
+                                                    </Button>
+                                                    <Button
+                                                        variant="outlined"
+                                                        color="error"
+                                                        size="small"
+                                                        disabled={loading}
+                                                        onClick={() => dispatch(updateChallanStatus({ id: row.id || row._id, status: 'CANCELLED' }))}
+                                                    >
+                                                        Cancel
+                                                    </Button>
+                                                    <Button
+                                                        variant="contained"
+                                                        color="primary"
+                                                        size="small"
+                                                        disabled={loading}
+                                                        onClick={() => dispatch(updateChallanStatus({ id: row.id || row._id, status: 'DISPATCHED' }))}
+                                                    >
+                                                        Dispatch
+                                                    </Button>
+                                                </Stack>
+                                            )}
+                                            {status === 'DISPATCHED' && (
                                                 <Button
                                                     variant="outlined"
                                                     size="small"

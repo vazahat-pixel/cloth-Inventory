@@ -7,7 +7,7 @@ const populateInventoryManual = async (inventoryItems) => {
     if (!inventoryItems || inventoryItems.length === 0) return [];
 
     const variantIds = inventoryItems.map(item => item.productId).filter(Boolean);
-    
+
     // Find Items containing these variations
     const items = await Item.find({ "sizes._id": { $in: variantIds } })
         .populate('brand', 'name brandName')
@@ -44,19 +44,20 @@ const populateInventoryManual = async (inventoryItems) => {
  */
 const getStoreInventory = async (query, user) => {
     const { page = 1, limit = 1000, search, storeId, lowStock } = query;
+    const Item = require('../../models/item.model');
 
-    const filter = {};
+    const storeFilter = {};
     const warehouseFilter = {};
 
-    // Enforce store scoping for store staff
+    // 1. Enforce scoping
     if (user.role === 'store_staff') {
-        if (!user.shopId) {
-            throw new Error('User is not linked to any store. Please contact administrator.');
-        }
-        filter.storeId = user.shopId;
-        warehouseFilter.warehouseId = user.shopId; // unlikely but for completeness
+        if (!user.shopId) throw new Error('User is not linked to any store.');
+        storeFilter.storeId = user.shopId;
+        // In this ERP, store_staff usually only sees their store, 
+        // but we'll allow warehouse inventory for HO admins or if explicitly needed.
+        warehouseFilter._id = null;
     } else if (storeId) {
-        filter.storeId = storeId;
+        storeFilter.storeId = storeId;
         warehouseFilter.warehouseId = storeId;
     }
 
@@ -64,24 +65,18 @@ const getStoreInventory = async (query, user) => {
         filter.$expr = { $lte: ['$quantityAvailable', '$minStockLevel'] };
     }
 
-    // If search exists, find matching product IDs first (Searching from Item collection)
+    // If search exists, find matching product IDs first
     if (search) {
         const searchRegex = new RegExp(search, 'i');
-        const searchItems = await Item.find({
+        const products = await Product.find({
             $or: [
-                { itemName: searchRegex },
-                { itemCode: searchRegex },
-                { "sizes.sku": searchRegex },
-                { "sizes.barcode": searchRegex }
+                { name: searchRegex },
+                { sku: searchRegex },
+                { barcode: searchRegex }
             ]
-        }).select('sizes._id');
+        }).select('_id');
 
-        const pIds = [];
-        searchItems.forEach(it => {
-            if (it.sizes) {
-                it.sizes.forEach(sz => pIds.push(sz._id));
-            }
-        });
+        const pIds = products.map(p => p._id);
         filter.productId = { $in: pIds };
         warehouseFilter.productId = { $in: pIds };
     }
@@ -92,24 +87,20 @@ const getStoreInventory = async (query, user) => {
         StoreInventory.find(filter)
             .sort({ lastUpdated: -1 })
             .populate('storeId', 'name location')
-            .lean(),
+            .populate('productId', 'name sku barcode size color category brand salePrice'),
         WarehouseInventory.find(warehouseFilter)
             .sort({ lastUpdated: -1 })
             .populate('warehouseId', 'name location')
-            .lean()
+            .populate('productId', 'name sku barcode size color category brand salePrice')
     ]);
 
-    // Combine results
-    const rawCombined = [...storeInventory, ...warehouseInventory];
-    const populatedCombined = await populateInventoryManual(rawCombined);
-
-    // Filter out orphaned records (where product was not found)
-    const combinedFull = populatedCombined.filter(item => item && item.productId && item.productId._id);
+    // Combine results and filter out orphaned records
+    const combinedFull = [...storeInventory, ...warehouseInventory].filter(item => item && item.productId);
     const combined = combinedFull.slice(skip, skip + parseInt(limit));
     const total = combinedFull.length;
 
     return {
-        inventory: combined,
+        inventory: paginated,
         total,
         page: parseInt(page),
         limit: parseInt(limit)
