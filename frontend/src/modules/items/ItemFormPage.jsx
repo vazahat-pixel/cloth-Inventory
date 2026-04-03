@@ -34,11 +34,22 @@ import api from '../../services/api';
 
 const createVariantId = () => `var-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-const tabs = [
+const COMMON_COLORS = [
+  'Black', 'White', 'Off-White', 'Navy Blue', 'Royal Blue', 'Sky Blue', 'Light Blue', 'Dark Green', 'Olive Green', 
+  'Bottle Green', 'Mint Green', 'Red', 'Maroon', 'Wine', 'Crimson', 'Yellow', 'Mustard', 'Orange', 'Rust', 
+  'Pink', 'Dusty Rose', 'Grey', 'Light Grey', 'Charcoal', 'Beige', 'Cream', 'Camel', 'Dark Brown', 'Khaki', 
+  'Turquoise', 'Teal', 'Purple', 'Lavender', 'Magenta', 'Peach', 'Coral', 'Salmon', 'Gold', 'Silver', 'Copper'
+];
+
+const tabsFG = [
   ['basic', 'Product Details'],
   ['variants', 'Variants & Pricing'],
   ['media', 'Media'],
-  ['inventory', 'Inventory Defaults'],
+];
+
+const tabsRM = [
+  ['basic', 'Material Details'],
+  ['media', 'Media'],
 ];
 
 const defaultValues = {
@@ -47,6 +58,7 @@ const defaultValues = {
   sectionId: '', categoryId: '', subCategoryId: '', subSubCategoryId: '',
   defaultWarehouse: '', reorderLevel: 0, reorderQty: 0, openingStock: 0, openingStockRate: 0,
   stockTrackingEnabled: true, barcodeEnabled: true,
+  vendorId: '', // For RM Supplier
   // Pro Specs
   composition: '', gsm: '', width: '', shrinkage: '', shadeNo: '',
   accessorySize: '', packingType: '',
@@ -66,15 +78,15 @@ function ItemFormPage({ mode = 'edit' }) {
   const itemGroups = masters.itemGroups || [];
   const warehouses = masters.warehouses || [];
   const hsnCodes = masters.hsnCodes || [];
-  const seasons = masters.seasons || [];
   const sizes = masters.sizes || [];
+  const suppliers = masters.suppliers || [];
  
   const { register, handleSubmit, reset, watch, setValue, control, formState: { errors } } = useForm({
     defaultValues,
   });
 
   const itemType = watch('type');
-  const isRawMaterial = itemType === 'RAW_MATERIAL';
+  const isRawMaterial = itemType === 'RAW_MATERIAL' || itemType === 'ACCESSORY';
 
   const [activeTab, setActiveTab] = useState('basic');
   const [variants, setVariants] = useState([]);
@@ -86,13 +98,7 @@ function ItemFormPage({ mode = 'edit' }) {
   const styleCode = watch('itemCode');
 
   // Filter tabs based on type
-  const activeTabs = useMemo(() => {
-    const list = [...tabs];
-    if (isRawMaterial) {
-      return list.filter(t => t[0] !== 'variants');
-    }
-    return list;
-  }, [isRawMaterial]);
+  const activeTabs = useMemo(() => (isRawMaterial ? tabsRM : tabsFG), [isRawMaterial]);
 
   useEffect(() => {
     if (activeTab === 'variants' && isRawMaterial) {
@@ -105,7 +111,6 @@ function ItemFormPage({ mode = 'edit' }) {
     dispatch(fetchMasters('itemGroups'));
     dispatch(fetchMasters('warehouses'));
     dispatch(fetchMasters('hsnCodes'));
-    dispatch(fetchMasters('seasons'));
     dispatch(fetchMasters('sizes'));
     dispatch(fetchMasters('suppliers'));
     dispatch(fetchGstSlabs());
@@ -187,7 +192,7 @@ function ItemFormPage({ mode = 'edit' }) {
       return;
     }
     reset(defaultValues); setVariants([]); setImages(Array(5).fill(null));
-  }, [existingItem, isEditMode, reset, brands.length, itemGroups.length, seasons.length, hsnCodes.length]);
+  }, [existingItem, isEditMode, reset, brands.length, itemGroups.length, hsnCodes.length]);
 
   useEffect(() => {
     const selected = hsnCodes.find((item) => String(item.id || item._id || '') === String(watch('hsCodeId') || ''));
@@ -231,7 +236,7 @@ function ItemFormPage({ mode = 'edit' }) {
 
   const onSubmit = async (data, statusOverride = data.status || 'Active', stay = false) => {
     if (!isRawMaterial && !variants.length) { 
-      setVariantError('Please add at least one row in Variants & Pricing.'); 
+      setVariantError('Please add at least one Size/Variant and Pricing.'); 
       setActiveTab('variants'); 
       return; 
     }
@@ -239,12 +244,15 @@ function ItemFormPage({ mode = 'edit' }) {
       setActiveTab('basic'); 
       return; 
     }
+    if (isRawMaterial && !data.openingStockRate) {
+        setVariantError('Please specify the Material Purchase Rate.');
+        return;
+    }
 
     const payload = {
       itemName: data.itemName.trim(),
       itemCode: data.itemCode.trim().toUpperCase(),
       brand: data.brand,
-      session: data.season,
       groupIds: [data.sectionId, data.categoryId, data.subCategoryId, data.subSubCategoryId].filter(Boolean),
       category: data.categoryId, // Backward compatibility
       shade: data.shadeColor,
@@ -256,6 +264,7 @@ function ItemFormPage({ mode = 'edit' }) {
       fit: data.fit,
       gender: data.gender,
       type: data.type,
+      vendorId: data.vendorId,
       description: data.description?.trim(),
       defaultWarehouse: data.defaultWarehouse,
       reorderLevel: Number(data.reorderLevel || 0),
@@ -330,8 +339,8 @@ function ItemFormPage({ mode = 'edit' }) {
     <Box component="form" onSubmit={handleSubmit((values) => onSubmit(values))}>
       <PageHeader
         title={isViewMode ? 'Item Details' : isEditMode ? 'Edit Item' : 'Add Item'}
-        subtitle={isRawMaterial ? 'Bulk procurement management for fabrics and accessories.' : 'Industrial apparel management with advanced pricing and inventory tracking.'}
-        breadcrumbs={[{ label: 'Items', path: '/items' }, { label: id || 'New', active: true }]}
+        subtitle={isRawMaterial ? 'Catalogue for sourcing components, fabrics, and utility items.' : 'Apparel catalogue with size-wise inventory and barcode management.'}
+        breadcrumbs={[{ label: 'Items', path: '/items' }, { label: isRawMaterial ? 'Material' : 'Garment', active: true }]}
         actions={[
           <Button key="back" variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate('/items')}>Back</Button>,
           !isViewMode && <Button key="draft" variant="outlined" startIcon={<SaveOutlinedIcon />} onClick={handleSubmit((values) => onSubmit(values, 'Draft', true))}>Save Draft</Button>,
@@ -359,7 +368,30 @@ function ItemFormPage({ mode = 'edit' }) {
           {/* Product Details Tab */}
           <Box sx={{ display: activeTab === 'basic' ? 'block' : 'none' }}>
             <Stack spacing={3}>
-              <FormSection title="Core Information" subtitle="Item identity and classification.">
+              {/* Item Type Master Toggle */}
+              {!isEditMode && (
+                <Box sx={{ mb: 4, p: 2, border: '1px solid #e2e8f0', borderRadius: 2, bgcolor: '#f1f5f9' }}>
+                  <Typography variant="overline" sx={{ fontWeight: 800, color: '#64748b', mb: 1.5, display: 'block' }}>Form Mode / Item Classification</Typography>
+                  <Stack direction="row" spacing={2}>
+                    <Button 
+                      variant={!isRawMaterial ? "contained" : "outlined"} 
+                      onClick={() => setValue('type', 'FINISHED_GOOD')}
+                      sx={{ flex: 1, height: 48, fontWeight: 700 }}
+                    >
+                      Finished Garment (FG)
+                    </Button>
+                    <Button 
+                      variant={isRawMaterial ? "contained" : "outlined"} 
+                      onClick={() => setValue('type', 'RAW_MATERIAL')}
+                      sx={{ flex: 1, height: 48, fontWeight: 700 }}
+                    >
+                      Raw Material / ACC (RM)
+                    </Button>
+                  </Stack>
+                </Box>
+              )}
+
+              <FormSection title={isRawMaterial ? "Material Specifications" : "Garment Core Information"} subtitle="Basic identity and classification.">
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, md: 3 }}>
                     <TextField 
@@ -384,29 +416,6 @@ function ItemFormPage({ mode = 'edit' }) {
                     />
                   </Grid>
                   {!isRawMaterial && <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Color / Shade" {...register('shadeColor')} disabled={isViewMode} /></Grid>}
-                  <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="SKU Prefix" {...register('skuPrefix')} disabled={isViewMode} /></Grid>
-                  <Grid size={{ xs: 12, md: 3 }}>
-                    <Controller
-                      name="type"
-                      control={control}
-                      render={({ field }) => (
-                        <TextField
-                          {...field}
-                          select
-                          size="small"
-                          fullWidth
-                          label="Item Role / Category *"
-                          disabled={isViewMode}
-                          onChange={(e) => {
-                            field.onChange(e);
-                          }}
-                        >
-                          <MenuItem value="FINISHED_GOOD">Finished Garment (FG)</MenuItem>
-                          <MenuItem value="ACCESSORY">Accessory / Trim (ACC)</MenuItem>
-                        </TextField>
-                      )}
-                    />
-                  </Grid>
                   <Grid size={{ xs: 12, md: 3 }}>
                     <Controller
                       name="hsCodeId"
@@ -438,67 +447,34 @@ function ItemFormPage({ mode = 'edit' }) {
                       )}
                     />
                   </Grid>
-                  {!isRawMaterial && itemType !== 'ACCESSORY' && (
+                  {isRawMaterial && (
+                    <Grid size={{ xs: 12, md: 3 }}>
+                       <TextField fullWidth size="small" type="number" label="Default Purchase Rate *" {...register('openingStockRate', { required: isRawMaterial })} disabled={isViewMode} />
+                    </Grid>
+                  )}
+                  {isRawMaterial && (
                     <Grid size={{ xs: 12, md: 3 }}>
                       <Controller
-                        name="brand"
+                        name="vendorId"
                         control={control}
                         render={({ field }) => (
-                          <TextField
-                            {...field}
-                            select
-                            size="small"
-                            fullWidth
-                            label="Brand"
-                            value={field.value ?? ''}
-                            disabled={isViewMode}
-                            InputLabelProps={{ shrink: true }}
-                          >
-                            {renderAsyncValueOption(field.value, brands)}
-                            <MenuItem value="">Select Brand</MenuItem>
-                            {brands.map((b) => (
-                              <MenuItem key={b.id || b._id} value={b.id || b._id}>
-                                {b.brandName || b.name}
-                              </MenuItem>
-                            ))}
+                          <TextField {...field} select size="small" fullWidth label="Primary Supplier" value={field.value ?? ''} disabled={isViewMode} InputLabelProps={{ shrink: true }}>
+                            {renderAsyncValueOption(field.value, suppliers)}
+                            <MenuItem value="">Select Supplier</MenuItem>
+                            {suppliers.map((s) => <MenuItem key={s.id || s._id} value={s.id || s._id}>{s.supplierName || s.name}</MenuItem>)}
                           </TextField>
                         )}
                       />
                     </Grid>
                   )}
                   <Grid size={{ xs: 12, md: 3 }}>
-                    <Controller
-                      name="season"
-                      control={control}
-                      render={({ field }) => (
-                        <TextField
-                          {...field}
-                          select
-                          size="small"
-                          fullWidth
-                          label="Season"
-                          value={field.value ?? ''}
-                          disabled={isViewMode}
-                          InputLabelProps={{ shrink: true }}
-                        >
-                          {renderAsyncValueOption(field.value, seasons)}
-                          <MenuItem value="">Select Season</MenuItem>
-                          {seasons.map((s) => (
-                            <MenuItem key={s.id || s._id} value={s.id || s._id}>
-                              {s.seasonName || s.name}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                      )}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 3 }}>
-                    <TextField fullWidth size="small" select label="UOM" {...register('uom')} disabled={isViewMode}>
-                      <MenuItem value="PCS">PCS</MenuItem>
-                      <MenuItem value="SET">SET</MenuItem>
-                      <MenuItem value="METER">METER</MenuItem>
-                      <MenuItem value="KG">KG</MenuItem>
-                      <MenuItem value="YARD">YARD</MenuItem>
+                    <TextField fullWidth size="small" select label="Unit (UOM) *" {...register('uom')} disabled={isViewMode}>
+                      <MenuItem value="PCS">Piece (PCS)</MenuItem>
+                      <MenuItem value="SET">Set (SET)</MenuItem>
+                      <MenuItem value="METER">Meter (MTR)</MenuItem>
+                      <MenuItem value="KG">Kilogram (KG)</MenuItem>
+                      <MenuItem value="YARD">Yard (YRD)</MenuItem>
+                      <MenuItem value="ROL">Roll (ROL)</MenuItem>
                     </TextField>
                   </Grid>
                 </Grid>
@@ -537,25 +513,66 @@ function ItemFormPage({ mode = 'edit' }) {
                 </Grid>
               </FormSection>
 
-              {!isRawMaterial && itemType !== 'ACCESSORY' && (
-                <FormSection title="Garment Descriptors" subtitle="Fashion-specific attributes for better search.">
+              {!isRawMaterial && (
+                <FormSection title="Style & Fit" subtitle="Garment-specific attributes.">
                   <Grid container spacing={2}>
+                    <Grid size={{ xs: 12, md: 3 }}>
+                      <Controller
+                        name="brand"
+                        control={control}
+                        render={({ field }) => (
+                          <TextField {...field} select size="small" fullWidth label="Brand" value={field.value ?? ''} disabled={isViewMode} InputLabelProps={{ shrink: true }}>
+                            {renderAsyncValueOption(field.value, brands)}
+                            <MenuItem value="">Select Brand</MenuItem>
+                            {brands.map((b) => <MenuItem key={b.id || b._id} value={b.id || b._id}>{b.brandName || b.name}</MenuItem>)}
+                          </TextField>
+                        )}
+                      />
+                    </Grid>
                     <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Fabric Type" {...register('fabric')} disabled={isViewMode} /></Grid>
                     <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Pattern" {...register('pattern')} disabled={isViewMode} /></Grid>
                     <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Fit" {...register('fit')} disabled={isViewMode} /></Grid>
                     <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Gender" {...register('gender')} disabled={isViewMode} /></Grid>
+                    <Grid size={{ xs: 12, md: 3 }}>
+                      <TextField 
+                        fullWidth 
+                        size="small" 
+                        label="Color / Shade" 
+                        {...register('shadeColor')} 
+                        disabled={isViewMode}
+                        list="common-colors"
+                        autoComplete="off"
+                        placeholder="e.g. Navy Blue"
+                      />
+                      <datalist id="common-colors">
+                        {COMMON_COLORS.map(c => <option key={c} value={c} />)}
+                      </datalist>
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="SKU Prefix" {...register('skuPrefix')} disabled={isViewMode} /></Grid>
                     <Grid size={12}><TextField fullWidth size="small" label="Item Description" multiline minRows={2} {...register('description')} disabled={isViewMode} /></Grid>
                   </Grid>
                 </FormSection>
               )}
 
-              {itemType === 'ACCESSORY' && (
-                <FormSection title="Accessory Specifications" subtitle="Technical dimensions and packing details.">
+              {isRawMaterial && (
+                <FormSection title="Material Specifications" subtitle="Technical details for raw items.">
                   <Grid container spacing={2}>
-                    <Grid size={{ xs: 12, md: 4 }}><TextField fullWidth size="small" label="Accessory Size / Specs" placeholder="e.g. 18L, 24 inches" {...register('accessorySize')} disabled={isViewMode} /></Grid>
-                    <Grid size={{ xs: 12, md: 4 }}><TextField fullWidth size="small" label="Packing Type" placeholder="e.g. Gross, Roll, Piece" {...register('packingType')} disabled={isViewMode} /></Grid>
-                    <Grid size={{ xs: 12, md: 4 }}><TextField fullWidth size="small" label="Color / Shade" {...register('shadeColor')} disabled={isViewMode} /></Grid>
-                    <Grid size={12}><TextField fullWidth size="small" label="Usage Notes" multiline minRows={2} {...register('description')} disabled={isViewMode} /></Grid>
+                    <Grid size={{ xs: 12, md: 4 }}><TextField fullWidth size="small" label="Fabric Composition" placeholder="e.g. 100% Cotton" {...register('composition')} disabled={isViewMode} /></Grid>
+                    <Grid size={{ xs: 12, md: 2 }}><TextField fullWidth size="small" label="GSM" {...register('gsm')} disabled={isViewMode} /></Grid>
+                    <Grid size={{ xs: 12, md: 2 }}><TextField fullWidth size="small" label="Width" {...register('width')} disabled={isViewMode} /></Grid>
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <TextField 
+                        fullWidth 
+                        size="small" 
+                        label="Shade No / Color" 
+                        {...register('shadeNo')} 
+                        disabled={isViewMode} 
+                        list="common-colors"
+                        autoComplete="off"
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 6 }}><TextField fullWidth size="small" label="Accessory Size" placeholder="e.g. 18L, 24L" {...register('accessorySize')} disabled={isViewMode} /></Grid>
+                    <Grid size={{ xs: 12, md: 6 }}><TextField fullWidth size="small" label="Packing Type" placeholder="e.g. Roll, Gross" {...register('packingType')} disabled={isViewMode} /></Grid>
                   </Grid>
                 </FormSection>
               )}
@@ -603,31 +620,6 @@ function ItemFormPage({ mode = 'edit' }) {
             </FormSection>
           </Box>
 
-          {/* Inventory Tab */}
-          <Box sx={{ display: activeTab === 'inventory' ? 'block' : 'none' }}>
-            <FormSection title="Inventory Defaults" subtitle="Operational settings for warehouses.">
-              <Grid container spacing={2}>
-                <Grid size={{ xs: 12, md: 4 }}>
-                  <TextField fullWidth size="small" select label="Default Warehouse" {...register('defaultWarehouse')} disabled={isViewMode}>
-                    {renderAsyncValueOption(selectedDefaultWarehouse, warehouses)}
-                    <MenuItem value="">Select Warehouse</MenuItem>
-                    {warehouses.map((w) => <MenuItem key={w.id || w._id} value={w.id || w._id}>{w.warehouseName || w.name}</MenuItem>)}
-                  </TextField>
-                </Grid>
-                {['reorderLevel', 'reorderQty', 'openingStock', 'openingStockRate'].map((key) => (
-                  <Grid key={key} size={{ xs: 12, md: 2 }}>
-                    <TextField fullWidth size="small" type="number" label={key.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase())} {...register(key)} disabled={isViewMode} />
-                  </Grid>
-                ))}
-                <Grid size={{ xs: 12, md: 4 }}>
-                  <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 2 }}>
-                    <FormControlLabel control={<Switch checked={watch('stockTrackingEnabled')} onChange={(e) => setValue('stockTrackingEnabled', e.target.checked)} disabled={isViewMode} />} label="Stock Tracking" />
-                    {!isRawMaterial && <FormControlLabel control={<Switch checked={watch('barcodeEnabled')} onChange={(e) => setValue('barcodeEnabled', e.target.checked)} disabled={isViewMode} />} label="Barcode Printing" />}
-                  </Paper>
-                </Grid>
-              </Grid>
-            </FormSection>
-          </Box>
         </Box>
       </Paper>
 

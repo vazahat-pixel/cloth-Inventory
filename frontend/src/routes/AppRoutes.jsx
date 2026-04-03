@@ -25,7 +25,6 @@ const PurchaseReturnPageStaff = lazy(() => import('../modules/store/PurchaseRetu
 const StoreReceiptPage = lazy(() => import('../modules/store/StoreReceiptPage'));
 
 // Masters
-const MastersLayout = lazy(() => import('../modules/masters/MastersLayout'));
 const SuppliersListPage = lazy(() => import('../modules/masters/suppliers/ListPage'));
 const CustomersListPage = lazy(() => import('../modules/masters/customers/ListPage'));
 const WarehousesListPage = lazy(() => import('../modules/masters/warehouses/ListPage'));
@@ -239,16 +238,16 @@ function AppRoutes() {
             <Route index element={<DashboardHome />} />
             <Route path="master-dashboard" element={<HoMasterDashboard />} />
 
-            <Route path="masters" element={<MastersLayout />}>
-              <Route index element={<Navigate to="suppliers" replace />} />
-              <Route path="suppliers" element={<SuppliersListPage />} />
-              <Route path="customers" element={<CustomersListPage />} />
-              <Route path="warehouses" element={<WarehousesListPage />} />
-              <Route path="stores" element={<StoresListPage />} />
-              <Route path="brands" element={<BrandsListPage />} />
-              <Route path="item-groups" element={<ItemGroupsListPage />} />
-              <Route path="item-groups" element={<ItemGroupsListPage />} />
-            </Route>
+            {/* Masters - Standalone Routes for direct access */}
+            <Route path="masters/suppliers" element={<SuppliersListPage />} />
+            <Route path="masters/customers" element={<CustomersListPage />} />
+            <Route path="masters/warehouses" element={<WarehousesListPage />} />
+            <Route path="masters/stores" element={<StoresListPage />} />
+            <Route path="masters/brands" element={<BrandsListPage />} />
+            <Route path="masters/item-groups" element={<ItemGroupsListPage />} />
+            
+            {/* Legacy redirect for base masters path */}
+            <Route path="masters" element={<Navigate to="masters/suppliers" replace />} />
 
             <Route path="items" element={<ItemListPage />} />
             <Route path="items/new" element={<ItemFormPage />} />
