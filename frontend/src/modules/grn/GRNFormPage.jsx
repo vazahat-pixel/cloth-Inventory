@@ -31,6 +31,7 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
+import SearchIcon from '@mui/icons-material/Search';
 import PageHeader from '../../components/erp/PageHeader';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchItems } from '../items/itemsSlice';
