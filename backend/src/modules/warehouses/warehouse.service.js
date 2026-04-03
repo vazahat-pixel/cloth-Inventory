@@ -110,10 +110,17 @@ const deleteWarehouse = async (id) => {
     return warehouse;
 };
 
+const getPrimaryWarehouse = async () => {
+    const warehouse = await Warehouse.findOne({ isDeleted: false });
+    if (!warehouse) throw new Error('No active warehouse found');
+    return warehouse;
+};
+
 module.exports = {
     createWarehouse,
     getAllWarehouses,
     getWarehouseById,
+    getPrimaryWarehouse,
     updateWarehouse,
     toggleWarehouseStatus,
     deleteWarehouse

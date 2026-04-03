@@ -71,7 +71,7 @@ const adminSidebarItems = [
 export const adminNavConfig = {
   role: ROLES.admin,
   basePath: '/ho',
-  label: 'Head Office',
+  label: 'Warehouse Dashboard',
   mainNav: adminSidebarItems,
   children: {
     '/setup': setupNavItems.map(i => ({ ...i, drilldown: ['/setup/accounts', '/setup/taxes', '/setup/party-wise', '/setup/other-account-details', '/setup/configurations'].includes(i.path) })),

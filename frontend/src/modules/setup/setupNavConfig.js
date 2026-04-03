@@ -5,6 +5,7 @@ import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import ManageAccountsOutlinedIcon from '@mui/icons-material/ManageAccountsOutlined';
 import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
+import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 
 export const setupMatchPaths = [
   '/setup',
@@ -105,5 +106,11 @@ export const setupNavItems = [
     path: '/setup/configurations',
     matchPaths: ['/setup/configurations'],
     icon: TuneOutlinedIcon,
+  },
+  {
+    label: 'Warehouse Settings',
+    hint: 'Address, GST, Profile',
+    path: '/masters/warehouses/settings',
+    icon: SettingsOutlinedIcon,
   },
 ];

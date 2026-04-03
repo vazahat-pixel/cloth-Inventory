@@ -73,6 +73,15 @@ exports.toggleWarehouseStatus = async (req, res, next) => {
     }
 };
 
+exports.getPrimaryWarehouse = async (req, res, next) => {
+    try {
+        const warehouse = await warehouseService.getPrimaryWarehouse();
+        return sendSuccess(res, { warehouse }, 'Primary warehouse retrieved');
+    } catch (err) {
+        return sendNotFound(res, err.message);
+    }
+};
+
 exports.deleteWarehouse = async (req, res, next) => {
     try {
         await warehouseService.deleteWarehouse(req.params.id);

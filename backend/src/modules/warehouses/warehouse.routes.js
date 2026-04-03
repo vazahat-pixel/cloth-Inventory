@@ -20,6 +20,7 @@ router.use(protect); // Ensure all routes are protected
 
 // Public to all authenticated users (or restricted by role in future)
 router.get('/', warehouseController.getAllWarehouses);
+router.get('/primary', requireAdmin, warehouseController.getPrimaryWarehouse);
 router.get('/:id', warehouseController.getWarehouseById);
 
 // Admin only routes

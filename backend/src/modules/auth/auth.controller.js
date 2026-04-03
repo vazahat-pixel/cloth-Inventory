@@ -40,10 +40,29 @@ const adminLogin = async (req, res, next) => {
         const isMatch = await user.comparePassword(password);
         if (!isMatch) return sendUnauthorized(res, 'Invalid email or password.');
 
-        const token = generateToken({ id: user._id.toString(), email: user.email, role: user.role, name: user.name });
+        // Fetch single warehouse for HO
+        const Warehouse = require('../../models/warehouse.model');
+        const warehouse = await Warehouse.findOne({ isDeleted: false });
+
+        const token = generateToken({ 
+            id: user._id.toString(), 
+            email: user.email, 
+            role: user.role, 
+            name: user.name,
+            warehouseId: warehouse ? warehouse._id : null,
+            warehouseName: warehouse ? warehouse.name : null
+        });
+
         return sendSuccess(res, {
             token,
-            user: { id: user._id, name: user.name, email: user.email, role: user.role },
+            user: { 
+                id: user._id, 
+                name: user.name, 
+                email: user.email, 
+                role: user.role,
+                warehouseId: warehouse ? warehouse._id : null,
+                warehouseName: warehouse ? warehouse.name : null
+            },
         }, 'Admin logged in successfully.');
     } catch (error) { next(error); }
 };
@@ -94,7 +113,19 @@ const getMe = async (req, res, next) => {
     try {
         const user = await User.findById(req.user._id);
         if (!user) return sendError(res, 'User not found.', 404);
-        return sendSuccess(res, { user });
+
+        let responseUser = user.toObject();
+
+        if (user.role === 'admin') {
+            const Warehouse = require('../../models/warehouse.model');
+            const warehouse = await Warehouse.findOne({ isDeleted: false });
+            if (warehouse) {
+                responseUser.warehouseId = warehouse._id;
+                responseUser.warehouseName = warehouse.name;
+            }
+        }
+
+        return sendSuccess(res, { user: responseUser });
     } catch (error) { next(error); }
 };
 
