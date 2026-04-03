@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const hsnController = require('./hsnCode.controller');
 const formulaController = require('./formula.controller');
+const groupController = require('./group.controller');
 const { protect } = require('../../middlewares/auth.middleware');
 const { requireAdmin } = require('../../middlewares/role.middleware');
 
@@ -13,6 +14,13 @@ router.put('/hsn/:id', hsnController.update);
 router.patch('/hsn/:id', hsnController.update);
 router.delete('/hsn/:id', hsnController.delete);
 router.post('/hsn', requireAdmin, hsnController.create);
+
+// Group Routes
+router.get('/groups', groupController.getAll);
+router.put('/groups/:id', groupController.update);
+router.patch('/groups/:id', groupController.update);
+router.delete('/groups/:id', groupController.delete);
+router.post('/groups', requireAdmin, groupController.create);
 
 // Formula Routes
 router.get('/formula', formulaController.getAll);

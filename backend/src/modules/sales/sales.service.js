@@ -9,7 +9,6 @@ const { createAuditLog } = require('../../middlewares/audit.middleware');
 const { getIO } = require('../../config/socket');
 const Account = require('../../models/account.model');
 const ledgerService = require('../../services/ledger.service');
-const GstSlab = require('../../models/gstSlab.model');
 const StorePricing = require('../../models/storePricing.model');
 const Customer = require('../../models/customer.model');
 const LoyaltyTransaction = require('../../models/loyaltyTransaction.model');

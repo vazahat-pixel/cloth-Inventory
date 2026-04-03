@@ -52,8 +52,6 @@ const createVariantPayload = (overrides = {}) => ({
   color: '',
   sku: '',
   barcodePrefix: '',
-  costPrice: 0,
-  salePrice: 0,
   mrp: 0,
   stock: 0,
   status: 'Active',
@@ -167,8 +165,6 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
     const payload = createVariantPayload({
       ...formValues,
       id: editingVariant?.id || createVariantId(),
-      costPrice: Number(formValues.costPrice),
-      salePrice: Number(formValues.salePrice),
       mrp: Number(formValues.mrp),
       stock: Number(formValues.stock),
     });
@@ -348,12 +344,6 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
                   <TableCell sx={{ fontWeight: 700 }}>Color</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
                   <TableCell sx={{ fontWeight: 700 }} align="right">
-                    Cost
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 700 }} align="right">
-                    Sale Price
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 700 }} align="right">
                     MRP
                   </TableCell>
                   <TableCell sx={{ fontWeight: 700 }} align="right">
@@ -369,8 +359,6 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
                     <TableCell>{getSizeLabel(variant.size)}</TableCell>
                     <TableCell>{variant.color}</TableCell>
                     <TableCell>{variant.sku}</TableCell>
-                    <TableCell align="right">{variant.costPrice}</TableCell>
-                    <TableCell align="right">{variant.salePrice}</TableCell>
                     <TableCell align="right">{variant.mrp}</TableCell>
                     <TableCell align="right">{variant.stock}</TableCell>
                     <TableCell>
@@ -508,40 +496,6 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
               />
 
               <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-                <Controller
-                  name="costPrice"
-                  control={control}
-                  rules={{ required: 'Cost price is required.' }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      type="number"
-                      size="small"
-                      fullWidth
-                      label="Cost Price"
-                      error={Boolean(errors.costPrice)}
-                      helperText={errors.costPrice?.message || ' '}
-                    />
-                  )}
-                />
-
-                <Controller
-                  name="salePrice"
-                  control={control}
-                  rules={{ required: 'Sale price is required.' }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      type="number"
-                      size="small"
-                      fullWidth
-                      label="Sale Price"
-                      error={Boolean(errors.salePrice)}
-                      helperText={errors.salePrice?.message || ' '}
-                    />
-                  )}
-                />
-
                 <Controller
                   name="stock"
                   control={control}

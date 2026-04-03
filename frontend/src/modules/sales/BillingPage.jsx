@@ -37,7 +37,6 @@ import { fetchPricingRules, fetchSchemes, fetchCoupons, evaluateOffers } from '.
 import { fetchItems } from '../items/itemsSlice';
 import { fetchLoyaltyConfig, fetchCreditNotes } from '../customers/customersSlice';
 import api from '../../services/api';
-import { fetchGstSlabs } from '../gst/gstSlice';
 import PaymentDialog from './PaymentDialog';
 import LoyaltyRedeemDialog from './LoyaltyRedeemDialog';
 import ExchangeInvoicePrint from './ExchangeInvoicePrint';
@@ -184,7 +183,6 @@ function BillingPage({
     dispatch(fetchMasters('stores'));
     dispatch(fetchItems());
     dispatch(fetchStockOverview());
-    dispatch(fetchGstSlabs());
     dispatch(fetchPricingRules());
     dispatch(fetchSchemes());
     dispatch(fetchCoupons());

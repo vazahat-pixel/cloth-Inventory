@@ -2,7 +2,6 @@ const Purchase = require('../../models/purchase.model');
 const Item = require('../../models/item.model');
 const Supplier = require('../../models/supplier.model');
 const Account = require('../../models/account.model');
-const GstSlab = require('../../models/gstSlab.model');
 const { calculateGST } = require('../../services/gst.service');
 const { addStock, removeStock } = require('../../services/stock.service');
 const { createJournalEntries } = require('../../services/ledger.service');
@@ -76,9 +75,9 @@ const createPurchase = async (purchaseData, userId) => {
 
             // Support both field names: 'tax' (new form) and 'taxPercentage' (legacy)
             let taxPercent = toNumber(item.tax ?? item.taxPercentage);
-            if (taxPercent === 0 && item.gstSlabId) {
-                const slab = await GstSlab.findById(item.gstSlabId).session(session);
-                if (slab) taxPercent = slab.percentage;
+            if (taxPercent === 0) {
+               // Fallback to Item Master Tax
+               taxPercent = itemDoc.gstTax || 0;
             }
 
             const gstData = calculateGST(taxableAmount, taxPercent);
@@ -278,8 +277,11 @@ const updatePurchase = async (id, updateData, userId) => {
             const quantity = toNumber(item.quantity);
             const rate = toNumber(item.rate);
             const discPercent = toNumber(item.discount ?? item.discountPercentage);
-            const taxPercent = toNumber(item.tax ?? item.taxPercentage);
-
+            let taxPercent = toNumber(item.tax ?? item.taxPercentage);
+            if (taxPercent === 0) {
+               // Fallback to Item Master Tax
+               taxPercent = itemDoc.gstTax || 0;
+            }
             const grossValue = rate * quantity;
             const discountAmount = (grossValue * discPercent) / 100;
             const taxableAmount = grossValue - discountAmount;

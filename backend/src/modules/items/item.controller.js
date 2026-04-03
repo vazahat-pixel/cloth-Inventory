@@ -12,6 +12,14 @@ class ItemController {
     }
   };
 
+  getNextCode = async (req, res) => {
+    try {
+      const { type } = req.query;
+      const code = await itemService.generateNextCode(type);
+      return sendSuccess(res, { code }, 'Next code generated successfully');
+    } catch (e) { return sendError(res, e.message); }
+  }
+
   getAllItems = async (req, res) => {
     try {
       const items = await itemService.getAllItems(req.query);

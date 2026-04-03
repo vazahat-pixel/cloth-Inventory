@@ -10,6 +10,7 @@ const endpointMap = {
   brands: '/brands',
   sizes: '/sizes',
   hsnCodes: '/setup/hsn',
+  itemGroups: '/setup/groups',
 };
 
 const responseKeyMap = {
@@ -20,6 +21,7 @@ const responseKeyMap = {
   brands: 'brands',
   sizes: 'sizes',
   hsnCodes: 'hsns',
+  itemGroups: 'groups',
 };
 
 const singularKeyMap = {
@@ -30,6 +32,7 @@ const singularKeyMap = {
   brands: 'brand',
   sizes: 'size',
   hsnCodes: 'hsn',
+  itemGroups: 'group',
 };
 
 // Async Thunks for different master entities
@@ -46,6 +49,7 @@ export const fetchMasters = createAsyncThunk('masters/fetchAll', async (entityKe
     const entityTypeMapping = {
       warehouses: 'warehouse',
       stores: 'store',
+      itemGroups: 'group',
     };
     const entityType = entityTypeMapping[entityKey] || entityKey.slice(0, -1);
     return { entityKey, data: normalizeResponse(raw, entityType) };
@@ -126,6 +130,14 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
         gstRate: record.gstRate,
         status: record.status,
       };
+    } else if (entityKey === 'itemGroups') {
+      payload = {
+        name: record.groupName,
+        groupType: record.groupType,
+        parentId: record.parentId === '' ? null : record.parentId,
+        description: record.description,
+        isActive: record.status !== 'Inactive',
+      };
     }
 
     const response = await api.post(endpoint, payload);
@@ -137,6 +149,7 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
     const entityTypeMapping = {
       warehouses: 'warehouse',
       stores: 'store',
+      itemGroups: 'group',
     };
     const entityType = entityTypeMapping[entityKey] || entityKey.slice(0, -1);
     return { entityKey, data: normalizeResponse(raw, entityType) };
@@ -214,6 +227,14 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
         gstRate: updates.gstRate,
         status: updates.status,
       };
+    } else if (entityKey === 'itemGroups') {
+      payload = {
+        name: updates.groupName,
+        groupType: updates.groupType,
+        parentId: updates.parentId === '' ? null : updates.parentId,
+        description: updates.description,
+        isActive: updates.status !== 'Inactive',
+      };
     }
 
     const response = await api.patch(endpoint, payload);
@@ -225,6 +246,7 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
     const entityTypeMapping = {
       warehouses: 'warehouse',
       stores: 'store',
+      itemGroups: 'group',
     };
     const entityType = entityTypeMapping[entityKey] || entityKey.slice(0, -1);
     return { entityKey, data: normalizeResponse(raw, entityType) };
@@ -252,6 +274,7 @@ const initialState = {
   brands: [],
   sizes: [],
   hsnCodes: [],
+  itemGroups: [],
   loading: false,
   error: null,
 };

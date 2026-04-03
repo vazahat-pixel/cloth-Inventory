@@ -12,11 +12,6 @@ const hsnCodeSchema = new mongoose.Schema(
             type: String,
             trim: true
         },
-        gstSlabId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'GstSlab',
-            default: null
-        },
         gstPercent: {
             type: Number,
             default: 0

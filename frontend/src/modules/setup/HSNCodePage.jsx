@@ -32,7 +32,7 @@ import FilterBar from '../../components/erp/FilterBar';
 import ExportButton from '../../components/erp/ExportButton';
 import StatusBadge from '../../components/erp/StatusBadge';
 import hsnCodesExportColumns from '../../config/exportColumns/hsnCodes';
-import { hsnSeed } from '../erp/erpUiMocks';
+// import { hsnSeed } from '../erp/erpUiMocks';
 
 const defaultFormValues = {
   id: '',
@@ -58,7 +58,7 @@ function HSNCodePage() {
   const { loading } = useSelector((state) => state.masters);
 
   const rows = useMemo(() => {
-    return hsnFromRedux?.length ? hsnFromRedux : hsnSeed;
+    return hsnFromRedux?.length ? hsnFromRedux : []
   }, [hsnFromRedux]);
 
   const [searchText, setSearchText] = useState('');

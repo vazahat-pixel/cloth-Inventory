@@ -1,5 +1,6 @@
 const Item = require('../../models/item.model');
 const Group = require('../../models/group.model');
+const Counter = require('../../models/counter.model');
 const FormulaEngine = require('../../utils/formula.engine');
 const { generateUniqueBarcode: generateBarcode } = require('../../services/barcode.service');
 
@@ -52,13 +53,18 @@ const ensureSizeSKUs = async (sizes = []) => {
 const populateItem = async (itemId) =>
   Item.findById(itemId)
     .populate('groupIds', 'name groupType level parentId isActive')
+    .populate('sectionId', 'name groupName groupType')
+    .populate('categoryId', 'name groupName groupType')
+    .populate('subCategoryId', 'name groupName groupType')
+    .populate('styleId', 'name groupName groupType')
     .populate('brand', 'brandName name')
     .populate('session', 'seasonName name')
     .populate('hsCodeId', 'code hsnCode gstRate gstPercent');
 
 class ItemService {
   async normalizeItemData(data) {
-    if (data.itemCode) data.itemCode = data.itemCode.trim().toUpperCase();
+    if (data.itemCode) data.itemCode = String(data.itemCode).trim().toUpperCase();
+    if (data.type) data.type = data.type.trim().toUpperCase();
     
     // Ensure all descriptors are top-level
     const descriptors = ['fabric', 'pattern', 'fit', 'gender', 'occasion', 'uom', 'shade', 'description'];
@@ -66,10 +72,20 @@ class ItemService {
       if (data[field]) data[field] = data[field].toString().trim();
     });
 
-    // Handle Hierarchy
-    if (data.section || data.category || data.subCategory || data.styleType) {
-      data.groupIds = [data.section, data.category, data.subCategory, data.styleType].filter(Boolean);
-    }
+    // Handle Hierarchy IDs
+    const hierarchyFields = ['sectionId', 'categoryId', 'subCategoryId', 'styleId'];
+    hierarchyFields.forEach(field => {
+      if (data[field]) data[field] = normalizeId(data[field]);
+    });
+
+    // Fallback for older frontend versions that might send specific keys
+    if (data.section && !data.sectionId) data.sectionId = normalizeId(data.section);
+    if (data.category && !data.categoryId) data.categoryId = normalizeId(data.category);
+    if (data.subCategory && !data.subCategoryId) data.subCategoryId = normalizeId(data.subCategory);
+    if (data.styleType && !data.styleId) data.styleId = normalizeId(data.styleType);
+
+    // Sync groupIds for tag-based searches
+    data.groupIds = [data.sectionId, data.categoryId, data.subCategoryId, data.styleId].filter(Boolean);
 
     // Handle Images Array
     data.images = Array.isArray(data.images) 
@@ -87,8 +103,6 @@ class ItemService {
       data.sizes = data.sizes.map(s => ({
         ...s,
         sku: s.sku || s.barcode || null,
-        costPrice: Number(s.costPrice || 0),
-        salePrice: Number(s.salePrice || 0),
         mrp: Number(s.mrp || 0),
         stock: Number(s.stock || 0)
       }));
@@ -96,8 +110,18 @@ class ItemService {
 
     // Robust mapping for incoming fields (Frontend compatibility)
     if (data.hsnCodeId && !data.hsCodeId) data.hsCodeId = data.hsnCodeId;
-    if (data.gstSlabId && !data.gstTax) data.gstTax = data.gstSlabId;
     if (data.season && !data.session) data.session = data.season;
+  }
+
+  async generateNextCode(type = 'GARMENT') {
+    const normalizedType = (type || 'GARMENT').toUpperCase();
+    const counter = await Counter.findOneAndUpdate(
+      { name: `itemCode_${normalizedType}` },
+      { $inc: { seq: 1 } },
+      { upsert: true, new: true }
+    );
+    const prefix = normalizedType === 'GARMENT' ? 'ST' : 'ACC';
+    return `${prefix}-${String(counter.seq).padStart(4, '0')}`;
   }
 
   async createItem(data = {}) {
@@ -126,8 +150,13 @@ class ItemService {
       shade: data.shade,
       description: data.description,
       groupIds,
+      sectionId: data.sectionId,
+      categoryId: data.categoryId,
+      subCategoryId: data.subCategoryId,
+      styleId: data.styleId,
       session: normalizeId(data.session),
       hsCodeId: normalizeId(data.hsCodeId),
+      type: data.type || 'GARMENT',
       images: data.images || []
     });
 
@@ -145,13 +174,14 @@ class ItemService {
     const fieldsToUpdate = [
       'itemName', 'itemCode', 'brand', 'shade', 'description', 'session', 'hsCodeId', 'gstTax',
       'fabric', 'pattern', 'fit', 'gender', 'uom', 'images', 'groupIds', 'sizes',
+      'sectionId', 'categoryId', 'subCategoryId', 'styleId', 'type',
       'reorderLevel', 'reorderQty', 'openingStock', 'openingStockRate', 
       'stockTrackingEnabled', 'barcodeEnabled', 'isActive', 'customFields'
     ];
 
     fieldsToUpdate.forEach(field => {
       if (data[field] !== undefined) {
-        if (field === 'brand' || field === 'session' || field === 'hsCodeId') {
+        if (['brand', 'session', 'hsCodeId', 'sectionId', 'categoryId', 'subCategoryId', 'styleId'].includes(field)) {
           item[field] = normalizeId(data[field]);
         } else if (field === 'groupIds') {
           item.groupIds = normalizeGroupIds(data[field]);
@@ -182,6 +212,10 @@ class ItemService {
   async getAllItems(query = {}) {
     return Item.find(query)
       .populate('groupIds', 'name groupType level parentId isActive')
+      .populate('sectionId', 'name groupName groupType')
+      .populate('categoryId', 'name groupName groupType')
+      .populate('subCategoryId', 'name groupName groupType')
+      .populate('styleId', 'name groupName groupType')
       .populate('brand', 'brandName name')
       .populate('session', 'seasonName name')
       .populate('hsCodeId', 'code hsnCode gstRate gstPercent')
@@ -191,6 +225,10 @@ class ItemService {
   async getItemById(id) {
     return Item.findById(id)
       .populate('groupIds', 'name groupType level parentId isActive')
+      .populate('sectionId', 'name groupName groupType')
+      .populate('categoryId', 'name groupName groupType')
+      .populate('subCategoryId', 'name groupName groupType')
+      .populate('styleId', 'name groupName groupType')
       .populate('brand', 'brandName name')
       .populate('session', 'seasonName name')
       .populate('hsCodeId', 'code hsnCode gstRate gstPercent');

@@ -15,6 +15,7 @@ import dispatchReducer from '../modules/dispatch/dispatchSlice';
 import supplierOutwardReducer from '../modules/supplierOutward/supplierOutwardSlice';
 import reportsReducer from '../modules/reports/reportsSlice';
 import rawMaterialReducer from '../modules/rawMaterials/rawMaterialSlice';
+import consumptionReducer from '../modules/consumption/consumptionSlice';
 
 export const store = configureStore({
   reducer: {
@@ -32,6 +33,7 @@ export const store = configureStore({
     grn: grnReducer,
     dispatch: dispatchReducer,
     supplierOutward: supplierOutwardReducer,
+    consumption: consumptionReducer,
     reports: reportsReducer,
     rawMaterial: rawMaterialReducer,
   },

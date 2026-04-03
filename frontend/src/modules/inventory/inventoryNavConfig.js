@@ -56,12 +56,6 @@ export const inventoryNavItems = [
     icon: Inventory2OutlinedIcon,
   },
   {
-    key: 'supplier-outward',
-    label: 'Supplier Outward (Provide RM)',
-    path: '/ho/inventory/supplier-outward',
-    icon: LocalShippingOutlinedIcon,
-  },
-  {
     key: 'overwrite-lot-rates',
     label: "Lot / Rate Correction",
     path: '/ho/inventory/overwrite-lot-rates',

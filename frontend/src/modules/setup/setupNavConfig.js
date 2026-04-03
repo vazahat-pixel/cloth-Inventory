@@ -32,27 +32,6 @@ export const setupNavItems = [
     icon: TuneOutlinedIcon,
   },
   {
-    label: 'Groups',
-    hint: 'Hierarchy master',
-    path: '/setup/groups',
-    matchPaths: ['/setup/groups', '/masters/item-groups', '/clothing-erp'],
-    icon: CategoryOutlinedIcon,
-  },
-  {
-    label: 'HSN Codes',
-    hint: 'HSN and GST slabs',
-    path: '/setup/hsn-codes',
-    matchPaths: ['/setup/hsn-codes'],
-    icon: ReceiptLongOutlinedIcon,
-  },
-  {
-    label: 'Sizes',
-    hint: 'Size master',
-    path: '/setup/sizes',
-    matchPaths: ['/setup/sizes'],
-    icon: Inventory2OutlinedIcon,
-  },
-  {
     label: 'Suppliers',
     hint: 'Vendor master',
     path: '/masters/suppliers',

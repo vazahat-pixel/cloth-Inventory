@@ -38,7 +38,7 @@ const stockLedgerSchema = new mongoose.Schema({
   },
   source: {
     type: String,
-    enum: ['GRN', 'SALE', 'TRANSFER', 'ADJUSTMENT', 'RETURN', 'PURCHASE_RETURN', 'SALES_RETURN', 'DELIVERYCHALLAN', 'SUPPLIER_OUTWARD'],
+    enum: ['GRN', 'SALE', 'TRANSFER', 'ADJUSTMENT', 'RETURN', 'PURCHASE_RETURN', 'SALES_RETURN', 'DELIVERYCHALLAN', 'SUPPLIER_OUTWARD', 'PRODUCTION_RECEIPT'],
     required: true
   },
   referenceId: {

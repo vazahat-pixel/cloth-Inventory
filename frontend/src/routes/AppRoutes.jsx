@@ -54,6 +54,11 @@ const MovementHistoryPage = lazy(() => import('../modules/inventory/MovementHist
 const StockAuditView = lazy(() => import('../modules/inventory/StockAuditView'));
 const SupplierOutwardListPage = lazy(() => import('../modules/supplierOutward/SupplierOutwardListPage'));
 const SupplierOutwardFormPage = lazy(() => import('../modules/supplierOutward/SupplierOutwardFormPage'));
+const SupplierOutwardViewPage = lazy(() => import('../modules/supplierOutward/SupplierOutwardViewPage'));
+
+const MaterialConsumptionListPage = lazy(() => import('../modules/consumption/MaterialConsumptionListPage'));
+const MaterialConsumptionFormPage = lazy(() => import('../modules/consumption/MaterialConsumptionFormPage'));
+
 const RawMaterialListPage = lazy(() => import('../modules/rawMaterials/RawMaterialListPage'));
 const RawMaterialFormPage = lazy(() => import('../modules/rawMaterials/RawMaterialFormPage'));
 
@@ -266,22 +271,16 @@ function AppRoutes() {
             <Route path="inventory/audit-view" element={<StockAuditView />} />
             <Route path="inventory/supplier-outward" element={<SupplierOutwardListPage />} />
             <Route path="inventory/supplier-outward/new" element={<SupplierOutwardFormPage />} />
+            <Route path="inventory/supplier-outward/:id" element={<SupplierOutwardViewPage />} />
+            
+            <Route path="inventory/consumption" element={<MaterialConsumptionListPage />} />
+            <Route path="inventory/consumption/new" element={<MaterialConsumptionFormPage />} />
+
             <Route path="inventory/raw-materials" element={<RawMaterialListPage />} />
             <Route path="inventory/raw-materials/new" element={<RawMaterialFormPage />} />
             <Route path="inventory/raw-materials/edit/:id" element={<RawMaterialFormPage />} />
             <Route path="inventory/accessory-entry" element={<AccessoryDirectEntryPage />} />
 
-            <Route path="purchase" element={<Navigate to="purchase-voucher" replace />} />
-            <Route path="purchase/purchase-voucher" element={<PurchaseListPage />} />
-            <Route path="purchase/purchase-voucher/new" element={<PurchaseFormPage />} />
-            <Route path="purchase/purchase-voucher/:id" element={<PurchaseFormPage />} />
-            <Route path="purchase/purchase-return" element={<PurchaseReturnListPage />} />
-            <Route path="purchase/stock-adjustment" element={<PurchasePlaceholderPage pageKey="stock-adjustment" />} />
-            <Route path="purchase/orders" element={<PurchaseOrderListPage />} />
-            <Route path="purchase/orders/new" element={<PurchaseOrderFormPage />} />
-            <Route path="purchase/orders/:id" element={<PurchaseOrderFormPage mode="edit" />} />
-            <Route path="purchase/orders/:id/view" element={<PurchaseOrderFormPage mode="view" />} />
-            <Route path="purchase/orders/:id/edit" element={<PurchaseOrderFormPage mode="edit" />} />
 
             <Route path="orders/delivery-challan" element={<DeliveryChallanPage />} />
             <Route path="orders/delivery-challan/new" element={<DeliveryChallanForm />} />

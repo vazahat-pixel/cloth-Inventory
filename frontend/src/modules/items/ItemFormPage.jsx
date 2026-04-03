@@ -5,14 +5,11 @@ import {
   Alert, 
   Box, 
   Button, 
-  FormControlLabel, 
   Grid, 
   MenuItem, 
   Paper, 
   Stack, 
-  Switch, 
   Tab, 
-  TableContainer, 
   Tabs, 
   TextField, 
   Typography,
@@ -22,14 +19,13 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import TaskAltOutlinedIcon from '@mui/icons-material/TaskAltOutlined';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
-import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import PageHeader from '../../components/erp/PageHeader';
 import FormSection from '../../components/erp/FormSection';
 import VariantTable from './VariantTable';
 import { addItem, updateItem } from './itemsSlice';
 import { fetchMasters } from '../masters/mastersSlice';
-import { fetchGstSlabs } from '../gst/gstSlice';
 import api from '../../services/api';
 
 const createVariantId = () => `var-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -41,26 +37,19 @@ const COMMON_COLORS = [
   'Turquoise', 'Teal', 'Purple', 'Lavender', 'Magenta', 'Peach', 'Coral', 'Salmon', 'Gold', 'Silver', 'Copper'
 ];
 
-const tabsFG = [
-  ['basic', 'Product Details'],
-  ['variants', 'Variants & Pricing'],
-  ['media', 'Media'],
-];
-
-const tabsRM = [
-  ['basic', 'Material Details'],
+const TABS = [
+  ['basic', 'Core Information'],
+  ['variants', 'Sizes & Pricing'],
   ['media', 'Media'],
 ];
 
 const defaultValues = {
-  itemCode: '', itemName: '', type: 'FINISHED_GOOD', brand: '', hsCodeId: '', gstSlabId: '', shadeColor: '', uom: 'PCS', skuPrefix: '', description: '', status: 'Active',
+  itemCode: '', itemName: '', brand: '', hsCodeId: '', gstSlabId: '', shadeColor: '', uom: 'PCS', skuPrefix: '', description: '', status: 'Active',
   fabric: '', pattern: '', fit: '', gender: '', season: '', notes: '',
   sectionId: '', categoryId: '', subCategoryId: '', subSubCategoryId: '',
   defaultWarehouse: '', reorderLevel: 0, reorderQty: 0, openingStock: 0, openingStockRate: 0,
   stockTrackingEnabled: true, barcodeEnabled: true,
-  vendorId: '', // For RM Supplier
-  // Pro Specs
-  composition: '', gsm: '', width: '', shrinkage: '', shadeNo: '',
+  vendorId: '',
   accessorySize: '', packingType: '',
 };
 
@@ -72,7 +61,6 @@ function ItemFormPage({ mode = 'edit' }) {
   const navigate = useAppNavigate();
   const items = useSelector((state) => state.items.records);
   const masters = useSelector((state) => state.masters || {});
-  const gstSlabs = useSelector((state) => state.gst?.taxRates || []);
   
   const brands = masters.brands || [];
   const itemGroups = masters.itemGroups || [];
@@ -85,26 +73,14 @@ function ItemFormPage({ mode = 'edit' }) {
     defaultValues,
   });
 
-  const itemType = watch('type');
-  const isRawMaterial = itemType === 'RAW_MATERIAL' || itemType === 'ACCESSORY';
-
   const [activeTab, setActiveTab] = useState('basic');
   const [variants, setVariants] = useState([]);
-  const [variantError, setVariantError] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [images, setImages] = useState(Array(5).fill(null));
   const [uploadingImage, setUploadingImage] = useState(null);
 
   const styleCode = watch('itemCode');
-
-  // Filter tabs based on type
-  const activeTabs = useMemo(() => (isRawMaterial ? tabsRM : tabsFG), [isRawMaterial]);
-
-  useEffect(() => {
-    if (activeTab === 'variants' && isRawMaterial) {
-      setActiveTab('basic');
-    }
-  }, [isRawMaterial, activeTab]);
 
   useEffect(() => {
     dispatch(fetchMasters('brands'));
@@ -113,15 +89,25 @@ function ItemFormPage({ mode = 'edit' }) {
     dispatch(fetchMasters('hsnCodes'));
     dispatch(fetchMasters('sizes'));
     dispatch(fetchMasters('suppliers'));
-    dispatch(fetchGstSlabs());
   }, [dispatch]);
 
   const existingItem = useMemo(() => (isEditMode ? items.find((item) => item.id === id || item._id === id) : null), [id, isEditMode, items]);
 
   useEffect(() => {
+    if (!isEditMode) {
+      api.get('/items/next-code?type=GARMENT')
+        .then(res => {
+          if (res.data.success && res.data.data.code) {
+            setValue('itemCode', res.data.data.code);
+          }
+        })
+        .catch(err => console.error('Failed to fetch next item code', err));
+    }
+  }, [isEditMode, setValue]);
+
+  useEffect(() => {
     if (isEditMode && !existingItem) return;
     if (existingItem) {
-      // Robust extraction: Handle both populated objects and raw IDs
       const getId = (field) => {
         if (!field) return '';
         return typeof field === 'object' ? (field._id || field.id || '') : field;
@@ -136,7 +122,6 @@ function ItemFormPage({ mode = 'edit' }) {
       };
 
       reset({
-        type: existingItem.type || 'FINISHED_GOOD',
         itemCode: existingItem.itemCode || '', 
         itemName: existingItem.itemName || '', 
         brand: getId(existingItem.brand) ? String(getId(existingItem.brand)) : '',
@@ -161,11 +146,6 @@ function ItemFormPage({ mode = 'edit' }) {
         openingStockRate: Number(existingItem.openingStockRate || 0),
         stockTrackingEnabled: existingItem.stockTrackingEnabled ?? true, 
         barcodeEnabled: existingItem.barcodeEnabled ?? true,
-        composition: existingItem.composition || '',
-        gsm: existingItem.gsm || '',
-        width: existingItem.width || '',
-        shrinkage: existingItem.shrinkage || '',
-        shadeNo: existingItem.shadeNo || '',
         accessorySize: existingItem.accessorySize || '',
         packingType: existingItem.packingType || '',
       });
@@ -175,8 +155,6 @@ function ItemFormPage({ mode = 'edit' }) {
         size: s.size,
         color: existingItem.shade || '',
         sku: s.sku || s.barcode || '',
-        costPrice: Number(s.costPrice || 0),
-        salePrice: Number(s.salePrice || 0),
         mrp: Number(s.mrp || 0),
         stock: Number(s.stock || 0),
         status: s.isActive === false ? 'Inactive' : 'Active'
@@ -222,7 +200,6 @@ function ItemFormPage({ mode = 'edit' }) {
       }
     } catch (error) {
       console.error('Upload failed:', error);
-      alert('Failed to upload image. Please try again.');
     } finally {
       setUploadingImage(null);
     }
@@ -235,26 +212,27 @@ function ItemFormPage({ mode = 'edit' }) {
   });
 
   const onSubmit = async (data, statusOverride = data.status || 'Active', stay = false) => {
-    if (!isRawMaterial && !variants.length) { 
-      setVariantError('Please add at least one Size/Variant and Pricing.'); 
+    if (!variants.length) { 
+      setErrorMessage('Please add at least one Size/Variant and Pricing.'); 
       setActiveTab('variants'); 
       return; 
     }
     if (!data.itemCode || !data.itemName) {
+      setErrorMessage('Code and Name are required.');
       setActiveTab('basic'); 
       return; 
-    }
-    if (isRawMaterial && !data.openingStockRate) {
-        setVariantError('Please specify the Material Purchase Rate.');
-        return;
     }
 
     const payload = {
       itemName: data.itemName.trim(),
       itemCode: data.itemCode.trim().toUpperCase(),
       brand: data.brand,
+      sectionId: data.sectionId,
+      categoryId: data.categoryId,
+      subCategoryId: data.subCategoryId,
+      styleId: data.subSubCategoryId, // Mapping UI subSubCategoryId to styleId
       groupIds: [data.sectionId, data.categoryId, data.subCategoryId, data.subSubCategoryId].filter(Boolean),
-      category: data.categoryId, // Backward compatibility
+      category: data.categoryId, 
       shade: data.shadeColor,
       uom: data.uom,
       hsCodeId: data.hsCodeId,
@@ -263,8 +241,6 @@ function ItemFormPage({ mode = 'edit' }) {
       pattern: data.pattern,
       fit: data.fit,
       gender: data.gender,
-      type: data.type,
-      vendorId: data.vendorId,
       description: data.description?.trim(),
       defaultWarehouse: data.defaultWarehouse,
       reorderLevel: Number(data.reorderLevel || 0),
@@ -274,18 +250,12 @@ function ItemFormPage({ mode = 'edit' }) {
       stockTrackingEnabled: data.stockTrackingEnabled !== false,
       barcodeEnabled: data.barcodeEnabled !== false,
       status: statusOverride,
-      composition: data.composition,
-      gsm: data.gsm,
-      width: data.width,
-      shrinkage: data.shrinkage,
-      shadeNo: data.shadeNo,
       accessorySize: data.accessorySize,
       packingType: data.packingType,
       images: images.filter(Boolean).map((img) => img.preview || img),
-      sizes: isRawMaterial ? [] : variants.map((v) => ({
+      type: 'GARMENT',
+      sizes: variants.map((v) => ({
         ...v,
-        salePrice: Number(v.salePrice || 0),
-        costPrice: Number(v.costPrice || 0),
         mrp: Number(v.mrp || 0),
         stock: Number(v.stock || 0)
       }))
@@ -305,8 +275,7 @@ function ItemFormPage({ mode = 'edit' }) {
       }
       navigate('/items');
     } catch (err) {
-      console.error('Save Item Failed:', err);
-      setVariantError(err.message || 'Failed to save item. Please check all fields.');
+      setErrorMessage(err.message || 'Failed to save item.');
     }
   };
 
@@ -319,28 +288,18 @@ function ItemFormPage({ mode = 'edit' }) {
   const selectedSectionId = getOptionId(watch('sectionId'));
   const selectedCategoryId = getOptionId(watch('categoryId'));
   const selectedSubCategoryId = getOptionId(watch('subCategoryId'));
-  const selectedDefaultWarehouse = getOptionId(watch('defaultWarehouse'));
 
   const sections = itemGroups.filter((g) => (g.groupType === 'Section' || !g.parentId) && !['Brand', 'Season'].includes(g.groupType));
   const categoryOptions = itemGroups.filter((g) => g.groupType === 'Category' && getOptionId(g.parentId) === selectedSectionId);
   const subCategoryOptions = itemGroups.filter((g) => g.groupType === 'Sub Category' && getOptionId(g.parentId) === selectedCategoryId);
   const styleOptions = itemGroups.filter((g) => g.groupType === 'Style / Type' && getOptionId(g.parentId) === selectedSubCategoryId);
 
-  if (isEditMode && !existingItem) {
-    return (
-      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3 }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>Item not found</Typography>
-        <Button variant="contained" onClick={() => navigate('/items')}>Back to Item List</Button>
-      </Paper>
-    );
-  }
-
   return (
     <Box component="form" onSubmit={handleSubmit((values) => onSubmit(values))}>
       <PageHeader
-        title={isViewMode ? 'Item Details' : isEditMode ? 'Edit Item' : 'Add Item'}
-        subtitle={isRawMaterial ? 'Catalogue for sourcing components, fabrics, and utility items.' : 'Apparel catalogue with size-wise inventory and barcode management.'}
-        breadcrumbs={[{ label: 'Items', path: '/items' }, { label: isRawMaterial ? 'Material' : 'Garment', active: true }]}
+        title={isViewMode ? 'Inventory Item Details' : isEditMode ? 'Edit Unified Item' : 'Add New Item / Accessory'}
+        subtitle="Manage shirts, pants, ties, belts, and wallets in a unified catalog."
+        breadcrumbs={[{ label: 'Items', path: '/items' }, { label: 'Item Details', active: true }]}
         actions={[
           <Button key="back" variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate('/items')}>Back</Button>,
           !isViewMode && <Button key="draft" variant="outlined" startIcon={<SaveOutlinedIcon />} onClick={handleSubmit((values) => onSubmit(values, 'Draft', true))}>Save Draft</Button>,
@@ -349,257 +308,147 @@ function ItemFormPage({ mode = 'edit' }) {
       />
 
       {successMessage && <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }}>{successMessage}</Alert>}
-      {variantError && <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>{variantError}</Alert>}
+      {errorMessage && <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>{errorMessage}</Alert>}
 
       <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, mb: 2, overflow: 'hidden' }}>
         <Tabs 
           value={activeTab} 
           onChange={(_, value) => setActiveTab(value)} 
-          variant="scrollable" 
-          scrollButtons="auto" 
           sx={{ px: 2, pt: 1, borderBottom: '1px solid #e2e8f0', bgcolor: '#f8fafc' }}
         >
-          {activeTabs.map(([value, label]) => (
+          {TABS.map(([value, label]) => (
             <Tab key={value} value={value} label={label} sx={{ fontWeight: 700, textTransform: 'none', minWidth: 120 }} />
           ))}
         </Tabs>
 
         <Box sx={{ p: 3 }}>
-          {/* Product Details Tab */}
+          {/* Core Information Tab */}
           <Box sx={{ display: activeTab === 'basic' ? 'block' : 'none' }}>
             <Stack spacing={3}>
-              {/* Item Type Master Toggle */}
-              {!isEditMode && (
-                <Box sx={{ mb: 4, p: 2, border: '1px solid #e2e8f0', borderRadius: 2, bgcolor: '#f1f5f9' }}>
-                  <Typography variant="overline" sx={{ fontWeight: 800, color: '#64748b', mb: 1.5, display: 'block' }}>Form Mode / Item Classification</Typography>
-                  <Stack direction="row" spacing={2}>
-                    <Button 
-                      variant={!isRawMaterial ? "contained" : "outlined"} 
-                      onClick={() => setValue('type', 'FINISHED_GOOD')}
-                      sx={{ flex: 1, height: 48, fontWeight: 700 }}
-                    >
-                      Finished Garment (FG)
-                    </Button>
-                    <Button 
-                      variant={isRawMaterial ? "contained" : "outlined"} 
-                      onClick={() => setValue('type', 'RAW_MATERIAL')}
-                      sx={{ flex: 1, height: 48, fontWeight: 700 }}
-                    >
-                      Raw Material / ACC (RM)
-                    </Button>
-                  </Stack>
-                </Box>
-              )}
-
-              <FormSection title={isRawMaterial ? "Material Specifications" : "Garment Core Information"} subtitle="Basic identity and classification.">
+              <FormSection title="Core Information" subtitle="Basic identity and classification.">
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, md: 3 }}>
                     <TextField 
-                      fullWidth 
-                      size="small" 
-                      label={isRawMaterial ? "Material Code *" : "Style Code *"} 
+                      fullWidth size="small" label="Item/Style Code *" 
                       {...register('itemCode', { required: 'Code is required' })} 
                       error={Boolean(errors.itemCode)} 
-                      helperText={errors.itemCode?.message || ' '} 
                       disabled={isViewMode} 
                     />
                   </Grid>
-                  <Grid size={{ xs: 12, md: 3 }}>
+                  <Grid size={{ xs: 12, md: 5 }}>
                     <TextField 
-                      fullWidth 
-                      size="small" 
-                      label={isRawMaterial ? "Material Name *" : "Item Name *"} 
+                      fullWidth size="small" label="Item Name *" 
                       {...register('itemName', { required: 'Name is required' })} 
                       error={Boolean(errors.itemName)} 
-                      helperText={errors.itemName?.message || ' '} 
                       disabled={isViewMode} 
                     />
                   </Grid>
-                  {!isRawMaterial && <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Color / Shade" {...register('shadeColor')} disabled={isViewMode} /></Grid>}
-                  <Grid size={{ xs: 12, md: 3 }}>
+                  <Grid size={{ xs: 12, md: 4 }}>
                     <Controller
                       name="hsCodeId"
                       control={control}
                       rules={{ required: 'HSN is required' }}
                       render={({ field }) => (
                         <TextField
-                          {...field}
-                          select
-                          size="small"
-                          fullWidth
-                          label="HSN Code *"
-                          value={field.value ?? ''}
-                          disabled={isViewMode}
+                          {...field} select size="small" fullWidth label="HSN Code *"
+                          value={field.value ?? ''} disabled={isViewMode}
                           error={Boolean(errors.hsCodeId)}
-                          helperText={
-                            errors.hsCodeId?.message || 
-                            (field.value ? `Applied GST Slab: ${hsnCodes.find(h => String(h.id || h._id) === String(field.value))?.gstPercent || 0}%` : 'Select HSN to view tax slab.')
-                          }
+                          helperText={field.value ? `Applied GST: ${hsnCodes.find(h => String(h.id || h._id) === String(field.value))?.gstPercent || 0}%` : 'Select HSN'}
                         >
                           {renderAsyncValueOption(field.value, hsnCodes)}
                           <MenuItem value="">Select HSN</MenuItem>
-                          {hsnCodes.map((h) => (
-                            <MenuItem key={h.id || h._id} value={h.id || h._id}>
-                              {h.hsnCode || h.code} - {h.gstRate || h.gstPercent}%
-                            </MenuItem>
-                          ))}
+                          {hsnCodes.map((h) => <MenuItem key={h.id || h._id} value={h.id || h._id}>{h.hsnCode || h.code} - {h.gstPercent}%</MenuItem>)}
                         </TextField>
                       )}
                     />
                   </Grid>
-                  {isRawMaterial && (
-                    <Grid size={{ xs: 12, md: 3 }}>
-                       <TextField fullWidth size="small" type="number" label="Default Purchase Rate *" {...register('openingStockRate', { required: isRawMaterial })} disabled={isViewMode} />
-                    </Grid>
-                  )}
-                  {isRawMaterial && (
-                    <Grid size={{ xs: 12, md: 3 }}>
-                      <Controller
-                        name="vendorId"
-                        control={control}
-                        render={({ field }) => (
-                          <TextField {...field} select size="small" fullWidth label="Primary Supplier" value={field.value ?? ''} disabled={isViewMode} InputLabelProps={{ shrink: true }}>
-                            {renderAsyncValueOption(field.value, suppliers)}
-                            <MenuItem value="">Select Supplier</MenuItem>
-                            {suppliers.map((s) => <MenuItem key={s.id || s._id} value={s.id || s._id}>{s.supplierName || s.name}</MenuItem>)}
-                          </TextField>
-                        )}
-                      />
-                    </Grid>
-                  )}
                   <Grid size={{ xs: 12, md: 3 }}>
                     <TextField fullWidth size="small" select label="Unit (UOM) *" {...register('uom')} disabled={isViewMode}>
                       <MenuItem value="PCS">Piece (PCS)</MenuItem>
                       <MenuItem value="SET">Set (SET)</MenuItem>
-                      <MenuItem value="METER">Meter (MTR)</MenuItem>
-                      <MenuItem value="KG">Kilogram (KG)</MenuItem>
-                      <MenuItem value="YARD">Yard (YRD)</MenuItem>
-                      <MenuItem value="ROL">Roll (ROL)</MenuItem>
+                      <MenuItem value="DOZ">Dozen (DOZ)</MenuItem>
+                      <MenuItem value="PKT">Packet (PKT)</MenuItem>
+                      <MenuItem value="BOX">Box (BOX)</MenuItem>
                     </TextField>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 3 }}>
+                      <TextField 
+                        fullWidth size="small" label="Color / Shade" 
+                        {...register('shadeColor')} disabled={isViewMode}
+                        list="common-colors" autoComplete="off" placeholder="e.g. Navy Blue"
+                      />
+                      <datalist id="common-colors">
+                        {COMMON_COLORS.map(c => <option key={c} value={c} />)}
+                      </datalist>
                   </Grid>
                 </Grid>
               </FormSection>
 
-              <FormSection title="Category Hierarchy" subtitle="Organize item in Section > Category > Sub Category > Style / Type.">
+              <FormSection title="Category & Hierarchy" subtitle="Organize item in Section > Category > Sub Category.">
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, md: 3 }}>
                     <Controller
-                      name="sectionId"
-                      control={control}
+                      name="sectionId" control={control}
                       render={({ field }) => <TextField {...field} select size="small" fullWidth label="Section" value={field.value ?? ''} disabled={isViewMode} InputLabelProps={{ shrink: true }}>{renderAsyncValueOption(field.value, sections)}<MenuItem value="">Select Section</MenuItem>{sections.map((g) => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}</TextField>}
                     />
                   </Grid>
                   <Grid size={{ xs: 12, md: 3 }}>
                     <Controller
-                      name="categoryId"
-                      control={control}
+                      name="categoryId" control={control}
                       render={({ field }) => <TextField {...field} select size="small" fullWidth label="Category" value={field.value ?? ''} disabled={!selectedSectionId || isViewMode} InputLabelProps={{ shrink: true }}>{renderAsyncValueOption(field.value, categoryOptions)}<MenuItem value="">Select Category</MenuItem>{categoryOptions.map((g) => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}</TextField>}
                     />
                   </Grid>
                   <Grid size={{ xs: 12, md: 3 }}>
                     <Controller
-                      name="subCategoryId"
-                      control={control}
+                      name="subCategoryId" control={control}
                       render={({ field }) => <TextField {...field} select size="small" fullWidth label="Sub Category" value={field.value ?? ''} disabled={!selectedCategoryId || isViewMode} InputLabelProps={{ shrink: true }}>{renderAsyncValueOption(field.value, subCategoryOptions)}<MenuItem value="">Select Sub Category</MenuItem>{subCategoryOptions.map((g) => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}</TextField>}
                     />
                   </Grid>
                   <Grid size={{ xs: 12, md: 3 }}>
                     <Controller
-                      name="subSubCategoryId"
-                      control={control}
+                      name="subSubCategoryId" control={control}
                       render={({ field }) => <TextField {...field} select size="small" fullWidth label="Style / Type" value={field.value ?? ''} disabled={!selectedSubCategoryId || isViewMode} InputLabelProps={{ shrink: true }}>{renderAsyncValueOption(field.value, styleOptions)}<MenuItem value="">Select Style / Type</MenuItem>{styleOptions.map((g) => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}</TextField>}
                     />
                   </Grid>
                 </Grid>
               </FormSection>
 
-              {!isRawMaterial && (
-                <FormSection title="Style & Fit" subtitle="Garment-specific attributes.">
-                  <Grid container spacing={2}>
-                    <Grid size={{ xs: 12, md: 3 }}>
-                      <Controller
-                        name="brand"
-                        control={control}
-                        render={({ field }) => (
-                          <TextField {...field} select size="small" fullWidth label="Brand" value={field.value ?? ''} disabled={isViewMode} InputLabelProps={{ shrink: true }}>
-                            {renderAsyncValueOption(field.value, brands)}
-                            <MenuItem value="">Select Brand</MenuItem>
-                            {brands.map((b) => <MenuItem key={b.id || b._id} value={b.id || b._id}>{b.brandName || b.name}</MenuItem>)}
-                          </TextField>
-                        )}
-                      />
-                    </Grid>
-                    <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Fabric Type" {...register('fabric')} disabled={isViewMode} /></Grid>
-                    <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Pattern" {...register('pattern')} disabled={isViewMode} /></Grid>
-                    <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Fit" {...register('fit')} disabled={isViewMode} /></Grid>
-                    <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Gender" {...register('gender')} disabled={isViewMode} /></Grid>
-                    <Grid size={{ xs: 12, md: 3 }}>
-                      <TextField 
-                        fullWidth 
-                        size="small" 
-                        label="Color / Shade" 
-                        {...register('shadeColor')} 
-                        disabled={isViewMode}
-                        list="common-colors"
-                        autoComplete="off"
-                        placeholder="e.g. Navy Blue"
-                      />
-                      <datalist id="common-colors">
-                        {COMMON_COLORS.map(c => <option key={c} value={c} />)}
-                      </datalist>
-                    </Grid>
-                    <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="SKU Prefix" {...register('skuPrefix')} disabled={isViewMode} /></Grid>
-                    <Grid size={12}><TextField fullWidth size="small" label="Item Description" multiline minRows={2} {...register('description')} disabled={isViewMode} /></Grid>
+              <FormSection title="Technical Attributes" subtitle="Additional specifications for Garments and Accessories.">
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 12, md: 3 }}>
+                    <Controller
+                      name="brand" control={control}
+                      render={({ field }) => <TextField {...field} select size="small" fullWidth label="Brand" value={field.value ?? ''} disabled={isViewMode} InputLabelProps={{ shrink: true }}>{renderAsyncValueOption(field.value, brands)}<MenuItem value="">Select Brand</MenuItem>{brands.map((b) => <MenuItem key={b.id || b._id} value={b.id || b._id}>{b.brandName || b.name}</MenuItem>)}</TextField>}
+                    />
                   </Grid>
-                </FormSection>
-              )}
-
-              {isRawMaterial && (
-                <FormSection title="Material Specifications" subtitle="Technical details for raw items.">
-                  <Grid container spacing={2}>
-                    <Grid size={{ xs: 12, md: 4 }}><TextField fullWidth size="small" label="Fabric Composition" placeholder="e.g. 100% Cotton" {...register('composition')} disabled={isViewMode} /></Grid>
-                    <Grid size={{ xs: 12, md: 2 }}><TextField fullWidth size="small" label="GSM" {...register('gsm')} disabled={isViewMode} /></Grid>
-                    <Grid size={{ xs: 12, md: 2 }}><TextField fullWidth size="small" label="Width" {...register('width')} disabled={isViewMode} /></Grid>
-                    <Grid size={{ xs: 12, md: 4 }}>
-                      <TextField 
-                        fullWidth 
-                        size="small" 
-                        label="Shade No / Color" 
-                        {...register('shadeNo')} 
-                        disabled={isViewMode} 
-                        list="common-colors"
-                        autoComplete="off"
-                      />
-                    </Grid>
-                    <Grid size={{ xs: 12, md: 6 }}><TextField fullWidth size="small" label="Accessory Size" placeholder="e.g. 18L, 24L" {...register('accessorySize')} disabled={isViewMode} /></Grid>
-                    <Grid size={{ xs: 12, md: 6 }}><TextField fullWidth size="small" label="Packing Type" placeholder="e.g. Roll, Gross" {...register('packingType')} disabled={isViewMode} /></Grid>
-                  </Grid>
-                </FormSection>
-              )}
+                  <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Fabric / Material" {...register('fabric')} disabled={isViewMode} /></Grid>
+                  <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Pattern" {...register('pattern')} disabled={isViewMode} /></Grid>
+                  <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Fit" {...register('fit')} disabled={isViewMode} /></Grid>
+                  <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Accessory Size / Specs" {...register('accessorySize')} disabled={isViewMode} /></Grid>
+                  <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Packing Type" {...register('packingType')} disabled={isViewMode} /></Grid>
+                  <Grid size={12}><TextField fullWidth size="small" label="Item Description" multiline minRows={2} {...register('description')} disabled={isViewMode} /></Grid>
+                </Grid>
+              </FormSection>
             </Stack>
           </Box>
 
           {/* Variants Tab */}
           <Box sx={{ display: activeTab === 'variants' ? 'block' : 'none' }}>
               <VariantTable 
-                variants={variants} 
-                onChange={setVariants} 
-                styleCode={styleCode || 'ITEM'} 
-                readOnly={isViewMode} 
+                variants={variants} onChange={setVariants} 
+                styleCode={styleCode || 'ITEM'} readOnly={isViewMode} 
                 sizeOptions={sizes.map(s => s.sizeCode || s.name)} 
               />
             </Box>
 
           {/* Media Tab */}
           <Box sx={{ display: activeTab === 'media' ? 'block' : 'none' }}>
-            <FormSection title="Media" subtitle="Images for catalog and sales presentation.">
+            <FormSection title="Gallery" subtitle="Images for catalog and sales.">
               <Grid container spacing={2}>
                 {images.map((img, index) => (
                   <Grid key={index} size={{ xs: 12, sm: 6, md: 4 }}>
                     <Paper elevation={0} sx={{ border: '1px dashed #cbd5e1', borderRadius: 2, p: 1.5, minHeight: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#f8fafc', position: 'relative' }}>
-                      {uploadingImage === index ? (
-                        <CircularProgress size={30} />
-                      ) : img?.preview ? (
+                      {uploadingImage === index ? <CircularProgress size={30} /> : img?.preview ? (
                         <>
                           <Box component="img" src={img.preview} sx={{ width: '100%', height: 160, objectFit: 'cover', borderRadius: 1 }} />
                           {!isViewMode && <Button size="small" color="error" variant="contained" onClick={() => removeImage(index)} sx={{ position: 'absolute', top: 8, right: 8, minWidth: 0, px: 1 }}>X</Button>}
@@ -610,7 +459,7 @@ function ItemFormPage({ mode = 'edit' }) {
                             <UploadFileIcon sx={{ fontSize: 32 }} />
                             <Typography variant="body2" sx={{ fontWeight: 700 }}>{index === 0 ? 'Main Image' : `Image ${index + 1}`}</Typography>
                           </Stack>
-                          <input hidden type="file" accept="image/*" onChange={handleImageChange(index)} />
+                           <input hidden type="file" accept="image/*" onChange={handleImageChange(index)} />
                         </Button>
                       )}
                     </Paper>
@@ -619,7 +468,6 @@ function ItemFormPage({ mode = 'edit' }) {
               </Grid>
             </FormSection>
           </Box>
-
         </Box>
       </Paper>
 
@@ -627,7 +475,7 @@ function ItemFormPage({ mode = 'edit' }) {
         <Paper elevation={0} sx={{ position: 'sticky', bottom: 0, border: '1px solid #e2e8f0', p: 2, bgcolor: '#fff', zIndex: 10, borderRadius: 2 }}>
           <Stack direction="row" spacing={1.5} sx={{ justifyContent: 'flex-end' }}>
             <Button variant="outlined" onClick={() => navigate('/items')}>Cancel</Button>
-            <Button variant="contained" color="primary" onClick={handleSubmit((values) => onSubmit(values, 'Active'))}>Final Save</Button>
+            <Button variant="contained" color="primary" sx={{ px: 4, fontWeight: 800 }} onClick={handleSubmit((values) => onSubmit(values, 'Active'))}>Save Everything</Button>
           </Stack>
         </Paper>
       )}
@@ -637,17 +485,9 @@ function ItemFormPage({ mode = 'edit' }) {
 
 export default ItemFormPage;
 
-/**
- * Renders a placeholder MenuItem if the current value is not in the options list.
- * Crucial for avoiding MUI "Out of range" errors when data is still loading.
- */
 function renderAsyncValueOption(value, options) {
   if (!value) return null;
   const match = options.find((o) => String(o.id || o._id) === String(value));
-  if (match) return null; // MUI handles this fine
-  return (
-    <MenuItem key={value} value={value} sx={{ display: 'none' }}>
-      Loading...
-    </MenuItem>
-  );
+  if (match) return null;
+  return <MenuItem key={value} value={value} sx={{ display: 'none' }}>Loading...</MenuItem>;
 }

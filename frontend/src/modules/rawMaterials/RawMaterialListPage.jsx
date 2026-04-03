@@ -1,24 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
-  Box,
-  Button,
-  Card,
-  Chip,
-  IconButton,
-  InputAdornment,
-  MenuItem,
-  Paper,
-  Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TablePagination,
-  TableRow,
-  TextField,
-  Typography,
+    Box,
+    Button,
+    Card,
+    Chip,
+    IconButton,
+    InputAdornment,
+    MenuItem,
+    Paper,
+    Stack,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TablePagination,
+    TableRow,
+    TextField,
+    Typography,
 } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import SearchIcon from '@mui/icons-material/Search';
@@ -47,7 +47,7 @@ const RawMaterialListPage = () => {
     }, [dispatch, typeFilter, searchTerm]);
 
     const filteredRecords = useMemo(() => {
-        return records.filter(r => 
+        return records.filter(r =>
             (typeFilter === 'all' || r.materialType === typeFilter) &&
             (r.name.toLowerCase().includes(searchTerm.toLowerCase()) || r.code.toLowerCase().includes(searchTerm.toLowerCase()))
         );
@@ -61,14 +61,14 @@ const RawMaterialListPage = () => {
 
     return (
         <Box>
-            <PageHeader 
+            <PageHeader
                 title="Raw Material Registry"
                 subtitle="Manage factory supplies including Fabric, Threads, Button, and Packaging."
                 breadcrumbs={[{ label: 'Inventory' }, { label: 'Raw Materials', active: true }]}
                 actions={[
-                    <Button 
+                    <Button
                         key="add"
-                        variant="contained" 
+                        variant="contained"
                         startIcon={<AddCircleOutlineIcon />}
                         onClick={() => navigate(`${basePath}/inventory/raw-materials/new`)}
                         sx={{ bgcolor: '#2563eb' }}
@@ -136,9 +136,9 @@ const RawMaterialListPage = () => {
                                             {row.currentStock} {row.uom}
                                         </TableCell>
                                         <TableCell>
-                                            <Chip 
-                                                label={row.status} 
-                                                size="small" 
+                                            <Chip
+                                                label={row.status}
+                                                size="small"
                                                 color={row.status === 'Active' ? 'success' : 'default'}
                                                 sx={{ height: 20, fontSize: '0.7rem' }}
                                             />

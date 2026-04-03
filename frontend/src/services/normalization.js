@@ -407,12 +407,13 @@ const normalizeItem = (item, entityType) => {
             normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
             break;
         case 'group':
-            normalized.groupName = item.name;
+            normalized.name = item.name || item.groupName;
+            normalized.groupName = item.groupName || item.name;
             normalized.groupType = item.groupType || item.type || '';
             normalized.parentId = item.parentId?._id || item.parentId?.id || item.parentId || null;
             normalized.parentGroupName = item.parentId?.name || item.parentGroupName || '';
             normalized.level = item.level ?? 0;
-            normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
+            normalized.status = item.status || (item.isActive !== false ? 'Active' : 'Inactive');
             break;
         case 'hsnCode':
             normalized.hsnCode = item.code || '';

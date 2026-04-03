@@ -88,11 +88,6 @@ const productSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User'
         },
-        gstSlabId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'GstSlab',
-            default: null
-        },
         image: { type: String }, // Backward compatibility
         images: [{ type: String }],
         description: { type: String, trim: true },

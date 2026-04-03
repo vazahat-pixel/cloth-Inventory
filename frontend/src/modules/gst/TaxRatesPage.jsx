@@ -40,7 +40,7 @@ function TaxRatesPage() {
   const taxRates = useSelector((state) => state.gst.taxRates);
 
   useEffect(() => {
-    dispatch(fetchGstSlabs());
+    // GST Slabs are deprecated, tax is now via HSN Master
   }, [dispatch]);
 
   const [page, setPage] = useState(0);

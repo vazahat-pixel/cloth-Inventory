@@ -1,6 +1,5 @@
 const express = require('express');
 const itemController = require('./item.controller');
-const accessoryController = require('./accessory.controller');
 const { protect } = require('../../middlewares/auth.middleware');
 const { requireAdmin } = require('../../middlewares/role.middleware');
 
@@ -8,7 +7,7 @@ const router = express.Router();
 
 router.use(protect);
 
-router.post('/accessory/direct-entry', requireAdmin, accessoryController.directAccessoryEntry);
+router.get('/next-code', itemController.getNextCode);
 router.route('/')
     .get(itemController.getAllItems)
     .post(requireAdmin, itemController.createItem);

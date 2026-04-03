@@ -1,4 +1,5 @@
 const SupplierOutward = require('../../models/supplierOutward.model');
+const Warehouse = require('../../models/warehouse.model');
 const RawMaterial = require('../../models/rawMaterial.model');
 const StockLedger = require('../../models/stockLedger.model');
 
@@ -7,6 +8,13 @@ class SupplierOutwardService {
         const { supplierId, warehouseId, items, notes } = data;
 
         if (!items || !items.length) throw new Error('Materials list is required');
+        
+        let actualWarehouseId = warehouseId;
+        if (!actualWarehouseId) {
+            const defaultWH = await Warehouse.findOne({ isActive: true, isDeleted: false });
+            if (!defaultWH) throw new Error('No active warehouse found to deduct stock from');
+            actualWarehouseId = defaultWH._id;
+        }
 
         // Generate Outward Number (Legacy ERP format: SO-DATE-RANDOM)
         const outwardNumber = `M-ISSUE-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
@@ -33,14 +41,14 @@ class SupplierOutwardService {
                 rm.lastIssueDate = new Date();
                 await rm.save({ session });
 
-                // 3. Create Stock Ledger Entry for Audit
                 const ledgerOut = new StockLedger({
-                    itemId: rawMaterialId, // Using RM ID in itemId field of ledger
-                    locationId: warehouseId || 'MAIN_WH',
+                    itemId: rawMaterialId,
+                    barcode: rm.code,
+                    locationId: actualWarehouseId,
                     locationType: 'WAREHOUSE',
                     type: 'OUT',
                     quantity,
-                    source: 'RAW_MATERIAL_ISSUE',
+                    source: 'SUPPLIER_OUTWARD',
                     referenceId: outwardNumber,
                     balanceAfter: rm.currentStock,
                     userId
@@ -58,7 +66,7 @@ class SupplierOutwardService {
             const outward = new SupplierOutward({
                 outwardNumber,
                 supplierId,
-                warehouseId: warehouseId || '65e1234567890abcdef12345', // Use a default or valid ID
+                warehouseId: actualWarehouseId,
                 items: savedItems,
                 notes,
                 createdBy: userId,

@@ -57,9 +57,8 @@ export const getRoleBasePath = (role) => {
 
 const adminSidebarItems = [
   { label: 'Search Home', path: '/', icon: HomeIcon },
-  { label: 'Inventory Center', path: '/inventory', icon: Inventory2Icon, matchPaths: [...inventoryMatchPaths, ...itemsMatchPaths], drilldown: true },
-  { label: 'Purchase Voucher', path: '/purchase', icon: ShoppingCartIcon, matchPaths: purchaseMatchPaths, drilldown: true },
-  { label: 'Material Issue (Outward)', path: '/supplier-outward', icon: BuildOutlinedIcon, drilldown: true },
+  { label: 'Goods Control', path: '/inventory/stock-overview', icon: Inventory2Icon, matchPaths: ['/inventory/stock-overview', '/items', '/grn', '/setup/barcode-print', '/setup/groups', '/setup/hsn-codes', '/setup/sizes', '/masters/brands'], drilldown: true },
+  { label: 'Material Production Logs', path: '/inventory/supplier-outward', icon: BuildOutlinedIcon, matchPaths: ['/inventory/supplier-outward', '/inventory/consumption'], drilldown: true },
   { label: 'Sales & Billing', path: '/sales', icon: PointOfSaleIcon, matchPaths: billingMatchPaths, drilldown: true },
   { label: 'Reports & Analytics', path: '/reports', icon: AssessmentOutlinedIcon, matchPaths: reportsQueriesMatchPaths, drilldown: true },
   { label: 'Accounts', path: '/accounts', icon: AccountBalanceWalletIcon, matchPaths: accountsMatchPaths, drilldown: true },
@@ -76,21 +75,24 @@ export const adminNavConfig = {
   children: {
     '/setup': setupNavItems.map(i => ({ ...i, drilldown: ['/setup/accounts', '/setup/taxes', '/setup/party-wise', '/setup/other-account-details', '/setup/configurations'].includes(i.path) })),
     '/accounts': accountsNavItems.map(i => ({ ...i, drilldown: ['/accounts/vouchers', '/accounts/printing', '/accounts/utilities'].includes(i.path) })),
-    '/purchase': [
-      { label: 'Purchase Voucher (RM/ACC)', path: '/ho/purchase/purchase-voucher' },
-      { label: 'Purchase Returns', path: '/ho/purchase/purchase-return' },
-    ],
-    '/inventory': [
-      { label: 'Garment Master (FG)', path: '/ho/items' },
-      { label: 'Inventory Registry (Garments)', path: '/ho/inventory/stock-overview' },
-      { label: 'Inventory Registry (Raw Material)', path: '/ho/inventory/raw-materials' },
-      { label: 'Barcode Print (FG)', path: '/ho/setup/barcode-print' },
+    '/inventory/stock-overview': [
+      { label: 'Garment Master', path: '/ho/items' },
+      { label: 'Inventory Overview', path: '/ho/inventory/stock-overview' },
+      { label: 'Barcode Print', path: '/ho/setup/barcode-print' },
       { label: 'Scan-to-Receipt (GRN)', path: '/ho/grn' },
+      { label: 'Item Groups (Hierarchy)', path: '/ho/setup/groups' },
+      { label: 'HSN Masters', path: '/ho/setup/hsn-codes' },
+      { label: 'Size Masters', path: '/ho/setup/sizes' },
+      { label: 'Brand Registry', path: '/ho/masters/brands' },
     ],
     '/items': [{ label: 'Back to Registry', path: '/ho/inventory' }],
-    '/supplier-outward': [
-      { label: 'Material Issue Registry', path: '/ho/inventory/supplier-outward' },
-      { label: 'Issue New Material', path: '/ho/inventory/supplier-outward/new' }
+    '/inventory/supplier-outward': [
+      { label: 'Raw Material Registry', path: '/ho/inventory/raw-materials' },
+      { label: 'Add New Factory Supply', path: '/ho/inventory/raw-materials/new' },
+      { label: 'Material Issuance (Out)', path: '/ho/inventory/supplier-outward' },
+      { label: 'Issue New Material', path: '/ho/inventory/supplier-outward/new' },
+      { label: 'Material Consumption Log', path: '/ho/inventory/consumption' },
+      { label: 'Record Production Waste', path: '/ho/inventory/consumption/new' }
     ],
     '/sales': billingNavItems,
     '/reports': [
@@ -103,7 +105,6 @@ export const adminNavConfig = {
       { label: 'Suppliers', path: '/ho/masters/suppliers' },
       { label: 'Customers', path: '/ho/masters/customers' },
       { label: 'Stores', path: '/ho/masters/stores' },
-      { label: 'Brands', path: '/ho/masters/brands' },
     ],
     '/data-import': dataImportNavItems,
 

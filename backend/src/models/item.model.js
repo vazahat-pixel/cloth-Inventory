@@ -12,18 +12,6 @@ const variantSchema = new mongoose.Schema({
     sparse: true,
     trim: true
   },
-  costPrice: {
-    type: Number,
-    required: true,
-    min: 0,
-    default: 0
-  },
-  salePrice: {
-    type: Number,
-    required: true,
-    min: 0,
-    default: 0
-  },
   mrp: {
     type: Number,
     required: true,
@@ -72,6 +60,12 @@ const itemSchema = new mongoose.Schema({
     type: String,
     default: 'PCS'
   },
+  type: {
+    type: String,
+    enum: ['GARMENT', 'ACCESSORY', 'FABRIC'],
+    default: 'GARMENT',
+    index: true
+  },
   fabric: { type: String, trim: true },
   pattern: { type: String, trim: true },
   fit: { type: String, trim: true },
@@ -89,6 +83,26 @@ const itemSchema = new mongoose.Schema({
   accessorySize: { type: String, trim: true }, // e.g. 18L, 24L
   packingType: { type: String, trim: true },   // e.g. Roll, Gross, Box
   
+  sectionId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Group',
+    index: true
+  },
+  categoryId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Group',
+    index: true
+  },
+  subCategoryId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Group',
+    index: true
+  },
+  styleId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Group',
+    index: true
+  },
   groupIds: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Group',
@@ -134,17 +148,10 @@ const itemSchema = new mongoose.Schema({
     type: [variantSchema],
     validate: {
       validator: function(v) {
-        if (this.type === 'RAW_MATERIAL') return true;
         return v && v.length > 0;
       },
-      message: 'At least one size variant is required for non-raw materials'
+      message: 'At least one size variant is required'
     }
-  },
-  type: {
-    type: String,
-    enum: ['RAW_MATERIAL', 'ACCESSORY', 'FINISHED_GOOD'],
-    default: 'FINISHED_GOOD',
-    index: true
   },
   isActive: {
     type: Boolean,

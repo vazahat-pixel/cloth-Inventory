@@ -7,11 +7,11 @@ const createHsnCode = async (data) => {
 const getAllHsnCodes = async (query = {}) => {
     const filter = {};
     if (query.code) filter.code = new RegExp(query.code, 'i');
-    return await HsnCode.find(filter).populate('gstSlabId');
+    return await HsnCode.find(filter);
 };
 
 const getHsnCodeById = async (id) => {
-    return await HsnCode.findById(id).populate('gstSlabId');
+    return await HsnCode.findById(id);
 };
 
 const updateHsnCode = async (id, data) => {

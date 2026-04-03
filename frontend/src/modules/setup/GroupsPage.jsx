@@ -377,8 +377,6 @@ function GroupsPage({ compact = false }) {
                     <Typography variant="body2"><strong>Level:</strong> {selectedGroup.level}</Typography>
                     <Typography variant="body2"><strong>Status:</strong> {selectedGroup.status}</Typography>
                     <Typography variant="body2"><strong>Description:</strong> {selectedGroup.description || '--'}</Typography>
-                    <Typography variant="body2"><strong>Created:</strong> {selectedGroup.createdAt || '--'}</Typography>
-                    <Typography variant="body2"><strong>Updated:</strong> {selectedGroup.updatedAt || '--'}</Typography>
                     <Stack direction="row" spacing={1.25} sx={{ pt: 1 }}>
                       <Button variant="contained" onClick={() => openDialog(selectedGroup)}>
                         Edit

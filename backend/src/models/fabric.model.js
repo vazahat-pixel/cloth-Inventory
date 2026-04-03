@@ -67,11 +67,6 @@ const fabricSchema = new mongoose.Schema(
             ref: 'User',
             required: true
         },
-        gstSlabId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'GstSlab',
-            default: null
-        },
         taxAmount: {
             type: Number,
             default: 0

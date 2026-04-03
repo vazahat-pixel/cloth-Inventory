@@ -53,17 +53,19 @@ const normalizeStockRows = (items = []) => {
   items.forEach((item) => {
     if (item.sizes && Array.isArray(item.sizes)) {
       item.sizes.forEach((sz) => {
-        // Only include variants that have stock in the warehouse
         if (Number(sz.stock || 0) > 0) {
           flattenedRows.push({
             id: sz._id,
             itemCode: sz.sku || item.itemCode,
             itemName: item.itemName,
-            size: sz._id, // Store size ID for label resolution
+            size: sz._id,
             availableQty: Number(sz.stock || 0),
             locationId: item.defaultWarehouse || '',
             uom: item.uom || 'PCS',
-            productId: sz._id, // This is the variant ID needed for dispatch
+            productId: sz._id,
+            hsn: item.hsCodeId?.hsnCode || item.hsCodeId?.code || '',
+            gstRate: item.hsCodeId?.gstPercent || 0,
+            price: Number(sz.salePrice || 0)
           });
         }
       });
@@ -179,6 +181,27 @@ function StockTransferFormPage({ mode = 'edit' }) {
 
   const totalQty = useMemo(() => lines.reduce((sum, line) => sum + Number(line.transferQty || 0), 0), [lines]);
 
+  const isInterstate = useMemo(() => {
+    if (!formValues.fromLocation || !formValues.toLocation) return false;
+    const from = warehouses.find(w => (w._id || w.id) === formValues.fromLocation) || stores.find(s => (s._id || s.id) === formValues.fromLocation);
+    const to = stores.find(s => (s._id || s.id) === formValues.toLocation) || warehouses.find(w => (w._id || w.id) === formValues.toLocation);
+    if (!from || !to) return false;
+    return from.location?.state?.toLowerCase() !== to.location?.state?.toLowerCase();
+  }, [formValues.fromLocation, formValues.toLocation, warehouses, stores]);
+
+  const taxSummary = useMemo(() => {
+    if (!isInterstate) return { subtotal: 0, tax: 0, total: 0 };
+    return lines.reduce((acc, line) => {
+      const lineSubtotal = Number(line.price || 0) * Number(line.transferQty || 0);
+      const lineTax = (lineSubtotal * Number(line.gstRate || 0)) / 100;
+      return {
+        subtotal: acc.subtotal + lineSubtotal,
+        tax: acc.tax + lineTax,
+        total: acc.total + lineSubtotal + lineTax
+      };
+    }, { subtotal: 0, tax: 0, total: 0 });
+  }, [isInterstate, lines]);
+
   const addLine = () => {
     const row = availableRows.find((option) => `${option.itemCode}-${option.size}` === linePicker);
     if (!row) {
@@ -195,6 +218,9 @@ function StockTransferFormPage({ mode = 'edit' }) {
         availableQty: row.availableQty,
         transferQty: 1,
         uom: row.uom,
+        hsn: row.hsn,
+        gstRate: row.gstRate,
+        price: row.price,
         remarks: '',
       },
     ]);
@@ -314,6 +340,14 @@ function StockTransferFormPage({ mode = 'edit' }) {
         <SummaryCard label="Status" value={<StatusBadge value={formValues.status} />} helper="Draft, in transit, completed, or cancelled." tone="warning" />
         <SummaryCard label="Total Items" value={lines.length} helper="Distinct item rows in this transfer." tone="info" />
         <SummaryCard label="Total Qty" value={totalQty} helper="Total units moving from HO to store." tone="success" />
+        {isInterstate && (
+          <SummaryCard 
+            label="Taxable Value" 
+            value={`₹${taxSummary.total.toLocaleString()}`} 
+            helper={`GST Applicable: ₹${taxSummary.tax.toLocaleString()} (Inter-state)`} 
+            tone="error" 
+          />
+        )}
       </Box>
 
       <FormSection title="Header" subtitle="Transfer date, origin, destination, notes, dispatch, and transfer type.">
@@ -420,38 +454,38 @@ function StockTransferFormPage({ mode = 'edit' }) {
                 <TableCell sx={{ fontWeight: 700 }}>Item Code</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Item Name</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Size</TableCell>
-                <TableCell sx={{ fontWeight: 700 }} align="right">Available Qty</TableCell>
-                <TableCell sx={{ fontWeight: 700 }} align="right">Transfer Qty</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>HSN</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Avl Qty</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Trf Qty</TableCell>
+                {isInterstate && <TableCell sx={{ fontWeight: 700 }} align="right">Rate</TableCell>}
+                {isInterstate && <TableCell sx={{ fontWeight: 700 }} align="right">GST %</TableCell>}
                 <TableCell sx={{ fontWeight: 700 }}>UOM</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Remarks</TableCell>
-                {!isViewMode ? <TableCell sx={{ fontWeight: 700 }} align="right">Remove</TableCell> : null}
+                {!isViewMode ? <TableCell sx={{ fontWeight: 700 }} align="right">Actions</TableCell> : null}
               </TableRow>
             </TableHead>
             <TableBody>
               {lines.map((line) => (
                 <TableRow key={line.id}>
                   <TableCell sx={{ fontWeight: 700 }}>{line.itemCode}</TableCell>
-                  <TableCell>{line.itemName}</TableCell>
+                  <TableCell title={line.itemName}>{line.itemName.slice(0, 20)}{line.itemName.length > 20 ? '...' : ''}</TableCell>
                   <TableCell>{getSizeLabel(line.size)}</TableCell>
+                  <TableCell>{line.hsn || '--'}</TableCell>
                   <TableCell align="right">{line.availableQty}</TableCell>
                   <TableCell align="right">
-                    {isViewMode ? (
-                      line.transferQty
-                    ) : (
-                      <TextField size="small" type="number" value={line.transferQty} onChange={(event) => setLines((previous) => previous.map((item) => item.id === line.id ? { ...item, transferQty: Math.max(0, Number(event.target.value)) } : item))} sx={{ width: 96 }} />
+                    {isViewMode ? line.transferQty : (
+                      <TextField 
+                        size="small" type="number" value={line.transferQty} 
+                        onChange={(e) => setLines((prev) => prev.map((it) => it.id === line.id ? { ...it, transferQty: Math.max(0, Number(e.target.value)) } : it))} 
+                        sx={{ width: 70 }} 
+                      />
                     )}
                   </TableCell>
+                  {isInterstate && <TableCell align="right">₹{line.price}</TableCell>}
+                  {isInterstate && <TableCell align="right">{line.gstRate}%</TableCell>}
                   <TableCell>{line.uom}</TableCell>
-                  <TableCell>
-                    {isViewMode ? (
-                      line.remarks || '--'
-                    ) : (
-                      <TextField size="small" value={line.remarks} onChange={(event) => setLines((previous) => previous.map((item) => item.id === line.id ? { ...item, remarks: event.target.value } : item))} />
-                    )}
-                  </TableCell>
                   {!isViewMode ? (
                     <TableCell align="right">
-                      <IconButton color="error" size="small" onClick={() => setLines((previous) => previous.filter((item) => item.id !== line.id))}>
+                      <IconButton color="error" size="small" onClick={() => setLines((prev) => prev.filter((it) => it.id !== line.id))}>
                         <DeleteOutlineIcon fontSize="small" />
                       </IconButton>
                     </TableCell>
