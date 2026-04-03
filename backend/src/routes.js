@@ -58,6 +58,7 @@ const registerRoutes = (app) => {
     app.use('/api/stock-returns', require('./modules/stockReturn/stockReturn.routes'));
     app.use('/api/supplier-outward', require('./modules/supplierOutward/supplierOutward.routes'));
     app.use('/api/pricing', require('./modules/pricing/pricing.routes'));
+    app.use('/api/raw-materials', require('./routes/rawMaterial.route'));
 };
 
 module.exports = registerRoutes;

@@ -73,6 +73,7 @@ function GRNFormPage({ mode = 'edit' }) {
   const [selectedItem, setSelectedItem] = useState(null);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [searchText, setSearchText] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const existingGrn = useMemo(() => grns.find(g => (g._id || g.id) === id), [grns, id]);
@@ -192,6 +193,51 @@ function GRNFormPage({ mode = 'edit' }) {
 
   const removeLine = (idx) => {
     setLines(lines.filter((_, i) => i !== idx));
+  };
+
+  const handleBarcodeScan = (barcode) => {
+    if (!barcode) return;
+    
+    // 1. Check if item already exists in the scan lines
+    const existingIdx = lines.findIndex(l => l.sku === barcode || l.barcode === barcode);
+    if (existingIdx !== -1) {
+      updateLine(existingIdx, 'receivedQty', Number(lines[existingIdx].receivedQty || 0) + 1);
+      return;
+    }
+
+    // 2. Search in allItems master
+    let foundItem = null;
+    let foundVariant = null;
+
+    for (const item of allItems) {
+      const variant = (item.sizes || []).find(v => v.sku === barcode || v.barcode === barcode);
+      if (variant) {
+        foundItem = item;
+        foundVariant = variant;
+        break;
+      }
+    }
+
+    if (foundItem && foundVariant) {
+      const newLine = {
+        id: `scan-${Date.now()}-${Math.random()}`,
+        itemId: foundItem._id || foundItem.id,
+        variantId: foundVariant._id || foundVariant.id,
+        itemName: foundItem.itemName,
+        itemCode: foundItem.itemCode,
+        size: foundVariant.size,
+        color: foundItem.shade || '',
+        sku: foundVariant.sku || foundVariant.barcode,
+        orderedQty: 0,
+        receivedQty: 1,
+        costPrice: foundVariant.costPrice || 0,
+        batchNumber: `B-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`
+      };
+      setLines(prev => [newLine, ...prev]);
+    } else {
+      setErrorMessage(`Barcode NOT FOUND: ${barcode}. Please check Item Master.`);
+      setTimeout(() => setErrorMessage(''), 3000);
+    }
   };
 
   const addItemToLines = (item) => {
@@ -457,20 +503,34 @@ function GRNFormPage({ mode = 'edit' }) {
                   <Typography variant="h6" sx={{ color: '#15803d', fontWeight: 900 }}>{totals.received}</Typography>
                 </Box>
               </Grid>
-              {!isLocked && !id && !formValues.purchaseOrderId && (
+
+              {!isLocked && (
                 <Grid item xs={12}>
-                  <Box sx={{ p: 2, bgcolor: '#f1f5f9', borderRadius: 2, display: 'flex', gap: 2, alignItems: 'center' }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700, minWidth: 100 }}>Direct Item Add:</Typography>
-                    <Autocomplete
-                      fullWidth
-                      size="small"
-                      options={allItems}
-                      getOptionLabel={(option) => `${option.itemCode} - ${option.itemName}`}
-                      value={selectedItem}
-                      onChange={(_, newVal) => addItemToLines(newVal)}
-                      renderInput={(params) => <TextField {...params} label="Search item by code or name..." placeholder="Enter style code..." />}
-                    />
-                  </Box>
+                  <Paper elevation={0} sx={{ p: 2, bgcolor: '#f8fafc', border: '2px solid #3b82f6', borderRadius: 2 }}>
+                    <Stack direction="row" spacing={2} alignItems="center">
+                      <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#1e40af', minWidth: 120 }}>SCAN BARCODE:</Typography>
+                      <TextField
+                        fullWidth
+                        autoFocus
+                        placeholder="Scan or type barcode and press Enter..."
+                        size="medium"
+                        value={searchText} // Borrowing searchText state or creating new scanInput
+                        onChange={(e) => setSearchText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && searchText.trim()) {
+                            e.preventDefault();
+                            handleBarcodeScan(searchText.trim());
+                            setSearchText('');
+                          }
+                        }}
+                        sx={{ bgcolor: '#fff' }}
+                        InputProps={{
+                          startAdornment: <SearchIcon sx={{ color: '#3b82f6', mr: 1 }} />
+                        }}
+                      />
+                      <Button variant="contained" sx={{ height: 44, px: 4, fontWeight: 700 }} onClick={() => { handleBarcodeScan(searchText); setSearchText(''); }}>Add</Button>
+                    </Stack>
+                  </Paper>
                 </Grid>
               )}
             </Grid>
