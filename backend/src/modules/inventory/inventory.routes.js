@@ -11,6 +11,7 @@ router.get('/stock-ledger/:itemId', inventoryController.getLedgerByItem);
 
 // Production-ready Warehouse Stock Retrieval
 router.get('/warehouse-stock/:warehouseId', inventoryController.getWarehouseStock);
+router.get('/warehouse/:warehouseId/scan/:barcode', inventoryController.scanWarehouseItem);
 
 // Debug Visibility & Journey System
 router.get('/dashboard-summary', inventoryController.getDashboardSummary);

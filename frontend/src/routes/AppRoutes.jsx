@@ -2,7 +2,6 @@ import { Suspense, lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { Box, CircularProgress } from '@mui/material';
 
-// Core Layouts & Pages (Static imports for reliability and speed)
 // Layouts & Page Utilities (Static imports for reliability)
 import AuthLayout from '../layouts/AuthLayout';
 import RoleDashboardLayout from '../layouts/RoleDashboardLayout';
@@ -21,21 +20,9 @@ const PageLoader = () => (
   </Box>
 );
 
-// --- Modules (Lazy loaded by feature set to reduce network flood) ---
-const PayrollSetupsPlaceholderPage = lazy(() => import('../modules/payroll/PayrollSetupsPlaceholderPage'));
-const ProductionPlaceholderPage = lazy(() => import('../modules/production/ProductionPlaceholderPage'));
-const PayrollEntryPlaceholderPage = lazy(() => import('../modules/payroll/PayrollEntryPlaceholderPage'));
-const PayrollReportsPlaceholderPage = lazy(() => import('../modules/payroll/PayrollReportsPlaceholderPage'));
-const ReportsQueriesPlaceholderPage = lazy(() => import('../modules/reports/ReportsQueriesPlaceholderPage'));
-const UtilitiesPlaceholderPage = lazy(() => import('../modules/utilities/UtilitiesPlaceholderPage'));
-const UserAccessPlaceholderPage = lazy(() => import('../modules/userAccess/UserAccessPlaceholderPage'));
-const PackingSlipPage = lazy(() => import('../modules/orders/PackingSlipPage'));
-const OrderProcessingPlaceholderPage = lazy(() => import('../modules/orders/OrderProcessingPlaceholderPage'));
-const DataImportPlaceholderPage = lazy(() => import('../modules/data/DataImportPlaceholderPage'));
+// --- Modules (Lazy loaded by feature set) ---
 const PurchaseReturnPageStaff = lazy(() => import('../modules/store/PurchaseReturnPage'));
 const StoreReceiptPage = lazy(() => import('../modules/store/StoreReceiptPage'));
-
-// --- Modules (Lazy loaded by feature set to reduce network flood) ---
 
 // Masters
 const MastersLayout = lazy(() => import('../modules/masters/MastersLayout'));
@@ -50,12 +37,11 @@ const SalesmenListPage = lazy(() => import('../modules/masters/salesmen/ListPage
 const BanksListPage = lazy(() => import('../modules/masters/banks/ListPage'));
 const SeasonsListPage = lazy(() => import('../modules/masters/seasons/ListPage'));
 
-// Placeholders for incomplete modules
+// Placeholders/Shared
 const PurchasePlaceholderPage = lazy(() => import('../modules/purchase/PurchasePlaceholderPage'));
 const InventoryPlaceholderPage = lazy(() => import('../modules/inventory/InventoryPlaceholderPage'));
 const BillingPlaceholderPage = lazy(() => import('../modules/sales/BillingPlaceholderPage'));
 const SetupAccountsPlaceholderPage = lazy(() => import('../modules/setup/SetupAccountsPlaceholderPage'));
-const OrdersContinuousPrintingPage = lazy(() => import('../modules/orders/OrdersContinuousPrintingPage'));
 
 // Items & Setup
 const ItemListPage = lazy(() => import('../modules/items/ItemListPage'));
@@ -65,29 +51,24 @@ const SizesPage = lazy(() => import('../modules/setup/SizesPage'));
 
 // Inventory
 const StockOverviewPage = lazy(() => import('../modules/inventory/StockOverviewPage'));
-const StockInPage = lazy(() => import('../modules/inventory/StockInPage'));
 const StockTransferPage = lazy(() => import('../modules/inventory/StockTransferPage'));
 const StockTransferFormPage = lazy(() => import('../modules/inventory/StockTransferFormPage'));
 const StockAuditPage = lazy(() => import('../modules/inventory/StockAuditPage'));
 const StockAdjustmentPage = lazy(() => import('../modules/inventory/StockAdjustmentPage'));
 const MovementHistoryPage = lazy(() => import('../modules/inventory/MovementHistoryPage'));
-const AuditDashboard = lazy(() => import('../modules/inventory/AuditDashboard'));
-const ItemJourneyPage = lazy(() => import('../modules/inventory/ItemJourneyPage'));
 const StockAuditView = lazy(() => import('../modules/inventory/StockAuditView'));
-const ValidationDashboard = lazy(() => import('../modules/inventory/ValidationDashboard'));
-const AuditLogViewer = lazy(() => import('../modules/inventory/AuditLogViewer'));
+const SupplierOutwardListPage = lazy(() => import('../modules/supplierOutward/SupplierOutwardListPage'));
+const SupplierOutwardFormPage = lazy(() => import('../modules/supplierOutward/SupplierOutwardFormPage'));
 
-// Purchase & Orders
+// Purchase
 const PurchaseListPage = lazy(() => import('../modules/purchase/PurchaseListPage'));
 const PurchaseFormPage = lazy(() => import('../modules/purchase/PurchaseFormPage'));
 const PurchaseOrderListPage = lazy(() => import('../modules/purchase/PurchaseOrderListPage'));
 const PurchaseOrderFormPage = lazy(() => import('../modules/purchase/PurchaseOrderFormPage'));
 const PurchaseReturnListPage = lazy(() => import('../modules/purchase/PurchaseReturnListPage'));
 const PurchaseReturnPage = lazy(() => import('../modules/purchase/PurchaseReturnPage'));
-const SaleOrderListPage = lazy(() => import('../modules/orders/SaleOrderListPage'));
-const SaleOrderFormPage = lazy(() => import('../modules/orders/SaleOrderFormPage'));
-const DeliveryOrderPage = lazy(() => import('../modules/orders/DeliveryOrderPage'));
-// Delivery Challan
+
+// Delivery & Dispatch
 const DeliveryChallanPage = lazy(() => import('../modules/dispatch/DeliveryChallanPage'));
 const DeliveryChallanForm = lazy(() => import('../modules/dispatch/DeliveryChallanForm'));
 
@@ -101,12 +82,8 @@ const PriceListPage = lazy(() => import('../modules/pricing/PriceListPage'));
 const PriceListFormPage = lazy(() => import('../modules/pricing/PriceListFormPage'));
 const SchemeListPage = lazy(() => import('../modules/pricing/SchemeListPage'));
 const SchemeFormPage = lazy(() => import('../modules/pricing/SchemeFormPage'));
-const CouponPage = lazy(() => import('../modules/pricing/CouponPage'));
 
-// Customers
-const LoyaltyConfigPage = lazy(() => import('../modules/customers/LoyaltyConfigPage'));
-const VoucherListPage = lazy(() => import('../modules/customers/VoucherListPage'));
-const VoucherFormPage = lazy(() => import('../modules/customers/VoucherFormPage'));
+// CRM (Shared / Minimal)
 const CreditNotesPage = lazy(() => import('../modules/customers/CreditNotesPage'));
 const CustomerRewardsPage = lazy(() => import('../modules/customers/CustomerRewardsPage'));
 
@@ -118,9 +95,7 @@ const SetupGenericTablePage = lazy(() => import('../modules/setup/SetupGenericTa
 const AccountMasterPage = lazy(() => import('../modules/setup/AccountMasterPage'));
 const StoreMasterPage = lazy(() => import('../modules/setup/StoreMasterPage'));
 const HSNCodePage = lazy(() => import('../modules/setup/HSNCodePage'));
-const FormulaPage = lazy(() => import('../modules/setup/FormulaPage'));
 const BarcodePrintingPage = lazy(() => import('../modules/setup/BarcodePrintingPage'));
-const DiscountSetupPage = lazy(() => import('../modules/setup/DiscountSetupPage'));
 const CounterMasterPage = lazy(() => import('../modules/setup/CounterMasterPage'));
 
 // Tax & GST Reports
@@ -134,8 +109,6 @@ const AccountsDashboard = lazy(() => import('../modules/accounts/AccountsDashboa
 const BankPaymentPage = lazy(() => import('../modules/accounts/BankPaymentPage'));
 const BankPaymentListPage = lazy(() => import('../modules/accounts/BankPaymentListPage'));
 const BankReceiptPage = lazy(() => import('../modules/accounts/BankReceiptPage'));
-const ContinuousPrintingPage = lazy(() => import('../modules/accounts/ContinuousPrintingPage'));
-const AccountsUtilitiesPage = lazy(() => import('../modules/accounts/AccountsUtilitiesPage'));
 
 // Reports
 const ReportsDashboard = lazy(() => import('../modules/reports/ReportsDashboard'));
@@ -150,29 +123,33 @@ const AgeAnalysisPage = lazy(() => import('../modules/reports/AgeAnalysisPage'))
 const LedgerReportPage = lazy(() => import('../modules/reports/LedgerReportPage'));
 const BankBookPage = lazy(() => import('../modules/reports/BankBookPage'));
 const CollectionReportPage = lazy(() => import('../modules/reports/CollectionReportPage'));
+const YieldAnalysisPage = lazy(() => import('../modules/reports/YieldAnalysisPage'));
+const ConsolidatedStockPage = lazy(() => import('../modules/reports/ConsolidatedStockPage'));
+const DayEndClosurePage = lazy(() => import('../modules/reports/DayEndClosurePage'));
 
-// --- NEW REPORTS LAYOUT & ENGINE ---
+// Dynamic Reports
 const ReportsQueriesLayout = lazy(() => import('../modules/reports/ReportsQueriesLayout'));
 const DynamicReportPage = lazy(() => import('../modules/reports/DynamicReportPage'));
 const GstSummaryReportPage = lazy(() => import('../modules/reports/GstSummaryReportPage'));
+const StoreClosureAuditPage = lazy(() => import('../modules/reports/StoreClosureAuditPage'));
+const InTransitMonitorPage = lazy(() => import('../modules/reports/InTransitMonitorPage'));
 const OrderReportPage = lazy(() => import('../modules/reports/OrderReportPage'));
 
-// Misc
+// Settings & Tools
 const SettingsLayout = lazy(() => import('../modules/settings/SettingsLayout'));
 const CompanyProfilePage = lazy(() => import('../modules/settings/CompanyProfilePage'));
 const UsersPage = lazy(() => import('../modules/settings/UsersPage'));
 const RolesPage = lazy(() => import('../modules/settings/RolesPage'));
 const NumberSeriesPage = lazy(() => import('../modules/settings/NumberSeriesPage'));
 const PreferencesPage = lazy(() => import('../modules/settings/PreferencesPage'));
-const PurchaseVoucherConfigPage = lazy(() => import('../modules/settings/PurchaseVoucherConfigPage'));
 const PrintTemplatesPage = lazy(() => import('../modules/settings/PrintTemplatesPage'));
 const AuditLogPage = lazy(() => import('../modules/settings/AuditLogPage'));
 const ProfilePage = lazy(() => import('../modules/profile/ProfilePage'));
 const DataImportExportPage = lazy(() => import('../modules/data/DataImportExportPage'));
 const GRNListPage = lazy(() => import('../modules/grn/GRNListPage'));
 const GRNFormPage = lazy(() => import('../modules/grn/GRNFormPage'));
+const AccessoryDirectEntryPage = lazy(() => import('../modules/items/AccessoryDirectEntryPage'));
 const HoMasterDashboard = lazy(() => import('../modules/reports/HoMasterDashboard'));
-const LogicERPManager = lazy(() => import('../modules/erp/LogicERPManager'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
 
 // --- CONFIGURATIONS FOR DYNAMIC REPORTS ---
@@ -285,7 +262,6 @@ function AppRoutes() {
 
             <Route path="inventory" element={<Navigate to="stock-overview" replace />} />
             <Route path="inventory/stock-overview" element={<StockOverviewPage />} />
-            <Route path="inventory/stock-in" element={<StockInPage />} />
             <Route path="inventory/transfer" element={<StockTransferPage />} />
             <Route path="inventory/transfer/new" element={<StockTransferFormPage />} />
             <Route path="inventory/transfer/:id/view" element={<StockTransferFormPage mode="view" />} />
@@ -293,48 +269,23 @@ function AppRoutes() {
             <Route path="inventory/audit" element={<StockAuditPage />} />
             <Route path="inventory/adjustment" element={<StockAdjustmentPage />} />
             <Route path="inventory/movements" element={<MovementHistoryPage />} />
-            <Route path="inventory/demo-dashboard" element={<AuditDashboard />} />
-            <Route path="inventory/item-journey" element={<ItemJourneyPage />} />
             <Route path="inventory/audit-view" element={<StockAuditView />} />
-            <Route path="inventory/validation" element={<ValidationDashboard />} />
-            <Route path="inventory/logs" element={<AuditLogViewer type="system" />} />
-            <Route path="inventory/errors" element={<AuditLogViewer type="error" />} />
+            <Route path="inventory/supplier-outward" element={<SupplierOutwardListPage />} />
+            <Route path="inventory/supplier-outward/new" element={<SupplierOutwardFormPage />} />
+            <Route path="inventory/accessory-entry" element={<AccessoryDirectEntryPage />} />
 
             <Route path="purchase" element={<Navigate to="purchase-voucher" replace />} />
             <Route path="purchase/purchase-voucher" element={<PurchaseListPage />} />
             <Route path="purchase/purchase-voucher/new" element={<PurchaseFormPage />} />
             <Route path="purchase/purchase-voucher/:id" element={<PurchaseFormPage />} />
-            <Route path="purchase/purchase-challan" element={<PurchasePlaceholderPage pageKey="purchase-challan" />} />
-            <Route path="purchase/rejection-replacements" element={<PurchasePlaceholderPage pageKey="rejection-replacements" />} />
-            <Route path="purchase/qc-document" element={<PurchasePlaceholderPage pageKey="qc-document" />} />
             <Route path="purchase/purchase-return" element={<PurchaseReturnListPage />} />
-            <Route path="purchase/purchase-return/:id" element={<PurchaseReturnPage />} />
-            <Route path="purchase/purchase-return-challan" element={<PurchasePlaceholderPage pageKey="purchase-return-challan" />} />
-            <Route path="purchase/purchase-return-replacements" element={<PurchasePlaceholderPage pageKey="purchase-return-replacements" />} />
-            <Route path="purchase/purchase-return-rate-difference" element={<PurchasePlaceholderPage pageKey="purchase-return-rate-difference" />} />
-            <Route path="purchase/stock-receipt-consignment" element={<PurchasePlaceholderPage pageKey="stock-receipt-consignment" />} />
-            <Route path="purchase/purchase-return-consignment" element={<PurchasePlaceholderPage pageKey="purchase-return-consignment" />} />
-            <Route path="purchase/stock-transfer-in" element={<PurchasePlaceholderPage pageKey="stock-transfer-in" />} />
-            <Route path="purchase/assign-sim-mobile" element={<PurchasePlaceholderPage pageKey="assign-sim-mobile" />} />
             <Route path="purchase/stock-adjustment" element={<PurchasePlaceholderPage pageKey="stock-adjustment" />} />
-            <Route path="purchase/generate-debit-notes" element={<PurchasePlaceholderPage pageKey="generate-debit-notes" />} />
             <Route path="purchase/orders" element={<PurchaseOrderListPage />} />
             <Route path="purchase/orders/new" element={<PurchaseOrderFormPage />} />
             <Route path="purchase/orders/:id" element={<PurchaseOrderFormPage mode="edit" />} />
             <Route path="purchase/orders/:id/view" element={<PurchaseOrderFormPage mode="view" />} />
             <Route path="purchase/orders/:id/edit" element={<PurchaseOrderFormPage mode="edit" />} />
 
-            <Route path="orders" element={<Navigate to="sale-order" replace />} />
-            <Route path="orders/sale-order" element={<SaleOrderListPage />} />
-            <Route path="orders/sale-order/new" element={<SaleOrderFormPage />} />
-            <Route path="orders/sale-order/:id/edit" element={<SaleOrderFormPage />} />
-            <Route path="orders/purchase-order" element={<PurchaseOrderListPage />} />
-            <Route path="orders/purchase-order/new" element={<PurchaseOrderFormPage />} />
-            <Route path="orders/purchase-order/:id" element={<PurchaseOrderFormPage mode="edit" />} />
-            <Route path="orders/purchase-order/:id/view" element={<PurchaseOrderFormPage mode="view" />} />
-            <Route path="orders/purchase-order/:id/edit" element={<PurchaseOrderFormPage mode="edit" />} />
-            <Route path="orders/continuous-printing-orders" element={<OrdersContinuousPrintingPage />} />
-            <Route path="orders/delivery" element={<DeliveryOrderPage />} />
             <Route path="orders/delivery-challan" element={<DeliveryChallanPage />} />
             <Route path="orders/delivery-challan/new" element={<DeliveryChallanForm />} />
             <Route path="orders/delivery-challan/:id/edit" element={<DeliveryChallanForm mode="edit" />} />
@@ -350,13 +301,10 @@ function AppRoutes() {
             <Route path="pricing/price-lists/new" element={<PriceListFormPage />} />
             <Route path="pricing/schemes" element={<SchemeListPage />} />
             <Route path="pricing/schemes/new" element={<SchemeFormPage />} />
-            <Route path="pricing/coupons" element={<CouponPage />} />
+            <Route path="pricing/schemes/:id/edit" element={<SchemeFormPage />} />
 
             <Route path="customers" element={<Navigate to="rewards" replace />} />
             <Route path="customers/rewards" element={<CustomerRewardsPage />} />
-            <Route path="customers/loyalty-config" element={<LoyaltyConfigPage />} />
-            <Route path="customers/vouchers" element={<VoucherListPage />} />
-            <Route path="customers/vouchers/new" element={<VoucherFormPage />} />
             <Route path="customers/credit-notes" element={<CreditNotesPage />} />
 
             <Route path="setup" element={<SetupLandingPage />} />
@@ -365,36 +313,19 @@ function AppRoutes() {
             <Route path="setup/accounts/country" element={<SetupCountryPage />} />
             <Route path="setup/accounts/states" element={<SetupAccountsPlaceholderPage pageKey="states" />} />
             <Route path="setup/accounts/city" element={<SetupAccountsPlaceholderPage pageKey="city" />} />
-            <Route path="setup/accounts/opening-trial" element={<SetupAccountsPlaceholderPage pageKey="opening-trial" />} />
-            <Route path="setup/accounts/predefined-narrations" element={<SetupAccountsPlaceholderPage pageKey="predefined-narrations" />} />
-            <Route path="setup/accounts/profit-centers" element={<SetupAccountsPlaceholderPage pageKey="profit-centers" />} />
-            <Route path="setup/accounts/cost-centers" element={<SetupAccountsPlaceholderPage pageKey="cost-centers" />} />
-            <Route path="setup/accounts/cost-center-groups" element={<SetupAccountsPlaceholderPage pageKey="cost-center-groups" />} />
-            <Route path="setup/accounts/allocate-cost-centers" element={<SetupAccountsPlaceholderPage pageKey="allocate-cost-centers" />} />
-            <Route path="setup/accounts/cost-element-budgets" element={<SetupAccountsPlaceholderPage pageKey="cost-element-budgets" />} />
-            <Route path="setup/accounts/transporters" element={<SetupAccountsPlaceholderPage pageKey="transporters" />} />
-            <Route path="setup/accounts/transport-destinations" element={<SetupAccountsPlaceholderPage pageKey="transport-destinations" />} />
-            <Route path="setup/accounts/tax-forms" element={<SetupAccountsPlaceholderPage pageKey="tax-forms" />} />
-            <Route path="setup/accounts/allocate-tax-forms" element={<SetupAccountsPlaceholderPage pageKey="allocate-tax-forms" />} />
-            <Route path="setup/accounts/tds-types" element={<SetupAccountsPlaceholderPage pageKey="tds-types" />} />
-            <Route path="setup/accounts/allocate-tds-types" element={<SetupAccountsPlaceholderPage pageKey="allocate-tds-types" />} />
-            <Route path="setup/accounts/fbt-types" element={<SetupAccountsPlaceholderPage pageKey="fbt-types" />} />
             <Route path="setup/accounts/allocate-fbt-types" element={<SetupAccountsPlaceholderPage pageKey="allocate-fbt-types" />} />
             <Route path="setup/accounts/customer-database" element={<SetupAccountsPlaceholderPage pageKey="customer-database" />} />
             <Route path="setup/accounts/account-groups" element={<SetupAccountsPlaceholderPage pageKey="account-groups" />} />
             <Route path="setup/accounts/balance-sheet-groups" element={<SetupAccountsPlaceholderPage pageKey="balance-sheet-groups" />} />
             <Route path="setup/accounts/allocate-balance-sheet-groups" element={<SetupAccountsPlaceholderPage pageKey="allocate-balance-sheet-groups" />} />
             <Route path="setup/accounts/branch-setup" element={<SetupAccountsPlaceholderPage pageKey="branch-setup" />} />
-            <Route path="setup/accounts/agents" element={<SetupAccountsPlaceholderPage pageKey="agents" />} />
 
             <Route path="setup/accounts/new-account" element={<AccountMasterPage />} />
             <Route path="setup/stores" element={<StoreMasterPage />} />
             <Route path="setup/groups" element={<GroupsPage />} />
             <Route path="setup/hsn-codes" element={<HSNCodePage />} />
             <Route path="setup/sizes" element={<SizesPage />} />
-            <Route path="setup/formulas" element={<FormulaPage />} />
             <Route path="setup/barcode-print" element={<BarcodePrintingPage />} />
-            <Route path="setup/discounts" element={<DiscountSetupPage />} />
             <Route path="setup/counters" element={<CounterMasterPage />} />
             <Route path="setup/taxes" element={<Navigate to="/ho/gst/tax-rates" replace />} />
             <Route path="setup/party-wise" element={<SetupGenericTablePage title="Party Wise Rules" description="Configure default parameters, price lists, and calculation rules for parties." />} />
@@ -418,6 +349,11 @@ function AppRoutes() {
               <Route path="vendors" element={<VendorReportPage />} />
               <Route path="movement" element={<MovementHistoryPage />} />
               <Route path="age-analysis" element={<AgeAnalysisPage />} />
+              <Route path="production/yield" element={<YieldAnalysisPage />} />
+              <Route path="inventory/consolidated" element={<ConsolidatedStockPage />} />
+              <Route path="inventory/in-transit" element={<InTransitMonitorPage />} />
+              <Route path="closure-history" element={<StoreClosureAuditPage />} />
+              <Route path="closure" element={<DayEndClosurePage />} />
               
               {/* Dynamic Engine Reports */}
               <Route path="sale-challan-reports" element={<DynamicReportPage config={CHALLAN_REPORT_CONFIG} />} />
@@ -450,8 +386,6 @@ function AppRoutes() {
             <Route path="accounts/bank-payment/:id" element={<BankPaymentPage mode="view" />} />
             <Route path="accounts/bank-payment-list" element={<BankPaymentListPage />} />
             <Route path="accounts/bank-receipt" element={<BankReceiptPage />} />
-            <Route path="accounts/continuous-printing" element={<ContinuousPrintingPage />} />
-            <Route path="accounts/utilities" element={<AccountsUtilitiesPage />} />
 
             <Route path="settings" element={<SettingsLayout />}>
               <Route index element={<Navigate to="company" replace />} />
@@ -460,12 +394,10 @@ function AppRoutes() {
               <Route path="roles" element={<RolesPage />} />
               <Route path="number-series" element={<NumberSeriesPage />} />
               <Route path="preferences" element={<PreferencesPage />} />
-              <Route path="purchase-voucher" element={<PurchaseVoucherConfigPage />} />
               <Route path="print-templates" element={<PrintTemplatesPage />} />
               <Route path="audit-logs" element={<AuditLogPage />} />
             </Route>
 
-            <Route path="clothing-erp" element={<LogicERPManager />} />
             <Route path="data-import" element={<DataImportExportPage />} />
             <Route path="grn" element={<GRNListPage />} />
             <Route path="grn/new" element={<GRNFormPage />} />
@@ -488,6 +420,10 @@ function AppRoutes() {
             <Route path="sales/sales-return" element={<SalesListPage pageTitle="Sales Return" showPrimaryAction={false} />} />
             <Route path="sales/sales-return/:id" element={<SalesReturnPage listPath="/sales/sales-return" />} />
             <Route path="reports/sales" element={<SalesReportPage />} />
+            <Route path="reports/purchase" element={<PurchaseReportPage />} />
+            <Route path="reports/stock" element={<StockReportPage />} />
+            <Route path="reports/collection" element={<CollectionReportPage />} />
+            <Route path="reports/closure" element={<DayEndClosurePage />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route>
         </Route>

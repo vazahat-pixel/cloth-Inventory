@@ -113,13 +113,41 @@ function DeliveryChallanForm({
         return variantOptions.filter((o) => !ids.has(o.variantId));
     }, [lines, variantOptions]);
 
-    const [inputValue, setInputValue] = useState('');
+    const handleScanner = async (code) => {
+        if (!code) return;
+        if (!sourceId) { setError("Select source warehouse first"); return; }
+        
+        try {
+            // Check if already in lines
+            const existing = lines.find(l => l.barcode === code);
+            if (existing) {
+                updateQuantity(existing.variantId, existing.quantity + 1);
+                return;
+            }
 
-    const addLine = () => {
-        if (!variantPickerValue) return;
-        setLines(prev => [...prev, { ...variantPickerValue, quantity: 1 }]);
-        setVariantPickerValue(null);
-        setInputValue('');
+            // Fetch variant from source stock via API
+            const res = await api.get(`/inventory/warehouse/${sourceId}/scan/${code}`);
+            const item = res.data.data || res.data;
+            
+            if (item) {
+                const newLine = {
+                    itemId: item.itemId._id || item.itemId,
+                    variantId: item.variantId,
+                    barcode: item.barcode,
+                    itemName: item.itemId.itemName || 'Item',
+                    itemCode: item.itemId.itemCode || '',
+                    sku: item.barcode,
+                    size: item.size || '-',
+                    color: item.color || '-',
+                    available: item.quantity,
+                    quantity: 1,
+                    rate: item.rate || 0
+                };
+                setLines(prev => [...prev, newLine]);
+            }
+        } catch (err) {
+            setError("Item not found in source warehouse or invalid barcode");
+        }
     };
 
     const updateQuantity = (variantId, val) => {
@@ -198,44 +226,40 @@ function DeliveryChallanForm({
         }
     }, [id]);
 
-    const handleSave = (status = 'DISPATCHED') => {
+    const handleSave = (status = 'SENT') => {
         setError('');
         if (!sourceId) { setError("Please select a source warehouse"); return; }
         if (!storeId) { setError("Please select a destination store"); return; }
         if (sourceId === storeId) { setError("Source and destination cannot be same"); return; }
         if (!lines.length) { setError("Add at least one item to dispatch"); return; }
 
-        const isInvoice = dispatchMode?.type === 'INVOICE';
-
         const payload = {
-            dispatchDate: date,
-            sourceWarehouseId: sourceId,
+            dcDate: date,
+            sourceId: sourceId,
             destinationStoreId: storeId,
             vehicleNumber,
             driverName,
-            products: lines.map(l => ({
-                productId: l.variantId,
+            items: lines.map(l => ({
+                itemId: l.itemId,
+                variantId: l.variantId,
+                barcode: l.barcode,
                 quantity: l.quantity,
                 rate: l.rate
             })),
-            status: status, // Dynamic status: DRAFT or DISPATCHED
-            dispatchMode: dispatchMode?.type,
-            type: isInvoice ? 'INTERNAL_SALE' : 'STOCK_TRANSFER',
-            subTotal: totals.subTotal,
-            totalTax: totals.tax,
-            grandTotal: totals.grandTotal,
-            paymentMode: 'CREDIT'
+            status: status, // DRAFT or SENT
+            type: 'WAREHOUSE_TO_STORE',
+            notes: `Dispatch of ${lines.length} items to store.`
         };
 
-        const action = isEditMode ? updateChallan({ id, data: payload }) : addChallan(payload);
+        const endpoint = isEditMode ? `/delivery-challan/${id}` : '/delivery-challan';
+        const method = isEditMode ? 'put' : 'post';
 
-        dispatch(action)
-            .unwrap()
+        api[method](endpoint, payload)
             .then((res) => {
-                alert(`Successfully ${isEditMode ? 'updated' : 'generated'} dispatch (${status === 'DRAFT' ? 'RESERVED' : 'DISPATCHED'})`);
+                alert(`Successfully ${isEditMode ? 'updated' : 'generated'} Challan (#${res.data.data?.dcNumber || ''})`);
                 navigate(listPath);
             })
-            .catch(err => setError(err || "Failed to save challan"));
+            .catch(err => setError(err.response?.data?.message || "Failed to save challan"));
     };
 
     return (
@@ -323,23 +347,32 @@ function DeliveryChallanForm({
 
                 <Typography variant="h6">Items to Dispatch</Typography>
                 <Stack direction="row" spacing={2}>
+                    <TextField 
+                        fullWidth size="small"
+                        placeholder="⚡ Fast Scan: Scan item barcode or type SKU..."
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleScanner(e.target.value);
+                                e.target.value = '';
+                            }
+                        }}
+                        InputProps={{
+                            startAdornment: <Typography sx={{ mr: 1, color: '#3b82f6', fontWeight: 700 }}>🔍</Typography>,
+                            sx: { bgcolor: '#eff6ff', border: '1px dashed #3b82f6' }
+                        }}
+                        helperText="Press Enter after scanning or typing."
+                    />
                     <Autocomplete
                         size="small"
                         options={filteredOptions}
                         getOptionLabel={(o) => `${o.sku} | ${o.itemName} (${o.size}/${o.color}) - Stock: ${o.available}`}
                         value={variantPickerValue}
-                        onChange={(_, v) => setVariantPickerValue(v)}
-                        inputValue={inputValue}
-                        onInputChange={(_, newInputValue) => setInputValue(newInputValue)}
-                        sx={{ flex: 1 }}
-                        renderInput={(params) => <TextField {...params} label="Search Item in Source Stock" />}
+                        onChange={(_, v) => v && handleScanner(v.sku)}
+                        sx={{ flex: 1.5 }}
+                        renderInput={(params) => <TextField {...params} label="Manual Search" />}
                         isOptionEqualToValue={(option, value) => option.variantId === value.variantId}
-                        openOnFocus
-                        clearOnBlur={false}
                     />
-                    <Button variant="outlined" startIcon={<AddCircleOutlineIcon />} onClick={addLine} disabled={!variantPickerValue}>
-                        Add Item
-                    </Button>
                 </Stack>
 
                 {error && <Typography color="error">{error}</Typography>}
@@ -423,16 +456,16 @@ function DeliveryChallanForm({
                     onClick={() => handleSave('DRAFT')}
                     sx={{ borderColor: 'secondary.main', color: 'secondary.main', fontWeight: 700 }}
                 >
-                    Save as Draft (Reserve)
+                    Save as Draft
                 </Button>
 
                 <Button 
                     variant="contained" 
                     startIcon={<SaveOutlinedIcon />} 
-                    onClick={() => handleSave('DISPATCHED')}
+                    onClick={() => handleSave('SENT')}
                     sx={{ boxShadow: '0 4px 12px rgba(37, 99, 235, 0.2)', fontWeight: 700 }}
                 >
-                    Save & Dispatch
+                    Save & Send (Issue DC)
                 </Button>
             </Stack>
         </Paper>

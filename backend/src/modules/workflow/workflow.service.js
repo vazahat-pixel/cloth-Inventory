@@ -1,58 +1,53 @@
 const WorkflowLog = require('../../models/workflowLog.model');
-const { DocumentType } = require('../../core/enums');
-
-// Define allowed transitions
-const ALLOWED_TRANSITIONS = {
-    [DocumentType.PO]: [DocumentType.PURCHASE],
-    [DocumentType.PURCHASE]: [DocumentType.GRN],
-    [DocumentType.GRN]: [DocumentType.QC],
-    [DocumentType.QC]: ['STOCK_UPDATE'],
-    ['STOCK_UPDATE']: [DocumentType.SALE],
-};
 
 /**
- * Validate if the next step is allowed from the current document type
+ * WORKFLOW SERVICE
+ * Standardizes status transitions, document linking, and audit logging across the ERP.
  */
-const validateNextStep = (currentType, nextType) => {
-    const allowed = ALLOWED_TRANSITIONS[currentType];
-    if (!allowed || !allowed.includes(nextType)) {
-        throw new Error(`Invalid workflow transition: ${currentType} -> ${nextType}`);
-    }
-    return true;
-};
-
-/**
- * Link two documents in the system (placeholder for cross-referencing)
- * In this system, linkage is usually stored as a field in the child document (e.g., grn.purchaseId)
- */
-const linkDocuments = async (parentId, childId, parentType, childType) => {
-    // This could optionally verify that the parentId exists and is of parentType
-    // For now, it logs the linkage as a workflow step
-    return true;
-};
-
-/**
- * Update document status and log the transition
- */
-const updateStatus = async (documentId, documentType, fromStatus, toStatus, userId, notes = '') => {
-    // Log the transition
-    await WorkflowLog.create({
-        documentId,
-        documentType,
-        fromStatus,
-        toStatus,
-        performedBy: userId,
-        notes
-    });
-
-    console.log(`[Workflow] Transition: ${documentType} ID ${documentId} | ${fromStatus} -> ${toStatus}`);
+class WorkflowService {
     
-    return true;
-};
+    /**
+     * UPDATE STATUS
+     * Tracks a state change for any document and logs it to WorkflowLog.
+     */
+    async updateStatus(documentId, documentType, fromStatus, toStatus, performedBy, notes = '') {
+        const log = new WorkflowLog({
+            documentId,
+            documentType,
+            fromStatus,
+            toStatus,
+            performedBy,
+            notes
+        });
+        
+        await log.save();
+        
+        // Optionally update a master Document index if needed
+        // await Document.findOneAndUpdate(...)
+        
+        return log;
+    }
 
-module.exports = {
-    validateNextStep,
-    linkDocuments,
-    updateStatus,
-    ALLOWED_TRANSITIONS
-};
+    /**
+     * LINK DOCUMENTS
+     * Standard trace link (e.g. PO -> GRN). 
+     * Native models (like GRN) already store parent IDs, so this is used for global audit indexing.
+     */
+    async linkDocuments(parentId, childId, parentType, childType) {
+        // We can implement a master cross-linked table here later.
+        console.log(`[WORKFLOW] Linking ${parentType}(${parentId}) to ${childType}(${childId})`);
+        return true;
+    }
+
+    /**
+     * GET HISTORY
+     * Retrieves the workflow trail for a specific piece of business logic.
+     */
+    async getHistory(documentId) {
+        return WorkflowLog.find({ documentId })
+            .sort({ createdAt: 1 })
+            .populate('performedBy', 'name email');
+    }
+}
+
+module.exports = new WorkflowService();

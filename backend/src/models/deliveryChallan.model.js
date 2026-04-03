@@ -14,23 +14,31 @@ const deliveryChallanSchema = new mongoose.Schema(
         },
         sourceId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'Warehouse' // Can be Warehouse or Store
+            ref: 'Warehouse'
         },
-        type: {
-            type: String,
-            enum: ['CUSTOMER_DISPATCH', 'STOCK_TRANSFER'],
-            default: 'CUSTOMER_DISPATCH'
-        },
-        storeId: {
+        destinationStoreId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Store',
             required: true
         },
+        type: {
+            type: String,
+            enum: ['CUSTOMER_DISPATCH', 'WAREHOUSE_TO_STORE'],
+            default: 'WAREHOUSE_TO_STORE'
+        },
         items: [
             {
-                productId: {
+                itemId: {
                     type: mongoose.Schema.Types.ObjectId,
-                    ref: 'Product',
+                    ref: 'Item',
+                    required: true
+                },
+                variantId: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    required: true
+                },
+                barcode: {
+                    type: String,
                     required: true
                 },
                 quantity: {
@@ -38,15 +46,16 @@ const deliveryChallanSchema = new mongoose.Schema(
                     required: true,
                     min: 1
                 },
-                price: {
+                rate: {
                     type: Number,
-                    required: true
+                    required: true,
+                    default: 0
                 }
             }
         ],
         status: {
             type: String,
-            enum: ['DRAFT', 'SENT', 'BILLED', 'CANCELLED'],
+            enum: ['DRAFT', 'SENT', 'RECEIVED', 'CANCELLED'],
             default: 'DRAFT'
         },
         dcDate: {

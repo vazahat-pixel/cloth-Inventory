@@ -173,79 +173,88 @@ function BarcodePrintingPage() {
     const styles = `
       <style>
         @page { size: 50mm 100mm; margin: 0; }
-        body { margin: 0; padding: 0; font-family: 'Helvetica', 'Arial', sans-serif; background: #fff; color: #000; }
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; background: #fff; color: #000; letter-spacing: 0.1mm; }
         .label { 
           width: 50mm; height: 100mm; box-sizing: border-box;
-          padding: 3mm 4mm; overflow: hidden; page-break-after: always;
+          padding: 4mm 5mm; overflow: hidden; page-break-after: always;
           display: flex; flex-direction: column; justify-content: flex-start;
+          border: 1px solid #eee; /* Light boundary for preview visibility */
         }
-        .barcode-container { width: 100%; text-align: center; margin-bottom: 2mm; margin-top: 2mm;}
-        .barcode-img { width: 100%; height: 12mm; display: block; margin: 0 auto; object-fit: contain; }
-        .barcode-text { font-size: 8pt; letter-spacing: 1px; margin-top: 1mm; }
+        .header { text-align: center; border-bottom: 0.5mm solid #000; padding-bottom: 2mm; margin-bottom: 3mm; }
+        .brand { font-size: 16pt; font-weight: 800; letter-spacing: 1.5mm; text-transform: uppercase; margin: 0; }
+        .sub-brand { font-size: 6.5pt; letter-spacing: 0.5mm; font-weight: 600; opacity: 0.8; }
+
+        .barcode-container { width: 100%; text-align: center; margin-bottom: 4mm; padding: 1mm 0; }
+        .barcode-img { width: 100%; height: 14mm; display: block; margin: 0 auto; object-fit: contain; }
+        .barcode-text { font-size: 9pt; font-weight: 700; letter-spacing: 1.5mm; margin-top: 1mm; text-align: center; }
         
-        .info-row { display: flex; font-size: 8pt; line-height: 1.4; margin-bottom: 0.5mm; }
-        .info-col-key { width: 17mm; font-weight: 500; }
-        .info-col-val { flex: 1; text-transform: uppercase; font-weight: 500;}
+        .spec-container { display: flex; flex-direction: column; gap: 0.8mm; margin-bottom: 4mm; }
+        .info-row { display: flex; font-size: 8.5pt; line-height: 1.2; align-items: baseline; }
+        .info-col-key { width: 18mm; font-weight: 700; color: #444; }
+        .info-col-val { flex: 1; text-transform: uppercase; font-weight: 800; color: #000; }
         
-        .mrp-row { display: flex; align-items: baseline; margin-top: 1.5mm; margin-bottom: 0.5mm;}
-        .mrp-key { font-size: 9pt; width: 14mm; font-weight: 600;}
-        .mrp-val { font-size: 11pt; font-weight: 700; flex: 1; text-align: center; }
-        .tax-info { text-align: center; font-size: 7.5pt; margin-bottom: 2mm; }
-        
-        .mfg-details { font-size: 7pt; line-height: 1.3; margin-top: 1mm; font-weight: 500;}
-        .mfg-details div { margin-bottom: 0.5mm; }
+        .price-section { 
+          border: 1px solid #000; padding: 2mm; margin-top: auto; margin-bottom: 4mm;
+          text-align: center; border-radius: 1mm;
+        }
+        .mrp-label { font-size: 10pt; font-weight: 800; margin-bottom: 1mm; }
+        .mrp-value { font-size: 14pt; font-weight: 900; }
+        .tax-text { font-size: 7.5pt; font-weight: 500; font-style: italic; }
+
+        .footer { font-size: 7pt; line-height: 1.3; font-weight: 500; }
+        .origin { font-size: 8pt; font-weight: 800; text-align: center; border-top: 0.3mm solid #aaa; padding-top: 1.5mm; margin-top: 2mm; text-transform: uppercase; }
+        .care-icons { text-align: center; font-size: 10pt; margin-top: 1mm; letter-spacing: 2mm; opacity: 0.8; }
       </style>
     `;
 
     const labelsHtml = labels.map(label => `
       <div class="label">
+        <div class="header">
+          <div class="brand">DAPOLO</div>
+          <div class="sub-brand">PREMIUM APPARELS</div>
+        </div>
+
         <div class="barcode-container">
           <img src="${generateBarcodeDataUrl(label.barcode)}" class="barcode-img" />
           <div class="barcode-text">${label.barcode}</div>
         </div>
         
-        <div class="info-row">
-          <span class="info-col-key">Article :</span> <span class="info-col-val">${label.article}</span>
-        </div>
-        <div class="info-row">
-          <span class="info-col-key">Group </span> <span class="info-col-val" style="margin-left: -5px">${label.category || 'SHIRT'}</span>
-        </div>
-        <div class="info-row">
-          <span class="info-col-key">Type: </span> <span class="info-col-val">${type}</span>
-        </div>
-        <div class="info-row">
-          <span class="info-col-key">DESIGN :</span> <span class="info-col-val">${design}</span>
-        </div>
-        
-        <div style="height: 1.5mm"></div>
-        
-        <div class="info-row">
-          <span class="info-col-key">Size :</span> <span class="info-col-val" style="padding-left: 2mm">${label.size}</span>
-        </div>
-        <div class="info-row">
-          <span class="info-col-key">Qty:</span> <span class="info-col-val">${qtyInfo} &nbsp;&nbsp;&nbsp;&nbsp;F/S</span>
-        </div>
-        <div class="info-row">
-          <span class="info-col-key">Colour :</span> <span class="info-col-val">${label.color}</span>
+        <div class="spec-container">
+          <div class="info-row">
+            <span class="info-col-key">STYLE :</span> <span class="info-col-val">${label.article}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-col-key">CATGY :</span> <span class="info-col-val">${label.category || 'SHIRT'}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-col-key">GENRE :</span> <span class="info-col-val">${type}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-col-key">SIZE :</span> <span class="info-col-val" style="font-size: 11pt">${label.size}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-col-key">COLOR :</span> <span class="info-col-val">${label.color}</span>
+          </div>
+          <div class="info-row">
+             <span class="info-col-key">MONTH :</span> <span class="info-col-val">${new Date().toLocaleString('en-GB', { month: 'short', year: 'numeric' })}</span>
+          </div>
         </div>
         
-        <div class="mrp-row">
-          <span class="mrp-key">MRP :</span> 
-          <span class="mrp-val">${label.mrp}</span>
-        </div>
-        <div class="tax-info">
-          (Incl of all taxes)
+        <div class="price-section">
+          <div class="mrp-label">M.R.P.</div>
+          <div class="mrp-value">₹ ${Number(label.mrp).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+          <div class="tax-text">(Incl. of all taxes)</div>
         </div>
 
-        <div class="mfg-details">
-          <div><b>MFG:</b></div>
-          <div>Mfg. & Marketed By</div>
-          <div>Rebel Mass Export Pvt. Ltd</div>
-          <div>${mfgLine1}</div>
-          <div>${mfgLine2}</div>
-          <div>Customer Care:</div>
-          <div>Email: info.dapolo@gmail.com</div>
+        <div class="footer">
+          <div><b>MFG BY:</b> REBEL MASS EXPORT PVT LTD</div>
+          <div>${mfgLine1}, ${mfgLine2}</div>
+          <div>CC: info.dapolo@gmail.com</div>
         </div>
+
+        <div class="origin">MADE IN INDIA</div>
+        <div class="care-icons">🧺 🚫🧴 🧼 👔</div>
       </div>
     `).join('');
 

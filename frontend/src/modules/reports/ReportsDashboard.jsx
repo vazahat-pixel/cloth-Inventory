@@ -20,6 +20,8 @@ import BusinessIcon from '@mui/icons-material/Business';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import PaymentsIcon from '@mui/icons-material/Payments';
+import PrecisionManufacturingIcon from '@mui/icons-material/PrecisionManufacturing';
+import Inventory2Icon from '@mui/icons-material/Inventory2';
 import { useSelector } from 'react-redux';
 import { useState } from 'react';
 import SearchIcon from '@mui/icons-material/Search';
@@ -103,6 +105,30 @@ const ALL_REPORT_CARDS = [
     icon: HourglassEmptyIcon,
     roles: ['admin'],
     aliases: ['inventory age', 'slow moving']
+  },
+  {
+    title: 'Production Yield Analysis',
+    description: 'Track fabrication efficiency and contractor wastage.',
+    path: '/reports/production/yield',
+    icon: PrecisionManufacturingIcon,
+    roles: ['admin'],
+    aliases: ['wastage', 'yield', 'production']
+  },
+  {
+    title: 'Consolidated Stock (Multi-Store)',
+    description: 'Live global stock visibility across all showrooms and warehouses.',
+    path: '/reports/inventory/consolidated',
+    icon: Inventory2Icon,
+    roles: ['admin'],
+    aliases: ['global stock', 'multi store', 'full stock']
+  },
+  {
+    title: 'Store Closure Audit (Z-Report)',
+    description: 'Monitor daily cash reconciliations and variances across all showrooms.',
+    path: '/reports/closure-history',
+    icon: PointOfSaleIcon,
+    roles: ['admin'],
+    aliases: ['z-report', 'day end', 'cash audit', 'closure']
   },
 ];
 

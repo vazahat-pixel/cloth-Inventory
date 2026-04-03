@@ -33,7 +33,7 @@ import PaymentIcon from '@mui/icons-material/Payment';
 import { addSale, fetchSales } from './salesSlice';
 import { fetchStockOverview } from '../inventory/inventorySlice';
 import { fetchMasters } from '../masters/mastersSlice';
-import { fetchPricingRules, fetchSchemes, fetchCoupons } from '../pricing/pricingSlice';
+import { fetchPricingRules, fetchSchemes, fetchCoupons, evaluateOffers } from '../pricing/pricingSlice';
 import { fetchItems } from '../items/itemsSlice';
 import { fetchLoyaltyConfig, fetchCreditNotes } from '../customers/customersSlice';
 import api from '../../services/api';
@@ -42,6 +42,7 @@ import PaymentDialog from './PaymentDialog';
 import LoyaltyRedeemDialog from './LoyaltyRedeemDialog';
 import ExchangeInvoicePrint from './ExchangeInvoicePrint';
 import StandardInvoicePrint from './StandardInvoicePrint';
+import ExchangeDialog from './ExchangeDialog';
 
 const DEFAULT_WALK_IN_NAME = 'Walk-in Customer';
 const EMPTY_ARR = [];
@@ -121,6 +122,7 @@ function BillingPage({
   const creditNotes = useSelector((state) => state.customerRewards?.creditNotes) ?? [];
   const user = useSelector((state) => state.auth.user);
   const stores = useSelector((state) => state.masters.stores || []);
+  const { eligibleOffers, evaluateLoading } = useSelector((state) => state.pricing);
 
   const isStoreStaff = user?.role !== 'Admin';
 
@@ -160,6 +162,11 @@ function BillingPage({
   const [saleType, setSaleType] = useState('retail');
   const [completedSaleData, setCompletedSaleData] = useState(null);
   const [showPrint, setShowPrint] = useState(false);
+  const [selectedScheme, setSelectedScheme] = useState(null);
+  const [exchangeOpen, setExchangeOpen] = useState(false);
+  const [exchangeItems, setExchangeItems] = useState([]);
+  const [originalSaleId, setOriginalSaleId] = useState(null);
+  const [originalSaleNumber, setOriginalSaleNumber] = useState('');
 
   const pendingDOsForCustomer = useMemo(() => {
     if (!customerId || billingMode !== 'fromDO') return [];
@@ -183,6 +190,24 @@ function BillingPage({
     dispatch(fetchCoupons());
     dispatch(fetchSales());
   }, [dispatch]);
+
+  // Real-time Offer Evaluation
+  useEffect(() => {
+    if (lines.length > 0) {
+      const evaluationPayload = {
+        items: lines.map(l => ({
+          productId: l.productId,
+          quantity: l.quantity,
+          price: l.rate,
+          brand: l.brand,
+          category: l.category
+        })),
+        totalAmount: calculatedGross,
+        storeId
+      };
+      dispatch(evaluateOffers(evaluationPayload));
+    }
+  }, [lines, calculatedGross, storeId, customerId, dispatch]);
 
   // Sync storeId when warehouses/stores load or user changes
   useEffect(() => {
@@ -343,11 +368,22 @@ function BillingPage({
     return toNumber(appliedCoupon.value);
   }, [appliedCoupon, calculatedGross]);
 
-  const schemeDiscountAmount = 0; // Handled by backend
+  const schemeDiscountAmount = useMemo(() => {
+    if (!selectedScheme) return 0;
+    return toNumber(selectedScheme.discount);
+  }, [selectedScheme]);
+
+  const returnTotalCredit = useMemo(() => {
+    return exchangeItems.reduce((acc, i) => {
+        const itemTotal = (toNumber(i.rate) * toNumber(i.quantity));
+        const itemTax = (toNumber(i.taxAmount) || 0); // use existing tax for accurate return
+        return acc + itemTotal + itemTax;
+    }, 0);
+  }, [exchangeItems]);
 
   const totals = useMemo(
-    () =>
-      calculateTotals(
+    () => {
+      const basic = calculateTotals(
         lines,
         billDiscount,
         loyaltyRedeemed,
@@ -355,8 +391,14 @@ function BillingPage({
         schemeDiscountAmount,
         creditNoteAmount,
         saleType
-      ),
-    [billDiscount, lines, loyaltyRedeemed, couponDiscountAmount, schemeDiscountAmount, creditNoteAmount, saleType],
+      );
+      return {
+        ...basic,
+        returnTotalCredit,
+        netPayable: Math.max(0, basic.netPayable - returnTotalCredit),
+      };
+    },
+    [billDiscount, lines, loyaltyRedeemed, couponDiscountAmount, schemeDiscountAmount, creditNoteAmount, saleType, returnTotalCredit],
   );
 
   const handleApplyCoupon = () => {
@@ -586,7 +628,17 @@ function BillingPage({
       paymentMode: payment.method || 'CASH',
       redeemPoints: Math.max(0, toNumber(loyaltyRedeemed)),
       creditNoteId: creditNoteId || null,
+      schemeId: selectedScheme?._id || null,
+      schemeDiscount: schemeDiscountAmount,
       type: (saleType || 'retail').toUpperCase(),
+      exchangeDetails: exchangeItems.length > 0 ? {
+          originalSaleId,
+          items: exchangeItems.map(i => ({
+              barcode: i.barcode,
+              quantity: i.quantity,
+              rate: i.rate
+          }))
+      } : null,
     };
 
     dispatch(addSale(payload))
@@ -1019,6 +1071,15 @@ function BillingPage({
               <Button variant="outlined" onClick={handleBarcodeAdd}>
                 Scan Add
               </Button>
+              <Button
+                variant="outlined"
+                color="warning"
+                sx={{ minWidth: 160, borderStyle: 'dashed', borderRadius: 2 }}
+                startIcon={<KeyboardReturnOutlinedIcon />}
+                onClick={() => setExchangeOpen(true)}
+              >
+                Add Exchange
+              </Button>
             </Stack>
 
             {lines.length ? (
@@ -1113,6 +1174,44 @@ function BillingPage({
               </Box>
             )}
           </Paper>
+
+          {exchangeItems.length > 0 && (
+            <Paper elevation={0} sx={{ border: '1px solid #E5E7EB', borderRadius: 2.5, p: 3, background: '#FFFFFF', mt: 2 }}>
+              <Stack direction="row" spacing={2} sx={{ mb: 2, alignItems: 'center', justifyContent: 'space-between' }}>
+                <Typography variant="h6" sx={{ fontWeight: 700, color: '#F59E0B' }}>
+                  Returned Items (Exchange Credit)
+                </Typography>
+                <IconButton color="error" size="small" onClick={() => { setExchangeItems([]); setOriginalSaleId(null); setOriginalSaleNumber(''); }}>
+                  <DeleteOutlineIcon fontSize="small" />
+                </IconButton>
+              </Stack>
+              <TableContainer sx={{ border: '1px solid #FED7AA', borderRadius: 2, bgcolor: '#FFFBEB' }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 700 }}>Item Description</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }} align="right">Qty</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }} align="right">Credit Value</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {exchangeItems.map((item, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.itemName || item.name}</Typography>
+                          <Typography variant="caption" color="textSecondary">{item.barcode} | Ref: {originalSaleNumber}</Typography>
+                        </TableCell>
+                        <TableCell align="right">{item.quantity}</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 700, color: '#10B981' }}>
+                          ₹{((toNumber(item.rate) * toNumber(item.quantity)) + (toNumber(item.taxAmount) || 0)).toFixed(2)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Paper>
+          )}
         </Grid>
 
         <Grid item xs={12} lg={4}>
@@ -1136,6 +1235,9 @@ function BillingPage({
               <SummaryRow label="Gross Amount" value={totals.grossAmount.toFixed(2)} />
               <SummaryRow label="Line Discount" value={totals.lineDiscount.toFixed(2)} />
               <SummaryRow label="Tax Amount" value={totals.taxAmount.toFixed(2)} />
+              {totals.returnTotalCredit > 0 && (
+                <SummaryRow label="Exchange Credit" value={`-${totals.returnTotalCredit.toFixed(2)}`} color="#10b981" />
+              )}
 
               <TextField
                 fullWidth
@@ -1219,6 +1321,53 @@ function BillingPage({
 
               <Divider />
 
+              {/* ELIGIBLE OFFERS SECTION */}
+              <Box sx={{ mt: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: '#0f172a' }}>
+                  Eligible Offers {evaluateLoading && ' (Evaluating...)'}
+                </Typography>
+                {eligibleOffers.length > 0 ? (
+                  <Stack spacing={1}>
+                    {eligibleOffers.map((offer) => (
+                      <Paper
+                        key={offer._id}
+                        variant="outlined"
+                        sx={{
+                          p: 1.5,
+                          borderRadius: 2,
+                          borderColor: selectedScheme?._id === offer._id ? '#10b981' : '#e2e8f0',
+                          backgroundColor: selectedScheme?._id === offer._id ? '#f0fdf4' : '#ffffff',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          '&:hover': { borderColor: '#10b981', transform: 'translateY(-1px)' }
+                        }}
+                        onClick={() => setSelectedScheme(selectedScheme?._id === offer._id ? null : offer)}
+                      >
+                        <Stack direction="row" justifyContent="space-between" alignItems="center">
+                          <Box>
+                            <Typography variant="body2" sx={{ fontWeight: 700, color: '#1e293b' }}>
+                              {offer.name}
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: '#64748b' }}>
+                              {offer.description || offer.type}
+                            </Typography>
+                          </Box>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#10b981' }}>
+                            -₹{Number(offer.discount).toFixed(2)}
+                          </Typography>
+                        </Stack>
+                      </Paper>
+                    ))}
+                  </Stack>
+                ) : (
+                  <Typography variant="caption" sx={{ color: '#94a3b8', fontStyle: 'italic' }}>
+                    No offers applicable for this cart yet.
+                  </Typography>
+                )}
+              </Box>
+
+              <Divider />
+
               <SummaryRow
                 label="Net Payable"
                 value={(saleType === 'exchange' ? totals.netPayable - creditNoteAmount : Math.max(0, totals.netPayable - creditNoteAmount)).toFixed(2)}
@@ -1276,6 +1425,32 @@ function BillingPage({
           </Stack>
         </Box>
       </Dialog>
+      <ExchangeDialog
+        open={exchangeOpen}
+        loyaltyConfig={loyaltyConfig}
+      />
+
+      <Dialog open={showPrint} onClose={() => setShowPrint(false)} maxWidth="md" fullWidth>
+        <Box sx={{ p: 2, textAlign: 'right', bgcolor: '#f8fafc' }}>
+            <Button variant="contained" size="small" onClick={() => window.print()} sx={{ mr: 1 }}>Print</Button>
+            <Button variant="outlined" size="small" onClick={() => setShowPrint(false)}>Close</Button>
+        </Box>
+        <Box sx={{ p: 1, maxHeight: '80vh', overflowY: 'auto' }}>
+            {completedSaleData?.type === 'EXCHANGE' ? <ExchangeInvoicePrint sale={completedSaleData} /> : <StandardInvoicePrint sale={completedSaleData} />}
+        </Box>
+      </Dialog>
+
+      <ExchangeDialog
+        open={exchangeOpen}
+        onClose={() => setExchangeOpen(false)}
+        storeId={storeId}
+        onAddItems={(data) => {
+          setOriginalSaleId(data.originalSaleId);
+          setOriginalSaleNumber(data.originalSaleNumber);
+          setExchangeItems(data.items);
+          setSaleType('exchange');
+        }}
+      />
     </>
   );
 }

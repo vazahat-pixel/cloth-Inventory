@@ -4,7 +4,7 @@ const Item = require('../../models/item.model');
 const { GrnStatus, DocumentType } = require('../../core/enums');
 const { withTransaction } = require('../../services/transaction.service');
 const { getNextSequence } = require('../../services/sequence.service');
-const workflowService = require('../workflow/workflow.service');
+const workflowService = require('../workflow/workflow.service.js');
 
 const stockLedgerService = require('../inventory/stockLedger.service');
 
@@ -129,6 +129,8 @@ const createGRN = async (grnData, userId) => {
             grnNumber,
             purchaseId: purchaseId || null,
             purchaseOrderId: purchaseOrderId || null,
+            jobWorkId: grnData.jobWorkId || null,
+            consumptionDetails: grnData.consumptionDetails || [],
             supplierId,
             warehouseId,
             invoiceNumber,
@@ -172,6 +174,8 @@ const approveGRN = async (id, userId) => {
         for (const item of grn.items) {
             console.log(`   -> Item: ${item.sku}, Variant: ${item.variantId}, Qty: ${item.receivedQty}`);
             await stockService.addStock({
+                itemId: item.itemId,
+                barcode: item.sku,
                 variantId: item.variantId,
                 locationId: grn.warehouseId,
                 locationType: 'WAREHOUSE',
@@ -184,7 +188,60 @@ const approveGRN = async (id, userId) => {
             });
         }
 
+        // 3. Post Consumption (Raw Material Deduction)
+        if (grn.consumptionDetails && grn.consumptionDetails.length > 0) {
+            const SupplierInventory = require('../../models/supplierInventory.model');
+            console.log(`[GRN-APPROVAL] Processing Raw Material Consumption for Supplier: ${grn.supplierId}`);
+            
+            for (const cons of grn.consumptionDetails) {
+                const totalUsed = (cons.quantity || 0) + (cons.wasteQuantity || 0);
+                if (totalUsed <= 0) continue;
+
+                const suppInv = await SupplierInventory.findOne({ 
+                    supplierId: grn.supplierId, 
+                    variantId: cons.variantId 
+                }).session(session);
+
+                if (!suppInv || suppInv.quantity < totalUsed) {
+                    throw new Error(`Insufficient Raw Material with supplier. Need ${totalUsed}, Have ${suppInv ? suppInv.quantity : 0}`);
+                }
+
+                suppInv.quantity -= totalUsed;
+                await suppInv.save({ session });
+                console.log(`   -> Consumed: ${cons.variantId}, Qty: ${totalUsed}, Remaining with Supplier: ${suppInv.quantity}`);
+            }
+        }
+
         console.log(`[GRN-APPROVAL] Successfully posted all items to Warehouse stock.`);
+        
+        // 3. Update Purchase Order Fulfillment if linked
+        if (grn.purchaseOrderId) {
+            const PurchaseOrder = require('../../models/purchaseOrder.model');
+            const po = await PurchaseOrder.findById(grn.purchaseOrderId).session(session);
+            if (po) {
+                for (const item of grn.items) {
+                    const poItem = po.items.find(i => i.variantId?.toString() === item.variantId?.toString());
+                    if (poItem) {
+                        poItem.receivedQty = (poItem.receivedQty || 0) + item.receivedQty;
+                    }
+                }
+                
+                // Determine PO Status
+                let isFullyFulfilled = true;
+                let hasAnyReceiving = false;
+                for (const poItem of po.items) {
+                    if ((poItem.receivedQty || 0) < poItem.qty) isFullyFulfilled = false;
+                    if ((poItem.receivedQty || 0) > 0) hasAnyReceiving = true;
+                }
+
+                const { PurchaseOrderStatus } = require('../../core/enums');
+                if (isFullyFulfilled) po.status = PurchaseOrderStatus.COMPLETED;
+                else if (hasAnyReceiving) po.status = PurchaseOrderStatus.PARTIALLY_RECEIVED;
+                
+                await po.save({ session });
+            }
+        }
+
         await workflowService.updateStatus(grn._id, DocumentType.GRN, oldStatus, GrnStatus.APPROVED, userId, `Approved GRN ${grn.grnNumber} and posted stock to warehouse.`);
 
         return grn;

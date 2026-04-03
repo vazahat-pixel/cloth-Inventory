@@ -19,28 +19,10 @@ export const billingMatchPaths = ['/sales'];
 export const billingNavItems = [
   {
     key: 'sale-bill',
-    label: 'Sale Bill',
+    label: 'Sale Bill (POS)',
     path: '/sales/sale-bill',
     matchPaths: ['/sales/sale-bill', '/sales/new'],
     icon: ReceiptLongOutlinedIcon,
-  },
-  {
-    key: 'sale-period-sale',
-    label: 'Sale Period Sale',
-    path: '/sales/sale-period-sale',
-    icon: EventRepeatOutlinedIcon,
-  },
-  {
-    key: 'sale-on-sale-period-sale',
-    label: 'Sale on Sale Period Sale',
-    path: '/sales/sale-on-sale-period-sale',
-    icon: LocalOfferOutlinedIcon,
-  },
-  {
-    key: 'sale-challan',
-    label: 'Sale Challan',
-    path: '/sales/sale-challan',
-    icon: LocalShippingOutlinedIcon,
   },
   {
     key: 'sales-return',
@@ -50,10 +32,10 @@ export const billingNavItems = [
     icon: KeyboardReturnOutlinedIcon,
   },
   {
-    key: 'sale-challan-return',
-    label: 'Sale Challan Return',
-    path: '/sales/sale-challan-return',
-    icon: AssignmentReturnOutlinedIcon,
+    key: 'sale-challan',
+    label: 'Sale Challan',
+    path: '/sales/sale-challan',
+    icon: LocalShippingOutlinedIcon,
   },
   {
     key: 'stock-transfer-out',
@@ -62,26 +44,8 @@ export const billingNavItems = [
     icon: SwapHorizOutlinedIcon,
   },
   {
-    key: 'sales-return-f-b',
-    label: 'Sales Return - F & B',
-    path: '/sales/sales-return-f-b',
-    icon: RestaurantOutlinedIcon,
-  },
-  {
-    key: 'sale-bill-touch-screen',
-    label: 'Sale Bill - Touch Screen',
-    path: '/sales/sale-bill-touch-screen',
-    icon: TouchAppOutlinedIcon,
-  },
-  {
-    key: 'sale-challan-touch-screen',
-    label: 'Sale Challan - Touch Screen',
-    path: '/sales/sale-challan-touch-screen',
-    icon: TouchAppOutlinedIcon,
-  },
-  {
     key: 'packing-slip-delivery-order',
-    label: 'Packing Slip - Delivery Order',
+    label: 'Packing Slip / Delivery',
     path: '/sales/packing-slip-delivery-order',
     icon: Inventory2OutlinedIcon,
   },
@@ -92,28 +56,10 @@ export const billingNavItems = [
     icon: BlockOutlinedIcon,
   },
   {
-    key: 'sale-challan-status',
-    label: 'Sale Challan Status',
-    path: '/sales/sale-challan-status',
-    icon: FactCheckOutlinedIcon,
-  },
-  {
-    key: 'generate-credit-note-schemes',
-    label: 'Generate Credit Note for Schemes against Sales',
-    path: '/sales/generate-credit-note-schemes',
-    icon: CreditScoreOutlinedIcon,
-  },
-  {
-    key: 'issue-gift-vouchers',
-    label: 'Issue Gift Vouchers Against Sale Bill',
-    path: '/sales/issue-gift-vouchers',
+    key: 'promotional-schemes',
+    label: 'Promotional Schemes',
+    path: '/pricing/schemes',
     icon: CardGiftcardOutlinedIcon,
-  },
-  {
-    key: 'convert-credit-bills-cash',
-    label: 'Convert Credit Bills to Cash',
-    path: '/sales/convert-credit-bills-cash',
-    icon: CurrencyExchangeOutlinedIcon,
   },
 ];
 

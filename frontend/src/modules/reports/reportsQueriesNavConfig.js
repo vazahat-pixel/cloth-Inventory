@@ -18,7 +18,7 @@ export const reportsQueriesMatchPaths = ['/reports'];
 export const reportsQueriesNavItems = [
   {
     key: 'reports-dashboard',
-    label: 'Reports Dashboard / रिपोट्स',
+    label: 'Reports Dashboard',
     path: '/reports/dashboard',
     icon: DashboardOutlinedIcon,
   },

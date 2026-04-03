@@ -29,8 +29,18 @@ const getById = async (req, res, next) => {
     }
 };
 
+const receive = async (req, res, next) => {
+    try {
+        const result = await challanService.receiveChallan(req.params.id, req.user._id);
+        return sendSuccess(res, result, 'Challan received at store and inventory updated');
+    } catch (err) {
+        next(err);
+    }
+};
+
 module.exports = {
     create,
     list,
-    getById
+    getById,
+    receive
 };

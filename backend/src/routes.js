@@ -38,11 +38,8 @@ const registerRoutes = (app) => {
     app.use('/api/warehouses', require('./modules/warehouses/warehouse.routes'));
     app.use('/api/suppliers', require('./modules/suppliers/supplier.routes'));
     app.use('/api/supplier', require('./modules/suppliers/supplier.routes')); // Singular Alias for compatibility
-    app.use('/api/production', require('./modules/production/production.routes'));
-    app.use('/api/products', require('./modules/products/product.routes'));
     app.use('/api/delivery-challans', require('./modules/deliveryChallan/deliveryChallan.routes'));
     app.use('/api/purchase', require('./modules/purchase/purchase.routes'));
-    app.use('/api/purchase-orders', require('./modules/purchase/purchaseOrder.routes'));
     app.use('/api/reports', require('./modules/reports/report.routes'));
     app.use('/api/grn', require('./modules/grn/grn.routes'));
     
@@ -56,10 +53,11 @@ const registerRoutes = (app) => {
     app.use('/api/brands', require('./modules/brands/brand.routes'));
     app.use('/api/seasons', require('./modules/seasons/season.routes'));
     app.use('/api/customers', require('./modules/customers/customer.routes'));
-    app.use('/api/returns', require('./modules/returns/return.routes'));
     app.use('/api/dispatch', require('./modules/dispatch/dispatch.routes'));
-    app.use('/api/barcodes', require('./modules/barcodes/barcodes.routes'));
     app.use('/api/dashboard', require('./modules/dashboard/dashboard.routes'));
+    app.use('/api/stock-returns', require('./modules/stockReturn/stockReturn.routes'));
+    app.use('/api/supplier-outward', require('./modules/supplierOutward/supplierOutward.routes'));
+    app.use('/api/pricing', require('./modules/pricing/pricing.routes'));
 };
 
 module.exports = registerRoutes;

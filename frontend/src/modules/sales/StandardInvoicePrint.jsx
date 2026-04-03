@@ -145,6 +145,8 @@ const StandardInvoicePrint = ({ sale }) => {
                         {tax > 0 && <SummaryLine label="Add GST (+)" value={tax} />}
                         {loyaltyRedeemed > 0 && <SummaryLine label="Points Used (-)" value={loyaltyRedeemed} color="#16a34a" />}
                         {creditNoteApplied > 0 && <SummaryLine label="Credit Applied (-)" value={creditNoteApplied} color="#16a34a" />}
+                        {sale.exchangeAdjustment > 0 && <SummaryLine label="Exchange Credit (-)" value={sale.exchangeAdjustment} color="#16a34a" />}
+                        
                         
                         <Box sx={{ 
                             mt: 1, 

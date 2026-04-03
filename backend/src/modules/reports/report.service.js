@@ -582,7 +582,7 @@ const getGstSummary = async (startDate, endDate, storeId) => {
         {
             $group: {
                 _id: null,
-                taxableValue: { $sum: { $subtract: ["$grandTotal", "$totalTax"] } }, // Approximate if grandTotal is tax inclusive
+                taxableValue: { $sum: "$subTotal" },
                 cgst: { $sum: "$taxBreakup.cgst" },
                 sgst: { $sum: "$taxBreakup.sgst" },
                 igst: { $sum: "$taxBreakup.igst" },
@@ -593,12 +593,22 @@ const getGstSummary = async (startDate, endDate, storeId) => {
 
     const purchaseGst = await Purchase.aggregate([
         { $match: purchaseQuery },
+        { $unwind: "$products" },
+        {
+            $group: {
+                _id: "$_id",
+                subTotal: { $first: "$subTotal" },
+                totalTax: { $first: "$totalTax" },
+                calcCGST: { $sum: { $cond: [{ $eq: ["$products.gstPercent", 0] }, 0, { $divide: ["$products.gstAmount", 2] }] } },
+                calcSGST: { $sum: { $cond: [{ $eq: ["$products.gstPercent", 0] }, 0, { $divide: ["$products.gstAmount", 2] }] } }
+            }
+        },
         {
             $group: {
                 _id: null,
                 taxableValue: { $sum: "$subTotal" },
-                cgst: { $sum: { $divide: ["$totalTax", 2] } }, // Assuming 50/50 split if igst not tracked separately in purchase model
-                sgst: { $sum: { $divide: ["$totalTax", 2] } },
+                cgst: { $sum: "$calcCGST" },
+                sgst: { $sum: "$calcSGST" },
                 igst: { $sum: 0 },
                 totalTax: { $sum: "$totalTax" }
             }
@@ -609,6 +619,31 @@ const getGstSummary = async (startDate, endDate, storeId) => {
         sales: salesGst[0] || { taxableValue: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0 },
         purchases: purchaseGst[0] || { taxableValue: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0 }
     };
+};
+
+/**
+ * IN-TRANSIT STOCK MONITOR
+ * Fetches all dispatches that are dispatched but not yet received.
+ */
+const getInTransitReport = async () => {
+    const Dispatch = require('../../models/dispatch.model');
+    const transits = await Dispatch.find({ status: 'PENDING' })
+        .populate('sourceWarehouseId', 'name')
+        .populate('destinationStoreId', 'name')
+        .populate('createdBy', 'name')
+        .sort({ createdAt: -1 });
+
+    return transits.map(t => ({
+        dispatchNumber: t.dispatchNumber,
+        source: t.sourceWarehouseId?.name,
+        destination: t.destinationStoreId?.name,
+        itemsCount: t.items?.reduce((acc, i) => acc + i.qty, 0) || 0,
+        estimatedValue: t.totalAmount || 0,
+        dispatchedAt: t.dispatchedAt || t.createdAt,
+        vehicle: t.vehicleNumber,
+        driver: t.driverName,
+        reference: t.referenceNumber
+    }));
 };
 
 /**
@@ -1012,5 +1047,6 @@ module.exports = {
     getSaleChallanReport,
     getSchemeReport,
     getOrderReport,
-    getAgentWiseReport
+    getAgentWiseReport,
+    getInTransitReport
 };

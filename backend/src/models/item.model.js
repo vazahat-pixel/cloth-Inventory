@@ -122,10 +122,17 @@ const itemSchema = new mongoose.Schema({
     type: [variantSchema],
     validate: {
       validator: function(v) {
+        if (this.type === 'RAW_MATERIAL') return true;
         return v && v.length > 0;
       },
-      message: 'At least one size variant is required'
+      message: 'At least one size variant is required for non-raw materials'
     }
+  },
+  type: {
+    type: String,
+    enum: ['RAW_MATERIAL', 'ACCESSORY', 'FINISHED_GOOD'],
+    default: 'FINISHED_GOOD',
+    index: true
   },
   isActive: {
     type: Boolean,

@@ -71,17 +71,16 @@ function StoreReceiptPage() {
   const fetchDispatches = async () => {
     setLoading(true);
     try {
-      // Fetch only DISPATCHED dispatches for this store
-      // Note: Backend stores locationId, so we pass destinationId
+      // Fetch only DISPATCHED shipments for this store
       const res = await api.get('/dispatch', { 
         params: { 
           destinationId: shopId,
           status: 'DISPATCHED' 
         } 
       });
-      setDispatches(res.data?.data?.dispatches || res.data?.dispatches || []);
+      setDispatches(res.data?.data || res.data || []);
     } catch (err) {
-      console.error('Failed to fetch dispatches', err);
+      console.error('Failed to fetch shipments', err);
     } finally {
       setLoading(false);
     }
@@ -97,7 +96,7 @@ function StoreReceiptPage() {
     setReceiving(true);
     try {
       await api.post(`/dispatch/${dispatchId}/receive`);
-      alert('Stock received successfully!');
+      alert('Stock received successfully and inventory updated!');
       setSelectedDispatch(null);
       fetchDispatches();
     } catch (err) {
@@ -142,6 +141,7 @@ function StoreReceiptPage() {
               <TableRow>
                 <TableCell sx={{ fontWeight: 700 }}>Dispatch #</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Source</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Type</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Items</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
@@ -153,12 +153,21 @@ function StoreReceiptPage() {
                 <TableRow key={d._id} hover>
                   <TableCell sx={{ fontWeight: 600 }}>{d.dispatchNumber}</TableCell>
                   <TableCell>{d.sourceWarehouseId?.name || 'Warehouse'}</TableCell>
-                  <TableCell>{new Date(d.dispatchedAt).toLocaleDateString()}</TableCell>
+                  <TableCell>
+                    <Chip 
+                      label={d.referenceType === 'Sale' ? 'TAX INVOICE' : 'DELIVERY CHALLAN'} 
+                      size="small" 
+                      color={d.referenceType === 'Sale' ? 'primary' : 'default'}
+                      variant="outlined"
+                      sx={{ fontWeight: 700 }}
+                    />
+                  </TableCell>
+                  <TableCell>{d.dispatchedAt ? new Date(d.dispatchedAt).toLocaleDateString() : 'N/A'}</TableCell>
                   <TableCell>{d.items?.length || 0} Products</TableCell>
                   <TableCell>
                     <Chip 
                       icon={<PendingIcon fontSize="small" />} 
-                      label="IN TRANSIT" 
+                      label={d.status} 
                       color="info" 
                       variant="outlined" 
                       size="small" 
@@ -206,7 +215,7 @@ function StoreReceiptPage() {
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Box>
                 <Typography variant="h6" sx={{ fontWeight: 800, color: '#1e293b' }}>
-                    Shipment Inward: {selectedDispatch?.dispatchNumber}
+                    Inbound Dispatch: {selectedDispatch?.dispatchNumber}
                 </Typography>
                 <Typography variant="caption" sx={{ color: '#64748b' }}>
                     Source: {selectedDispatch?.sourceWarehouseId?.name || 'Warehouse'}
@@ -276,32 +285,25 @@ function StoreReceiptPage() {
                     <TableRow key={idx} sx={{ bgcolor: isVerified ? '#f0fdf4' : 'inherit' }}>
                       <TableCell sx={{ py: 2 }}>
                         <Typography sx={{ fontWeight: 900, color: '#0f172a', fontSize: '1rem', mb: 0.5 }}>
-                          {item.variantId?.name}
+                          {item.variantId?.name || 'Product'}
                         </Typography>
                         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1, flexWrap: 'wrap', gap: 1 }}>
                           <Box sx={{ border: '1px solid #cbd5e1', px: 1.25, py: 0.5, borderRadius: 2, bgcolor: '#f1f5f9' }}>
                             <Typography variant="caption" sx={{ fontWeight: 800, color: '#334155', letterSpacing: '0.02em' }}>
-                              SIZE: {item.variantId?.size}
+                              SKU/BC: {item.variantId?.sku || item.variantId?.barcode || 'N/A'}
                             </Typography>
                           </Box>
                           <Box sx={{ border: '1px solid #cbd5e1', px: 1.25, py: 0.5, borderRadius: 2, bgcolor: '#f1f5f9' }}>
                             <Typography variant="caption" sx={{ fontWeight: 800, color: '#334155' }}>
-                              COLOR: {item.variantId?.color || 'N/A'}
+                              SIZE: {item.variantId?.size || 'N/A'}
                             </Typography>
                           </Box>
                           <Box sx={{ border: '1px solid #cbd5e1', px: 1.25, py: 0.5, borderRadius: 2, bgcolor: '#eff6ff' }}>
                             <Typography variant="caption" sx={{ fontWeight: 800, color: '#2563eb' }}>
-                              BRAND: {item.variantId?.brand?.brandName || item.variantId?.brand?.name || 'Main'}
+                              COLOR: {item.variantId?.color || 'N/A'}
                             </Typography>
                           </Box>
                         </Stack>
-                        <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <span style={{ color: '#94a3b8' }}>SKU:</span> {item.variantId?.sku} 
-                          <span style={{ color: '#e2e8f0' }}>|</span> 
-                          <span style={{ color: '#94a3b8' }}>BARCODE:</span> {item.variantId?.barcode} 
-                          <span style={{ color: '#e2e8f0' }}>|</span> 
-                          <span style={{ color: '#94a3b8' }}>CATEGORY:</span> {item.variantId?.category?.name || 'General'}
-                        </Typography>
                       </TableCell>
                       <TableCell align="right">
                         <Typography sx={{ fontWeight: 800 }}>{item.qty}</Typography>

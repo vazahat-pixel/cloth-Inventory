@@ -2,7 +2,7 @@ import itemsData from '../items/data';
 import { purchaseOrderSeed, supplierSeed } from '../erp/erpUiMocks';
 
 export const purchaseOrderStorageKey = 'purchase-orders';
-export const purchaseOrderStatuses = ['DRAFT', 'PENDING', 'APPROVED', 'CANCELLED'];
+export const purchaseOrderStatuses = ['DRAFT', 'PENDING', 'APPROVED', 'PARTIALLY_RECEIVED', 'COMPLETED', 'CANCELLED'];
 
 export const formatCurrency = (value) =>
   new Intl.NumberFormat('en-IN', {
@@ -44,9 +44,11 @@ export const calculatePurchaseOrderTotals = (lines = []) =>
       accumulator.taxTotal += result.taxAmount;
       accumulator.grandTotal += result.amount;
       accumulator.totalQty += toNumber(line.qty || line.quantity, 0);
+      accumulator.totalReceivedQty += toNumber(line.receivedQty, 0);
+      accumulator.totalBilledQty += toNumber(line.billedQty, 0);
       return accumulator;
     },
-    { subtotal: 0, discountTotal: 0, taxTotal: 0, grandTotal: 0, totalQty: 0 },
+    { subtotal: 0, discountTotal: 0, taxTotal: 0, grandTotal: 0, totalQty: 0, totalReceivedQty: 0, totalBilledQty: 0 },
   );
 
 export const buildFallbackVariantOptions = () =>
@@ -101,6 +103,8 @@ export function normalizePurchaseOrderRecord(record = {}) {
       color: line.color || itemInfo.shade || '',
       sku: line.sku || variantDetails.sku || '',
       qty: toNumber(line.qty || line.quantity, 0),
+      receivedQty: toNumber(line.receivedQty, 0),
+      billedQty: toNumber(line.billedQty, 0),
       rate: toNumber(line.price || line.rate, 0),
       discountPercent: toNumber(line.discountPercent || line.discount, 0),
       taxPercent: toNumber(line.taxPercent || line.tax, 0),
@@ -121,6 +125,8 @@ export function normalizePurchaseOrderRecord(record = {}) {
           taxTotal: toNumber(record.totals.taxTotal || record.totals.taxAmount, 0),
           grandTotal: toNumber(record.totals.grandTotal || record.totals.netAmount, 0),
           totalQty: toNumber(record.totals.totalQty || record.totals.totalQuantity, 0),
+          totalReceivedQty: toNumber(record.totals.totalReceivedQty || record.receivedQty, 0),
+          totalBilledQty: toNumber(record.totals.totalBilledQty || record.billedQty, 0),
         }
       : {
           subtotal: toNumber(record.subTotal || record.grossAmount, 0),
@@ -128,6 +134,8 @@ export function normalizePurchaseOrderRecord(record = {}) {
           taxTotal: toNumber(record.taxAmount || record.taxAmount, 0),
           grandTotal: toNumber(record.totalAmount || record.netAmount, 0),
           totalQty: toNumber(record.totalQty || record.totalQuantity, 0),
+          totalReceivedQty: toNumber(record.receivedQty || 0),
+          totalBilledQty: toNumber(record.billedQty || 0),
         };
 
   // If both are zero, re-calculate as safety fallback

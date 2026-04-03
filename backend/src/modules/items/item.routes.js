@@ -1,5 +1,6 @@
 const express = require('express');
 const itemController = require('./item.controller');
+const accessoryController = require('./accessory.controller');
 const { protect } = require('../../middlewares/auth.middleware');
 const { requireAdmin } = require('../../middlewares/role.middleware');
 
@@ -7,9 +8,12 @@ const router = express.Router();
 
 router.use(protect);
 
+router.post('/accessory/direct-entry', requireAdmin, accessoryController.directAccessoryEntry);
 router.route('/')
     .get(itemController.getAllItems)
     .post(requireAdmin, itemController.createItem);
+
+router.get('/scan/:barcode', itemController.scanItemByBarcode);
 
 router.post('/:id/attributes', requireAdmin, itemController.updateItemAttributes);
 router.post('/:id/sizes', requireAdmin, itemController.updateItemSizes);

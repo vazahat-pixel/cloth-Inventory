@@ -21,21 +21,14 @@ export const inventoryNavItems = [
   {
     key: 'stock-overview',
     label: 'Stock Overview',
-    path: '/inventory/stock-overview',
+    path: '/ho/inventory/stock-overview',
     icon: Inventory2OutlinedIcon,
   },
   {
     key: 'stock-audit-view',
     label: 'Stock Audit View',
-    path: '/inventory/audit-view',
-    matchPaths: ['/inventory/audit-view', '/inventory/batch-breakdown'],
+    path: '/ho/inventory/audit-view',
     icon: SearchOutlinedIcon,
-  },
-  {
-    key: 'item-journey',
-    label: 'Item Journey Timeline',
-    path: '/inventory/item-journey',
-    icon: TimelineOutlinedIcon,
   },
   {
     key: 'stock-dispatch',
@@ -44,116 +37,35 @@ export const inventoryNavItems = [
     icon: LocalShippingOutlinedIcon,
   },
   {
-    key: 'batch-breakdown',
-    label: 'Batch Breakdown',
-    path: '/inventory/batch-breakdown',
-    icon: ArchiveOutlinedIcon,
-  },
-  {
-    key: 'system-logs',
-    label: 'System Logs',
-    path: '/inventory/system-logs',
-    matchPaths: ['/inventory/system-logs', '/inventory/logs'],
-    icon: ReceiptLongOutlinedIcon,
-  },
-  {
-    key: 'audit-dashboard',
-    label: 'Client Demo Dashboard',
-    path: '/inventory/demo-dashboard',
-    icon: DashboardOutlinedIcon,
-  },
-  {
-    key: 'validation-dashboard',
-    label: 'Validation Dashboard',
-    path: '/inventory/validation',
-    icon: MonitorHeartOutlinedIcon,
-  },
-  {
-    key: 'error-monitoring',
-    label: 'Error Monitoring',
-    path: '/inventory/errors',
-    icon: BugReportOutlinedIcon,
-  },
-  {
-    key: 'stock-receipt-production',
-    label: 'Stock Receipt - Production',
-    path: '/inventory/stock-receipt-production',
-    matchPaths: ['/inventory/stock-receipt-production', '/inventory/stock-in'],
-    icon: PrecisionManufacturingOutlinedIcon,
-  },
-  {
-    key: 'create-cartons',
-    label: 'Create Cartons',
-    path: '/inventory/create-cartons',
-    icon: ArchiveOutlinedIcon,
-  },
-  {
-    key: 'delete-cartons',
-    label: 'Delete Cartons',
-    path: '/inventory/delete-cartons',
-    icon: DeleteOutlineOutlinedIcon,
-  },
-  {
-    key: 'generate-box-wise-receiving',
-    label: 'Generate Box Wise Stock Receiving Document Against STI',
-    path: '/inventory/generate-box-wise-receiving',
-    icon: Inventory2OutlinedIcon,
-  },
-  {
     key: 'physical-stock-verification',
-    label: 'Physical Stock Verification Of PUV',
-    path: '/inventory/physical-stock-verification',
-    matchPaths: ['/inventory/physical-stock-verification', '/inventory/audit'],
+    label: 'Physical Stock Verification',
+    path: '/ho/inventory/physical-stock-verification',
+    matchPaths: ['/ho/inventory/physical-stock-verification', '/ho/inventory/audit'],
     icon: ChecklistRtlOutlinedIcon,
   },
   {
     key: 'physical-vs-actual-doc',
-    label: 'Physical Vs Actual Stock Doc Wise Entry',
-    path: '/inventory/physical-vs-actual-doc',
+    label: 'Physical Vs Actual Doc Entry',
+    path: '/ho/inventory/physical-vs-actual-doc',
     icon: FactCheckOutlinedIcon,
-  },
-  {
-    key: 'physical-vs-actual-consignment',
-    label: 'Physical Vs Actual Consignment Stock Doc Wise Entry',
-    path: '/inventory/physical-vs-actual-consignment',
-    icon: LocalShippingOutlinedIcon,
-  },
-  {
-    key: 'issue-receipt-physical-vs-actual',
-    label: 'Issue/Receipt against Physical Vs Actual Stock Doc Wise',
-    path: '/inventory/issue-receipt-physical-vs-actual',
-    matchPaths: ['/inventory/issue-receipt-physical-vs-actual', '/inventory/adjustment'],
-    icon: SyncAltOutlinedIcon,
-  },
-  {
-    key: 'generate-stock-receipt-purchase-physical',
-    label: 'Generate Stock Receipt from Purchase Physical Stock',
-    path: '/inventory/generate-stock-receipt-purchase-physical',
-    icon: Inventory2OutlinedIcon,
-  },
-  {
-    key: 'convert-goods-transit-received',
-    label: 'Convert Goods in Transit Docs as Received',
-    path: '/inventory/convert-goods-transit-received',
-    icon: LocalShippingOutlinedIcon,
   },
   {
     key: 'enter-opening-stock',
     label: 'Enter Opening Stock',
-    path: '/inventory/enter-opening-stock',
+    path: '/ho/inventory/enter-opening-stock',
     icon: Inventory2OutlinedIcon,
   },
   {
-    key: 'overwrite-lot-rates',
-    label: "Overwrite Lot No.'s/Rates",
-    path: '/inventory/overwrite-lot-rates',
-    icon: DifferenceOutlinedIcon,
+    key: 'supplier-outward',
+    label: 'Supplier Outward (Provide RM)',
+    path: '/ho/inventory/supplier-outward',
+    icon: LocalShippingOutlinedIcon,
   },
   {
-    key: 'edit-item-lot-rates-barcodes',
-    label: 'Edit Item / Lot Rates from Barcodes',
-    path: '/inventory/edit-item-lot-rates-barcodes',
-    icon: QrCodeScannerOutlinedIcon,
+    key: 'overwrite-lot-rates',
+    label: "Lot / Rate Correction",
+    path: '/ho/inventory/overwrite-lot-rates',
+    icon: DifferenceOutlinedIcon,
   },
 ];
 
@@ -162,12 +74,12 @@ export const inventoryPlaceholderContent = {
     title: 'Create Cartons',
     description: 'This Inventory subfield is now ready on the frontend for carton creation and packing structure workflows.',
     highlights: [
-      'Prepare carton creation against received or produced stock.',
+      'Prepare carton creation against received stock.',
       'Keep carton labels, counts, and box grouping inside the Inventory flow.',
       'Extend this page later with carton numbering, size selection, and print actions.',
     ],
     actions: [
-      { label: 'Open Stock Receipt - Production', path: '/inventory/stock-receipt-production', variant: 'contained' },
+      { label: 'Open Stock Overview', path: '/inventory/stock-overview', variant: 'contained' },
     ],
   },
   'delete-cartons': {
@@ -191,7 +103,6 @@ export const inventoryPlaceholderContent = {
       'Extend later with scan-to-receive, carton counts, and received variance checks.',
     ],
     actions: [
-      { label: 'Open Transfer IN', path: '/inventory/transfer-receive', variant: 'contained' },
       { label: 'Open Stock Overview', path: '/inventory/stock-overview', variant: 'outlined' },
     ],
   },
@@ -201,7 +112,7 @@ export const inventoryPlaceholderContent = {
     highlights: [
       'Separate consignment verification from standard physical stock reviews.',
       'Prepare doc-wise entry flows for consignment inward and reconciliation.',
-      'Add supplier-linked discrepancy handling later without changing navigation again.',
+      'Add discrepancy handling later without changing navigation again.',
     ],
     actions: [
       { label: 'Open Physical Vs Actual Entry', path: '/inventory/physical-vs-actual-doc', variant: 'contained' },
@@ -217,7 +128,7 @@ export const inventoryPlaceholderContent = {
     ],
     actions: [
       { label: 'Open Purchase Voucher', path: '/purchase/purchase-voucher', variant: 'contained' },
-      { label: 'Open Stock Receipt - Production', path: '/inventory/stock-receipt-production', variant: 'outlined' },
+      { label: 'Open Stock Overview', path: '/inventory/stock-overview', variant: 'outlined' },
     ],
   },
   'convert-goods-transit-received': {
@@ -229,7 +140,6 @@ export const inventoryPlaceholderContent = {
       'Add batch receive, discrepancy checks, and confirmation steps later.',
     ],
     actions: [
-      { label: 'Open Transfer IN', path: '/inventory/transfer-receive', variant: 'contained' },
       { label: 'Open Stock Overview', path: '/inventory/stock-overview', variant: 'outlined' },
     ],
   },
@@ -242,7 +152,6 @@ export const inventoryPlaceholderContent = {
       'Add barcode lookup, approval, and change-history handling here later.',
     ],
     actions: [
-      { label: 'Open Edit Item / Lot Rates', path: '/inventory/edit-item-lot-rates-barcodes', variant: 'contained' },
       { label: 'Open Stock Adjustment', path: '/inventory/adjustment', variant: 'outlined' },
     ],
   },

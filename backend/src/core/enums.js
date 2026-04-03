@@ -29,6 +29,8 @@ const StockMovementType = {
     DAMAGED: 'DAMAGED',
     ADJUSTMENT: 'ADJUSTMENT',
     GRN_RECEIPT: 'GRN_RECEIPT',
+    DISPATCH: 'DISPATCH',
+    RECEIVE: 'RECEIVE',
 };
 
 const ProductionStatus = {
@@ -129,7 +131,8 @@ const DocumentType = {
     RETURN: 'RETURN',
     PURCHASE: 'PURCHASE',
     DISPATCH: 'DISPATCH',
-    GRN: 'GRN'
+    GRN: 'GRN',
+    STOCK_RETURN: 'STOCK_RETURN'
 };
 
 const DocumentStatus = {

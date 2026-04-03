@@ -109,9 +109,9 @@ class InventoryController {
       }
 
       // 2. Identify unique parent Item IDs. 
-      // The productId field in WarehouseInventory effectively stores the Variant _id.
+      // The variantId field in WarehouseInventory effectively stores the Variant _id.
       // We need to find the parent Items that own these variant IDs.
-      const variantIds = stockRecords.map(s => s.productId);
+      const variantIds = stockRecords.map(s => s.variantId);
       
       // 3. Fetch full Item details for these variants
       const items = await Item.find({ "sizes._id": { $in: variantIds } })
@@ -148,8 +148,8 @@ class InventoryController {
       const physicalMap = new Map();
       const reservedMap = new Map();
       stockRecords.forEach(s => {
-          physicalMap.set(s.productId.toString(), s.quantity || 0);
-          reservedMap.set(s.productId.toString(), s.reservedQuantity || 0);
+          physicalMap.set(s.variantId.toString(), s.quantity || 0);
+          reservedMap.set(s.variantId.toString(), s.reservedQuantity || 0);
       });
 
       const enrichedItems = items.map(item => {
@@ -179,6 +179,28 @@ class InventoryController {
       return sendSuccess(res, { items: enrichedItems }, 'Items fetched successfully');
     } catch (e) {
       console.error('[WAREHOUSE-STOCK-ERROR]', e);
+      return sendError(res, e.message);
+    }
+  };
+
+  /**
+   * SCAN Warehouse Item (For DC/Dispatch)
+   * Scans a barcode and returns variant info + stock level
+   */
+  scanWarehouseItem = async (req, res) => {
+    try {
+      const { warehouseId, barcode } = req.params;
+      const WarehouseInventory = require('../../models/warehouseInventory.model');
+      
+      const stock = await WarehouseInventory.findOne({ warehouseId, barcode })
+        .populate('itemId', 'itemName itemCode itemRole shade gstTax');
+
+      if (!stock) {
+        return sendNotFound(res, 'Item not found in this warehouse stock');
+      }
+
+      return sendSuccess(res, stock, 'Item scanned successfully');
+    } catch (e) {
       return sendError(res, e.message);
     }
   };

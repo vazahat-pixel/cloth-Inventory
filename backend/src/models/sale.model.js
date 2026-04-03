@@ -2,43 +2,42 @@ const mongoose = require('mongoose');
 const { PaymentMethod, SaleStatus } = require('../core/enums');
 
 const saleItemSchema = new mongoose.Schema({
-    productId: {
+    itemId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Product',
+        ref: 'Item',
         required: true
     },
-    // Keep barcode for reference, but do not enforce it
-    // so that manual POS entry without a physical scanner works.
+    variantId: {
+        type: String, // variant._id or SKU
+        required: true
+    },
     barcode: {
-        type: String
+        type: String,
+        required: true
     },
     quantity: {
         type: Number,
-        required: true
+        required: true,
+        min: 1
     },
-    price: {
+    mrp: {
         type: Number,
         required: true
     },
-    total: {
+    rate: {
         type: Number,
         required: true
     },
-    originalPrice: {
+    discount: {
         type: Number,
         default: 0
     },
-    appliedPrice: {
+    taxAmount: { type: Number, default: 0 },
+    taxPercentage: { type: Number, default: 0 },
+    total: {
         type: Number,
         required: true
-    },
-    pricingSource: {
-        type: String,
-        enum: ['DEFAULT', 'STORE_SPECIFIC'],
-        default: 'DEFAULT'
-    },
-    taxAmount: { type: Number, default: 0 },
-    taxPercentage: { type: Number, default: 0 }
+    }
 }, { _id: false });
 
 const saleSchema = new mongoose.Schema(
@@ -87,7 +86,7 @@ const saleSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'DeliveryChallan'
         },
-        products: [saleItemSchema],
+        items: [saleItemSchema],
         subTotal: {
             type: Number,
             required: true
@@ -137,6 +136,10 @@ const saleSchema = new mongoose.Schema(
             type: Number,
             required: true
         },
+        exchangeAdjustment: {
+            type: Number,
+            default: 0
+        },
         status: {
             type: String,
             enum: Object.values(SaleStatus),
@@ -146,10 +149,23 @@ const saleSchema = new mongoose.Schema(
             type: Date,
             default: Date.now
         },
+        receiptStatus: {
+            type: String,
+            enum: ['PENDING', 'RECEIVED'],
+            default: 'PENDING'
+        },
+        receivedAt: {
+            type: Date
+        },
+        receivedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        },
         isDeleted: {
             type: Boolean,
             default: false
-        }
+        },
+        returnedItems: [saleItemSchema]
     },
     { timestamps: true }
 );

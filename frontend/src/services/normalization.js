@@ -230,6 +230,7 @@ const normalizeItem = (item, entityType) => {
             normalized.reservedQuantity = normalized.reserved;
             normalized.quantityReserved = normalized.reserved;
             normalized.available = item.quantityAvailable ?? Math.max(Number(item.quantity ?? 0) - Number(normalized.reserved), 0);
+            normalized.inTransit = item.quantityInTransit ?? 0;
             normalized.status = normalized.available <= 10 ? 'LOW_STOCK' : 'OK';
             break;
 

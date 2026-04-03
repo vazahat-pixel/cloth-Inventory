@@ -31,7 +31,6 @@ import { addItem, updateItem } from './itemsSlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchGstSlabs } from '../gst/gstSlice';
 import api from '../../services/api';
-import { groupSeed, hsnSeed } from '../erp/erpUiMocks';
 
 const createVariantId = () => `var-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -43,7 +42,7 @@ const tabs = [
 ];
 
 const defaultValues = {
-  itemCode: '', itemName: '', brand: '', hsCodeId: '', gstSlabId: '', shadeColor: '', uom: 'PCS', skuPrefix: '', description: '', status: 'Active',
+  itemCode: '', itemName: '', type: 'FINISHED_GOOD', brand: '', hsCodeId: '', gstSlabId: '', shadeColor: '', uom: 'PCS', skuPrefix: '', description: '', status: 'Active',
   fabric: '', pattern: '', fit: '', gender: '', season: '', notes: '',
   sectionId: '', categoryId: '', subCategoryId: '', subSubCategoryId: '',
   defaultWarehouse: '', reorderLevel: 0, reorderQty: 0, openingStock: 0, openingStockRate: 0,
@@ -111,6 +110,7 @@ function ItemFormPage({ mode = 'edit' }) {
       };
 
       reset({
+        type: existingItem.type || 'FINISHED_GOOD',
         itemCode: existingItem.itemCode || '', 
         itemName: existingItem.itemName || '', 
         brand: getId(existingItem.brand) ? String(getId(existingItem.brand)) : '',
@@ -228,6 +228,7 @@ function ItemFormPage({ mode = 'edit' }) {
       pattern: data.pattern,
       fit: data.fit,
       gender: data.gender,
+      type: data.type,
       description: data.description?.trim(),
       defaultWarehouse: data.defaultWarehouse,
       reorderLevel: Number(data.reorderLevel || 0),
@@ -334,6 +335,26 @@ function ItemFormPage({ mode = 'edit' }) {
                   <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Item Name *" {...register('itemName', { required: 'Item Name is required' })} error={Boolean(errors.itemName)} helperText={errors.itemName?.message || ' '} disabled={isViewMode} /></Grid>
                   <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Color / Shade" {...register('shadeColor')} disabled={isViewMode} /></Grid>
                   <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="SKU Prefix" {...register('skuPrefix')} disabled={isViewMode} /></Grid>
+                  <Grid size={{ xs: 12, md: 3 }}>
+                    <Controller
+                      name="type"
+                      control={control}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          select
+                          size="small"
+                          fullWidth
+                          label="Item Role / Category *"
+                          disabled={isViewMode}
+                        >
+                          <MenuItem value="FINISHED_GOOD">Finished Good (Barcode Entry)</MenuItem>
+                          <MenuItem value="ACCESSORY">Accessory (Barcode Entry)</MenuItem>
+                          <MenuItem value="RAW_MATERIAL">Raw Material (Direct / Bulk Entry)</MenuItem>
+                        </TextField>
+                      )}
+                    />
+                  </Grid>
                   <Grid size={{ xs: 12, md: 3 }}>
                     <Controller
                       name="hsCodeId"

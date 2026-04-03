@@ -1,4 +1,5 @@
 import { configureStore } from '@reduxjs/toolkit';
+import customerRewardsReducer from '../modules/customers/customersSlice';
 import authReducer from './features/auth/authSlice';
 import mastersReducer from '../modules/masters/mastersSlice';
 import itemsReducer from '../modules/items/itemsSlice';
@@ -9,10 +10,10 @@ import pricingReducer from '../modules/pricing/pricingSlice';
 import gstReducer from '../modules/gst/gstSlice';
 import settingsReducer from '../modules/settings/settingsSlice';
 import accountsReducer from '../modules/accounts/accountsSlice';
-import ordersReducer from '../modules/orders/ordersSlice';
-import customerRewardsReducer from '../modules/customers/customersSlice';
 import grnReducer from '../modules/grn/grnSlice';
 import dispatchReducer from '../modules/dispatch/dispatchSlice';
+import supplierOutwardReducer from '../modules/supplierOutward/supplierOutwardSlice';
+import reportsReducer from '../modules/reports/reportsSlice';
 
 export const store = configureStore({
   reducer: {
@@ -27,8 +28,9 @@ export const store = configureStore({
     gst: gstReducer,
     settings: settingsReducer,
     accounts: accountsReducer,
-    orders: ordersReducer,
     grn: grnReducer,
     dispatch: dispatchReducer,
+    supplierOutward: supplierOutwardReducer,
+    reports: reportsReducer,
   },
 });

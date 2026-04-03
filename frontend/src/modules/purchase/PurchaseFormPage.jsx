@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
+import api from '../../services/api'; // Added import
 
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import {
@@ -88,6 +89,7 @@ function PurchaseFormPage() {
 
   const { control, register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm({
     defaultValues: {
+      type: 'RAW_MATERIAL', // Default to RM as per new flow
       supplierId: '',
       warehouseId: '',
       invoiceNumber: '',
@@ -98,7 +100,8 @@ function PurchaseFormPage() {
   });
 
   const [lines, setLines] = useState([]);
-  const [linkedGrnId, setLinkedGrnId] = useState(grnId || null); // track selected GRN for PV linking
+  const [barcodeSearch, setBarcodeSearch] = useState('');
+  const [linkedGrnId, setLinkedGrnId] = useState(grnId || null);
   const otherChargesWatch = watch('otherCharges', 0);
   const totals = useMemo(() => calculateTotals(lines, otherChargesWatch), [lines, otherChargesWatch]);
 
@@ -239,6 +242,53 @@ function PurchaseFormPage() {
     setLines(mapped);
   };
 
+  const handleScanner = async (barcode) => {
+    try {
+      // Use the new scan endpoint
+      const response = await api.get(`/items/scan/${barcode}`);
+      const { item, variant } = response.data.data;
+      
+      const newLine = {
+        id: Math.random().toString(36).substr(2, 9),
+        itemId: item._id,
+        itemName: item.itemName,
+        variantId: variant._id,
+        sku: variant.sku,
+        size: variant.size,
+        color: item.shade || '-',
+        quantity: 1,
+        rate: variant.costPrice || 0,
+        discount: 0,
+        tax: item.gstTax || 0,
+        lotNumber: ''
+      };
+
+      setLines(prev => [...prev, newLine]);
+      setBarcodeSearch(''); // clear search
+    } catch (e) {
+      alert('Item not found or scan failed.');
+    }
+  };
+
+  const handleAddItem = (item) => {
+    if (!item) return;
+    const newLine = {
+      id: Math.random().toString(36).substr(2, 9),
+      itemId: item._id || item.id,
+      itemName: item.itemName,
+      variantId: item.sizes?.[0]?._id || item.sizes?.[0]?.id || null, // Default to first variant
+      sku: item.sizes?.[0]?.sku || item.itemCode,
+      size: item.sizes?.[0]?.size || 'N/A',
+      color: item.shade || '-',
+      quantity: 1,
+      rate: item.sizes?.[0]?.costPrice || 0,
+      discount: 0,
+      tax: item.gstTax || 0,
+      lotNumber: ''
+    };
+    setLines(prev => [...prev, newLine]);
+  };
+
   const updateLineField = (lineId, field, value) => {
     setLines(prev => prev.map(l => l.id === lineId ? { ...l, [field]: value } : l));
   };
@@ -284,6 +334,8 @@ function PurchaseFormPage() {
     [grns]
   );
 
+  const typeWatch = watch('type');
+
   return (
     <Box sx={{ p: { xs: 2, md: 4 }, bgcolor: '#f8fafc', minHeight: '100vh' }}>
       {/* Page Header */}
@@ -293,7 +345,7 @@ function PurchaseFormPage() {
             {isEditMode ? 'Edit' : 'New'} Purchase Voucher
           </Typography>
           <Typography variant="body2" sx={{ color: '#64748b' }}>
-            Process supplier invoices and record inward stock details.
+            Record {typeWatch.replace('_', ' ')} entries.
           </Typography>
         </Box>
         <Stack direction="row" spacing={1}>
@@ -304,52 +356,126 @@ function PurchaseFormPage() {
         </Stack>
       </Stack>
 
-      {/* Form Header Card */}
       <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3, p: 3, mb: 3 }}>
+        
+        {/* Step 1: Inward Category */}
+        <Box sx={{ mb: 3, p: 2, bgcolor: '#f1f5f9', borderRadius: 2 }}>
+           <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 700, color: '#475569' }}>1. INWARD CATEGORY</Typography>
+           <Controller
+              name="type"
+              control={control}
+              render={({ field }) => (
+                <Stack direction="row" spacing={1.5}>
+                  {[
+                    { val: 'RAW_MATERIAL', label: 'Fabric / Raw Material' },
+                    { val: 'ACCESSORY', label: 'Accessories' },
+                    { val: 'FINISHED_GOOD', label: 'Finished Goods (GRN)' }
+                  ].map((cat) => (
+                    <Button
+                      key={cat.val}
+                      variant={field.value === cat.val ? 'contained' : 'outlined'}
+                      color={field.value === cat.val ? 'primary' : 'inherit'}
+                      onClick={() => {
+                        field.onChange(cat.val); 
+                        if (cat.val !== 'FINISHED_GOOD') { setLinkedGrnId(null); setLines([]); }
+                      }}
+                      sx={{ 
+                        borderRadius: 2, px: 3, py: 1, 
+                        fontWeight: 700, textTransform: 'none',
+                        ...(field.value === cat.val && { boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)' })
+                      }}
+                    >
+                      {cat.label}
+                    </Button>
+                  ))}
+                </Stack>
+              )}
+           />
+        </Box>
 
-        {/* Row 1: GRN Link — Full Width */}
-        <Box sx={{ mb: 2 }}>
-          <Autocomplete
-            size="small"
-            fullWidth
-            options={approvedGrns}
-            value={grns.find(g => String(g._id || g.id) === linkedGrnId) || null}
-            getOptionLabel={(o) =>
-              typeof o === 'string' ? o :
-              `${o.grnNumber || ''}${o.invoiceNumber ? ` · Bill: ${o.invoiceNumber}` : ''} — ${o.supplierId?.name || o.supplierId?.supplierName || 'Supplier'}`
-            }
-            renderOption={(props, option) => (
-              <Box component="li" {...props}>
-                <Box>
-                  <Typography variant="body2" sx={{ fontWeight: 700 }}>{option.grnNumber}</Typography>
-                  <Typography variant="caption" sx={{ color: '#64748b' }}>
-                    {option.supplierId?.name || option.supplierId?.supplierName || '—'}
-                    {option.invoiceNumber ? ` · Bill# ${option.invoiceNumber}` : ''}
-                  </Typography>
-                </Box>
-              </Box>
-            )}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Link Approved GRN to Auto-fill"
-                placeholder="Search by GRN Number or Supplier..."
-                InputProps={{
-                  ...params.InputProps,
-                  startAdornment: (
-                    <>
-                      <Box component="span" sx={{ color: '#10b981', mr: 0.5, fontSize: '1rem' }}>🔗</Box>
-                      {params.InputProps.startAdornment}
-                    </>
-                  ),
-                }}
-                sx={{ '& .MuiInputBase-root': { bgcolor: '#f0fdf4' } }}
+        {/* Step 2: Source / Linkage */}
+        <Box sx={{ mb: 3 }}>
+          {typeWatch === 'FINISHED_GOOD' ? (
+              <Autocomplete
+                size="small"
+                fullWidth
+                options={approvedGrns}
+                value={grns.find(g => String(g._id || g.id) === linkedGrnId) || null}
+                getOptionLabel={(o) =>
+                  typeof o === 'string' ? o :
+                  `${o.grnNumber || ''}${o.invoiceNumber ? ` · Bill: ${o.invoiceNumber}` : ''} — ${o.supplierId?.name || o.supplierId?.supplierName || 'Supplier'}`
+                }
+                renderOption={(props, option) => (
+                  <Box component="li" {...props}>
+                    <Box>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{option.grnNumber}</Typography>
+                      <Typography variant="caption" sx={{ color: '#64748b' }}>
+                        {option.supplierId?.name || option.supplierId?.supplierName || '—'}
+                        {option.invoiceNumber ? ` · Bill# ${option.invoiceNumber}` : ''}
+                      </Typography>
+                    </Box>
+                  </Box>
+                )}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Link Approved GRN to Auto-fill"
+                    placeholder="Search by GRN Number or Supplier..."
+                    InputProps={{
+                      ...params.InputProps,
+                      startAdornment: (
+                        <>
+                          <Box component="span" sx={{ color: '#10b981', mr: 0.5, fontSize: '1rem' }}>🔗</Box>
+                          {params.InputProps.startAdornment}
+                        </>
+                      ),
+                    }}
+                    sx={{ '& .MuiInputBase-root': { bgcolor: '#f0fdf4' } }}
+                  />
+                )}
+                onChange={(_, val) => val && populateFromGRN(val)}
+                disabled={isEditMode}
+                isOptionEqualToValue={(opt, val) => String(opt._id || opt.id) === String(val._id || val.id)}
               />
-            )}
-            onChange={(_, val) => val && populateFromGRN(val)}
-            disabled={isEditMode}
-            isOptionEqualToValue={(opt, val) => String(opt._id || opt.id) === String(val._id || val.id)}
-          />
+          ) : typeWatch === 'RAW_MATERIAL' ? (
+              <Autocomplete
+                size="small"
+                fullWidth
+                options={items.filter(i => i.type === 'RAW_MATERIAL' || !i.type)}
+                getOptionLabel={(o) => `${o.itemName} (${o.itemCode})`}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Search Raw Material (Physical Entry)"
+                    placeholder="Search by Style Code or Name..."
+                    InputProps={{
+                      ...params.InputProps,
+                      startAdornment: <Box component="span" sx={{ mr: 1 }}>🧵</Box>,
+                    }}
+                    sx={{ '& .MuiInputBase-root': { bgcolor: '#fff7ed' } }}
+                  />
+                )}
+                onChange={(_, val) => val && handleAddItem(val)}
+              />
+          ) : (
+              <TextField 
+                fullWidth size="small"
+                placeholder="🔍 Scanner Search: Type item code or scan barcode..."
+                value={barcodeSearch}
+                onChange={(e) => setBarcodeSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleScanner(barcodeSearch);
+                  }
+                }}
+                InputProps={{
+                  startAdornment: <Box sx={{ mr: 1, fontSize: '1.2rem' }}>⚡</Box>,
+                  sx: { bgcolor: '#eff6ff', border: '1px dashed #3b82f6', '&:hover': { bgcolor: '#dbeafe' } }
+                }}
+                helperText={`Scan ${typeWatch.replace('_', ' ')} barcodes to add them below.`}
+              />
+          )}
         </Box>
 
         {/* Row 2: Supplier & Warehouse — 2 equal columns */}

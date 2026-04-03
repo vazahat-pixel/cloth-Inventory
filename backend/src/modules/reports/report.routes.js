@@ -45,4 +45,16 @@ router.get('/schemes', reportController.getSchemeReport);
 router.get('/orders', reportController.getOrderReport);
 router.get('/agent-wise', reportController.getAgentWiseReport);
 
+const productionReportController = require('./productionReport.controller');
+const closureController = require('./closure.controller');
+
+router.get('/production/yield', requireAdmin, productionReportController.getYieldAnalysis);
+router.get('/inventory/consolidated', requireAdmin, reportController.getConsolidatedStock);
+router.get('/inventory/in-transit', requireAdmin, reportController.getInTransitReport);
+
+// Day-End Closure Routes
+router.get('/closure/preview', closureController.getClosurePreview);
+router.post('/closure/finalize', closureController.finalizeClosure);
+router.get('/closure/history', requireAdmin, closureController.getClosureHistory);
+
 module.exports = router;

@@ -170,6 +170,7 @@ function PurchaseOrderListPage() {
       draftOrders: filteredRows.filter((row) => (row.status || '').toUpperCase() === 'DRAFT').length,
       pendingOrders: filteredRows.filter((row) => (row.status || '').toUpperCase() === 'PENDING').length,
       approvedOrders: filteredRows.filter((row) => (row.status || '').toUpperCase() === 'APPROVED').length,
+      partialOrders: filteredRows.filter((row) => (row.status || '').toUpperCase() === 'PARTIALLY_RECEIVED').length,
       orderValue: filteredRows.reduce((sum, row) => sum + Number(row.totals?.grandTotal || 0), 0),
     }),
     [filteredRows],
@@ -220,8 +221,8 @@ function PurchaseOrderListPage() {
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' }, gap: 2, mb: 2 }}>
         <SummaryCard label="Purchase Orders" value={summary.totalOrders} helper="Filtered records in the current PO register." />
-        <SummaryCard label="Draft / Pending" value={`${summary.draftOrders} / ${filteredRows.filter((row) => row.status === 'Pending').length}`} helper="Drafts can be edited before approval." tone="warning" />
-        <SummaryCard label="Approved Orders" value={summary.approvedOrders} helper="Ready to convert into inward receipt / GRN." tone="success" />
+        <SummaryCard label="Draft / Pending" value={`${summary.draftOrders} / ${summary.pendingOrders}`} helper="Drafts can be edited before approval." tone="warning" />
+        <SummaryCard label="Approved / Partial" value={`${summary.approvedOrders} / ${summary.partialOrders}`} helper="Partially received orders remain open." tone="success" />
         <SummaryCard label="Total Order Value" value={formatCurrency(summary.orderValue)} helper="Grand total across visible purchase orders." tone="info" />
       </Box>
 
@@ -276,6 +277,8 @@ function PurchaseOrderListPage() {
           <MenuItem value="Draft">Draft</MenuItem>
           <MenuItem value="Pending">Pending</MenuItem>
           <MenuItem value="Approved">Approved</MenuItem>
+          <MenuItem value="PARTIALLY_RECEIVED">Partial</MenuItem>
+          <MenuItem value="COMPLETED">Completed</MenuItem>
           <MenuItem value="Cancelled">Cancelled</MenuItem>
         </TextField>
         <TextField
@@ -312,7 +315,7 @@ function PurchaseOrderListPage() {
                 <TableCell sx={{ fontWeight: 700 }}>Supplier</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Expected Delivery</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">
-                  Total Qty
+                  Rec / Total Qty
                 </TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">
                   Total Amount
@@ -338,7 +341,16 @@ function PurchaseOrderListPage() {
                     </Typography>
                   </TableCell>
                   <TableCell>{row.expectedDeliveryDate || '--'}</TableCell>
-                  <TableCell align="right">{row.totals?.totalQty || 0}</TableCell>
+                  <TableCell align="right">
+                    <Box sx={{ minWidth: 100 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.85rem' }}>
+                        Rec: {row.totals?.totalReceivedQty || 0} / {row.totals?.totalQty || 0}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: '#2563eb', fontWeight: 700, fontSize: '0.85rem' }}>
+                        Bill: {row.totals?.totalBilledQty || 0} / {row.totals?.totalQty || 0}
+                      </Typography>
+                    </Box>
+                  </TableCell>
                   <TableCell align="right">{formatCurrency(row.totals?.grandTotal || 0)}</TableCell>
                   <TableCell>
                     <StatusBadge value={row.status} />

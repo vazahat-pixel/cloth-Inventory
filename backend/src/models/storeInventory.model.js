@@ -3,30 +3,23 @@ const mongoose = require('mongoose');
 const storeInventorySchema = new mongoose.Schema(
     {
         storeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Store', required: true },
-        productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
-
-        // Total physical quantity present in the store
+        itemId: { type: mongoose.Schema.Types.ObjectId, ref: 'Item', required: true },
+        variantId: { type: String, required: true },
+        barcode: { type: String, required: true, index: true },
         quantity: { type: Number, default: 0, min: 0 },
-
-        // Available quantity used in stock checks/low-stock reports.
-        // For now this is kept in sync with `quantity` by stock.service.
         quantityAvailable: { type: Number, default: 0, min: 0 },
-
-        // Counters used by sales/returns logic
-        damagedQuantity: { type: Number, default: 0, min: 0 }, // Qty rejected in QC
+        quantityInTransit: { type: Number, default: 0, min: 0 },
+        damagedQuantity: { type: Number, default: 0, min: 0 },
         quantitySold: { type: Number, default: 0, min: 0 },
         quantityReturned: { type: Number, default: 0, min: 0 },
-
-        // Optional minimum stock level for low-stock alerts
         minStockLevel: { type: Number, default: 0, min: 0 },
-
         lastUpdated: { type: Date, default: Date.now },
     },
     { timestamps: true }
 );
 
-// Compound unique index — one record per product per store
-storeInventorySchema.index({ storeId: 1, productId: 1 }, { unique: true });
+// Compound unique index — one record per variant per store
+storeInventorySchema.index({ storeId: 1, barcode: 1 }, { unique: true });
 storeInventorySchema.index({ storeId: 1 });
 
 module.exports = mongoose.model('StoreInventory', storeInventorySchema);

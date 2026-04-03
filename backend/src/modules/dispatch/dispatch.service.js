@@ -316,6 +316,15 @@ const confirmDispatch = async (id, userId) => {
                 performedBy: userId,
                 session
             });
+
+            // 3. Move to In-Transit pool for destination store
+            await stockService.addInTransit({
+                variantId: item.variantId,
+                locationId: dispatch.destinationStoreId,
+                locationType: 'STORE',
+                qty: item.qty,
+                session
+            });
         }
 
         // 2. Update Dispatch Status
@@ -415,14 +424,48 @@ const receiveDispatch = async (id, userId) => {
         if (!dispatch) throw new Error('Dispatch record not found');
         if (dispatch.status === 'RECEIVED') throw new Error('Dispatch already received');
 
-        // 1. Add Stock to Destination Store
+        // 1. Transition Stock from In-Transit to Store Physical Inventory
+        const Item = require('../../models/item.model');
+
         for (const item of dispatch.items) {
-            await stockService.addStock({
+            // Fetch the actual Item and Variant to get the correct SKU/Barcode
+            const parentItem = await Item.findOne({ "sizes._id": item.variantId }).session(session);
+            if (!parentItem) throw new Error(`Parent item not found for variant ${item.variantId}`);
+            
+            const variant = parentItem.sizes.id(item.variantId);
+            const originalBarcode = variant.sku || parentItem.itemCode;
+
+            // A. Remove from virtual in-transit pool
+            await stockService.removeInTransit({
+                itemId: parentItem._id,
+                barcode: originalBarcode, 
                 variantId: item.variantId,
                 locationId: dispatch.destinationStoreId,
                 locationType: 'STORE',
                 qty: item.qty,
-                type: 'TRANSFER',
+                session
+            });
+
+            // B. Add to physical store inventory
+            const systemConfigService = require('../systemConfig/systemConfig.service');
+            const relabelOnTransfer = await systemConfigService.getConfigByKey('relabelOnTransfer', false);
+            
+            let targetBarcode = originalBarcode;
+            if (relabelOnTransfer) {
+                const store = await Store.findById(dispatch.destinationStoreId).session(session);
+                const storeCode = store ? store.storeCode : 'STR';
+                targetBarcode = `${storeCode}-${originalBarcode}`;
+                console.log(`[RELABEL] New Barcode generated for Store: ${targetBarcode}`);
+            }
+
+            await stockService.addStock({
+                itemId: parentItem._id,
+                barcode: targetBarcode, 
+                variantId: item.variantId,
+                locationId: dispatch.destinationStoreId,
+                locationType: 'STORE',
+                qty: item.qty,
+                type: 'RECEIVE',
                 referenceId: dispatch._id,
                 referenceType: 'Dispatch',
                 performedBy: userId,

@@ -43,6 +43,8 @@ const normalizeStockRows = (rows = []) =>
       size: row.size || '',
       color: row.color || '',
       warehouse: row.warehouseName || '',
+      brand: row.brand?.name || row.brand || '',
+      category: row.category?.name || row.category || '',
       availableStock: Number(row.available ?? 0),
       reservedStock: Number(row.reserved ?? 0),
       inTransit: Number(row.inTransit || 0),
@@ -104,7 +106,7 @@ function StockOverviewPage() {
     const query = searchText.trim().toLowerCase();
     return rows.filter((row) => {
       const matchesSearch = query
-        ? [row.itemCode, row.itemName, row.color, row.warehouse]
+        ? [row.itemCode, row.itemName, row.color, row.warehouse, row.brand, row.category]
             .filter(Boolean)
             .some((value) => String(value).toLowerCase().includes(query))
         : true;
@@ -232,7 +234,7 @@ function StockOverviewPage() {
             setPage(0);
             setSearchText(event.target.value);
           }}
-          placeholder="Search item code, item name, color, or location"
+          placeholder="Search code, name, color, loaction, brand or category"
           sx={{ flex: 1 }}
           InputProps={{
             startAdornment: (

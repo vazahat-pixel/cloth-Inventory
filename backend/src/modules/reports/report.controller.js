@@ -313,6 +313,50 @@ const getAgentWiseReport = async (req, res, next) => {
     }
 };
 
+const getInTransitReport = async (req, res, next) => {
+    try {
+        const report = await reportService.getInTransitReport();
+        return sendSuccess(res, { report }, 'In-transit stock report retrieved');
+    } catch (err) { next(err); }
+};
+
+const getConsolidatedStock = async (req, res, next) => {
+    try {
+        const WarehouseInventory = require('../../models/warehouseInventory.model');
+        const StoreInventory = require('../../models/storeInventory.model');
+        const SupplierInventory = require('../../models/supplierInventory.model');
+        const Item = require('../../models/item.model');
+
+        // Total by Warehouse
+        const whStock = await WarehouseInventory.aggregate([
+            { $group: { _id: '$warehouseId', totalQty: { $sum: '$quantity' }, items: { $addToSet: '$itemId' } } }
+        ]);
+
+        // Total by Store
+        const storeStock = await StoreInventory.aggregate([
+            { $group: { _id: '$storeId', totalQty: { $sum: '$quantity' } } }
+        ]);
+
+        // Total by Supplier (Job Work)
+        const supplierStock = await SupplierInventory.aggregate([
+            { $group: { _id: '$supplierId', totalQty: { $sum: '$quantity' } } }
+        ]);
+
+        return sendSuccess(res, { 
+            warehouseStock: whStock, 
+            storeStock: storeStock, 
+            contractorStock: supplierStock,
+            summary: {
+                warehouseUnits: whStock.reduce((a, b) => a + b.totalQty, 0),
+                storeUnits: storeStock.reduce((a, b) => a + b.totalQty, 0),
+                contractorUnits: supplierStock.reduce((a, b) => a + b.totalQty, 0)
+            }
+        }, 'Consolidated stock report retrieved');
+    } catch (err) {
+        next(err);
+    }
+};
+
 module.exports = {
     getDailySales,
     getMonthlySales,
@@ -343,5 +387,7 @@ module.exports = {
     getSaleChallanReport,
     getSchemeReport,
     getOrderReport,
-    getAgentWiseReport
+    getAgentWiseReport,
+    getConsolidatedStock,
+    getInTransitReport
 };

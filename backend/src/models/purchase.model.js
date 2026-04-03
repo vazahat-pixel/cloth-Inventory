@@ -8,11 +8,22 @@ const purchaseSchema = new mongoose.Schema(
             required: true,
             unique: true
         },
+        type: {
+            type: String,
+            enum: ['RAW_MATERIAL', 'ACCESSORY', 'FINISHED_GOOD'],
+            default: 'RAW_MATERIAL',
+            index: true
+        },
         supplierId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'Supplier',
-            required: true
+            refPath: 'supplierModel',
+            required: false // Allow direct entry without supplier
         },
+        supplierModel: {
+            type: String,
+            default: 'Supplier'
+        },
+
         storeId: {
             type: mongoose.Schema.Types.ObjectId,
             refPath: 'storeType',

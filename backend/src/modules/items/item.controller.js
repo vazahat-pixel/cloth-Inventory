@@ -92,6 +92,17 @@ class ItemController {
       return sendSuccess(res, { item }, 'Size matrix updated successfully');
     } catch(e) { return sendError(res, e.message); }
  }
+
+  scanItemByBarcode = async (req, res) => {
+    try {
+      const { barcode } = req.params;
+      const result = await itemService.scanItemByBarcode(barcode);
+      if (!result) return sendNotFound(res, 'Item not found for this barcode');
+      return sendSuccess(res, result, 'Scanner lookup successful');
+    } catch (error) {
+      return sendError(res, error.message);
+    }
+  };
 }
 
 module.exports = new ItemController();

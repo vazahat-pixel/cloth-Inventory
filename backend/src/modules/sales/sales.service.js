@@ -2,7 +2,7 @@ const Sale = require('../../models/sale.model');
 const StoreInventory = require('../../models/storeInventory.model');
 const Product = require('../../models/product.model');
 const { SaleStatus, StockMovementType, DocumentType } = require('../../core/enums');
-const workflowService = require('../workflow/workflow.service');
+const workflowService = require('../workflow/workflow.service.js');
 const { withTransaction } = require('../../services/transaction.service');
 const { adjustStoreStock } = require('../../services/stock.service');
 const { createAuditLog } = require('../../middlewares/audit.middleware');
@@ -77,7 +77,7 @@ const getProductForSale = async (barcode, storeId) => {
  * Create a new Sale
  */
 const createSale = async (saleData, cashierId, sessionOuter = null) => {
-    const handle = async (session) => {
+        const handle = async (session) => {
         const storeId = saleData.storeId || saleData.warehouseId;
         const products = saleData.products || saleData.items || [];
         const {
@@ -92,13 +92,14 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             redeemPoints,
             creditNoteId,
             type = 'RETAIL',
-            parentSaleId
+            parentSaleId,
+            exchangeDetails // { originalSaleId, items: [{ barcode, quantity, price }] }
         } = saleData;
 
         // 1. Generate Sale Number
         const saleNumber = await generateSaleNumber(session);
 
-        // 2. Process Products and Update Inventory
+        // 2. Process NEW Products and Update Inventory
         let totalCGST = 0;
         let totalSGST = 0;
         let totalIGST = 0;
@@ -107,78 +108,29 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
         const stockMovements = [];
 
         for (const item of products) {
-            const variantId = item.productId || item.variantId;
+            const barcode = item.barcode;
+            const inventory = await StoreInventory.findOne({ storeId, barcode }).populate('itemId').session(session);
             
-            // Search in Item collection's sizes array to get parent and variant
-            const parentItem = await Item.findOne({ "sizes._id": variantId }).session(session);
-            if (!parentItem) throw new Error('Product not found in Master Item list');
-            
-            const variant = parentItem.sizes.find(sz => String(sz._id) === String(variantId));
-            if (!variant) throw new Error('Variant not found in Master Item list');
-
-            const inventory = await StoreInventory.findOne({
-                storeId,
-                productId: variantId
-            }).session(session);
-
-            const availableQty = inventory ? (typeof inventory.quantityAvailable === 'number'
-                ? inventory.quantityAvailable
-                : inventory.quantity || 0) : 0;
-
-            if (item.quantity > 0 && (!inventory || availableQty < item.quantity)) {
-                throw new Error(`Insufficient stock for ${parentItem.itemName} (${variant.size}) (Available: ${availableQty})`);
+            if (!inventory) throw new Error(`Stock not found for barcode: ${barcode}`);
+            if (inventory.quantity < item.quantity) {
+                throw new Error(`Insufficient stock for ${inventory.itemId.itemName} (Available: ${inventory.quantity})`);
             }
 
-            // --- PRICING ENGINE INJECTION ---
-            const storePriceRule = await StorePricing.findOne({
-                storeId,
-                productId: variantId,
-                isActive: true
-            }).session(session);
+            const parentItem = inventory.itemId;
+            const variant = parentItem.sizes?.find(s => s.barcode === barcode);
 
-            const originalPrice = variant.salePrice || 0;
-            const appliedPrice = storePriceRule ? storePriceRule.price : originalPrice;
-            const pricingSource = storePriceRule ? 'STORE_SPECIFIC' : 'DEFAULT';
+            const mrp = item.mrp || variant?.mrp || 0;
+            const rate = item.rate || variant?.salePrice || 0;
+            const discount = item.discount || 0;
 
-            // Override price in item for downstream calculations, ensuring we have a number
-            item.price = Number(appliedPrice || 0);
-            item.originalPrice = Number(originalPrice || 0);
-            item.appliedPrice = item.price;
-            item.pricingSource = pricingSource;
-            item.itemName = parentItem.itemName;
-            item.size = variant.size;
-            item.color = variant.color;
-            // --------------------------------
-            item.appliedPrice = item.price;
-            item.pricingSource = pricingSource;
-            // --------------------------------
-
-            const taxableAmount = (item.price || 0) * (item.quantity || 0);
+            const taxableAmount = (rate * item.quantity);
             calculatedSubTotal += taxableAmount;
 
             let gstData = { cgst: 0, sgst: 0, igst: 0, totalTax: 0 };
-            
-            // Handle GST using parentItem's gstTax or hsCodeId
             const gstPercentage = parentItem.gstTax || 0;
+            
             if (gstPercentage > 0) {
-                let gstType = 'CGST_SGST'; // Default
-
-                // Logic for Internal Sales: Force GST type based on state comparison
-                if (type === 'INTERNAL_SALE' && saleData.destinationStoreId) {
-                    const Warehouse = require('../../models/warehouse.model');
-                    const Store = require('../../models/store.model');
-                    
-                    const source = await Warehouse.findById(storeId).session(session) || await Store.findById(storeId).session(session);
-                    const destination = await Store.findById(saleData.destinationStoreId).session(session);
-                    
-                    if (source && destination) {
-                        const sourceState = (source.location?.state || '').trim().toUpperCase();
-                        const destState = (destination.location?.state || '').trim().toUpperCase();
-                        gstType = (sourceState === destState) ? 'CGST_SGST' : 'IGST';
-                    }
-                }
-
-                gstData = calculateGST(taxableAmount, gstPercentage, gstType);
+                gstData = calculateGST(taxableAmount, gstPercentage, 'CGST_SGST');
             }
 
             totalCGST += gstData.cgst;
@@ -186,22 +138,68 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             totalIGST += gstData.igst;
             totalTax += gstData.totalTax;
 
+            // Updated item object for sale record
+            item.itemId = parentItem._id;
+            item.variantId = inventory.variantId;
+            item.mrp = mrp;
+            item.rate = rate;
             item.taxAmount = gstData.totalTax;
             item.taxPercentage = gstPercentage;
+            item.total = taxableAmount + gstData.totalTax;
 
             stockMovements.push({
-                productId: variantId,
-                variantId: variantId,
+                itemId: parentItem._id,
+                barcode: barcode,
+                variantId: inventory.variantId,
                 storeId,
-                quantityChange: -item.quantity,
-                type: (type || 'RETAIL').toUpperCase() === 'EXCHANGE' && item.quantity < 0
-                    ? StockMovementType.RETURN
-                    : StockMovementType.SALE,
-                referenceModel: 'Sale',
-                notes: `Sale ${saleNumber} ${(type || 'RETAIL').toUpperCase() === 'EXCHANGE' && item.quantity < 0 ? '(Exchange Return)' : ''}`,
+                quantity: item.quantity,
+                type: 'SALE'
             });
         }
 
+        // 2.0 Process EXCHANGE / RETURNS
+        let totalReturnValue = 0;
+        let returnItemsProcessed = [];
+        if (exchangeDetails && exchangeDetails.originalSaleId) {
+            const originalSale = await Sale.findById(exchangeDetails.originalSaleId).session(session);
+            if (!originalSale) throw new Error('Original sale for exchange not found');
+
+            for (const rItem of exchangeDetails.items) {
+                const matchedSaleItem = originalSale.items.find(si => si.barcode === rItem.barcode);
+                if (!matchedSaleItem) throw new Error(`Item ${rItem.barcode} was not part of the original sale`);
+
+                // Check previously returned quantity? (ERP logic usually needs salesReturn records)
+                // For now, simple check:
+                if (rItem.quantity > matchedSaleItem.quantity) {
+                    throw new Error(`Return quantity for ${rItem.barcode} exceeds original purchased quantity`);
+                }
+
+                const itemReturnValue = (matchedSaleItem.rate * rItem.quantity); // Returns at original rate
+                const itemReturnTax = (matchedSaleItem.taxAmount / matchedSaleItem.quantity) * rItem.quantity;
+                
+                totalReturnValue += (itemReturnValue + itemReturnTax);
+
+                returnItemsProcessed.push({
+                    itemId: matchedSaleItem.itemId,
+                    barcode: rItem.barcode,
+                    variantId: matchedSaleItem.variantId,
+                    quantity: rItem.quantity,
+                    rate: matchedSaleItem.rate,
+                    taxAmount: itemReturnTax,
+                    total: itemReturnValue + itemReturnTax
+                });
+
+                // Stock Movement (Add back to stock)
+                stockMovements.push({
+                    itemId: matchedSaleItem.itemId,
+                    barcode: rItem.barcode,
+                    variantId: matchedSaleItem.variantId,
+                    storeId,
+                    quantity: rItem.quantity,
+                    type: 'RETURN'
+                });
+            }
+        }
         // 2.1. Handle Loyalty Redemption
         let loyaltyRedemptionAmount = 0;
         let customer = null;
@@ -246,14 +244,12 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             await creditNote.save({ session });
         }
 
-        const finalGrandTotal = calculatedSubTotal + totalTax - discount - loyaltyRedemptionAmount - creditNoteAppliedAmount;
+        const finalGrandTotal = Math.max(0, calculatedSubTotal + totalTax - discount - loyaltyRedemptionAmount - creditNoteAppliedAmount - totalReturnValue);
+        const exchangeAdjustment = totalReturnValue;
 
         // 3. Create Sale Record
-        const subTotalCalculated = products.reduce((sum, p) => sum + (p.price * p.quantity), 0);
-        const grandTotalCalculated = subTotalCalculated + totalTax - (discount || 0) - loyaltyRedemptionAmount - creditNoteAppliedAmount;
-
         const amountPaid = Number(saleData.amountPaid || 0);
-        const dueAmount = grandTotalCalculated - amountPaid;
+        const dueAmount = Number((finalGrandTotal - amountPaid).toFixed(2));
 
         // 5. Save Sale Record
         const sale = new Sale({
@@ -266,13 +262,19 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             customerMobile: saleData.customerMobile,
             type: saleData.type || 'RETAIL',
             parentSaleId,
-            products: products.map(p => ({
-                ...p,
+            items: products.map(p => ({
+                itemId: p.itemId,
+                variantId: p.variantId,
+                barcode: p.barcode,
+                quantity: p.quantity,
+                mrp: p.mrp,
+                rate: p.rate,
+                discount: p.discount || 0,
                 taxAmount: p.taxAmount || 0,
                 taxPercentage: p.taxPercentage || 0,
-                total: (p.price * p.quantity) + (p.taxAmount || 0)
+                total: p.total
             })),
-            subTotal: subTotalCalculated,
+            subTotal: calculatedSubTotal,
             discount,
             loyaltyRedeemed: loyaltyRedemptionAmount,
             creditNoteId,
@@ -284,7 +286,9 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
                 igst: totalIGST
             },
             totalTax,
-            grandTotal: grandTotalCalculated,
+            grandTotal: finalGrandTotal,
+            exchangeAdjustment,
+            returnedItems: returnItemsProcessed,
             amountPaid,
             dueAmount,
             paymentMode: saleData.paymentMode || 'CASH',
@@ -293,26 +297,37 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
         });
         await sale.save({ session });
 
-        // Now that the sale has an id, post all stock movements against it.
-        for (const movement of stockMovements) {
-            await adjustStoreStock({
-                productId: movement.productId,
-                variantId: movement.variantId,
-                storeId: movement.storeId,
-                quantityChange: movement.quantityChange,
-                type: movement.type,
-                referenceId: sale._id,
-                referenceModel: movement.referenceModel,
-                performedBy: cashierId,
-                notes: movement.notes,
-                session
-            });
-
-            await StoreInventory.updateOne(
-                { storeId, productId: movement.productId },
-                { $inc: { quantitySold: movement.quantityChange < 0 ? Math.abs(movement.quantityChange) : -movement.quantityChange } },
-                { session }
-            );
+        // 4. Update Stock and Record in Ledger
+        for (const mov of stockMovements) {
+            if (mov.type === 'SALE') {
+                await stockService.removeStock({
+                    itemId: mov.itemId,
+                    barcode: mov.barcode,
+                    variantId: mov.variantId,
+                    locationId: mov.storeId,
+                    locationType: 'STORE',
+                    qty: mov.quantity,
+                    type: 'SALE',
+                    referenceId: sale._id,
+                    referenceType: 'Sale',
+                    performedBy: cashierId,
+                    session
+                });
+            } else if (mov.type === 'RETURN') {
+                await stockService.addStock({
+                    itemId: mov.itemId,
+                    barcode: mov.barcode,
+                    variantId: mov.variantId,
+                    locationId: mov.storeId,
+                    locationType: 'STORE',
+                    qty: mov.quantity,
+                    type: 'RETURN',
+                    referenceId: sale._id,
+                    referenceType: 'Sale',
+                    performedBy: cashierId,
+                    session
+                });
+            }
         }
 
         // Record Loyalty Transactions (both Redeem and Earn)
@@ -564,7 +579,7 @@ const getAllSales = async (query, user) => {
             .limit(parseInt(limit))
             .populate('storeId', 'name')
             .populate('cashierId', 'name')
-            .populate('products.productId', 'name sku barcode size color category'),
+            .populate('items.itemId', 'itemName itemCode shade gstTax sizes'),
         Sale.countDocuments(filter)
     ]);
 
@@ -575,7 +590,8 @@ const getSaleById = async (id) => {
     const sale = await Sale.findOne({ _id: id, isDeleted: false })
         .populate('storeId')
         .populate('cashierId', 'name')
-        .populate('products.productId');
+        .populate('customerId', 'customerName mobileNumber loyaltyPoints')
+        .populate('items.itemId', 'itemName itemCode shade gstTax sizes');
     if (!sale) throw new Error('Sale not found');
     return sale;
 };
@@ -590,23 +606,23 @@ const cancelSale = async (id, userId) => {
         if (sale.status !== SaleStatus.COMPLETED) throw new Error('Only completed sales can be cancelled');
 
         // 1. Reverse Stock
-        for (const item of sale.products) {
-            await adjustStoreStock({
-                productId: item.productId,
-                variantId: item.productId,
-                storeId: sale.storeId,
-                quantityChange: item.quantity,
-                type: StockMovementType.RETURN,
+        const stockService = require('../../services/stock.service');
+        for (const item of sale.items) {
+            await stockService.addStock({
+                variantId: item.variantId,
+                locationId: sale.storeId,
+                locationType: 'STORE',
+                qty: item.quantity,
+                type: 'RETURN',
                 referenceId: sale._id,
-                referenceModel: 'Sale',
+                referenceType: 'Sale',
                 performedBy: userId,
-                notes: `Sale ${sale.saleNumber} cancellation stock reversal`,
                 session
             });
 
             // Update Store Inventory quantitySold
             await StoreInventory.findOneAndUpdate(
-                { storeId: sale.storeId, productId: item.productId },
+                { storeId: sale.storeId, barcode: item.barcode },
                 { $inc: { quantitySold: -item.quantity } },
                 { session }
             );

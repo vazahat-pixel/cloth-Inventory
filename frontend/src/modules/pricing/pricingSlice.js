@@ -45,7 +45,7 @@ export const updatePriceList = createAsyncThunk('pricing/updateList', async ({ i
 
 export const fetchSchemes = createAsyncThunk('pricing/fetchSchemes', async (_, { rejectWithValue }) => {
   try {
-    const response = await api.get('/schemes');
+    const response = await api.get('/pricing/schemes');
     const raw = response.data.schemes || response.data.data || [];
     return normalizeResponse(raw, 'scheme');
   } catch (error) {
@@ -55,7 +55,7 @@ export const fetchSchemes = createAsyncThunk('pricing/fetchSchemes', async (_, {
 
 export const addScheme = createAsyncThunk('pricing/addScheme', async (data, { rejectWithValue }) => {
   try {
-    const response = await api.post('/schemes', data);
+    const response = await api.post('/pricing/schemes', data);
     return normalizeResponse(response.data.scheme || response.data.data, 'scheme');
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
@@ -64,7 +64,7 @@ export const addScheme = createAsyncThunk('pricing/addScheme', async (data, { re
 
 export const updateScheme = createAsyncThunk('pricing/updateScheme', async ({ id, scheme }, { rejectWithValue }) => {
   try {
-    const response = await api.patch(`/schemes/${id}`, scheme);
+    const response = await api.patch(`/pricing/schemes/${id}`, scheme);
     return normalizeResponse(response.data.scheme || response.data.data, 'scheme');
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
@@ -73,7 +73,7 @@ export const updateScheme = createAsyncThunk('pricing/updateScheme', async ({ id
 
 export const fetchCoupons = createAsyncThunk('pricing/fetchCoupons', async (_, { rejectWithValue }) => {
   try {
-    const response = await api.get('/coupons');
+    const response = await api.get('/pricing/coupons');
     const raw = response.data.coupons || response.data.data || [];
     return normalizeResponse(raw, 'coupon');
   } catch (error) {
@@ -84,7 +84,7 @@ export const fetchCoupons = createAsyncThunk('pricing/fetchCoupons', async (_, {
 export const addCoupon = createAsyncThunk('pricing/addCoupon', async (data, { rejectWithValue }) => {
   try {
     const payload = mapCouponToBackend(data);
-    const response = await api.post('/coupons', payload);
+    const response = await api.post('/pricing/coupons', payload);
     return normalizeResponse(response.data.coupon || response.data.data, 'coupon');
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
@@ -108,7 +108,7 @@ export const addCouponsBulk = createAsyncThunk('pricing/addCouponsBulk', async (
 export const updateCoupon = createAsyncThunk('pricing/updateCoupon', async ({ id, coupon }, { rejectWithValue }) => {
   try {
     const payload = mapCouponToBackend(coupon);
-    const response = await api.patch(`/coupons/${id}`, payload);
+    const response = await api.patch(`/pricing/coupons/${id}`, payload);
     return normalizeResponse(response.data.coupon || response.data.data, 'coupon');
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
@@ -126,8 +126,26 @@ export const setPriceListStatus = createAsyncThunk('pricing/setStatus', async ({
 
 export const setSchemeStatus = createAsyncThunk('pricing/setSchemeStatus', async ({ id, status }, { rejectWithValue }) => {
   try {
-    const response = await api.patch(`/schemes/${id}`, { status });
+    const response = await api.patch(`/pricing/schemes/${id}`, { isActive: status === 'ACTIVE' });
     return normalizeResponse(response.data.scheme || response.data.data, 'scheme');
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
+export const deleteScheme = createAsyncThunk('pricing/deleteScheme', async (id, { rejectWithValue }) => {
+  try {
+    await api.delete(`/pricing/schemes/${id}`);
+    return id;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
+export const evaluateOffers = createAsyncThunk('pricing/evaluateOffers', async (cartData, { rejectWithValue }) => {
+  try {
+    const response = await api.post('/pricing/evaluate', cartData);
+    return response.data.data || response.data;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -137,7 +155,9 @@ const initialState = {
   priceLists: [],
   schemes: [],
   coupons: [],
+  eligibleOffers: [],
   loading: false,
+  evaluateLoading: false,
   error: null,
 };
 
@@ -202,6 +222,19 @@ const pricingSlice = createSlice({
         if (index !== -1) {
           state.schemes[index] = action.payload;
         }
+      })
+      .addCase(evaluateOffers.pending, (state) => {
+        state.evaluateLoading = true;
+      })
+      .addCase(evaluateOffers.fulfilled, (state, action) => {
+        state.evaluateLoading = false;
+        state.eligibleOffers = action.payload?.eligibleSchemes || [];
+      })
+      .addCase(evaluateOffers.rejected, (state) => {
+        state.evaluateLoading = false;
+      })
+      .addCase(deleteScheme.fulfilled, (state, action) => {
+        state.schemes = state.schemes.filter((s) => s.id !== action.payload && s._id !== action.payload);
       });
   },
 });

@@ -9,7 +9,7 @@ const { createJournalEntries } = require('../../services/ledger.service');
 const { withTransaction } = require('../../services/transaction.service');
 const { getNextSequence } = require('../../services/sequence.service');
 const { PurchaseStatus, StockMovementType, DocumentType, GrnStatus, PurchaseOrderStatus } = require('../../core/enums');
-const workflowService = require('../workflow/workflow.service');
+const workflowService = require('../workflow/workflow.service.js');
 const { createAuditLog } = require('../../middlewares/audit.middleware');
 const barcodeService = require('../../services/barcode.service');
 const PurchaseOrder = require('../../models/purchaseOrder.model');
@@ -187,16 +187,24 @@ const postVoucher = async (purchaseId, userId) => {
         if (purchase.purchaseOrderId) {
             const po = await PurchaseOrder.findById(purchase.purchaseOrderId).session(session);
             if (po) {
-                let allReceived = true;
+                // UPDATE BILLED QTY (Financial)
                 for (const item of purchase.products) {
                     const poItem = po.items.find(i => i.variantId?.toString() === item.variantId?.toString());
                     if (poItem) {
-                        poItem.receivedQty = (poItem.receivedQty || 0) + item.quantity;
-                        if (poItem.receivedQty < poItem.qty) allReceived = false;
+                        poItem.billedQty = (poItem.billedQty || 0) + item.quantity;
                     }
                 }
-                if (allReceived) po.status = PurchaseOrderStatus.COMPLETED;
-                else po.status = PurchaseOrderStatus.PARTIAL;
+                
+                // If PO is already fully received (physically), mark it as completed now that it's billed
+                let isFullyReceived = true;
+                for (const poItem of po.items) {
+                    if ((poItem.receivedQty || 0) < poItem.qty) isFullyReceived = false;
+                }
+                
+                if (isFullyReceived) {
+                   po.status = PurchaseOrderStatus.COMPLETED;
+                }
+
                 await po.save({ session });
             }
         }
@@ -366,6 +374,31 @@ const cancelPurchase = async (purchaseId, userId) => {
                 grn.status = GrnStatus.APPROVED;
                 grn.purchaseId = null;
                 await grn.save({ session });
+            }
+        }
+
+        // REVERSE PO billing if linked
+        if (purchase.purchaseOrderId) {
+            const po = await PurchaseOrder.findById(purchase.purchaseOrderId).session(session);
+            if (po) {
+                for (const item of purchase.products) {
+                    const poItem = po.items.find(i => i.variantId?.toString() === item.variantId?.toString());
+                    if (poItem) {
+                        poItem.billedQty = Math.max(0, (poItem.billedQty || 0) - item.quantity);
+                    }
+                }
+                
+                // Recalculate status back to partially received if everything else is received
+                let isFullyReceived = true;
+                for (const poItem of po.items) {
+                    if ((poItem.receivedQty || 0) < poItem.qty) isFullyReceived = false;
+                }
+                
+                if (!isFullyReceived) {
+                    po.status = PurchaseOrderStatus.PARTIALLY_RECEIVED;
+                }
+                
+                await po.save({ session });
             }
         }
 

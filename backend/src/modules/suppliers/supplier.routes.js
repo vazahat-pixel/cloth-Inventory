@@ -17,4 +17,7 @@ router.route('/:id')
     .patch(requireAdmin, updateSupplierValidation, supplierController.updateSupplier)
     .delete(requireAdmin, supplierController.deleteSupplier);
 
+const supplierInventoryController = require('./supplierInventory.controller');
+router.get('/:supplierId/inventory', supplierInventoryController.getSupplierStock);
+
 module.exports = router;

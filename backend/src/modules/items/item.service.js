@@ -1,7 +1,7 @@
 const Item = require('../../models/item.model');
 const Group = require('../../models/group.model');
 const FormulaEngine = require('../../utils/formula.engine');
-const { generateBarcode } = require('../products/barcode.service');
+const { generateUniqueBarcode: generateBarcode } = require('../../services/barcode.service');
 
 const normalizeString = (value) => {
   if (value === null || value === undefined) {
@@ -194,6 +194,30 @@ class ItemService {
       .populate('brand', 'brandName name')
       .populate('session', 'seasonName name')
       .populate('hsCodeId', 'code hsnCode gstRate gstPercent');
+  }
+
+  async scanItemByBarcode(barcode) {
+    if (!barcode) throw new Error('Barcode is required');
+    const upperBarcode = barcode.toUpperCase();
+    
+    // Search by itemCode OR variant SKU
+    const item = await Item.findOne({
+      $or: [
+        { itemCode: upperBarcode },
+        { 'sizes.sku': barcode }
+      ]
+    })
+    .populate('groupIds', 'name groupType level parentId isActive')
+    .populate('brand', 'brandName name')
+    .populate('session', 'seasonName name')
+    .populate('hsCodeId', 'code hsnCode gstRate gstPercent');
+
+    if (!item) return null;
+
+    // Find the specific variant if it was a variant scan
+    const variant = item.sizes.find(s => s.sku === barcode) || item.sizes[0];
+    
+    return { item, variant };
   }
 
   async deleteItem(id) {
