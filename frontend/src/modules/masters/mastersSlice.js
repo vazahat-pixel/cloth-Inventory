@@ -7,7 +7,6 @@ const endpointMap = {
   customers: '/customers',
   warehouses: '/warehouses',
   stores: '/stores',
-  itemGroups: '/groups',
   brands: '/brands',
   sizes: '/sizes',
   hsnCodes: '/setup/hsn',
@@ -18,7 +17,6 @@ const responseKeyMap = {
   customers: 'customers',
   warehouses: 'warehouses',
   stores: 'stores',
-  itemGroups: 'groups',
   brands: 'brands',
   sizes: 'sizes',
   hsnCodes: 'hsns',
@@ -29,7 +27,6 @@ const singularKeyMap = {
   customers: 'customer',
   warehouses: 'warehouse',
   stores: 'store',
-  itemGroups: 'group',
   brands: 'brand',
   sizes: 'size',
   hsnCodes: 'hsn',
@@ -47,7 +44,6 @@ export const fetchMasters = createAsyncThunk('masters/fetchAll', async (entityKe
     const raw = response.data[key] || response.data.data?.[key] || response.data[singularKey] || response.data.data?.[singularKey] || response.data.data || [];
 
     const entityTypeMapping = {
-      itemGroups: 'group',
       warehouses: 'warehouse',
       stores: 'store',
     };
@@ -65,15 +61,7 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
 
     // Map frontend fields to backend payloads for specific entities
     let payload = record;
-    if (entityKey === 'itemGroups') {
-      // Item groups are backed by Group model
-      payload = {
-        name: record.groupName,
-        groupType: record.groupType || record.type,
-        parentId: record.parentId || record.parentGroup || null,
-        isActive: record.isActive !== undefined ? record.isActive : record.status !== 'Inactive',
-      };
-    } else if (entityKey === 'suppliers') {
+    if (entityKey === 'suppliers') {
       // Map frontend fields (supplierName, gstNo) to backend (name, gstNumber)
       payload = {
         name: record.supplierName,
@@ -147,7 +135,6 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
     const raw = response.data[key] || response.data.data?.[key] || response.data[singularKey] || response.data.data?.[singularKey] || response.data.data;
 
     const entityTypeMapping = {
-      itemGroups: 'group',
       warehouses: 'warehouse',
       stores: 'store',
     };
@@ -165,14 +152,7 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
 
     // Map update payloads similar to addMasterRecord
     let payload = updates;
-    if (entityKey === 'itemGroups') {
-      payload = {
-        name: updates.groupName,
-        groupType: updates.groupType || updates.type,
-        parentId: updates.parentId || updates.parentGroup || null,
-        isActive: updates.isActive !== undefined ? updates.isActive : updates.status !== 'Inactive',
-      };
-    } else if (entityKey === 'suppliers') {
+    if (entityKey === 'suppliers') {
       payload = {
         name: updates.supplierName,
         supplierCode: updates.supplierCode,
@@ -243,7 +223,6 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
     const raw = response.data[key] || response.data.data?.[key] || response.data[singularKey] || response.data.data?.[singularKey] || response.data.data;
 
     const entityTypeMapping = {
-      itemGroups: 'group',
       warehouses: 'warehouse',
       stores: 'store',
     };
@@ -270,7 +249,6 @@ const initialState = {
   customers: [],
   warehouses: [],
   stores: [],
-  itemGroups: [],
   brands: [],
   sizes: [],
   hsnCodes: [],
