@@ -57,7 +57,7 @@ const itemSchema = new mongoose.Schema({
   brand: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Brand',
-    required: true,
+    required: false,
     index: true
   },
   shade: {
@@ -77,6 +77,18 @@ const itemSchema = new mongoose.Schema({
   fit: { type: String, trim: true },
   gender: { type: String, trim: true },
   occasion: { type: String, trim: true },
+  
+  // Professional Raw Material (Fabric) Specs
+  composition: { type: String, trim: true }, // e.g. 100% Cotton
+  gsm: { type: String, trim: true },         // e.g. 180 GSM
+  width: { type: String, trim: true },       // e.g. 58 inches
+  shrinkage: { type: String, trim: true },   // e.g. 2%
+  shadeNo: { type: String, trim: true },     // e.g. SH-402
+  
+  // Professional Accessory Specs
+  accessorySize: { type: String, trim: true }, // e.g. 18L, 24L
+  packingType: { type: String, trim: true },   // e.g. Roll, Gross, Box
+  
   groupIds: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Group',

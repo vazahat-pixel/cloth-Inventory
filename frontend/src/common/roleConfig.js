@@ -57,10 +57,10 @@ export const getRoleBasePath = (role) => {
 
 const adminSidebarItems = [
   { label: 'Search Home', path: '/', icon: HomeIcon },
-  { label: 'Items', path: '/items', icon: Inventory2Icon, matchPaths: itemsMatchPaths, drilldown: true },
-  { label: 'Inventory (Stock)', path: '/inventory', icon: Inventory2Icon, matchPaths: inventoryMatchPaths, drilldown: true },
-  { label: 'Purchase', path: '/purchase', icon: ShoppingCartIcon, matchPaths: purchaseMatchPaths, drilldown: true },
-  { label: 'Job Work Production', path: '/supplier-outward', icon: BuildOutlinedIcon, drilldown: true },
+  { label: 'Inventory Master', path: '/items', icon: Inventory2Icon, matchPaths: itemsMatchPaths, drilldown: true },
+  { label: 'Stock Registry', path: '/inventory', icon: Inventory2Icon, matchPaths: inventoryMatchPaths, drilldown: true },
+  { label: 'Purchase Voucher', path: '/purchase', icon: ShoppingCartIcon, matchPaths: purchaseMatchPaths, drilldown: true },
+  { label: 'Material Issue (Outward)', path: '/supplier-outward', icon: BuildOutlinedIcon, drilldown: true },
   { label: 'Sales & Billing', path: '/sales', icon: PointOfSaleIcon, matchPaths: billingMatchPaths, drilldown: true },
   { label: 'Reports & Analytics', path: '/reports', icon: AssessmentOutlinedIcon, matchPaths: reportsQueriesMatchPaths, drilldown: true },
   { label: 'Accounts', path: '/accounts', icon: AccountBalanceWalletIcon, matchPaths: accountsMatchPaths, drilldown: true },
@@ -75,20 +75,25 @@ export const adminNavConfig = {
   mainNav: adminSidebarItems,
   children: {
     '/setup': setupNavItems.map(i => ({ ...i, drilldown: ['/setup/accounts', '/setup/taxes', '/setup/party-wise', '/setup/other-account-details', '/setup/configurations'].includes(i.path) })),
-    '/items': itemsNavItems,
+    '/items': [
+      { label: 'Garment Master (FG)', path: '/ho/items' },
+      { label: 'Stock Registry (RM)', path: '/ho/inventory/raw-materials' },
+      { label: 'Barcode Print (Pre-Receipt)', path: '/ho/setup/barcode-print' },
+    ],
     '/accounts': accountsNavItems.map(i => ({ ...i, drilldown: ['/accounts/vouchers', '/accounts/printing', '/accounts/utilities'].includes(i.path) })),
-    '/purchase': purchaseNavItems,
+    '/purchase': [
+      { label: 'Purchase Voucher (RM/ACC)', path: '/ho/purchase/purchase-voucher' },
+      { label: 'Purchase Returns', path: '/ho/purchase/purchase-return' },
+    ],
     '/inventory': [
-      { label: 'Warehouse Stock Registry', path: '/inventory/stock-overview' },
-      { label: 'Accessory Direct Inward', path: '/ho/inventory/accessory-entry' },
-      { label: 'GRN Automation (FG)', path: '/inventory/grn/new' },
-      { label: 'Stock Movement Audit', path: '/inventory/movement' }
+      { label: 'Inventory (Garments)', path: '/ho/inventory/stock-overview' },
+      { label: 'Inventory (Raw Material)', path: '/ho/inventory/raw-materials' },
+      { label: 'Material Issue (Outward)', path: '/ho/inventory/supplier-outward' },
+      { label: 'Scan-to-Receipt (GRN)', path: '/ho/grn' },
     ],
     '/supplier-outward': [
-      { label: 'Outward Dispatch', path: '/supplier-outward/new' },
-      { label: 'Outward History', path: '/supplier-outward/list' },
-      { label: 'Supplier Stock Audit', path: '/supplier-outward/audit' },
-      { label: 'Finished Goods Receipt (GRN)', path: '/inventory/grn/new' }
+      { label: 'Material Issue Registry', path: '/ho/inventory/supplier-outward' },
+      { label: 'Issue New Material', path: '/ho/inventory/supplier-outward/new' }
     ],
     '/sales': billingNavItems,
     '/reports': [

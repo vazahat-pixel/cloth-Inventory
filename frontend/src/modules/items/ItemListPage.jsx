@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Box, Button, Card, CardContent, Grid, IconButton, InputAdornment, MenuItem, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import { Box, Button, Card, CardContent, Grid, IconButton, InputAdornment, MenuItem, Paper, Stack, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, Tabs, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import SearchIcon from '@mui/icons-material/Search';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
@@ -32,6 +32,7 @@ function ItemListPage() {
   const [groupFilter, setGroupFilter] = useState('all');
   const [hsnFilter, setHsnFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [activeTab, setActiveTab] = useState('FINISHED_GOOD');
   const [viewMode, setViewMode] = useState('table');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(8);
@@ -50,6 +51,7 @@ function ItemListPage() {
       id: item.id || item._id,
       itemCode: item.itemCode || item.code || item.sku || '',
       itemName: item.itemName || item.name || '',
+      type: item.type || 'FINISHED_GOOD',
       brand: item.brand?.brandName || item.brand?.name || (typeof item.brand === 'string' ? item.brand : 'UNSPECIFIED'),
       mainGroup: getGroup('Section') || getGroup('Category') || '--',
       subGroup: getGroup('Sub Category') || '--',
@@ -66,35 +68,48 @@ function ItemListPage() {
   const filteredRows = useMemo(() => {
     const query = searchText.trim().toLowerCase();
     return rows.filter((row) => {
+      const matchesType = row.type === activeTab;
       const matchesSearch = query ? [row.itemCode, row.itemName, row.brand, row.color].some((value) => String(value).toLowerCase().includes(query)) : true;
       const matchesBrand = brandFilter === 'all' ? true : row.brand === brandFilter;
       const matchesGroup = groupFilter === 'all' ? true : row.mainGroup === groupFilter;
       const matchesHsn = hsnFilter === 'all' ? true : row.hsnCode === hsnFilter;
       const matchesStatus = statusFilter === 'all' ? true : row.status === statusFilter;
-      return matchesSearch && matchesBrand && matchesGroup && matchesHsn && matchesStatus;
+      return matchesType && matchesSearch && matchesBrand && matchesGroup && matchesHsn && matchesStatus;
     });
-  }, [brandFilter, groupFilter, hsnFilter, rows, searchText, statusFilter]);
+  }, [activeTab, brandFilter, groupFilter, hsnFilter, rows, searchText, statusFilter]);
 
   const paginatedRows = useMemo(() => filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage), [filteredRows, page, rowsPerPage]);
   const exportRows = useMemo(() => toExportRows(filteredRows), [filteredRows]);
 
+  const counts = useMemo(() => ({
+    fg: rows.filter(r => r.type === 'FINISHED_GOOD').length,
+    acc: rows.filter(r => r.type === 'ACCESSORY').length,
+  }), [rows]);
+
   return (
     <div>
       <PageHeader
-        title="Items"
-        subtitle="Manage garment styles, group allocation, HSN mapping, variant pricing, and inventory-ready item defaults."
+        title="Inventory Master (Garments & Accessories)"
+        subtitle="Manage finished shirts/pants and support components (Buttons, Zippers, Trims)."
         breadcrumbs={[{ label: 'Items', active: true }]}
         actions={[
-          <ExportButton key="export" rows={exportRows} columns={itemsExportColumns} filename="items.xlsx" sheetName="Items" />,
-          <Button key="add" variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={() => navigate('/items/new')}>Add Item</Button>,
+          <ExportButton key="export" rows={exportRows} columns={itemsExportColumns} filename="garment_master" sheetName="Items" />,
+          <Button key="add" variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={() => navigate('/items/new')} sx={{ bgcolor: '#2563eb' }}>Create Item / Accessory</Button>,
         ]}
       />
+
+      <Paper elevation={0} sx={{ mb: 2, borderBottom: '1px solid #e2e8f0', bgcolor: 'transparent' }}>
+        <Tabs value={activeTab} onChange={(_, v) => { setActiveTab(v); setPage(0); }} sx={{ px: 2 }}>
+          <Tab value="FINISHED_GOOD" label={`Finished Garments (${counts.fg})`} sx={{ fontWeight: 700, textTransform: 'none' }} />
+          <Tab value="ACCESSORY" label={`Accessories & Trims (${counts.acc})`} sx={{ fontWeight: 700, textTransform: 'none' }} />
+        </Tabs>
+      </Paper>
+
       <FilterBar sx={{ mb: 2 }}>
-        <TextField size="small" value={searchText} onChange={(e) => { setPage(0); setSearchText(e.target.value); }} placeholder="Search item code, name, brand, or color" sx={{ flex: 1 }} InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }} />
+        <TextField size="small" value={searchText} onChange={(e) => { setPage(0); setSearchText(e.target.value); }} placeholder="Search code, name, color..." sx={{ flex: 1 }} InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }} />
         <TextField size="small" select label="Brand" value={brandFilter} onChange={(e) => { setPage(0); setBrandFilter(e.target.value); }} sx={{ minWidth: 160 }}><MenuItem value="all">All Brands</MenuItem>{brands.map((brand) => <MenuItem key={brand.id || brand._id} value={brand.brandName || brand.name}>{brand.brandName || brand.name}</MenuItem>)}</TextField>
         <TextField size="small" select label="Group" value={groupFilter} onChange={(e) => { setPage(0); setGroupFilter(e.target.value); }} sx={{ minWidth: 180 }}><MenuItem value="all">All Groups</MenuItem>{groups.map((group) => <MenuItem key={group.id || group._id} value={group.groupName || group.name}>{group.groupName || group.name}</MenuItem>)}</TextField>
-        <TextField size="small" select label="HSN" value={hsnFilter} onChange={(e) => { setPage(0); setHsnFilter(e.target.value); }} sx={{ minWidth: 140 }}><MenuItem value="all">All HSN</MenuItem>{hsnOptions.map((hsn) => <MenuItem key={hsn} value={hsn}>{hsn}</MenuItem>)}</TextField>
-        <TextField size="small" select label="Status" value={statusFilter} onChange={(e) => { setPage(0); setStatusFilter(e.target.value); }} sx={{ minWidth: 140 }}><MenuItem value="all">All Statuses</MenuItem><MenuItem value="Active">Active</MenuItem><MenuItem value="Draft">Draft</MenuItem><MenuItem value="Pending">Pending</MenuItem><MenuItem value="Inactive">Inactive</MenuItem></TextField>
+        <TextField size="small" select label="Status" value={statusFilter} onChange={(e) => { setPage(0); setStatusFilter(e.target.value); }} sx={{ minWidth: 140 }}><MenuItem value="all">All Statuses</MenuItem><MenuItem value="Active">Active</MenuItem><MenuItem value="Draft">Draft</MenuItem></TextField>
         <ToggleButtonGroup size="small" value={viewMode} exclusive onChange={(_, value) => value && setViewMode(value)}>
           <ToggleButton value="table"><TableRowsRoundedIcon fontSize="small" /></ToggleButton>
           <ToggleButton value="cards"><GridViewRoundedIcon fontSize="small" /></ToggleButton>

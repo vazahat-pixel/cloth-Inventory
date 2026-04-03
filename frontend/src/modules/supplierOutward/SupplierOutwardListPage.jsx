@@ -23,7 +23,7 @@ import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
 
 import { fetchSupplierOutwards } from './supplierOutwardSlice';
 import useRoleBasePath from '../../hooks/useRoleBasePath';
-import DetailPageHeader from '../../components/DetailPageHeader';
+import PageHeader from '../../components/erp/PageHeader';
 
 const SupplierOutwardListPage = () => {
   const dispatch = useDispatch();
@@ -37,27 +37,23 @@ const SupplierOutwardListPage = () => {
   }, [dispatch]);
 
   return (
-    <Box sx={{ p: { xs: 2, md: 4 }, bgcolor: '#f8fafc', minHeight: '100vh' }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 4 }}>
-        <Box>
-          <Typography variant="h4" sx={{ fontWeight: 800, color: '#0f172a' }}>
-            Supplier Outward Challans
-          </Typography>
-          <Typography variant="body2" sx={{ color: '#64748b' }}>
-            Track raw material and accessories provided to suppliers.
-          </Typography>
-        </Box>
-        <Stack direction="row" spacing={2}>
-           <Button variant="outlined" startIcon={<DownloadOutlinedIcon />}>Export</Button>
-           <Button 
-             variant="contained" 
-             startIcon={<AddCircleOutlineIcon />}
-             onClick={() => navigate(`${basePath}/inventory/supplier-outward/new`)}
-           >
-             New Outward
-           </Button>
-        </Stack>
-      </Stack>
+    <Box>
+      <PageHeader
+        title="Material Issue Registry"
+        subtitle="Track fabric and accessories dispatched to suppliers for production."
+        breadcrumbs={[{ label: 'Inventory' }, { label: 'Material Issue', active: true }]}
+        actions={[
+          <Button key="export" variant="outlined" startIcon={<DownloadOutlinedIcon />}>Export All</Button>,
+          <Button 
+            key="add"
+            variant="contained" 
+            startIcon={<AddCircleOutlineIcon />}
+            onClick={() => navigate(`${basePath}/inventory/supplier-outward/new`)}
+          >
+            Issue New Material
+          </Button>,
+        ]}
+      />
 
       <Paper elevation={0} sx={{ borderRadius: 3, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
         <TableContainer>

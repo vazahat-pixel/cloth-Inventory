@@ -47,6 +47,9 @@ const defaultValues = {
   sectionId: '', categoryId: '', subCategoryId: '', subSubCategoryId: '',
   defaultWarehouse: '', reorderLevel: 0, reorderQty: 0, openingStock: 0, openingStockRate: 0,
   stockTrackingEnabled: true, barcodeEnabled: true,
+  // Pro Specs
+  composition: '', gsm: '', width: '', shrinkage: '', shadeNo: '',
+  accessorySize: '', packingType: '',
 };
 
 function ItemFormPage({ mode = 'edit' }) {
@@ -153,6 +156,13 @@ function ItemFormPage({ mode = 'edit' }) {
         openingStockRate: Number(existingItem.openingStockRate || 0),
         stockTrackingEnabled: existingItem.stockTrackingEnabled ?? true, 
         barcodeEnabled: existingItem.barcodeEnabled ?? true,
+        composition: existingItem.composition || '',
+        gsm: existingItem.gsm || '',
+        width: existingItem.width || '',
+        shrinkage: existingItem.shrinkage || '',
+        shadeNo: existingItem.shadeNo || '',
+        accessorySize: existingItem.accessorySize || '',
+        packingType: existingItem.packingType || '',
       });
 
       const mappedVariants = (existingItem.sizes || []).map(s => ({
@@ -255,6 +265,13 @@ function ItemFormPage({ mode = 'edit' }) {
       stockTrackingEnabled: data.stockTrackingEnabled !== false,
       barcodeEnabled: data.barcodeEnabled !== false,
       status: statusOverride,
+      composition: data.composition,
+      gsm: data.gsm,
+      width: data.width,
+      shrinkage: data.shrinkage,
+      shadeNo: data.shadeNo,
+      accessorySize: data.accessorySize,
+      packingType: data.packingType,
       images: images.filter(Boolean).map((img) => img.preview || img),
       sizes: isRawMaterial ? [] : variants.map((v) => ({
         ...v,
@@ -382,14 +399,10 @@ function ItemFormPage({ mode = 'edit' }) {
                           disabled={isViewMode}
                           onChange={(e) => {
                             field.onChange(e);
-                            if (e.target.value === 'RAW_MATERIAL' && activeTab === 'variants') {
-                              setActiveTab('basic');
-                            }
                           }}
                         >
-                          <MenuItem value="FINISHED_GOOD">Finished Good (Barcode Entry)</MenuItem>
-                          <MenuItem value="ACCESSORY">Accessory (Barcode Entry)</MenuItem>
-                          <MenuItem value="RAW_MATERIAL">Raw Material (Direct / Bulk Entry)</MenuItem>
+                          <MenuItem value="FINISHED_GOOD">Finished Garment (FG)</MenuItem>
+                          <MenuItem value="ACCESSORY">Accessory / Trim (ACC)</MenuItem>
                         </TextField>
                       )}
                     />
@@ -425,35 +438,34 @@ function ItemFormPage({ mode = 'edit' }) {
                       )}
                     />
                   </Grid>
-                  <Grid size={{ xs: 12, md: 3 }}>
-                    <Controller
-                      name="brand"
-                      control={control}
-                      rules={{ required: 'Brand is required' }}
-                      render={({ field }) => (
-                        <TextField
-                          {...field}
-                          select
-                          size="small"
-                          fullWidth
-                          label="Brand"
-                          value={field.value ?? ''}
-                          disabled={isViewMode}
-                          error={Boolean(errors.brand)}
-                          helperText={errors.brand?.message || ' '}
-                          InputLabelProps={{ shrink: true }}
-                        >
-                          {renderAsyncValueOption(field.value, brands)}
-                          <MenuItem value="">Select Brand</MenuItem>
-                          {brands.map((b) => (
-                            <MenuItem key={b.id || b._id} value={b.id || b._id}>
-                              {b.brandName || b.name}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                      )}
-                    />
-                  </Grid>
+                  {!isRawMaterial && itemType !== 'ACCESSORY' && (
+                    <Grid size={{ xs: 12, md: 3 }}>
+                      <Controller
+                        name="brand"
+                        control={control}
+                        render={({ field }) => (
+                          <TextField
+                            {...field}
+                            select
+                            size="small"
+                            fullWidth
+                            label="Brand"
+                            value={field.value ?? ''}
+                            disabled={isViewMode}
+                            InputLabelProps={{ shrink: true }}
+                          >
+                            {renderAsyncValueOption(field.value, brands)}
+                            <MenuItem value="">Select Brand</MenuItem>
+                            {brands.map((b) => (
+                              <MenuItem key={b.id || b._id} value={b.id || b._id}>
+                                {b.brandName || b.name}
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                        )}
+                      />
+                    </Grid>
+                  )}
                   <Grid size={{ xs: 12, md: 3 }}>
                     <Controller
                       name="season"
@@ -474,31 +486,6 @@ function ItemFormPage({ mode = 'edit' }) {
                           {seasons.map((s) => (
                             <MenuItem key={s.id || s._id} value={s.id || s._id}>
                               {s.seasonName || s.name}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                      )}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 3 }}>
-                    <Controller
-                      name="vendorId"
-                      control={control}
-                      render={({ field }) => (
-                        <TextField
-                          {...field}
-                          select
-                          size="small"
-                          fullWidth
-                          label="Primary Supplier"
-                          value={field.value ?? ''}
-                          disabled={isViewMode}
-                        >
-                          {renderAsyncValueOption(field.value, masters.suppliers || [])}
-                          <MenuItem value="">Select Supplier</MenuItem>
-                          {(masters.suppliers || []).map((s) => (
-                            <MenuItem key={s.id || s._id} value={s.id || s._id}>
-                              {s.name || s.supplierName}
                             </MenuItem>
                           ))}
                         </TextField>
@@ -550,14 +537,25 @@ function ItemFormPage({ mode = 'edit' }) {
                 </Grid>
               </FormSection>
 
-              {!isRawMaterial && (
-                <FormSection title="Descriptors" subtitle="Garment specific attributes for better search.">
+              {!isRawMaterial && itemType !== 'ACCESSORY' && (
+                <FormSection title="Garment Descriptors" subtitle="Fashion-specific attributes for better search.">
                   <Grid container spacing={2}>
-                    <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Fabric" {...register('fabric')} disabled={isViewMode} /></Grid>
+                    <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Fabric Type" {...register('fabric')} disabled={isViewMode} /></Grid>
                     <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Pattern" {...register('pattern')} disabled={isViewMode} /></Grid>
                     <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Fit" {...register('fit')} disabled={isViewMode} /></Grid>
                     <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Gender" {...register('gender')} disabled={isViewMode} /></Grid>
-                    <Grid size={12}><TextField fullWidth size="small" label="Description" multiline minRows={2} {...register('description')} disabled={isViewMode} /></Grid>
+                    <Grid size={12}><TextField fullWidth size="small" label="Item Description" multiline minRows={2} {...register('description')} disabled={isViewMode} /></Grid>
+                  </Grid>
+                </FormSection>
+              )}
+
+              {itemType === 'ACCESSORY' && (
+                <FormSection title="Accessory Specifications" subtitle="Technical dimensions and packing details.">
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12, md: 4 }}><TextField fullWidth size="small" label="Accessory Size / Specs" placeholder="e.g. 18L, 24 inches" {...register('accessorySize')} disabled={isViewMode} /></Grid>
+                    <Grid size={{ xs: 12, md: 4 }}><TextField fullWidth size="small" label="Packing Type" placeholder="e.g. Gross, Roll, Piece" {...register('packingType')} disabled={isViewMode} /></Grid>
+                    <Grid size={{ xs: 12, md: 4 }}><TextField fullWidth size="small" label="Color / Shade" {...register('shadeColor')} disabled={isViewMode} /></Grid>
+                    <Grid size={12}><TextField fullWidth size="small" label="Usage Notes" multiline minRows={2} {...register('description')} disabled={isViewMode} /></Grid>
                   </Grid>
                 </FormSection>
               )}
@@ -565,8 +563,7 @@ function ItemFormPage({ mode = 'edit' }) {
           </Box>
 
           {/* Variants Tab */}
-          {!isRawMaterial && (
-            <Box sx={{ display: activeTab === 'variants' ? 'block' : 'none' }}>
+          <Box sx={{ display: activeTab === 'variants' ? 'block' : 'none' }}>
               <VariantTable 
                 variants={variants} 
                 onChange={setVariants} 
@@ -575,7 +572,6 @@ function ItemFormPage({ mode = 'edit' }) {
                 sizeOptions={sizes.map(s => s.sizeCode || s.name)} 
               />
             </Box>
-          )}
 
           {/* Media Tab */}
           <Box sx={{ display: activeTab === 'media' ? 'block' : 'none' }}>

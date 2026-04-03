@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import {
+  Autocomplete,
   Box,
   Button,
   Grid,
@@ -22,6 +23,7 @@ import {
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
+import SearchIcon from '@mui/icons-material/Search';
 
 import { addSupplierOutward } from './supplierOutwardSlice';
 import { fetchMasters } from '../masters/mastersSlice';
@@ -35,6 +37,7 @@ const SupplierOutwardFormPage = () => {
 
     const suppliers = useSelector((s) => s.masters.suppliers || []);
     const warehouses = useSelector((s) => s.masters.warehouses || []);
+    const allItems = useSelector((s) => s.items.records || []);
 
     const { control, handleSubmit, register, watch, setValue, formState: { errors } } = useForm({
         defaultValues: {
@@ -50,6 +53,7 @@ const SupplierOutwardFormPage = () => {
     useEffect(() => {
         dispatch(fetchMasters('suppliers'));
         dispatch(fetchMasters('warehouses'));
+        import('../items/itemsSlice').then(m => dispatch(m.fetchItems()));
     }, [dispatch]);
 
     const handleScanner = async (barcode) => {
@@ -94,10 +98,10 @@ const SupplierOutwardFormPage = () => {
             <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 4 }}>
                 <Box>
                     <Typography variant="h4" sx={{ fontWeight: 800, color: '#0f172a' }}>
-                        Supplier Outward Creation
+                        Material Issue (Outward)
                     </Typography>
                     <Typography variant="body2" sx={{ color: '#64748b' }}>
-                        Provide raw materials and accessories to a selected vendor.
+                        Track fabric and accessories provided to suppliers for production.
                     </Typography>
                 </Box>
                 <Stack direction="row" spacing={2}>
@@ -112,9 +116,9 @@ const SupplierOutwardFormPage = () => {
                       variant="contained" 
                       startIcon={<SaveOutlinedIcon />} 
                       onClick={handleSubmit(onSubmit)}
-                      sx={{ px: 4, fontWeight: 700 }}
+                      sx={{ px: 4, bgcolor: '#2563eb', fontWeight: 700 }}
                     >
-                      Save Outward
+                      Save Issue
                     </Button>
                 </Stack>
             </Stack>
@@ -131,7 +135,7 @@ const SupplierOutwardFormPage = () => {
                                 render={({ field }) => (
                                     <TextField 
                                       select fullWidth size="small" 
-                                      label="Select Supplier / Vendor"
+                                      label="Select Supplier (Stitcher)"
                                       {...field}
                                       error={!!errors.supplierId}
                                       helperText={errors.supplierId?.message}
@@ -158,7 +162,7 @@ const SupplierOutwardFormPage = () => {
                             />
                             <TextField 
                               fullWidth multiline rows={3} 
-                              label="Notes" 
+                              label="Gate Pass / Delivery Notes" 
                               {...register('notes')}
                             />
                         </Stack>
@@ -167,27 +171,47 @@ const SupplierOutwardFormPage = () => {
 
                 <Grid item xs={12} md={8}>
                     <Paper elevation={0} sx={{ p: 3, border: '1px solid #e2e8f0', borderRadius: 3 }}>
-                        <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 700 }}>Add Items (Scan Mode)</Typography>
-                        <TextField
-                            fullWidth size="medium"
-                            placeholder="🔍 Scan Raw Material Barcode here..."
-                            value={barcodeSearch}
-                            onChange={(e) => setBarcodeSearch(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    handleScanner(barcodeSearch);
+                        <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 700 }}>Select Material (Barcode or Search)</Typography>
+                        <Stack direction="row" spacing={2} sx={{ mb: 3 }}>
+                          <TextField
+                              fullWidth size="small"
+                              placeholder="Scan Barcode..."
+                              value={barcodeSearch}
+                              onChange={(e) => setBarcodeSearch(e.target.value)}
+                              onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      handleScanner(barcodeSearch);
+                                  }
+                              }}
+                              InputProps={{ startAdornment: <SearchIcon fontSize="small" sx={{ mr: 1, color: '#3b82f6' }} /> }}
+                          />
+                          <Autocomplete
+                            fullWidth
+                            size="small"
+                            options={allItems}
+                            getOptionLabel={(o) => `${o.itemCode} - ${o.itemName}`}
+                            onChange={(_, v) => {
+                                if (v) {
+                                    setLines(prev => [...prev, {
+                                        itemId: v._id || v.id,
+                                        variantId: v.sizes?.[0]?._id,
+                                        itemName: v.itemName,
+                                        sku: v.itemCode,
+                                        size: v.sizes?.[0]?.size || 'N/A',
+                                        color: v.shade || '-',
+                                        quantity: 1,
+                                        id: Math.random().toString(36).substr(2, 9)
+                                    }]);
                                 }
                             }}
-                            InputProps={{
-                              sx: { bgcolor: '#f0f9ff', border: '1px dashed #0ea5e9', fontSize: '1.1rem', fontWeight: 600 }
-                            }}
-                            helperText="Stock will be automatically verified against selected warehouse."
-                        />
+                            renderInput={(params) => <TextField {...params} label="Or Manual Search Style..." />}
+                          />
+                        </Stack>
 
                         <TableContainer sx={{ mt: 4 }}>
                             <Table size="small">
-                                <TableHead component={Paper} elevation={0} sx={{ bgcolor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                                <TableHead sx={{ bgcolor: '#f8fafc', border: '1px solid #e2e8f0' }}>
                                     <TableRow>
                                         <TableCell sx={{ fontWeight: 700 }}>Item Style</TableCell>
                                         <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>

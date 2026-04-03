@@ -59,6 +59,8 @@ const MovementHistoryPage = lazy(() => import('../modules/inventory/MovementHist
 const StockAuditView = lazy(() => import('../modules/inventory/StockAuditView'));
 const SupplierOutwardListPage = lazy(() => import('../modules/supplierOutward/SupplierOutwardListPage'));
 const SupplierOutwardFormPage = lazy(() => import('../modules/supplierOutward/SupplierOutwardFormPage'));
+const RawMaterialListPage = lazy(() => import('../modules/rawMaterials/RawMaterialListPage'));
+const RawMaterialFormPage = lazy(() => import('../modules/rawMaterials/RawMaterialFormPage'));
 
 // Purchase
 const PurchaseListPage = lazy(() => import('../modules/purchase/PurchaseListPage'));
@@ -272,6 +274,9 @@ function AppRoutes() {
             <Route path="inventory/audit-view" element={<StockAuditView />} />
             <Route path="inventory/supplier-outward" element={<SupplierOutwardListPage />} />
             <Route path="inventory/supplier-outward/new" element={<SupplierOutwardFormPage />} />
+            <Route path="inventory/raw-materials" element={<RawMaterialListPage />} />
+            <Route path="inventory/raw-materials/new" element={<RawMaterialFormPage />} />
+            <Route path="inventory/raw-materials/edit/:id" element={<RawMaterialFormPage />} />
             <Route path="inventory/accessory-entry" element={<AccessoryDirectEntryPage />} />
 
             <Route path="purchase" element={<Navigate to="purchase-voucher" replace />} />

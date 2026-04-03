@@ -71,6 +71,8 @@ function BarcodePrintingPage() {
   const [importing, setImporting] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [importResults, setImportResults] = useState([]);
+  const [batchLines, setBatchLines] = useState([]);
+  const allItems = useSelector((state) => state.items.records) || [];
 
   const [type, setType] = useState('REGULAR');
   const [design, setDesign] = useState('');
@@ -81,6 +83,7 @@ function BarcodePrintingPage() {
 
   useEffect(() => {
     dispatch(fetchGrns());
+    import('../items/itemsSlice').then(m => dispatch(m.fetchItems()));
   }, [dispatch]);
 
   const fetchGrnLabels = async (idOfGrn) => {
@@ -325,48 +328,111 @@ function BarcodePrintingPage() {
 
           {activeTab === 1 && (
             <Stack spacing={3}>
-              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                <Autocomplete
-                   options={grns}
-                   getOptionLabel={(o) => `${o.grnNumber} - ${o.supplierId?.name || o.supplierId?.supplierName || 'Unknown Supplier'}`}
-                   value={selectedGrn}
-                   onChange={handleGrnSelect}
-                   sx={{ width: 400 }}
-                   renderInput={(params) => <TextField {...params} label="Select a Completed GRN / PV" size="small" />}
-                />
-                <Typography variant="body2" sx={{color: '#64748b'}}>OR</Typography>
-                <Button variant="outlined" component="label" startIcon={<UploadIcon />}>
-                  Upload Excel Manual
-                  <input type="file" hidden onChange={handleExcelUpload} />
-                </Button>
-                <Box sx={{ flexGrow: 1 }} />
-                <Button variant="contained" color="success" disabled={!importResults.length} onClick={() => printBatch(importResults)}>
-                  Print Automation ({importResults.length})
-                </Button>
+              <Box sx={{ p: 2, bgcolor: '#f1f5f9', borderRadius: 2 }}>
+                <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 700 }}>1. SELECT STYLE TO PRINT BARCODES PRE-RECEIPT</Typography>
+                <Grid container spacing={2} alignItems="center">
+                  <Grid item xs={12} md={6}>
+                    <Autocomplete
+                      options={allItems}
+                      getOptionLabel={(o) => `${o.itemCode} - ${o.itemName}`}
+                      onChange={(_, v) => {
+                        setSelectedProduct(v);
+                        if (v) {
+                          const vars = (v.sizes || []).map(s => ({
+                            variantId: s._id || s.id,
+                            size: s.size,
+                            sku: s.sku || s.barcode || v.itemCode,
+                            printQty: 0,
+                            mrp: s.salePrice || v.salePrice || 0,
+                            color: v.shade || ''
+                          }));
+                          setBatchLines(vars);
+                        } else {
+                          setBatchLines([]);
+                        }
+                      }}
+                      renderInput={(params) => <TextField {...params} label="Select Finished Good Style" size="small" />}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Stack direction="row" spacing={1}>
+                      <Button variant="outlined" component="label" startIcon={<UploadIcon />}>
+                        Upload Excel
+                        <input type="file" hidden onChange={handleExcelUpload} />
+                      </Button>
+                      <Button variant="contained" color="success" disabled={!importResults.length} onClick={() => printBatch(importResults)}>
+                        Print Import ({importResults.length})
+                      </Button>
+                    </Stack>
+                  </Grid>
+                </Grid>
               </Box>
 
-              <TableContainer component={Paper} variant="outlined">
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Barcode</TableCell>
-                      <TableCell>Article</TableCell>
-                      <TableCell>Size</TableCell>
-                      <TableCell>Price</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {importResults.map((r, i) => (
-                      <TableRow key={i}>
-                        <TableCell>{r.barcode}</TableCell>
-                        <TableCell>{r.article}</TableCell>
-                        <TableCell>{r.size}</TableCell>
-                        <TableCell>{r.mrp}</TableCell>
+              {batchLines.length > 0 && (
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead sx={{ bgcolor: '#eff6ff' }}>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 700 }}>SIZE</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>BARCODE / SKU</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 700 }}>PRINT QUANTITY</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 700 }}>MRP (TAG)</TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                    </TableHead>
+                    <TableBody>
+                      {batchLines.map((line, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell sx={{ fontWeight: 700 }}>{line.size}</TableCell>
+                          <TableCell>{line.sku}</TableCell>
+                          <TableCell align="right">
+                            <TextField 
+                              type="number" 
+                              size="small" 
+                              value={line.printQty} 
+                              onChange={(e) => {
+                                const next = [...batchLines];
+                                next[idx].printQty = Number(e.target.value);
+                                setBatchLines(next);
+                              }}
+                              sx={{ width: 100 }}
+                            />
+                          </TableCell>
+                          <TableCell align="right">₹ {line.mrp}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+
+              {batchLines.length > 0 && (
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+                   <Button variant="outlined" onClick={() => setBatchLines(batchLines.map(l => ({ ...l, printQty: 0 })))}>Clear Qty</Button>
+                   <Button 
+                    variant="contained" 
+                    color="primary" 
+                    size="large"
+                    onClick={() => {
+                      const labelsToPrint = [];
+                      batchLines.forEach(l => {
+                        for (let i = 0; i < l.printQty; i++) {
+                          labelsToPrint.push({
+                            barcode: l.sku,
+                            article: selectedProduct?.itemCode,
+                            size: l.size,
+                            mrp: l.mrp,
+                            color: l.color
+                          });
+                        }
+                      });
+                      if (!labelsToPrint.length) alert('Please enter print quantities first.');
+                      else printBatch(labelsToPrint);
+                    }}
+                   >
+                     GENERATE & PRINT BATCH ({batchLines.reduce((acc, l) => acc + (l.printQty || 0), 0)})
+                   </Button>
+                </Box>
+              )}
             </Stack>
           )}
         </Box>
