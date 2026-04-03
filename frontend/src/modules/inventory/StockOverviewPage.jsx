@@ -31,7 +31,6 @@ import { useAppNavigate } from '../../hooks/useAppNavigate';
 import stockOverviewExportColumns from '../../config/exportColumns/stockOverview';
 import { fetchStockOverview } from './inventorySlice';
 import { fetchMasters } from '../masters/mastersSlice';
-import { stockOverviewSeed } from '../erp/erpUiMocks';
 import api from '../../services/api';
 
 const normalizeStockRows = (rows = []) =>

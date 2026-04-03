@@ -23,7 +23,6 @@ import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
 
 import { fetchSupplierOutwards } from './supplierOutwardSlice';
 import useRoleBasePath from '../../hooks/useRoleBasePath';
-import DetailPageHeader from '../../components/DetailPageHeader';
 
 const SupplierOutwardListPage = () => {
   const dispatch = useDispatch();

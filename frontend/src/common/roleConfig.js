@@ -82,12 +82,12 @@ export const adminNavConfig = {
       { label: 'Warehouse Stock Registry', path: '/inventory/stock-overview' },
       { label: 'Accessory Direct Inward', path: '/ho/inventory/accessory-entry' },
       { label: 'GRN Automation (FG)', path: '/inventory/grn/new' },
-      { label: 'Stock Movement Audit', path: '/inventory/movement' }
+      { label: 'Stock Movement Audit', path: '/inventory/movements' }
     ],
     '/supplier-outward': [
-      { label: 'Outward Dispatch', path: '/supplier-outward/new' },
-      { label: 'Outward History', path: '/supplier-outward/list' },
-      { label: 'Supplier Stock Audit', path: '/supplier-outward/audit' },
+      { label: 'Outward Dispatch', path: '/inventory/supplier-outward/new' },
+      { label: 'Outward History', path: '/inventory/supplier-outward' },
+      { label: 'Supplier Stock Audit', path: '/inventory/supplier-outward/audit' },
       { label: 'Finished Goods Receipt (GRN)', path: '/inventory/grn/new' }
     ],
     '/sales': billingNavItems,
