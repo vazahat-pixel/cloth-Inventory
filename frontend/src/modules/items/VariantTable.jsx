@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import {
   Alert,
   Box,
@@ -65,6 +65,28 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
   const [selectedSizes, setSelectedSizes] = useState([]);
   const [selectedColors, setSelectedColors] = useState([]);
   const [generatorFeedback, setGeneratorFeedback] = useState(null);
+
+  const previousStyleCodeRef = useRef(styleCode);
+
+  useEffect(() => {
+    if (previousStyleCodeRef.current !== styleCode) {
+      const prevCode = previousStyleCodeRef.current;
+      let hasChanges = false;
+      const updatedVariants = variants.map((v) => {
+        const expectedOldSku = generateSku(prevCode, v.size, v.color);
+        if (v.sku === expectedOldSku) {
+          hasChanges = true;
+          return { ...v, sku: generateSku(styleCode, v.size, v.color) };
+        }
+        return v;
+      });
+
+      if (hasChanges) {
+        onChange(updatedVariants);
+      }
+      previousStyleCodeRef.current = styleCode;
+    }
+  }, [styleCode, variants, onChange]);
 
   const {
     control,

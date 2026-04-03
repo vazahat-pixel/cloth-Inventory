@@ -48,10 +48,7 @@ const itemSchema = new mongoose.Schema({
     required: false,
     index: true
   },
-  shade: {
-    type: String,
-    trim: true
-  },
+
   description: {
     type: String,
     trim: true
@@ -121,12 +118,8 @@ const itemSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
-  session: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Season',
-    index: true
-  },
   // Inventory & Defaults
+
   defaultWarehouse: { type: String, trim: true },
   reorderLevel: { type: Number, default: 0 },
   reorderQty: { type: Number, default: 0 },

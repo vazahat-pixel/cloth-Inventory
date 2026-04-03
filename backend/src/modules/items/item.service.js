@@ -58,7 +58,6 @@ const populateItem = async (itemId) =>
     .populate('subCategoryId', 'name groupName groupType')
     .populate('styleId', 'name groupName groupType')
     .populate('brand', 'brandName name')
-    .populate('session', 'seasonName name')
     .populate('hsCodeId', 'code hsnCode gstRate gstPercent');
 
 class ItemService {
@@ -67,7 +66,7 @@ class ItemService {
     if (data.type) data.type = data.type.trim().toUpperCase();
     
     // Ensure all descriptors are top-level
-    const descriptors = ['fabric', 'pattern', 'fit', 'gender', 'occasion', 'uom', 'shade', 'description'];
+    const descriptors = ['fabric', 'pattern', 'fit', 'gender', 'occasion', 'uom', 'description'];
     descriptors.forEach(field => {
       if (data[field]) data[field] = data[field].toString().trim();
     });
@@ -110,7 +109,6 @@ class ItemService {
 
     // Robust mapping for incoming fields (Frontend compatibility)
     if (data.hsnCodeId && !data.hsCodeId) data.hsCodeId = data.hsnCodeId;
-    if (data.season && !data.session) data.session = data.season;
   }
 
   async generateNextCode(type = 'GARMENT') {
@@ -147,14 +145,12 @@ class ItemService {
       itemCode,
       itemName: data.itemName || data.itemCode,
       brand: normalizeId(data.brand),
-      shade: data.shade,
       description: data.description,
       groupIds,
       sectionId: data.sectionId,
       categoryId: data.categoryId,
       subCategoryId: data.subCategoryId,
       styleId: data.styleId,
-      session: normalizeId(data.session),
       hsCodeId: normalizeId(data.hsCodeId),
       type: data.type || 'GARMENT',
       images: data.images || []
@@ -172,7 +168,7 @@ class ItemService {
 
     // Update fields dynamically if they are provided in normalized data
     const fieldsToUpdate = [
-      'itemName', 'itemCode', 'brand', 'shade', 'description', 'session', 'hsCodeId', 'gstTax',
+      'itemName', 'itemCode', 'brand', 'description', 'hsCodeId', 'gstTax',
       'fabric', 'pattern', 'fit', 'gender', 'uom', 'images', 'groupIds', 'sizes',
       'sectionId', 'categoryId', 'subCategoryId', 'styleId', 'type',
       'reorderLevel', 'reorderQty', 'openingStock', 'openingStockRate', 
@@ -181,7 +177,7 @@ class ItemService {
 
     fieldsToUpdate.forEach(field => {
       if (data[field] !== undefined) {
-        if (['brand', 'session', 'hsCodeId', 'sectionId', 'categoryId', 'subCategoryId', 'styleId'].includes(field)) {
+        if (['brand', 'hsCodeId', 'sectionId', 'categoryId', 'subCategoryId', 'styleId'].includes(field)) {
           item[field] = normalizeId(data[field]);
         } else if (field === 'groupIds') {
           item.groupIds = normalizeGroupIds(data[field]);
@@ -217,7 +213,6 @@ class ItemService {
       .populate('subCategoryId', 'name groupName groupType')
       .populate('styleId', 'name groupName groupType')
       .populate('brand', 'brandName name')
-      .populate('session', 'seasonName name')
       .populate('hsCodeId', 'code hsnCode gstRate gstPercent')
       .sort({ createdAt: -1 });
   }
@@ -230,7 +225,6 @@ class ItemService {
       .populate('subCategoryId', 'name groupName groupType')
       .populate('styleId', 'name groupName groupType')
       .populate('brand', 'brandName name')
-      .populate('session', 'seasonName name')
       .populate('hsCodeId', 'code hsnCode gstRate gstPercent');
   }
 
@@ -245,9 +239,7 @@ class ItemService {
         { 'sizes.sku': barcode }
       ]
     })
-    .populate('groupIds', 'name groupType level parentId isActive')
     .populate('brand', 'brandName name')
-    .populate('session', 'seasonName name')
     .populate('hsCodeId', 'code hsnCode gstRate gstPercent');
 
     if (!item) return null;

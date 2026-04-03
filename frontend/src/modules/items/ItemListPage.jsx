@@ -54,12 +54,11 @@ function ItemListPage() {
       id: item.id || item._id,
       itemCode: item.itemCode || item.code || '',
       itemName: item.itemName || item.name || '',
-      brand: item.brand?.brandName || item.brand?.name || (typeof item.brand === 'string' ? item.brand : 'UNSPECIFIED'),
+      brand: item.brand && typeof item.brand === 'object' ? (item.brand.brandName || item.brand.name || 'UNSPECIFIED') : (item.brand ? String(item.brand) : 'UNSPECIFIED'),
       mainGroup,
       subGroup,
       hsnCode: item.hsCodeId?.code || item.hsCodeId?.hsnCode || '--',
       gstRate: item.hsCodeId?.gstPercent !== undefined ? `${item.hsCodeId.gstPercent}%` : '--',
-      color: item.shade || item.color || item.shadeColor || '--',
       variantCount: item.sizes?.length || 0,
       status: item.status || 'Active',
     };
@@ -68,7 +67,7 @@ function ItemListPage() {
   const filteredRows = useMemo(() => {
     const query = searchText.trim().toLowerCase();
     return rows.filter((row) => {
-      const matchesSearch = query ? [row.itemCode, row.itemName, row.brand, row.color].some((value) => String(value).toLowerCase().includes(query)) : true;
+      const matchesSearch = query ? [row.itemCode, row.itemName, row.brand].some((value) => String(value).toLowerCase().includes(query)) : true;
       const matchesBrand = brandFilter === 'all' ? true : row.brand === brandFilter;
       const matchesGroup = groupFilter === 'all' ? true : row.mainGroup === groupFilter;
       return matchesSearch && matchesBrand && matchesGroup;
@@ -91,7 +90,7 @@ function ItemListPage() {
       />
 
       <FilterBar sx={{ mb: 2, mt: 1 }}>
-        <TextField size="small" value={searchText} onChange={(e) => { setPage(0); setSearchText(e.target.value); }} placeholder="Search code, name, color..." sx={{ flex: 1 }} InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }} />
+        <TextField size="small" value={searchText} onChange={(e) => { setPage(0); setSearchText(e.target.value); }} placeholder="Search code, name..." sx={{ flex: 1 }} InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }} />
         <TextField size="small" select label="Brand" value={brandFilter} onChange={(e) => { setPage(0); setBrandFilter(e.target.value); }} sx={{ minWidth: 160 }}><MenuItem value="all">All Brands</MenuItem>{brands.map((brand) => <MenuItem key={brand.id || brand._id} value={brand.brandName || brand.name}>{brand.brandName || brand.name}</MenuItem>)}</TextField>
         <TextField size="small" select label="Section/Group" value={groupFilter} onChange={(e) => { setPage(0); setGroupFilter(e.target.value); }} sx={{ minWidth: 180 }}><MenuItem value="all">All Sections</MenuItem>{groups.filter(g => g.groupType === 'Section').map((group) => <MenuItem key={group.id || group._id} value={group.groupName || group.name}>{group.groupName || group.name}</MenuItem>)}</TextField>
         <ToggleButtonGroup size="small" value={viewMode} exclusive onChange={(_, value) => value && setViewMode(value)}>
@@ -132,7 +131,7 @@ function ItemListPage() {
           <TableContainer>
             <Table size="small">
               <TableHead sx={{ bgcolor: '#f8fafc' }}><TableRow>
-                <TableCell sx={{ fontWeight: 700 }}>Code</TableCell><TableCell sx={{ fontWeight: 700 }}>Name</TableCell><TableCell sx={{ fontWeight: 700 }}>Brand</TableCell><TableCell sx={{ fontWeight: 700 }}>Section</TableCell><TableCell sx={{ fontWeight: 700 }}>GST</TableCell><TableCell sx={{ fontWeight: 700 }}>Color</TableCell><TableCell sx={{ fontWeight: 700 }}>Variants</TableCell><TableCell sx={{ fontWeight: 700 }}>Status</TableCell><TableCell sx={{ fontWeight: 700 }} align="right">Actions</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Code</TableCell><TableCell sx={{ fontWeight: 700 }}>Name</TableCell><TableCell sx={{ fontWeight: 700 }}>Brand</TableCell><TableCell sx={{ fontWeight: 700 }}>Section</TableCell><TableCell sx={{ fontWeight: 700 }}>GST</TableCell><TableCell sx={{ fontWeight: 700 }}>Variants</TableCell><TableCell sx={{ fontWeight: 700 }}>Status</TableCell><TableCell sx={{ fontWeight: 700 }} align="right">Actions</TableCell>
               </TableRow></TableHead>
               <TableBody>
                 {paginatedRows.map((row) => (
@@ -142,7 +141,6 @@ function ItemListPage() {
                     <TableCell>{row.brand}</TableCell>
                     <TableCell>{row.mainGroup}</TableCell>
                     <TableCell>{row.gstRate}</TableCell>
-                    <TableCell>{row.color}</TableCell>
                     <TableCell><b>{row.variantCount}</b></TableCell>
                     <TableCell><StatusBadge value={row.status} /></TableCell>
                     <TableCell align="right">

@@ -44,8 +44,8 @@ const TABS = [
 ];
 
 const defaultValues = {
-  type: 'GARMENT', itemCode: '', itemName: '', brand: '', hsCodeId: '', gstSlabId: '', shadeColor: '', uom: 'PCS', skuPrefix: '', description: '', status: 'Active',
-  fabric: '', pattern: '', fit: '', gender: '', season: '', notes: '',
+  type: 'GARMENT', itemCode: '', itemName: '', brand: '', hsCodeId: '', gstSlabId: '', uom: 'PCS', skuPrefix: '', description: '', status: 'Active',
+  fabric: '', pattern: '', fit: '', gender: '', notes: '',
   sectionId: '', categoryId: '', subCategoryId: '', subSubCategoryId: '',
   defaultWarehouse: '', reorderLevel: 0, reorderQty: 0, openingStock: 0, openingStockRate: 0,
   stockTrackingEnabled: true, barcodeEnabled: true,
@@ -127,9 +127,7 @@ function ItemFormPage({ mode = 'edit' }) {
         itemCode: existingItem.itemCode || '', 
         itemName: existingItem.itemName || '', 
         brand: getId(existingItem.brand) ? String(getId(existingItem.brand)) : '',
-        season: getId(existingItem.season || existingItem.session) ? String(getId(existingItem.season || existingItem.session)) : '',
         hsCodeId: getId(existingItem.hsCodeId || existingItem.hsnCodeId) ? String(getId(existingItem.hsCodeId || existingItem.hsnCodeId)) : '', 
-        shadeColor: existingItem.shade || '', 
         uom: existingItem.uom || 'PCS', 
         description: existingItem.description || '', 
         status: existingItem.status || 'Active', 
@@ -235,7 +233,6 @@ function ItemFormPage({ mode = 'edit' }) {
       styleId: data.subSubCategoryId, // Mapping UI subSubCategoryId to styleId
       groupIds: [data.sectionId, data.categoryId, data.subCategoryId, data.subSubCategoryId].filter(Boolean),
       category: data.categoryId, 
-      shade: data.shadeColor,
       uom: data.uom,
       hsCodeId: data.hsCodeId,
       gstTax: data.gstSlabId, 
@@ -341,6 +338,7 @@ function ItemFormPage({ mode = 'edit' }) {
                       {...register('itemCode', { required: 'Code is required' })} 
                       error={Boolean(errors.itemCode)} 
                       disabled={isViewMode} 
+                      InputLabelProps={{ shrink: Boolean(styleCode) || isEditMode }}
                     />
                   </Grid>
                   <Grid size={{ xs: 12, md: 4 }}>
@@ -378,16 +376,6 @@ function ItemFormPage({ mode = 'edit' }) {
                       <MenuItem value="PKT">Packet (PKT)</MenuItem>
                       <MenuItem value="BOX">Box (BOX)</MenuItem>
                     </TextField>
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 3 }}>
-                      <TextField 
-                        fullWidth size="small" label="Color / Shade" 
-                        {...register('shadeColor')} disabled={isViewMode}
-                        list="common-colors" autoComplete="off" placeholder="e.g. Navy Blue"
-                      />
-                      <datalist id="common-colors">
-                        {COMMON_COLORS.map(c => <option key={c} value={c} />)}
-                      </datalist>
                   </Grid>
                 </Grid>
               </FormSection>
