@@ -103,7 +103,7 @@ export const adminNavConfig = {
       { label: 'Day-End Audit History', path: '/reports/closure' }
     ],
     '/data-import': dataImportNavItems,
-    
+
     // Level 2
     '/setup/accounts': setupAccountsNavItems,
     '/setup/taxes': setupTaxesNavItems,

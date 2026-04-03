@@ -3,7 +3,7 @@ import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import KeyboardReturnOutlinedIcon from '@mui/icons-material/KeyboardReturnOutlined';
 import PriceChangeOutlinedIcon from '@mui/icons-material/PriceChangeOutlined';
 
-export const purchaseMatchPaths = ['/purchase', '/grn'];
+export const purchaseMatchPaths = ['/purchase', '/inventory/grn'];
 
 export const purchaseNavItems = [
   {
@@ -23,8 +23,8 @@ export const purchaseNavItems = [
   {
     key: 'grn',
     label: 'Finished Goods GRN',
-    path: '/grn',
-    matchPaths: ['/grn'],
+    path: '/inventory/grn',
+    matchPaths: ['/inventory/grn'],
     icon: FactCheckOutlinedIcon,
   },
   {

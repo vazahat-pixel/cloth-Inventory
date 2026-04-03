@@ -33,8 +33,14 @@ export const billingNavItems = [
   },
   {
     key: 'sale-challan',
-    label: 'Sale Challan',
+    label: 'Sale Challan History',
     path: '/sales/sale-challan',
+    icon: LocalShippingOutlinedIcon,
+  },
+  {
+    key: 'new-sale-challan',
+    label: 'New Sale Challan',
+    path: '/sales/sale-challan/new',
     icon: LocalShippingOutlinedIcon,
   },
   {

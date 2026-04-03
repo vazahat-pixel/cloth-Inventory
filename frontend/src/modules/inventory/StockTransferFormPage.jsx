@@ -32,7 +32,6 @@ import { buildSizeLabelLookup, resolveSizeLabel } from '../../common/sizeDisplay
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import { fetchWarehouseStock } from './inventorySlice';
 import { fetchMasters } from '../masters/mastersSlice';
-import { stockOverviewSeed } from '../erp/erpUiMocks';
 import { loadModuleRecords, upsertModuleRecord } from '../erp/erpLocalStore';
 import { fallbackStockTransfers, normalizeStockTransfer, stockTransferStorageKey } from './stockTransferUi';
 import api from '../../services/api';

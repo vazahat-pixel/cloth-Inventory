@@ -191,6 +191,50 @@ function BillingPage({
     dispatch(fetchSales());
   }, [dispatch]);
 
+  // Synchronized Total Calculations (Moved up to prevent TDZ error)
+  const calculatedGross = lines.reduce((acc, l) => acc + (toNumber(l.quantity) * toNumber(l.rate)), 0);
+
+  const couponDiscountAmount = useMemo(() => {
+    if (!appliedCoupon) return 0;
+    if (appliedCoupon.type === 'PERCENTAGE') {
+      return (calculatedGross * toNumber(appliedCoupon.value)) / 100;
+    }
+    return toNumber(appliedCoupon.value);
+  }, [appliedCoupon, calculatedGross]);
+
+  const schemeDiscountAmount = useMemo(() => {
+    if (!selectedScheme) return 0;
+    return toNumber(selectedScheme.discount);
+  }, [selectedScheme]);
+
+  const returnTotalCredit = useMemo(() => {
+    return exchangeItems.reduce((acc, i) => {
+        const itemTotal = (toNumber(i.rate) * toNumber(i.quantity));
+        const itemTax = (toNumber(i.taxAmount) || 0); // use existing tax for accurate return
+        return acc + itemTotal + itemTax;
+    }, 0);
+  }, [exchangeItems]);
+
+  const totals = useMemo(
+    () => {
+      const basic = calculateTotals(
+        lines,
+        billDiscount,
+        loyaltyRedeemed,
+        couponDiscountAmount,
+        schemeDiscountAmount,
+        creditNoteAmount,
+        saleType
+      );
+      return {
+        ...basic,
+        returnTotalCredit,
+        netPayable: Math.max(0, basic.netPayable - returnTotalCredit),
+      };
+    },
+    [billDiscount, lines, loyaltyRedeemed, couponDiscountAmount, schemeDiscountAmount, creditNoteAmount, saleType, returnTotalCredit],
+  );
+
   // Real-time Offer Evaluation
   useEffect(() => {
     if (lines.length > 0) {
@@ -358,48 +402,6 @@ function BillingPage({
     }
   };
 
-  const calculatedGross = lines.reduce((acc, l) => acc + (toNumber(l.quantity) * toNumber(l.rate)), 0);
-
-  const couponDiscountAmount = useMemo(() => {
-    if (!appliedCoupon) return 0;
-    if (appliedCoupon.type === 'PERCENTAGE') {
-      return (calculatedGross * toNumber(appliedCoupon.value)) / 100;
-    }
-    return toNumber(appliedCoupon.value);
-  }, [appliedCoupon, calculatedGross]);
-
-  const schemeDiscountAmount = useMemo(() => {
-    if (!selectedScheme) return 0;
-    return toNumber(selectedScheme.discount);
-  }, [selectedScheme]);
-
-  const returnTotalCredit = useMemo(() => {
-    return exchangeItems.reduce((acc, i) => {
-        const itemTotal = (toNumber(i.rate) * toNumber(i.quantity));
-        const itemTax = (toNumber(i.taxAmount) || 0); // use existing tax for accurate return
-        return acc + itemTotal + itemTax;
-    }, 0);
-  }, [exchangeItems]);
-
-  const totals = useMemo(
-    () => {
-      const basic = calculateTotals(
-        lines,
-        billDiscount,
-        loyaltyRedeemed,
-        couponDiscountAmount,
-        schemeDiscountAmount,
-        creditNoteAmount,
-        saleType
-      );
-      return {
-        ...basic,
-        returnTotalCredit,
-        netPayable: Math.max(0, basic.netPayable - returnTotalCredit),
-      };
-    },
-    [billDiscount, lines, loyaltyRedeemed, couponDiscountAmount, schemeDiscountAmount, creditNoteAmount, saleType, returnTotalCredit],
-  );
 
   const handleApplyCoupon = () => {
     setCouponError('');

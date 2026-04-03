@@ -29,7 +29,7 @@ const SupplierOutwardListPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const basePath = useRoleBasePath();
-  
+
   const { records, loading } = useSelector((state) => state.supplierOutward);
 
   useEffect(() => {
@@ -44,9 +44,9 @@ const SupplierOutwardListPage = () => {
         breadcrumbs={[{ label: 'Inventory' }, { label: 'Material Issue', active: true }]}
         actions={[
           <Button key="export" variant="outlined" startIcon={<DownloadOutlinedIcon />}>Export All</Button>,
-          <Button 
+          <Button
             key="add"
-            variant="contained" 
+            variant="contained"
             startIcon={<AddCircleOutlineIcon />}
             onClick={() => navigate(`${basePath}/inventory/supplier-outward/new`)}
           >
@@ -78,9 +78,9 @@ const SupplierOutwardListPage = () => {
                   <TableCell>{row.warehouseId?.name || 'Warehouse'}</TableCell>
                   <TableCell>{row.items?.length || 0}</TableCell>
                   <TableCell>
-                    <Chip 
-                      label={row.status} 
-                      size="small" 
+                    <Chip
+                      label={row.status}
+                      size="small"
                       color={row.status === 'COMPLETED' ? 'success' : 'warning'}
                       sx={{ fontWeight: 700, borderRadius: 1.5 }}
                     />

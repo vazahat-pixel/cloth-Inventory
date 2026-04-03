@@ -294,6 +294,16 @@ function AppRoutes() {
             <Route path="sales/sales-return" element={<SalesListPage pageTitle="Sales Return" pageDescription="..." showPrimaryAction={false} returnPathBuilder={(saleId) => `/sales/sales-return/${saleId}`} />} />
             <Route path="sales/sales-return/:id" element={<SalesReturnPage listPath="/sales/sales-return" pageTitle="Sales Return" pageDescription="..." listLabel="..." />} />
 
+            {/* Sale Challan / Delivery Challan Unification */}
+            <Route path="sales/sale-challan" element={<DeliveryChallanPage />} />
+            <Route path="sales/sale-challan/new" element={<DeliveryChallanForm />} />
+            <Route path="sales/sale-challan/:id" element={<DeliveryChallanForm mode="view" />} />
+            <Route path="sales/sale-challan/:id/edit" element={<DeliveryChallanForm mode="edit" />} />
+
+            {/* Legacy Fallbacks for Challan */}
+            <Route path="sale-challan" element={<Navigate to="sales/sale-challan" replace />} />
+            <Route path="sale-challans" element={<Navigate to="sales/sale-challan" replace />} />
+
             <Route path="pricing" element={<Navigate to="price-lists" replace />} />
             <Route path="pricing/price-lists" element={<PriceListPage />} />
             <Route path="pricing/price-lists/new" element={<PriceListFormPage />} />
@@ -334,7 +344,7 @@ function AppRoutes() {
             <Route path="reports" element={<ReportsQueriesLayout />}>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<ReportsDashboard />} />
-              
+
               {/* Specialized Reports */}
               <Route path="sales" element={<SalesReportPage />} />
               <Route path="purchase" element={<PurchaseReportPage />} />
@@ -352,7 +362,7 @@ function AppRoutes() {
               <Route path="inventory/in-transit" element={<InTransitMonitorPage />} />
               <Route path="closure-history" element={<StoreClosureAuditPage />} />
               <Route path="closure" element={<DayEndClosurePage />} />
-              
+
               {/* Dynamic Engine Reports */}
               <Route path="sale-challan-reports" element={<DynamicReportPage config={CHALLAN_REPORT_CONFIG} />} />
               <Route path="scheme-reports" element={<DynamicReportPage config={SCHEME_REPORT_CONFIG} />} />
@@ -360,12 +370,12 @@ function AppRoutes() {
               <Route path="order-reports" element={<OrderReportPage />} />
               <Route path="item-reports" element={<DynamicReportPage config={STOCK_AGING_CONFIG} />} />
               <Route path="stock-reports" element={<StockReportPage />} />
-              
+
               {/* Financial Analysis / Master Reports */}
               <Route path="financial-reports" element={<DynamicReportPage config={TRIAL_BALANCE_CONFIG} />} />
               <Route path="balance-sheet" element={<DynamicReportPage config={{ title: 'Balance Sheet', endpoint: '/balance-sheet', filterConfig: { showDateTo: true } }} />} />
               <Route path="financial-analysis" element={<GstSummaryReportPage />} />
-              
+
               {/* Fallback for others */}
               <Route path="sale-registers" element={<SalesReportPage />} />
               <Route path="customer-item-sale-analysis" element={<CustomerReportPage />} />
@@ -397,10 +407,17 @@ function AppRoutes() {
             </Route>
 
             <Route path="data-import" element={<DataImportExportPage />} />
-            <Route path="grn" element={<GRNListPage />} />
-            <Route path="grn/new" element={<GRNFormPage />} />
-            <Route path="grn/:id" element={<GRNFormPage mode="view" />} />
-            <Route path="grn/:id/edit" element={<GRNFormPage mode="edit" />} />
+
+            {/* GRN Unified Flow (Inventory & Purchase) */}
+            <Route path="inventory/grn" element={<GRNListPage />} />
+            <Route path="inventory/grn/new" element={<GRNFormPage />} />
+            <Route path="inventory/grn/:id" element={<GRNFormPage mode="view" />} />
+            <Route path="inventory/grn/:id/edit" element={<GRNFormPage mode="edit" />} />
+
+            {/* Aliases for Purchase/Procurement pathing */}
+            <Route path="grn" element={<Navigate to="/ho/inventory/grn" replace />} />
+            <Route path="grn/new" element={<Navigate to="/ho/inventory/grn/new" replace />} />
+            <Route path="purchase/grn" element={<Navigate to="/ho/inventory/grn" replace />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
