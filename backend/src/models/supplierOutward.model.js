@@ -17,21 +17,18 @@ const supplierOutwardSchema = new mongoose.Schema({
         required: true
     },
     items: [{
-        itemId: {
+        rawMaterialId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'Item',
+            ref: 'RawMaterial',
             required: true
         },
-        variantId: {
-            type: String,
-            required: true
-        },
-        sku: String,
+        code: String, // Material Code / Roll #
         quantity: {
             type: Number,
             required: true,
-            min: 1
-        }
+            min: 0.1
+        },
+        uom: String
     }],
     status: {
         type: String,
