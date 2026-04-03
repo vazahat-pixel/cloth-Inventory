@@ -44,7 +44,7 @@ const TABS = [
 ];
 
 const defaultValues = {
-  itemCode: '', itemName: '', brand: '', hsCodeId: '', gstSlabId: '', shadeColor: '', uom: 'PCS', skuPrefix: '', description: '', status: 'Active',
+  type: 'GARMENT', itemCode: '', itemName: '', brand: '', hsCodeId: '', gstSlabId: '', shadeColor: '', uom: 'PCS', skuPrefix: '', description: '', status: 'Active',
   fabric: '', pattern: '', fit: '', gender: '', season: '', notes: '',
   sectionId: '', categoryId: '', subCategoryId: '', subSubCategoryId: '',
   defaultWarehouse: '', reorderLevel: 0, reorderQty: 0, openingStock: 0, openingStockRate: 0,
@@ -81,6 +81,7 @@ function ItemFormPage({ mode = 'edit' }) {
   const [uploadingImage, setUploadingImage] = useState(null);
 
   const styleCode = watch('itemCode');
+  const typeWatch = watch('type');
 
   useEffect(() => {
     dispatch(fetchMasters('brands'));
@@ -94,16 +95,16 @@ function ItemFormPage({ mode = 'edit' }) {
   const existingItem = useMemo(() => (isEditMode ? items.find((item) => item.id === id || item._id === id) : null), [id, isEditMode, items]);
 
   useEffect(() => {
-    if (!isEditMode) {
-      api.get('/items/next-code?type=GARMENT')
+    if (!isEditMode && typeWatch) {
+      api.get(`/items/next-code?type=${typeWatch}`)
         .then(res => {
-          if (res.data.success && res.data.data.code) {
-            setValue('itemCode', res.data.data.code);
+          if (res.data.success && res.data.code) {
+            setValue('itemCode', res.data.code);
           }
         })
         .catch(err => console.error('Failed to fetch next item code', err));
     }
-  }, [isEditMode, setValue]);
+  }, [isEditMode, setValue, typeWatch]);
 
   useEffect(() => {
     if (isEditMode && !existingItem) return;
@@ -122,6 +123,7 @@ function ItemFormPage({ mode = 'edit' }) {
       };
 
       reset({
+        type: existingItem.type || 'GARMENT',
         itemCode: existingItem.itemCode || '', 
         itemName: existingItem.itemName || '', 
         brand: getId(existingItem.brand) ? String(getId(existingItem.brand)) : '',
@@ -253,7 +255,7 @@ function ItemFormPage({ mode = 'edit' }) {
       accessorySize: data.accessorySize,
       packingType: data.packingType,
       images: images.filter(Boolean).map((img) => img.preview || img),
-      type: 'GARMENT',
+      type: data.type || 'GARMENT',
       sizes: variants.map((v) => ({
         ...v,
         mrp: Number(v.mrp || 0),
@@ -327,6 +329,12 @@ function ItemFormPage({ mode = 'edit' }) {
             <Stack spacing={3}>
               <FormSection title="Core Information" subtitle="Basic identity and classification.">
                 <Grid container spacing={2}>
+                  <Grid size={{ xs: 12, md: 2 }}>
+                    <TextField fullWidth size="small" select label="Item Type *" {...register('type')} disabled={isViewMode || isEditMode}>
+                      <MenuItem value="GARMENT">Garment</MenuItem>
+                      <MenuItem value="ACCESSORY">Accessory</MenuItem>
+                    </TextField>
+                  </Grid>
                   <Grid size={{ xs: 12, md: 3 }}>
                     <TextField 
                       fullWidth size="small" label="Item/Style Code *" 
@@ -335,7 +343,7 @@ function ItemFormPage({ mode = 'edit' }) {
                       disabled={isViewMode} 
                     />
                   </Grid>
-                  <Grid size={{ xs: 12, md: 5 }}>
+                  <Grid size={{ xs: 12, md: 4 }}>
                     <TextField 
                       fullWidth size="small" label="Item Name *" 
                       {...register('itemName', { required: 'Name is required' })} 
@@ -343,7 +351,7 @@ function ItemFormPage({ mode = 'edit' }) {
                       disabled={isViewMode} 
                     />
                   </Grid>
-                  <Grid size={{ xs: 12, md: 4 }}>
+                  <Grid size={{ xs: 12, md: 3 }}>
                     <Controller
                       name="hsCodeId"
                       control={control}
