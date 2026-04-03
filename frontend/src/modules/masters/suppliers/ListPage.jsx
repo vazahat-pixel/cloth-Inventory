@@ -31,7 +31,6 @@ import ExportButton from '../../../components/erp/ExportButton';
 import StatusBadge from '../../../components/erp/StatusBadge';
 import suppliersExportColumns from '../../../config/exportColumns/suppliers';
 import { fetchMasters, addMasterRecord, updateMasterRecord, deleteMasterRecord } from '../mastersSlice';
-import { supplierSeed } from '../../erp/erpUiMocks';
 
 const defaultFormValues = {
   id: '',
@@ -48,8 +47,6 @@ const defaultFormValues = {
   state: '',
   pincode: '',
   country: 'India',
-  openingBalance: '',
-  creditDays: '',
   supplierType: 'General',
   status: 'Active',
   notes: '',
@@ -71,8 +68,6 @@ const toLocalRows = (rows) =>
     state: row.state || '',
     pincode: row.pincode || '',
     country: row.country || 'India',
-    openingBalance: row.openingBalance || 0,
-    creditDays: row.creditDays || 0,
     supplierType: row.supplierType || 'General',
     status: row.isActive === false ? 'Inactive' : 'Active',
     notes: row.notes || '',
@@ -95,8 +90,6 @@ const toExportRows = (rows) =>
     state: row.state,
     pincode: row.pincode,
     country: row.country,
-    opening_balance: row.openingBalance,
-    credit_days: row.creditDays,
     supplier_type: row.supplierType,
     status: row.status,
     notes: row.notes,
@@ -174,8 +167,6 @@ function SuppliersListPage() {
         name: formValues.supplierName,
         gstNumber: formValues.gstNo,
         isActive: formValues.status === 'Active',
-        openingBalance: Number(formValues.openingBalance || 0),
-        creditDays: Number(formValues.creditDays || 0),
       };
 
       if (formValues.id && !String(formValues.id).startsWith('sup-ui-')) {
@@ -337,27 +328,7 @@ function SuppliersListPage() {
                 />
               </Grid>
             ))}
-            <Grid item xs={12} md={4}>
-              <TextField
-                fullWidth
-                size="small"
-                type="number"
-                label="Opening Balance"
-                value={formValues.openingBalance}
-                onChange={(event) => setFormValues((previous) => ({ ...previous, openingBalance: event.target.value }))}
-              />
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <TextField
-                fullWidth
-                size="small"
-                type="number"
-                label="Credit Days"
-                value={formValues.creditDays}
-                onChange={(event) => setFormValues((previous) => ({ ...previous, creditDays: event.target.value }))}
-              />
-            </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
                 size="small"
@@ -427,8 +398,6 @@ function SuppliersListPage() {
                 ['City / State', `${viewRow.city || '--'} / ${viewRow.state || '--'}`],
                 ['Pincode', viewRow.pincode],
                 ['Country', viewRow.country],
-                ['Opening Balance', viewRow.openingBalance],
-                ['Credit Days', viewRow.creditDays],
                 ['Supplier Type', viewRow.supplierType],
                 ['Status', viewRow.status],
                 ['Notes', viewRow.notes],

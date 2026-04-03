@@ -46,8 +46,6 @@ const supplierSchema = new mongoose.Schema(
             trim: true
         },
         panNo: { type: String, trim: true },
-        openingBalance: { type: Number, default: 0 },
-        creditDays: { type: Number, default: 0 },
         supplierType: { 
             type: String, 
             enum: ['General', 'Fabric', 'Trim', 'Finished Goods'],

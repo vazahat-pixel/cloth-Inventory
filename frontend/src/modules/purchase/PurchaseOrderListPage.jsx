@@ -37,8 +37,6 @@ import { fetchMasters } from '../masters/mastersSlice';
 import { fetchPurchaseOrders } from './purchaseSlice';
 import { loadModuleRecords, upsertModuleRecord } from '../erp/erpLocalStore';
 import {
-  buildFallbackSuppliers,
-  fallbackPurchaseOrders,
   formatCurrency,
   mergePurchaseOrders,
   normalizePurchaseOrderRecord,
@@ -101,7 +99,7 @@ function PurchaseOrderListPage() {
     : '/purchase/orders';
 
   const suppliers = useMemo(() => {
-    const backend = (masterSuppliers || []).map((supplier) => ({
+    return (masterSuppliers || []).map((supplier) => ({
       id: supplier.id || supplier._id,
       supplierName: supplier.supplierName || supplier.name || '',
       city: supplier.city || '',
@@ -111,12 +109,6 @@ function PurchaseOrderListPage() {
       addressLine1: supplier.addressLine1 || supplier.address || '',
       addressLine2: supplier.addressLine2 || '',
     }));
-
-    const merged = new Map();
-    [...buildFallbackSuppliers(), ...backend].forEach((supplier) => {
-      merged.set(supplier.id, supplier);
-    });
-    return Array.from(merged.values());
   }, [masterSuppliers]);
 
   const orders = backendOrders;

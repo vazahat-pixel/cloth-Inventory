@@ -153,7 +153,6 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
       state: supplier.state || '',
       addressLine1: supplier.addressLine1 || supplier.address || '',
       addressLine2: supplier.addressLine2 || '',
-      creditDays: supplier.creditDays || 0,
       status: supplier.status || 'Active',
     }));
     const merged = new Map();
@@ -219,7 +218,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
       billingAddress:
         previous.billingAddress ||
         [supplier.addressLine1, supplier.addressLine2, supplier.city, supplier.state].filter(Boolean).join(', '),
-      paymentTerms: previous.paymentTerms || (supplier.creditDays ? `${supplier.creditDays} days credit` : ''),
+      paymentTerms: previous.paymentTerms || '',
     }));
   }, [formValues.supplierId, suppliers]);
 

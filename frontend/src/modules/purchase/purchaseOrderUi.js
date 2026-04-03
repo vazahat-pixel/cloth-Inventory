@@ -1,6 +1,3 @@
-import itemsData from '../items/data';
-import { purchaseOrderSeed, supplierSeed } from '../erp/erpUiMocks';
-
 export const purchaseOrderStorageKey = 'purchase-orders';
 export const purchaseOrderStatuses = ['DRAFT', 'PENDING', 'APPROVED', 'PARTIALLY_RECEIVED', 'COMPLETED', 'CANCELLED'];
 
@@ -51,33 +48,7 @@ export const calculatePurchaseOrderTotals = (lines = []) =>
     { subtotal: 0, discountTotal: 0, taxTotal: 0, grandTotal: 0, totalQty: 0, totalReceivedQty: 0, totalBilledQty: 0 },
   );
 
-export const buildFallbackVariantOptions = () =>
-  itemsData.flatMap((item) =>
-    (item.variants || []).map((variant) => ({
-      id: variant.id,
-      itemCode: item.code,
-      itemName: item.name,
-      size: variant.size,
-      color: variant.color,
-      sku: variant.sku,
-      rate: variant.costPrice || variant.sellingPrice || 0,
-      mrp: variant.mrp || variant.sellingPrice || 0,
-      uom: 'PCS',
-      status: variant.status || item.status || 'Active',
-    })),
-  );
 
-export const buildFallbackSuppliers = () =>
-  supplierSeed.map((supplier) => ({
-    id: supplier.id,
-    supplierName: supplier.supplierName,
-    city: supplier.city,
-    state: supplier.state,
-    addressLine1: supplier.addressLine1,
-    addressLine2: supplier.addressLine2,
-    creditDays: supplier.creditDays,
-    status: supplier.status,
-  }));
 
 export function normalizePurchaseOrderRecord(record = {}) {
   const items = (record.items || record.lines || []).map((line, index) => {
@@ -173,4 +144,4 @@ export function mergePurchaseOrders(...orderSets) {
   return Array.from(byId.values()).sort((left, right) => (left.poDate < right.poDate ? 1 : -1));
 }
 
-export const fallbackPurchaseOrders = purchaseOrderSeed.map((order) => normalizePurchaseOrderRecord(order));
+

@@ -40,18 +40,16 @@ const registerRoutes = (app) => {
     app.use('/api/supplier', require('./modules/suppliers/supplier.routes')); // Singular Alias for compatibility
     app.use('/api/delivery-challans', require('./modules/deliveryChallan/deliveryChallan.routes'));
     app.use('/api/purchase', require('./modules/purchase/purchase.routes'));
+    app.use('/api/purchase-orders', require('./modules/purchase/purchaseOrder.routes'));
     app.use('/api/reports', require('./modules/reports/report.routes'));
     app.use('/api/grn', require('./modules/grn/grn.routes'));
     
     // Financial & Accounting Modules
-    app.use('/api/account-groups', require('./modules/accountGroups/accountGroup.routes'));
     app.use('/api/account-master', require('./modules/accountMaster/accountMaster.routes'));
     app.use('/api/accounting', require('./modules/accounting/accounting.routes'));
     app.use('/api/accounts', require('./modules/accounts/accounts.routes'));
     app.use('/api/vouchers', require('./modules/vouchers/voucher.routes'));
-    app.use('/api/banks', require('./modules/banks/bank.routes'));
     app.use('/api/brands', require('./modules/brands/brand.routes'));
-    app.use('/api/seasons', require('./modules/seasons/season.routes'));
     app.use('/api/customers', require('./modules/customers/customer.routes'));
     app.use('/api/dispatch', require('./modules/dispatch/dispatch.routes'));
     app.use('/api/dashboard', require('./modules/dashboard/dashboard.routes'));

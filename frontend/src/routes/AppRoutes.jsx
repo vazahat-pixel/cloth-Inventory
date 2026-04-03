@@ -28,14 +28,10 @@ const StoreReceiptPage = lazy(() => import('../modules/store/StoreReceiptPage'))
 const MastersLayout = lazy(() => import('../modules/masters/MastersLayout'));
 const SuppliersListPage = lazy(() => import('../modules/masters/suppliers/ListPage'));
 const CustomersListPage = lazy(() => import('../modules/masters/customers/ListPage'));
-const AccountGroupsListPage = lazy(() => import('../modules/masters/accountGroups/ListPage'));
 const WarehousesListPage = lazy(() => import('../modules/masters/warehouses/ListPage'));
 const StoresListPage = lazy(() => import('../modules/masters/stores/ListPage'));
 const BrandsListPage = lazy(() => import('../modules/masters/brands/ListPage'));
 const ItemGroupsListPage = lazy(() => import('../modules/masters/itemGroups/ListPage'));
-const SalesmenListPage = lazy(() => import('../modules/masters/salesmen/ListPage'));
-const BanksListPage = lazy(() => import('../modules/masters/banks/ListPage'));
-const SeasonsListPage = lazy(() => import('../modules/masters/seasons/ListPage'));
 
 // Placeholders/Shared
 const PurchasePlaceholderPage = lazy(() => import('../modules/purchase/PurchasePlaceholderPage'));
@@ -247,14 +243,11 @@ function AppRoutes() {
               <Route index element={<Navigate to="suppliers" replace />} />
               <Route path="suppliers" element={<SuppliersListPage />} />
               <Route path="customers" element={<CustomersListPage />} />
-              <Route path="account-groups" element={<AccountGroupsListPage />} />
               <Route path="warehouses" element={<WarehousesListPage />} />
               <Route path="stores" element={<StoresListPage />} />
               <Route path="brands" element={<BrandsListPage />} />
               <Route path="item-groups" element={<ItemGroupsListPage />} />
-              <Route path="salesmen" element={<SalesmenListPage />} />
-              <Route path="banks" element={<BanksListPage />} />
-              <Route path="seasons" element={<SeasonsListPage />} />
+              <Route path="item-groups" element={<ItemGroupsListPage />} />
             </Route>
 
             <Route path="items" element={<ItemListPage />} />

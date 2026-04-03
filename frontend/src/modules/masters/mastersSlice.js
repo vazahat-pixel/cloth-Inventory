@@ -8,13 +8,9 @@ const endpointMap = {
   warehouses: '/warehouses',
   stores: '/stores',
   itemGroups: '/groups',
-  salesmen: '/auth/users',
   brands: '/brands',
-  accountGroups: '/account-groups',
-  banks: '/banks',
   sizes: '/sizes',
   hsnCodes: '/setup/hsn',
-  seasons: '/seasons',
 };
 
 const responseKeyMap = {
@@ -23,13 +19,9 @@ const responseKeyMap = {
   warehouses: 'warehouses',
   stores: 'stores',
   itemGroups: 'groups',
-  salesmen: 'users',
   brands: 'brands',
-  accountGroups: 'accountGroups',
-  banks: 'banks',
   sizes: 'sizes',
   hsnCodes: 'hsns',
-  seasons: 'seasons',
 };
 
 const singularKeyMap = {
@@ -38,13 +30,9 @@ const singularKeyMap = {
   warehouses: 'warehouse',
   stores: 'store',
   itemGroups: 'group',
-  salesmen: 'user',
   brands: 'brand',
-  accountGroups: 'accountGroup',
-  banks: 'bank',
   sizes: 'size',
   hsnCodes: 'hsn',
-  seasons: 'season',
 };
 
 // Async Thunks for different master entities
@@ -62,7 +50,6 @@ export const fetchMasters = createAsyncThunk('masters/fetchAll', async (entityKe
       itemGroups: 'group',
       warehouses: 'warehouse',
       stores: 'store',
-      salesmen: 'user',
     };
     const entityType = entityTypeMapping[entityKey] || entityKey.slice(0, -1);
     return { entityKey, data: normalizeResponse(raw, entityType) };
@@ -104,8 +91,6 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
         bankDetails: record.bankDetails,
         gstNumber: record.gstNo || record.gstNumber,
         panNo: record.panNo,
-        openingBalance: record.openingBalance,
-        creditDays: record.creditDays,
         supplierType: record.supplierType,
         alternatePhone: record.alternatePhone,
         notes: record.notes,
@@ -121,14 +106,6 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
         address: record.address,
         points: record.loyaltyPoints ?? 0,
         isActive: record.status !== 'Inactive',
-      };
-    } else if (entityKey === 'banks') {
-      // Banks: map bankName -> name
-      payload = {
-        name: record.bankName,
-        accountNumber: record.accountNumber,
-        branch: record.branch,
-        ifsc: record.ifsc,
       };
     } else if (entityKey === 'warehouses') {
       // Warehouses: map dialog fields to backend warehouse schema
@@ -173,7 +150,6 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
       itemGroups: 'group',
       warehouses: 'warehouse',
       stores: 'store',
-      salesmen: 'user',
     };
     const entityType = entityTypeMapping[entityKey] || entityKey.slice(0, -1);
     return { entityKey, data: normalizeResponse(raw, entityType) };
@@ -213,8 +189,6 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
         bankDetails: updates.bankDetails,
         gstNumber: updates.gstNo || updates.gstNumber,
         panNo: updates.panNo,
-        openingBalance: updates.openingBalance,
-        creditDays: updates.creditDays,
         supplierType: updates.supplierType,
         alternatePhone: updates.alternatePhone,
         notes: updates.notes,
@@ -229,13 +203,6 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
         address: updates.address,
         points: updates.loyaltyPoints ?? 0,
         isActive: updates.status !== 'Inactive',
-      };
-    } else if (entityKey === 'banks') {
-      payload = {
-        name: updates.bankName,
-        accountNumber: updates.accountNumber,
-        branch: updates.branch,
-        ifsc: updates.ifsc,
       };
     } else if (entityKey === 'warehouses') {
       payload = {
@@ -279,7 +246,6 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
       itemGroups: 'group',
       warehouses: 'warehouse',
       stores: 'store',
-      salesmen: 'user',
     };
     const entityType = entityTypeMapping[entityKey] || entityKey.slice(0, -1);
     return { entityKey, data: normalizeResponse(raw, entityType) };
@@ -305,13 +271,9 @@ const initialState = {
   warehouses: [],
   stores: [],
   itemGroups: [],
-  salesmen: [],
   brands: [],
-  accountGroups: [],
-  banks: [],
   sizes: [],
   hsnCodes: [],
-  seasons: [],
   loading: false,
   error: null,
 };

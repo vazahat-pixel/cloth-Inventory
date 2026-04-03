@@ -9,3 +9,5 @@ export const sizeMasterSeed = [
   { id: 'size-42', sizeCode: '42', sizeLabel: '42 (16.0)', sequence: 80, status: 'Active', group: 'Formal' },
   { id: 'size-44', sizeCode: '44', sizeLabel: '44 (16.5)', sequence: 90, status: 'Active', group: 'Formal' },
 ];
+export const supplierSeed = [];
+export const purchaseOrderSeed = [];
