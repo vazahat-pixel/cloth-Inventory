@@ -327,16 +327,8 @@ function AppRoutes() {
               <Route path="excise-reports" element={<GstSummaryReportPage />} />
             </Route>
 
-            <Route path="settings" element={<SettingsLayout />}>
-              <Route index element={<Navigate to="company" replace />} />
-              <Route path="company" element={<CompanyProfilePage />} />
-              <Route path="users" element={<UsersPage />} />
-              <Route path="roles" element={<RolesPage />} />
-              <Route path="number-series" element={<NumberSeriesPage />} />
-              <Route path="preferences" element={<PreferencesPage />} />
-              <Route path="print-templates" element={<PrintTemplatesPage />} />
-              <Route path="audit-logs" element={<AuditLogPage />} />
-            </Route>
+            <Route path="settings/company" element={<CompanyProfilePage />} />
+            <Route path="settings/preferences" element={<PreferencesPage />} />
 
             <Route path="data-import" element={<DataImportExportPage />} />
 
