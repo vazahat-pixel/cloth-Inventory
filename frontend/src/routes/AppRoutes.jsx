@@ -52,16 +52,6 @@ const StockAuditPage = lazy(() => import('../modules/inventory/StockAuditPage'))
 const StockAdjustmentPage = lazy(() => import('../modules/inventory/StockAdjustmentPage'));
 const MovementHistoryPage = lazy(() => import('../modules/inventory/MovementHistoryPage'));
 const StockAuditView = lazy(() => import('../modules/inventory/StockAuditView'));
-const SupplierOutwardListPage = lazy(() => import('../modules/supplierOutward/SupplierOutwardListPage'));
-const SupplierOutwardFormPage = lazy(() => import('../modules/supplierOutward/SupplierOutwardFormPage'));
-const SupplierOutwardViewPage = lazy(() => import('../modules/supplierOutward/SupplierOutwardViewPage'));
-
-const MaterialConsumptionListPage = lazy(() => import('../modules/consumption/MaterialConsumptionListPage'));
-const MaterialConsumptionFormPage = lazy(() => import('../modules/consumption/MaterialConsumptionFormPage'));
-
-const RawMaterialListPage = lazy(() => import('../modules/rawMaterials/RawMaterialListPage'));
-const RawMaterialFormPage = lazy(() => import('../modules/rawMaterials/RawMaterialFormPage'));
-
 // Purchase
 const PurchaseListPage = lazy(() => import('../modules/purchase/PurchaseListPage'));
 const PurchaseFormPage = lazy(() => import('../modules/purchase/PurchaseFormPage'));
@@ -106,13 +96,6 @@ const TaxGroupPage = lazy(() => import('../modules/gst/TaxGroupPage'));
 const InvoiceTaxReportPage = lazy(() => import('../modules/gst/InvoiceTaxReportPage'));
 const GSTRSummaryPage = lazy(() => import('../modules/gst/GSTRSummaryPage'));
 
-// Accounts
-const AccountsDashboard = lazy(() => import('../modules/accounts/AccountsDashboard'));
-const BankPaymentPage = lazy(() => import('../modules/accounts/BankPaymentPage'));
-const BankPaymentListPage = lazy(() => import('../modules/accounts/BankPaymentListPage'));
-const BankReceiptPage = lazy(() => import('../modules/accounts/BankReceiptPage'));
-
-// Reports
 const ReportsDashboard = lazy(() => import('../modules/reports/ReportsDashboard'));
 const SalesReportPage = lazy(() => import('../modules/reports/SalesReportPage'));
 const PurchaseReportPage = lazy(() => import('../modules/reports/PurchaseReportPage'));
@@ -125,7 +108,6 @@ const AgeAnalysisPage = lazy(() => import('../modules/reports/AgeAnalysisPage'))
 const LedgerReportPage = lazy(() => import('../modules/reports/LedgerReportPage'));
 const BankBookPage = lazy(() => import('../modules/reports/BankBookPage'));
 const CollectionReportPage = lazy(() => import('../modules/reports/CollectionReportPage'));
-const YieldAnalysisPage = lazy(() => import('../modules/reports/YieldAnalysisPage'));
 const ConsolidatedStockPage = lazy(() => import('../modules/reports/ConsolidatedStockPage'));
 const DayEndClosurePage = lazy(() => import('../modules/reports/DayEndClosurePage'));
 
@@ -150,7 +132,6 @@ const ProfilePage = lazy(() => import('../modules/profile/ProfilePage'));
 const DataImportExportPage = lazy(() => import('../modules/data/DataImportExportPage'));
 const GRNListPage = lazy(() => import('../modules/grn/GRNListPage'));
 const GRNFormPage = lazy(() => import('../modules/grn/GRNFormPage'));
-const AccessoryDirectEntryPage = lazy(() => import('../modules/items/AccessoryDirectEntryPage'));
 const HoMasterDashboard = lazy(() => import('../modules/reports/HoMasterDashboard'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
 
@@ -205,22 +186,6 @@ const STOCK_AGING_CONFIG = {
   ]
 };
 
-const TRIAL_BALANCE_CONFIG = {
-  title: 'Trial Balance',
-  description: 'Consolidated summary of all ledger balances.',
-  endpoint: '/trial-balance',
-  dataKey: 'trialBalance',
-  columns: [
-    { field: 'code', headerName: 'Account Code' },
-    { field: 'name', headerName: 'Account Name' },
-    { field: 'type', headerName: 'Group' },
-    { field: 'totalDebit', headerName: 'Debit', transform: v => Number(v || 0).toLocaleString() },
-    { field: 'totalCredit', headerName: 'Credit', transform: v => Number(v || 0).toLocaleString() },
-    { field: 'balance', headerName: 'Net Balance', transform: v => Number(v || 0).toLocaleString() }
-  ],
-  filterConfig: { showDateRange: true }
-};
-
 
 function AppRoutes() {
   return (
@@ -269,17 +234,6 @@ function AppRoutes() {
             <Route path="inventory/adjustment" element={<StockAdjustmentPage />} />
             <Route path="inventory/movements" element={<MovementHistoryPage />} />
             <Route path="inventory/audit-view" element={<StockAuditView />} />
-            <Route path="inventory/supplier-outward" element={<SupplierOutwardListPage />} />
-            <Route path="inventory/supplier-outward/new" element={<SupplierOutwardFormPage />} />
-            <Route path="inventory/supplier-outward/:id" element={<SupplierOutwardViewPage />} />
-            
-            <Route path="inventory/consumption" element={<MaterialConsumptionListPage />} />
-            <Route path="inventory/consumption/new" element={<MaterialConsumptionFormPage />} />
-
-            <Route path="inventory/raw-materials" element={<RawMaterialListPage />} />
-            <Route path="inventory/raw-materials/new" element={<RawMaterialFormPage />} />
-            <Route path="inventory/raw-materials/edit/:id" element={<RawMaterialFormPage />} />
-            <Route path="inventory/accessory-entry" element={<AccessoryDirectEntryPage />} />
 
 
             <Route path="orders/delivery-challan" element={<DeliveryChallanPage />} />
@@ -346,8 +300,6 @@ function AppRoutes() {
               {/* Specialized Reports */}
               <Route path="sales" element={<SalesReportPage />} />
               <Route path="purchase" element={<PurchaseReportPage />} />
-              <Route path="ledger" element={<LedgerReportPage />} />
-              <Route path="bank-book" element={<BankBookPage />} />
               <Route path="stock" element={<StockReportPage />} />
               <Route path="profit" element={<ProfitReportPage />} />
               <Route path="collection" element={<CollectionReportPage />} />
@@ -355,9 +307,6 @@ function AppRoutes() {
               <Route path="vendors" element={<VendorReportPage />} />
               <Route path="movement" element={<MovementHistoryPage />} />
               <Route path="age-analysis" element={<AgeAnalysisPage />} />
-              <Route path="production/yield" element={<YieldAnalysisPage />} />
-              <Route path="inventory/consolidated" element={<ConsolidatedStockPage />} />
-              <Route path="inventory/in-transit" element={<InTransitMonitorPage />} />
               <Route path="closure-history" element={<StoreClosureAuditPage />} />
               <Route path="closure" element={<DayEndClosurePage />} />
 
@@ -370,8 +319,6 @@ function AppRoutes() {
               <Route path="stock-reports" element={<StockReportPage />} />
 
               {/* Financial Analysis / Master Reports */}
-              <Route path="financial-reports" element={<DynamicReportPage config={TRIAL_BALANCE_CONFIG} />} />
-              <Route path="balance-sheet" element={<DynamicReportPage config={{ title: 'Balance Sheet', endpoint: '/balance-sheet', filterConfig: { showDateTo: true } }} />} />
               <Route path="financial-analysis" element={<GstSummaryReportPage />} />
 
               {/* Fallback for others */}
@@ -379,19 +326,6 @@ function AppRoutes() {
               <Route path="customer-item-sale-analysis" element={<CustomerReportPage />} />
               <Route path="excise-reports" element={<GstSummaryReportPage />} />
             </Route>
-
-            <Route path="gst" element={<Navigate to="tax-rates" replace />} />
-            <Route path="gst/tax-rates" element={<TaxRatesPage />} />
-            <Route path="gst/tax-groups" element={<TaxGroupPage />} />
-            <Route path="gst/invoice-report" element={<InvoiceTaxReportPage />} />
-            <Route path="gst/gstr-summary" element={<GSTRSummaryPage />} />
-
-            <Route path="accounts" element={<Navigate to="a-c-vouchers" replace />} />
-            <Route path="accounts/a-c-vouchers" element={<AccountsDashboard />} />
-            <Route path="accounts/bank-payment" element={<BankPaymentPage />} />
-            <Route path="accounts/bank-payment/:id" element={<BankPaymentPage mode="view" />} />
-            <Route path="accounts/bank-payment-list" element={<BankPaymentListPage />} />
-            <Route path="accounts/bank-receipt" element={<BankReceiptPage />} />
 
             <Route path="settings" element={<SettingsLayout />}>
               <Route index element={<Navigate to="company" replace />} />

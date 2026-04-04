@@ -188,30 +188,6 @@ const approveGRN = async (id, userId) => {
             });
         }
 
-        // 3. Post Consumption (Raw Material Deduction)
-        if (grn.consumptionDetails && grn.consumptionDetails.length > 0) {
-            const SupplierInventory = require('../../models/supplierInventory.model');
-            console.log(`[GRN-APPROVAL] Processing Raw Material Consumption for Supplier: ${grn.supplierId}`);
-            
-            for (const cons of grn.consumptionDetails) {
-                const totalUsed = (cons.quantity || 0) + (cons.wasteQuantity || 0);
-                if (totalUsed <= 0) continue;
-
-                const suppInv = await SupplierInventory.findOne({ 
-                    supplierId: grn.supplierId, 
-                    variantId: cons.variantId 
-                }).session(session);
-
-                if (!suppInv || suppInv.quantity < totalUsed) {
-                    throw new Error(`Insufficient Raw Material with supplier. Need ${totalUsed}, Have ${suppInv ? suppInv.quantity : 0}`);
-                }
-
-                suppInv.quantity -= totalUsed;
-                await suppInv.save({ session });
-                console.log(`   -> Consumed: ${cons.variantId}, Qty: ${totalUsed}, Remaining with Supplier: ${suppInv.quantity}`);
-            }
-        }
-
         console.log(`[GRN-APPROVAL] Successfully posted all items to Warehouse stock.`);
         
         // 3. Update Purchase Order Fulfillment if linked

@@ -57,7 +57,7 @@ const populateItem = async (itemId) =>
     .populate('categoryId', 'name groupName groupType')
     .populate('subCategoryId', 'name groupName groupType')
     .populate('styleId', 'name groupName groupType')
-    .populate('brand', 'brandName name')
+    .populate('brand', 'name brandName')
     .populate('hsCodeId', 'code hsnCode gstRate gstPercent');
 
 class ItemService {
@@ -212,7 +212,7 @@ class ItemService {
       .populate('categoryId', 'name groupName groupType')
       .populate('subCategoryId', 'name groupName groupType')
       .populate('styleId', 'name groupName groupType')
-      .populate('brand', 'brandName name')
+      .populate('brand', 'name brandName')
       .populate('hsCodeId', 'code hsnCode gstRate gstPercent')
       .sort({ createdAt: -1 });
   }
@@ -224,7 +224,7 @@ class ItemService {
       .populate('categoryId', 'name groupName groupType')
       .populate('subCategoryId', 'name groupName groupType')
       .populate('styleId', 'name groupName groupType')
-      .populate('brand', 'brandName name')
+      .populate('brand', 'name brandName')
       .populate('hsCodeId', 'code hsnCode gstRate gstPercent');
   }
 
@@ -239,7 +239,7 @@ class ItemService {
         { 'sizes.sku': barcode }
       ]
     })
-    .populate('brand', 'brandName name')
+    .populate('brand', 'name brandName')
     .populate('hsCodeId', 'code hsnCode gstRate gstPercent');
 
     if (!item) return null;

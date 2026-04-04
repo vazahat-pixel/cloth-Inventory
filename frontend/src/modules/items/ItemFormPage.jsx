@@ -328,8 +328,8 @@ function ItemFormPage({ mode = 'edit' }) {
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, md: 2 }}>
                     <TextField fullWidth size="small" select label="Item Type *" {...register('type')} disabled={isViewMode || isEditMode}>
-                      <MenuItem value="GARMENT">Garment</MenuItem>
-                      <MenuItem value="ACCESSORY">Accessory</MenuItem>
+                      <MenuItem value="GARMENT">Finished Garment</MenuItem>
+                      <MenuItem value="ACCESSORY">Accessory / Trim Item</MenuItem>
                     </TextField>
                   </Grid>
                   <Grid size={{ xs: 12, md: 3 }}>

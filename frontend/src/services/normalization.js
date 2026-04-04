@@ -273,7 +273,7 @@ const normalizeItem = (item, entityType) => {
         case 'item': {
             normalized.itemName = item.itemName || item.name;
             normalized.itemCode = item.itemCode || item.sku;
-            normalized.brand = item.brand?._id || item.brand;
+            normalized.brand = item.brand; // Retain object for name display
             normalized.shade = item.shade;
             normalized.shadeColor = item.shade;
             normalized.mainGroup = item.groupIds?.[0]?._id || item.groupIds?.[0];

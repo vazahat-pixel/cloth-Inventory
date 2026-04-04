@@ -59,7 +59,7 @@ const itemSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['GARMENT', 'ACCESSORY', 'FABRIC'],
+    enum: ['GARMENT', 'ACCESSORY'],
     default: 'GARMENT',
     index: true
   },
@@ -105,15 +105,10 @@ const itemSchema = new mongoose.Schema({
     ref: 'Group',
     index: true
   }],
-  hsCodeId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'HsnCode'
-  },
-  gstTax: {
-    type: Number,
-    min: 0,
-    max: 100
-  },
+  hsCodeId: { type: mongoose.Schema.Types.ObjectId, ref: 'HSNCode', index: true },
+  gstPercent: { type: Number, default: 0 },
+  purchasePrice: { type: Number, default: 0 },
+  mrp: { type: Number, default: 0 },
   vendorId: {
     type: String,
     trim: true

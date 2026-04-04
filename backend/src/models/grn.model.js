@@ -97,17 +97,6 @@ const grnSchema = new mongoose.Schema(
             enum: Object.values(GrnStatus),
             default: GrnStatus.PENDING
         },
-        jobWorkId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'SupplierOutward',
-            required: false
-        },
-        consumptionDetails: [{
-            itemId: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
-            variantId: { type: String },
-            quantity: { type: Number },
-            wasteQuantity: { type: Number, default: 0 }
-        }],
         receivedBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User'
