@@ -120,14 +120,7 @@ const InTransitMonitorPage = lazy(() => import('../modules/reports/InTransitMoni
 const OrderReportPage = lazy(() => import('../modules/reports/OrderReportPage'));
 
 // Settings & Tools
-const SettingsLayout = lazy(() => import('../modules/settings/SettingsLayout'));
 const CompanyProfilePage = lazy(() => import('../modules/settings/CompanyProfilePage'));
-const UsersPage = lazy(() => import('../modules/settings/UsersPage'));
-const RolesPage = lazy(() => import('../modules/settings/RolesPage'));
-const NumberSeriesPage = lazy(() => import('../modules/settings/NumberSeriesPage'));
-const PreferencesPage = lazy(() => import('../modules/settings/PreferencesPage'));
-const PrintTemplatesPage = lazy(() => import('../modules/settings/PrintTemplatesPage'));
-const AuditLogPage = lazy(() => import('../modules/settings/AuditLogPage'));
 const ProfilePage = lazy(() => import('../modules/profile/ProfilePage'));
 const DataImportExportPage = lazy(() => import('../modules/data/DataImportExportPage'));
 const GRNListPage = lazy(() => import('../modules/grn/GRNListPage'));
@@ -328,7 +321,6 @@ function AppRoutes() {
             </Route>
 
             <Route path="settings/company" element={<CompanyProfilePage />} />
-            <Route path="settings/preferences" element={<PreferencesPage />} />
 
             <Route path="data-import" element={<DataImportExportPage />} />
 
