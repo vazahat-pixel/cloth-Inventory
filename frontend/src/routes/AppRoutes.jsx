@@ -2,6 +2,12 @@ import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import RoleDashboardLayout from '../layouts/RoleDashboardLayout';
 import LoadingOverlay from '../components/LoadingOverlay';
+import RoleProtectedRoute from './RoleProtectedRoute';
+import PublicRoute from './PublicRoute';
+
+// Auth
+const LoginPage = lazy(() => import('../pages/auth/LoginPage'));
+const RegisterPage = lazy(() => import('../pages/auth/RegisterPage'));
 
 // Common
 const DashboardHomePage = lazy(() => import('../pages/dashboard/DashboardHome'));
@@ -123,8 +129,14 @@ function AppRoutes() {
       <Routes>
         <Route path="/" element={<Navigate to="/ho" replace />} />
 
+        {/* Auth Routes */}
+        <Route path="/login/:role" element={<PublicRoute><LoginPage /></PublicRoute>} />
+        <Route path="/login" element={<Navigate to="/login/ho" replace />} />
+        <Route path="/register/:role" element={<PublicRoute><RegisterPage /></PublicRoute>} />
+        <Route path="/register" element={<Navigate to="/register/ho" replace />} />
+
         {/* Head Office Admin Portal */}
-        <Route path="/ho" element={<RoleDashboardLayout role="admin" />}>
+        <Route path="/ho" element={<RoleProtectedRoute allowedRoles={['Admin']}><RoleDashboardLayout /></RoleProtectedRoute>}>
           <Route index element={<DashboardHomePage />} />
 
           {/* Catalog & Masters */}
@@ -205,7 +217,7 @@ function AppRoutes() {
         </Route>
 
         {/* Store/Branch Portal */}
-        <Route path="/store" element={<RoleDashboardLayout role="store_staff" />}>
+        <Route path="/store" element={<RoleProtectedRoute allowedRoles={['Staff']}><RoleDashboardLayout /></RoleProtectedRoute>}>
           <Route index element={<DashboardHomePage />} />
           <Route path="inventory/stock-overview" element={<StockOverviewPage />} />
           <Route path="inventory/receipt" element={<MovementHistoryPage />} />

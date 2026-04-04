@@ -6,7 +6,17 @@ const variantSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  color: {
+    type: String,
+    trim: true
+  },
   sku: {
+    type: String,
+    unique: true,
+    sparse: true,
+    trim: true
+  },
+  barcode: {
     type: String,
     unique: true,
     sparse: true,
@@ -21,6 +31,11 @@ const variantSchema = new mongoose.Schema({
   stock: {
     type: Number,
     default: 0
+  },
+  reorderLevel: {
+    type: Number,
+    default: 0,
+    min: 0
   },
   isActive: {
     type: Boolean,
@@ -59,7 +74,7 @@ const itemSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['GARMENT', 'ACCESSORY'],
+    enum: ['GARMENT', 'ACCESSORY', 'FABRIC'],
     default: 'GARMENT',
     index: true
   },
@@ -115,7 +130,7 @@ const itemSchema = new mongoose.Schema({
   },
   // Inventory & Defaults
 
-  defaultWarehouse: { type: String, trim: true },
+  defaultWarehouse: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', index: true },
   reorderLevel: { type: Number, default: 0 },
   reorderQty: { type: Number, default: 0 },
   openingStock: { type: Number, default: 0 },

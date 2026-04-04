@@ -116,8 +116,8 @@ function ItemListPage() {
                        <Typography variant="caption" sx={{ color: '#64748b' }}>Variants <b>{row.variantCount}</b></Typography>
                     </Box>
                     <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
-                      <IconButton size="small" color="info" onClick={() => navigate(`/items/${row.id}/view`)}><VisibilityOutlinedIcon fontSize="small" /></IconButton>
-                      <IconButton size="small" color="primary" onClick={() => navigate(`/items/${row.id}/edit`)}><EditOutlinedIcon fontSize="small" /></IconButton>
+                      <IconButton size="small" color="info" onClick={() => navigate(`/items/view/${row.id}`)}><VisibilityOutlinedIcon fontSize="small" /></IconButton>
+                      <IconButton size="small" color="primary" onClick={() => navigate(`/items/edit/${row.id}`)}><EditOutlinedIcon fontSize="small" /></IconButton>
                       <IconButton size="small" color="error" onClick={() => dispatch(deleteItem(row.id))}><DeleteOutlineIcon fontSize="small" /></IconButton>
                     </Stack>
                   </Stack>
@@ -144,8 +144,8 @@ function ItemListPage() {
                     <TableCell><b>{row.variantCount}</b></TableCell>
                     <TableCell><StatusBadge value={row.status} /></TableCell>
                     <TableCell align="right">
-                        <IconButton size="small" color="info" onClick={() => navigate(`/items/${row.id}/view`)}><VisibilityOutlinedIcon fontSize="small" /></IconButton>
-                        <IconButton size="small" color="primary" onClick={() => navigate(`/items/${row.id}/edit`)}><EditOutlinedIcon fontSize="small" /></IconButton>
+                        <IconButton size="small" color="info" onClick={() => navigate(`/items/view/${row.id}`)}><VisibilityOutlinedIcon fontSize="small" /></IconButton>
+                        <IconButton size="small" color="primary" onClick={() => navigate(`/items/edit/${row.id}`)}><EditOutlinedIcon fontSize="small" /></IconButton>
                     </TableCell>
                   </TableRow>
                 ))}

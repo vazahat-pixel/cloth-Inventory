@@ -54,6 +54,7 @@ const createVariantPayload = (overrides = {}) => ({
   barcodePrefix: '',
   mrp: 0,
   stock: 0,
+  reorderLevel: 0,
   status: 'Active',
   ...overrides,
 });
@@ -371,6 +372,9 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
                   <TableCell sx={{ fontWeight: 700 }} align="right">
                     Stock
                   </TableCell>
+                  <TableCell sx={{ fontWeight: 700 }} align="right">
+                    ROL
+                  </TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Actions</TableCell>
                 </TableRow>
@@ -383,6 +387,7 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
                     <TableCell>{variant.sku}</TableCell>
                     <TableCell align="right">{variant.mrp}</TableCell>
                     <TableCell align="right">{variant.stock}</TableCell>
+                    <TableCell align="right">{variant.reorderLevel || 0}</TableCell>
                     <TableCell>
                       <Chip
                         size="small"
@@ -531,6 +536,22 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
                       label="Initial Stock"
                       error={Boolean(errors.stock)}
                       helperText={errors.stock?.message || ' '}
+                    />
+                  )}
+                />
+
+                <Controller
+                  name="reorderLevel"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      type="number"
+                      size="small"
+                      fullWidth
+                      label="Reorder Level (ROL)"
+                      error={Boolean(errors.reorderLevel)}
+                      helperText={errors.reorderLevel?.message || 'Trigger for Low Stock Alert'}
                     />
                   )}
                 />
