@@ -110,7 +110,8 @@ class ItemService {
         ...s,
         sku: s.sku || s.barcode || null,
         mrp: Number(s.mrp || 0),
-        stock: Number(s.stock || 0)
+        stock: Number(s.stock || 0),
+        reorderLevel: Number(s.reorderLevel || 0)
       }));
     }
 
@@ -174,22 +175,26 @@ class ItemService {
 
     await item.save();
 
-    // Initialize Inventory in the default warehouse if specified
-    if (item.defaultWarehouse && item.sizes && item.sizes.length > 0) {
+    // Auto-initialize Inventory in warehouse (use defaultWarehouse or auto-detect first active one)
+    const Warehouse = require('../../models/warehouse.model');
+    let warehouseId = item.defaultWarehouse;
+    if (!warehouseId) {
+      const primaryWarehouse = await Warehouse.findOne({ isActive: true, isDeleted: { $ne: true } }).sort({ createdAt: 1 });
+      if (primaryWarehouse) warehouseId = primaryWarehouse._id;
+    }
+
+    if (warehouseId && item.sizes && item.sizes.length > 0) {
       const inventoryOps = item.sizes
-        .filter(variant => variant.stock > 0)
+        .filter(variant => variant.stock > 0 && (variant.sku || variant.barcode))
         .map(variant => ({
           updateOne: {
-            filter: { 
-              warehouseId: item.defaultWarehouse, 
-              barcode: variant.sku || variant.barcode 
-            },
+            filter: { warehouseId, barcode: variant.sku || variant.barcode },
             update: {
               $set: {
                 itemId: item._id,
-                variantId: variant._id || variant.id,
+                variantId: variant._id,
                 quantity: variant.stock,
-                reorderLevel: variant.reorderLevel || 0,
+                reorderLevel: Number(variant.reorderLevel || 0),
                 lastUpdated: new Date()
               }
             },
@@ -199,6 +204,11 @@ class ItemService {
 
       if (inventoryOps.length > 0) {
         await WarehouseInventory.bulkWrite(inventoryOps);
+      }
+
+      // Save the resolved warehouse back on item if it was auto-detected
+      if (!item.defaultWarehouse) {
+        await Item.findByIdAndUpdate(item._id, { defaultWarehouse: warehouseId });
       }
     }
 
@@ -250,22 +260,26 @@ class ItemService {
 
     await item.save();
 
-    // Initialize/Update Inventory in the default warehouse
-    if (item.defaultWarehouse && item.sizes && item.sizes.length > 0) {
+    // Auto-initialize/Update Inventory (use defaultWarehouse or auto-detect first active one)
+    const Warehouse = require('../../models/warehouse.model');
+    let warehouseId = item.defaultWarehouse;
+    if (!warehouseId) {
+      const primaryWarehouse = await Warehouse.findOne({ isActive: true, isDeleted: { $ne: true } }).sort({ createdAt: 1 });
+      if (primaryWarehouse) warehouseId = primaryWarehouse._id;
+    }
+
+    if (warehouseId && item.sizes && item.sizes.length > 0) {
       const inventoryOps = item.sizes
-        .filter(variant => variant.stock > 0)
+        .filter(variant => variant.stock > 0 && (variant.sku || variant.barcode))
         .map(variant => ({
           updateOne: {
-            filter: { 
-              warehouseId: item.defaultWarehouse, 
-              barcode: variant.sku || variant.barcode 
-            },
+            filter: { warehouseId, barcode: variant.sku || variant.barcode },
             update: {
               $set: {
                 itemId: item._id,
-                variantId: variant._id || variant.id,
+                variantId: variant._id,
                 quantity: variant.stock,
-                reorderLevel: variant.reorderLevel || 0,
+                reorderLevel: Number(variant.reorderLevel || 0),
                 lastUpdated: new Date()
               }
             },
@@ -276,6 +290,11 @@ class ItemService {
       if (inventoryOps.length > 0) {
         const WarehouseInventory = require('../../models/warehouseInventory.model');
         await WarehouseInventory.bulkWrite(inventoryOps);
+      }
+
+      if (!item.defaultWarehouse) {
+        item.defaultWarehouse = warehouseId;
+        await item.save();
       }
     }
 

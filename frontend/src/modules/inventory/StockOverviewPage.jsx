@@ -231,7 +231,7 @@ function StockOverviewPage() {
             setPage(0);
             setSearchText(event.target.value);
           }}
-          placeholder="Search code, name, color, loaction, brand or category"
+          placeholder="Search code, name, color, location, brand or category"
           sx={{ flex: 1 }}
           InputProps={{
             startAdornment: (

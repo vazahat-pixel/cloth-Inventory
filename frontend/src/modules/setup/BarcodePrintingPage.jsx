@@ -1,40 +1,33 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchGrns } from '../grn/grnSlice';
-import {
-  Alert,
-  Autocomplete,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  CircularProgress,
-  Divider,
-  Grid,
+import { useSearchParams } from 'react-router-dom';
+import { 
+  Box, 
+  Stack, 
+  Typography, 
+  Button, 
+  TextField, 
+  Autocomplete, 
+  Tabs, 
+  Tab, 
   Paper,
-  Stack,
-  TextField,
-  Typography,
-  Tabs,
-  Tab,
+  Grid,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
+  CircularProgress
 } from '@mui/material';
 import {
   PrintOutlined as PrintIcon,
-  QrCodeScannerOutlined as ScannerIcon,
   FileUploadOutlined as UploadIcon,
   DescriptionOutlined as ExcelIcon,
 } from '@mui/icons-material';
-import { useSearchParams } from 'react-router-dom';
-import JsBarcode from 'jsbarcode';
+import { fetchGrns } from '../grn/grnSlice';
 import api from '../../services/api';
-
-const fallbackProducts = [];
+import JsBarcode from 'jsbarcode';
 
 function generateBarcodeDataUrl(text) {
   if (!text) return '';
@@ -42,8 +35,8 @@ function generateBarcodeDataUrl(text) {
   try {
     JsBarcode(canvas, text, {
       format: 'CODE128',
-      width: 1.5,
-      height: 35,
+      width: 1.8,
+      height: 40,
       displayValue: false,
       margin: 0,
       background: '#ffffff',
@@ -54,6 +47,91 @@ function generateBarcodeDataUrl(text) {
     return '';
   }
 }
+
+const VerticalTag = ({ label, mfgLine1, mfgLine2, type, month, design }) => {
+  const barcodeImg = useMemo(() => generateBarcodeDataUrl(label.barcode), [label.barcode]);
+
+  return (
+    <Box sx={{ 
+      width: '50mm', 
+      height: '100mm', 
+      bgcolor: 'white', 
+      color: 'black', 
+      display: 'flex', 
+      flexDirection: 'column', 
+      border: '1px solid #e2e8f0', 
+      p: '4mm',
+      pt: '2mm',
+      boxSizing: 'border-box',
+      fontFamily: "'Inter', sans-serif",
+      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)'
+    }}>
+      {/* Barcode Section */}
+      <Box sx={{ textAlign: 'center', mb: 1 }}>
+        <img src={barcodeImg} style={{ width: '100%', height: '14mm', objectFit: 'contain' }} alt="barcode" />
+        <Typography sx={{ fontSize: '9pt', fontWeight: 600, mt: 0.2 }}>{label.barcode}</Typography>
+      </Box>
+
+      {/* Product Details Section */}
+      <Stack spacing={0.3} sx={{ flex: 1 }}>
+        <Box sx={{ display: 'flex', fontSize: '10pt' }}>
+          <Typography sx={{ width: '16mm', fontWeight: 700, fontSize: 'inherit' }}>Article :</Typography>
+          <Typography sx={{ flex: 1, fontWeight: 700, fontSize: 'inherit' }}>{label.article}</Typography>
+        </Box>
+        
+        <Box sx={{ display: 'flex', fontSize: '10pt' }}>
+          <Typography sx={{ width: '16mm', fontWeight: 700, fontSize: 'inherit' }}>Group</Typography>
+          <Typography sx={{ flex: 1, fontWeight: 700, fontSize: 'inherit' }}>{label.category || 'SHIRT'}</Typography>
+        </Box>
+
+        <Box sx={{ display: 'flex', fontSize: '9.5pt' }}>
+          <Typography sx={{ width: '16mm', fontWeight: 600, fontSize: 'inherit' }}>Type:</Typography>
+          <Typography sx={{ flex: 1, fontWeight: 600, fontSize: 'inherit' }}>{type}</Typography>
+        </Box>
+
+        <Box sx={{ display: 'flex', fontSize: '10pt' }}>
+          <Typography sx={{ width: '16mm', fontWeight: 700, fontSize: 'inherit' }}>DESIGN :</Typography>
+          <Typography sx={{ flex: 1, fontWeight: 700, fontSize: 'inherit' }}>{design || 'COLLAR'}</Typography>
+        </Box>
+
+        <Box sx={{ display: 'flex', fontSize: '10pt', mt: 0.5 }}>
+          <Typography sx={{ width: '16mm', fontWeight: 600, fontSize: 'inherit' }}>Size :</Typography>
+          <Typography sx={{ flex: 1, fontWeight: 700, fontSize: '11pt' }}>{label.size}</Typography>
+        </Box>
+
+        <Box sx={{ display: 'flex', fontSize: '9.5pt' }}>
+          <Typography sx={{ width: '16mm', fontWeight: 600, fontSize: 'inherit' }}>Qty: 1N</Typography>
+          <Typography sx={{ flex: 1, fontWeight: 600, fontSize: 'inherit' }}>F/S</Typography>
+        </Box>
+
+        <Box sx={{ display: 'flex', fontSize: '9.5pt' }}>
+          <Typography sx={{ width: '16mm', fontWeight: 600, fontSize: 'inherit' }}>Colour :</Typography>
+          <Typography sx={{ flex: 1, fontWeight: 600, fontSize: 'inherit' }}>{label.color}</Typography>
+        </Box>
+
+        <Box sx={{ display: 'flex', fontSize: '11pt', mt: 1, alignItems: 'center' }}>
+          <Typography sx={{ width: '16mm', fontWeight: 700, fontSize: 'inherit' }}>MRP :</Typography>
+          <Typography sx={{ flex: 1, fontWeight: 700, fontSize: '12pt' }}>{Number(label.mrp || 0).toFixed(0)}</Typography>
+        </Box>
+        <Typography sx={{ fontSize: '8pt', fontWeight: 600, textAlign: 'left', ml: '16mm' }}>(Incl of all taxes)</Typography>
+      </Stack>
+
+      {/* Manufacturing Section */}
+      <Box sx={{ mt: 'auto', borderTop: '0.5mm solid #eee', pt: 1 }}>
+        <Typography sx={{ fontSize: '7.5pt', fontWeight: 800 }}>MFG:</Typography>
+        <Typography sx={{ fontSize: '7.5pt', fontWeight: 700 }}>Mfg. & Marketed By</Typography>
+        <Typography sx={{ fontSize: '7.5pt', fontWeight: 600 }}>Rebel Mass Export Pvt. Ltd</Typography>
+        <Typography sx={{ fontSize: '7pt', fontWeight: 500 }}>{mfgLine1}</Typography>
+        <Typography sx={{ fontSize: '7pt', fontWeight: 500 }}>{mfgLine2}</Typography>
+        
+        <Box sx={{ mt: 0.5 }}>
+          <Typography sx={{ fontSize: '7.5pt', fontWeight: 700 }}>Customer Care:</Typography>
+          <Typography sx={{ fontSize: '7.5pt', fontWeight: 500 }}>Email: info.dapolo@gmail.com</Typography>
+        </Box>
+      </Box>
+    </Box>
+  );
+};
 
 function BarcodePrintingPage() {
   const [searchParams] = useSearchParams();
@@ -69,17 +147,16 @@ function BarcodePrintingPage() {
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
-  const [loadError, setLoadError] = useState('');
   const [importResults, setImportResults] = useState([]);
   const [batchLines, setBatchLines] = useState([]);
   const allItems = useSelector((state) => state.items.records) || [];
 
   const [type, setType] = useState('REGULAR');
   const [design, setDesign] = useState('');
-  const [qtyInfo, setQtyInfo] = useState('1N');
   const [mfgLine1, setMfgLine1] = useState('Plot No 418, Sector-53, Phase 3');
   const [mfgLine2, setMfgLine2] = useState('Kundli, Sonipat (Haryana)');
-  const [mfgLine3, setMfgLine3] = useState('');
+  
+  const currentMonth = useMemo(() => new Date().toLocaleString('en-GB', { month: 'short', year: 'numeric' }).toUpperCase(), []);
 
   useEffect(() => {
     dispatch(fetchGrns());
@@ -133,10 +210,11 @@ function BarcodePrintingPage() {
                 name: p.itemName || p.name,
                 sku: v.sku || v.barcode || p.itemCode || p.sku,
                 barcode: v.barcode || v.sku || p.barcode || p.itemCode,
-                salePrice: v.salePrice || p.salePrice || 0,
+                salePrice: v.mrp || v.salePrice || p.salePrice || 0,
                 size: v.size || 'N/A',
                 color: p.shade || p.color || 'N/A',
-                category: categoryObj?.name || categoryObj?.groupName || 'GARMENT'
+                category: categoryObj?.name || categoryObj?.groupName || 'GARMENT',
+                article: p.itemCode || p.sku
               });
             });
           });
@@ -150,9 +228,6 @@ function BarcodePrintingPage() {
     };
     fetchProducts();
   }, []);
-
-  const barcodeValue = selectedProduct?.barcode || selectedProduct?.sku || '';
-  const barcodeImgData = useMemo(() => generateBarcodeDataUrl(barcodeValue), [barcodeValue]);
 
   const handleExcelUpload = async (event) => {
     const file = event.target.files?.[0];
@@ -177,37 +252,39 @@ function BarcodePrintingPage() {
       <style>
         @page { size: 50mm 100mm; margin: 0; }
         * { box-sizing: border-box; }
-        body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; background: #fff; color: #000; letter-spacing: 0.1mm; }
+        body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; background: #fff; color: #000; }
         .label { 
           width: 50mm; height: 100mm; box-sizing: border-box;
-          padding: 4mm 5mm; overflow: hidden; page-break-after: always;
+          padding: 4mm; overflow: hidden; page-break-after: always;
           display: flex; flex-direction: column; justify-content: flex-start;
-          border: 1px solid #eee; /* Light boundary for preview visibility */
+          border-bottom: 1px dashed #ccc;
         }
-        .header { text-align: center; border-bottom: 0.5mm solid #000; padding-bottom: 2mm; margin-bottom: 3mm; }
-        .brand { font-size: 16pt; font-weight: 800; letter-spacing: 1.5mm; text-transform: uppercase; margin: 0; }
-        .sub-brand { font-size: 6.5pt; letter-spacing: 0.5mm; font-weight: 600; opacity: 0.8; }
+        .header { text-align: center; border-bottom: 1.5px solid #000; padding-bottom: 1.5mm; margin-bottom: 3mm; }
+        .brand { font-size: 18pt; font-weight: 900; letter-spacing: 4mm; text-transform: uppercase; margin: 0; line-height: 1; }
+        .sub-brand { font-size: 7pt; letter-spacing: 1mm; font-weight: 700; margin-top: 1mm; }
 
-        .barcode-container { width: 100%; text-align: center; margin-bottom: 4mm; padding: 1mm 0; }
+        .barcode-container { width: 100%; text-align: center; margin-bottom: 3mm; }
         .barcode-img { width: 100%; height: 14mm; display: block; margin: 0 auto; object-fit: contain; }
-        .barcode-text { font-size: 9pt; font-weight: 700; letter-spacing: 1.5mm; margin-top: 1mm; text-align: center; }
+        .barcode-text { font-size: 9pt; font-weight: 700; letter-spacing: 3mm; margin-top: 1.5mm; text-align: center; }
         
-        .spec-container { display: flex; flex-direction: column; gap: 0.8mm; margin-bottom: 4mm; }
+        .spec-container { display: flex; flex-direction: column; gap: 1mm; margin-bottom: 1mm; }
         .info-row { display: flex; font-size: 8.5pt; line-height: 1.2; align-items: baseline; }
         .info-col-key { width: 18mm; font-weight: 700; color: #444; }
         .info-col-val { flex: 1; text-transform: uppercase; font-weight: 800; color: #000; }
+        .size-val { font-size: 10pt; font-weight: 900; }
         
         .price-section { 
-          border: 1px solid #000; padding: 2mm; margin-top: auto; margin-bottom: 4mm;
+          border: 1.5px solid #000; padding: 1.5mm 0; margin: 2mm 0;
           text-align: center; border-radius: 1mm;
         }
-        .mrp-label { font-size: 10pt; font-weight: 800; margin-bottom: 1mm; }
-        .mrp-value { font-size: 14pt; font-weight: 900; }
-        .tax-text { font-size: 7.5pt; font-weight: 500; font-style: italic; }
+        .mrp-label { font-size: 10pt; font-weight: 900; margin-bottom: 0.5mm; }
+        .mrp-value { font-size: 15pt; font-weight: 1000; }
+        .tax-text { font-size: 7pt; font-weight: 600; font-style: italic; }
 
-        .footer { font-size: 7pt; line-height: 1.3; font-weight: 500; }
-        .origin { font-size: 8pt; font-weight: 800; text-align: center; border-top: 0.3mm solid #aaa; padding-top: 1.5mm; margin-top: 2mm; text-transform: uppercase; }
-        .care-icons { text-align: center; font-size: 10pt; margin-top: 1mm; letter-spacing: 2mm; opacity: 0.8; }
+        .footer { font-size: 6.5pt; font-weight: 600; line-height: 1.2; }
+        .origin-section { border-top: 0.5mm solid #ccc; padding-top: 1mm; margin-top: 2mm; text-align: center; width: 100%; }
+        .origin { font-size: 8pt; font-weight: 900; letter-spacing: 1mm; text-transform: uppercase; }
+        .care-icons { font-size: 12pt; margin-top: 1mm; letter-spacing: 8mm; }
       </style>
     `;
 
@@ -225,7 +302,7 @@ function BarcodePrintingPage() {
         
         <div class="spec-container">
           <div class="info-row">
-            <span class="info-col-key">STYLE :</span> <span class="info-col-val">${label.article}</span>
+            <span class="info-col-key">STYLE :</span> <span class="info-col-val">${label.article || label.articleCode || ''}</span>
           </div>
           <div class="info-row">
             <span class="info-col-key">CATGY :</span> <span class="info-col-val">${label.category || 'SHIRT'}</span>
@@ -234,94 +311,126 @@ function BarcodePrintingPage() {
             <span class="info-col-key">GENRE :</span> <span class="info-col-val">${type}</span>
           </div>
           <div class="info-row">
-            <span class="info-col-key">SIZE :</span> <span class="info-col-val" style="font-size: 11pt">${label.size}</span>
+            <span class="info-col-key">SIZE :</span> <span class="info-col-val size-val">${label.size}</span>
           </div>
           <div class="info-row">
-            <span class="info-col-key">COLOR :</span> <span class="info-col-val">${label.color}</span>
+            <span class="info-col-key">COLOR :</span> <span class="info-col-val">${label.color || 'N/A'}</span>
           </div>
           <div class="info-row">
-             <span class="info-col-key">MONTH :</span> <span class="info-col-val">${new Date().toLocaleString('en-GB', { month: 'short', year: 'numeric' })}</span>
+             <span class="info-col-key">MONTH :</span> <span class="info-col-val">${currentMonth}</span>
           </div>
         </div>
         
         <div class="price-section">
           <div class="mrp-label">M.R.P.</div>
-          <div class="mrp-value">₹ ${Number(label.mrp).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+          <div class="mrp-value">₹ ${Number(label.mrp || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
           <div class="tax-text">(Incl. of all taxes)</div>
         </div>
 
         <div class="footer">
           <div><b>MFG BY:</b> REBEL MASS EXPORT PVT LTD</div>
-          <div>${mfgLine1}, ${mfgLine2}</div>
+          <div>${mfgLine1}</div>
+          <div>${mfgLine2}</div>
           <div>CC: info.dapolo@gmail.com</div>
         </div>
 
-        <div class="origin">MADE IN INDIA</div>
-        <div class="care-icons">🧺 🚫🧴 🧼 👔</div>
+        <div class="origin-section">
+          <div class="origin">MADE IN INDIA</div>
+          <div class="care-icons">🧺🚫🧴🧼👔</div>
+        </div>
       </div>
     `).join('');
 
-    printWindow.document.write(`<html><head>${styles}</head><body onload="window.print(); setTimeout(() => window.close(), 500);">${labelsHtml}</body></html>`);
+    printWindow.document.write(`<html><head><title>Print Barcodes</title>${styles}</head><body onload="window.print(); setTimeout(() => window.close(), 500);">${labelsHtml}</body></html>`);
     printWindow.document.close();
   };
 
-  const handlePrint = () => {
-    if (!selectedProduct) return;
-    const labels = Array.from({ length: quantity }).map(() => ({
-      barcode: barcodeValue,
-      article: selectedProduct.sku,
+  const currentLabelData = useMemo(() => {
+    if (!selectedProduct) return null;
+    return {
+      barcode: selectedProduct.barcode || selectedProduct.sku,
+      article: selectedProduct.article,
       size: selectedProduct.size,
       mrp: selectedProduct.salePrice,
-      color: selectedProduct.color
-    }));
-    printBatch(labels);
-  };
+      color: selectedProduct.color,
+      category: selectedProduct.category
+    };
+  }, [selectedProduct]);
 
   return (
     <Box sx={{ p: 4, bgcolor: '#f8fafc', minHeight: '100vh' }}>
       <Typography variant="h4" sx={{ fontWeight: 800, mb: 1 }}>Barcode Printing</Typography>
       <Typography variant="body1" sx={{ color: '#64748b', mb: 4 }}>Approved Labelling System</Typography>
 
-      <Paper sx={{ borderRadius: '16px', overflow: 'hidden' }}>
-        <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)}>
-          <Tab icon={<PrintIcon />} label="Single Print" />
-          <Tab icon={<ExcelIcon />} label="Bulk / GRN Labels" />
+      <Paper sx={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}>
+        <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} sx={{ borderBottom: '1px solid #e2e8f0', px: 2 }}>
+          <Tab icon={<PrintIcon />} label="Single Print" sx={{ py: 2, fontWeight: 700 }} />
+          <Tab icon={<ExcelIcon />} label="Bulk / GRN Labels" sx={{ py: 2, fontWeight: 700 }} />
         </Tabs>
 
         <Box sx={{ p: 4 }}>
           {activeTab === 0 && (
-            <Grid container spacing={4}>
-              <Grid size={{ xs: 12, md: 5 }}>
-                <Stack spacing={3}>
-                  <Box sx={{ p: 2, border: '1px dashed #cbd5e1', borderRadius: 2 }}>
-                    <Typography variant="subtitle2" sx={{ mb: 2, color: '#475569' }}>Vertical Apparels Tag Config</Typography>
-                    <Stack spacing={2}>
-                      <TextField size="small" label="Type (e.g., FORMAL SOLID)" value={type} onChange={(e) => setType(e.target.value)} />
-                      <TextField size="small" label="DESIGN (e.g., COLLAR)" value={design} onChange={(e) => setDesign(e.target.value)} />
-                      <TextField size="small" label="Mfg Line 1" value={mfgLine1} onChange={(e) => setMfgLine1(e.target.value)} />
-                      <TextField size="small" label="Mfg Line 2" value={mfgLine2} onChange={(e) => setMfgLine2(e.target.value)} />
+            <Grid container spacing={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <Stack spacing={4}>
+                  <Box sx={{ p: 3, border: '1px dashed #cbd5e1', borderRadius: 3, bgcolor: '#f1f5f9' }}>
+                    <Typography variant="subtitle2" sx={{ mb: 2.5, color: '#475569', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1 }}>
+                      Vertical Apparels Tag Config
+                    </Typography>
+                    <Stack spacing={2.5}>
+                      <TextField fullWidth size="small" variant="outlined" label="Type (e.g., FORMAL SOLID)" value={type} onChange={(e) => setType(e.target.value)} bgcolor="white" />
+                      <TextField fullWidth size="small" variant="outlined" label="Mfg Line 1" value={mfgLine1} onChange={(e) => setMfgLine1(e.target.value)} bgcolor="white" />
+                      <TextField fullWidth size="small" variant="outlined" label="Mfg Line 2" value={mfgLine2} onChange={(e) => setMfgLine2(e.target.value)} bgcolor="white" />
                     </Stack>
                   </Box>
-                  <Autocomplete
-                    options={products}
-                    getOptionLabel={(o) => `${o.sku} - ${o.name} (${o.size})`}
-                    onChange={(_, v) => setSelectedProduct(v)}
-                    renderInput={(params) => <TextField {...params} label="Search Product" />}
-                  />
-                  <TextField type="number" label="Quantity" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
-                  <Button variant="contained" disabled={!selectedProduct} onClick={handlePrint} startIcon={<PrintIcon />}>Print Label</Button>
+
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700 }}>Search Product</Typography>
+                    <Autocomplete
+                      options={products}
+                      getOptionLabel={(o) => `${o.sku} - ${o.name} (${o.size})`}
+                      onChange={(_, v) => setSelectedProduct(v)}
+                      renderInput={(params) => <TextField {...params} placeholder="Type SKU or Name..." size="small" />}
+                    />
+                  </Box>
+
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700 }}>Print Quantity</Typography>
+                    <TextField fullWidth type="number" size="small" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+                  </Box>
+
+                  <Button 
+                    variant="contained" 
+                    fullWidth 
+                    size="large"
+                    disabled={!selectedProduct} 
+                    onClick={() => printBatch(Array.from({ length: quantity }).map(() => currentLabelData))} 
+                    startIcon={<PrintIcon />}
+                    sx={{ py: 1.5, fontWeight: 800, borderRadius: 2 }}
+                  >
+                    Print Label
+                  </Button>
                 </Stack>
               </Grid>
-              <Grid size={{ xs: 12, md: 5 }}>
-                {selectedProduct && (
-                  <Card variant="outlined">
-                    <CardContent sx={{ textAlign: 'center' }}>
-                      <img src={barcodeImgData} style={{ width: '200px' }} alt="barcode" />
-                      <Typography variant="h6">{selectedProduct.name}</Typography>
-                      <Typography>MRP: {selectedProduct.salePrice}</Typography>
-                    </CardContent>
-                  </Card>
-                )}
+
+              <Grid size={{ xs: 12, md: 6 }} sx={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
+                <Box>
+                  <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 800, textAlign: 'center', color: '#64748b' }}>LIVE TAG PREVIEW</Typography>
+                  {currentLabelData ? (
+                    <VerticalTag 
+                      label={currentLabelData} 
+                      mfgLine1={mfgLine1} 
+                      mfgLine2={mfgLine2} 
+                      type={type} 
+                      month={currentMonth}
+                      design={design} 
+                    />
+                  ) : (
+                    <Box sx={{ width: '50mm', height: '100mm', border: '2px dashed #cbd5e1', borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', p: 4, textAlign: 'center' }}>
+                      <Typography color="text.secondary">Select a product to see the tag preview</Typography>
+                    </Box>
+                  )}
+                </Box>
               </Grid>
             </Grid>
           )}
@@ -338,13 +447,15 @@ function BarcodePrintingPage() {
                       onChange={(_, v) => {
                         setSelectedProduct(v);
                         if (v) {
-                          const vars = (v.sizes || []).map(s => ({
+                          const vars = (v.sizes || v.variants || []).map(s => ({
                             variantId: s._id || s.id,
                             size: s.size,
                             sku: s.sku || s.barcode || v.itemCode,
                             printQty: 0,
-                            mrp: s.salePrice || v.salePrice || 0,
-                            color: v.shade || ''
+                            mrp: s.mrp || s.salePrice || v.salePrice || 0,
+                            color: v.shade || v.color || 'N/A',
+                            category: (v.groupIds || []).find(g => g.groupType === 'Category')?.name || 'GARMENT',
+                            article: v.itemCode
                           }));
                           setBatchLines(vars);
                         } else {
@@ -418,10 +529,11 @@ function BarcodePrintingPage() {
                         for (let i = 0; i < l.printQty; i++) {
                           labelsToPrint.push({
                             barcode: l.sku,
-                            article: selectedProduct?.itemCode,
+                            article: l.article,
                             size: l.size,
                             mrp: l.mrp,
-                            color: l.color
+                            color: l.color,
+                            category: l.category
                           });
                         }
                       });

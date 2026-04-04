@@ -21,6 +21,7 @@ const HSNCodePage = lazy(() => import('../modules/setup/HSNCodePage'));
 const SizesPage = lazy(() => import('../modules/setup/SizesPage'));
 const BarcodePrintingPage = lazy(() => import('../modules/setup/BarcodePrintingPage'));
 const BrandListPage = lazy(() => import('../modules/masters/brands/ListPage'));
+const ItemGroupsListPage = lazy(() => import('../modules/masters/itemGroups/ListPage'));
 
 // Masters
 const SuppliersListPage = lazy(() => import('../modules/masters/suppliers/ListPage'));
@@ -34,14 +35,9 @@ const StockAdjustmentPage = lazy(() => import('../modules/inventory/StockAdjustm
 const MovementHistoryPage = lazy(() => import('../modules/inventory/MovementHistoryPage'));
 const StockAuditView = lazy(() => import('../modules/inventory/StockAuditView'));
 
-// Purchase
-const PurchaseListPage = lazy(() => import('../modules/purchase/PurchaseListPage'));
-const PurchaseFormPage = lazy(() => import('../modules/purchase/PurchaseFormPage'));
-
-// Sales & Orders
-const SalesBillListPage = lazy(() => import('../modules/sales/SalesListPage'));
-const SalesBillFormPage = lazy(() => import('../modules/sales/BillingPage'));
-const SalesReturnPage = lazy(() => import('../modules/sales/SalesReturnPage'));
+// GRN
+const GRNListPage = lazy(() => import('../modules/grn/GRNListPage'));
+const GRNFormPage = lazy(() => import('../modules/grn/GRNFormPage'));
 
 // Reports
 const ReportsDashboard = lazy(() => import('../modules/reports/ReportsDashboard'));
@@ -52,23 +48,36 @@ const ProfitReportPage = lazy(() => import('../modules/reports/ProfitReportPage'
 const CollectionReportPage = lazy(() => import('../modules/reports/CollectionReportPage'));
 const ConsolidatedStockPage = lazy(() => import('../modules/reports/ConsolidatedStockPage'));
 const DayEndClosurePage = lazy(() => import('../modules/reports/DayEndClosurePage'));
-
-// Dynamic Reports
 const ReportsQueriesLayout = lazy(() => import('../modules/reports/ReportsQueriesLayout'));
 const DynamicReportPage = lazy(() => import('../modules/reports/DynamicReportPage'));
 const GstSummaryReportPage = lazy(() => import('../modules/reports/GstSummaryReportPage'));
 const StoreClosureAuditPage = lazy(() => import('../modules/reports/StoreClosureAuditPage'));
-const InTransitMonitorPage = lazy(() => import('../modules/reports/InTransitMonitorPage'));
 const OrderReportPage = lazy(() => import('../modules/reports/OrderReportPage'));
+const HoMasterDashboard = lazy(() => import('../modules/reports/HoMasterDashboard'));
+const InTransitMonitorPage = lazy(() => import('../modules/reports/InTransitMonitorPage'));
+
+// Sales
+const SalesBillListPage = lazy(() => import('../modules/sales/SalesListPage'));
+const SalesBillFormPage = lazy(() => import('../modules/sales/BillingPage'));
+const SalesReturnPage = lazy(() => import('../modules/sales/SalesReturnPage'));
+
+// Purchase
+const PurchaseListPage = lazy(() => import('../modules/purchase/PurchaseListPage'));
+const PurchaseFormPage = lazy(() => import('../modules/purchase/PurchaseFormPage'));
 
 // Settings & Tools
 const CompanyProfilePage = lazy(() => import('../modules/settings/CompanyProfilePage'));
 const ProfilePage = lazy(() => import('../modules/profile/ProfilePage'));
 const DataImportExportPage = lazy(() => import('../modules/data/DataImportExportPage'));
-const GRNListPage = lazy(() => import('../modules/grn/GRNListPage'));
-const GRNFormPage = lazy(() => import('../modules/grn/GRNFormPage'));
-const HoMasterDashboard = lazy(() => import('../modules/reports/HoMasterDashboard'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
+
+// Placeholder for pages that are scaffolded but not yet built
+const PlaceholderPage = ({ title = 'Coming Soon' }) => (
+  <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+    <h2 style={{ fontWeight: 700 }}>{title}</h2>
+    <p>This module is under construction.</p>
+  </div>
+);
 
 // --- CONFIGURATIONS FOR DYNAMIC REPORTS ---
 const CHALLAN_REPORT_CONFIG = {
@@ -138,110 +147,112 @@ function AppRoutes() {
         {/* Head Office Panel */}
         <Route element={<RoleProtectedRoute allowedRoles={['admin', 'Admin']} />}>
           <Route path="/ho" element={<RoleDashboardLayout />}>
-            <Route index element={<DashboardHome />} />
+            <Route index element={<DashboardHomePage />} />
             <Route path="master-dashboard" element={<HoMasterDashboard />} />
 
-            {/* Masters - Standalone Routes for direct access */}
+            {/* Masters */}
             <Route path="masters/suppliers" element={<SuppliersListPage />} />
             <Route path="masters/customers" element={<CustomersListPage />} />
             <Route path="masters/warehouses" element={<WarehousesListPage />} />
             <Route path="masters/stores" element={<StoresListPage />} />
-            <Route path="masters/brands" element={<BrandsListPage />} />
+            <Route path="masters/brands" element={<BrandListPage />} />
             <Route path="masters/item-groups" element={<ItemGroupsListPage />} />
-
-            {/* Legacy redirect for base masters path */}
             <Route path="masters" element={<Navigate to="masters/suppliers" replace />} />
 
+            {/* Unified Item Master */}
             <Route path="items" element={<ItemListPage />} />
             <Route path="items/new" element={<ItemFormPage />} />
+            <Route path="items/view/:id" element={<ItemFormPage mode="view" />} />
+            <Route path="items/edit/:id" element={<ItemFormPage mode="edit" />} />
+            {/* Legacy param-first routes */}
             <Route path="items/:id/view" element={<ItemFormPage mode="view" />} />
             <Route path="items/:id/edit" element={<ItemFormPage mode="edit" />} />
 
-            <Route path="inventory" element={<Navigate to="stock-overview" replace />} />
+            {/* Inventory */}
+            <Route path="inventory" element={<Navigate to="inventory/stock-overview" replace />} />
             <Route path="inventory/stock-overview" element={<StockOverviewPage />} />
-            <Route path="inventory/transfer" element={<StockTransferPage />} />
-            <Route path="inventory/transfer/new" element={<StockTransferFormPage />} />
-            <Route path="inventory/transfer/:id/view" element={<StockTransferFormPage mode="view" />} />
-            <Route path="inventory/transfer/:id/edit" element={<StockTransferFormPage mode="edit" />} />
-            <Route path="inventory/audit" element={<StockAuditPage />} />
             <Route path="inventory/adjustment" element={<StockAdjustmentPage />} />
             <Route path="inventory/movements" element={<MovementHistoryPage />} />
             <Route path="inventory/audit-view" element={<StockAuditView />} />
-            <Route path="inventory/supplier-outward" element={<SupplierOutwardListPage />} />
-            <Route path="inventory/supplier-outward/new" element={<SupplierOutwardFormPage />} />
-            <Route path="inventory/supplier-outward/:id" element={<SupplierOutwardViewPage />} />
 
-            <Route path="inventory/consumption" element={<MaterialConsumptionListPage />} />
-            <Route path="inventory/consumption/new" element={<MaterialConsumptionFormPage />} />
+            {/* GRN */}
+            <Route path="inventory/grn" element={<GRNListPage />} />
+            <Route path="inventory/grn/new" element={<GRNFormPage />} />
+            <Route path="inventory/grn/edit/:id" element={<GRNFormPage />} />
+            <Route path="inventory/grn/view/:id" element={<GRNFormPage mode="view" />} />
 
-            <Route path="inventory/raw-materials" element={<RawMaterialListPage />} />
-            <Route path="inventory/raw-materials/new" element={<RawMaterialFormPage />} />
-            <Route path="inventory/raw-materials/edit/:id" element={<RawMaterialFormPage />} />
-            <Route path="inventory/accessory-entry" element={<AccessoryDirectEntryPage />} />
+            {/* Transfer (placeholder until built) */}
+            <Route path="inventory/transfer" element={<PlaceholderPage title="Stock Transfer" />} />
+            <Route path="inventory/transfer/new" element={<PlaceholderPage title="New Transfer" />} />
+            <Route path="inventory/transfer/:id/view" element={<PlaceholderPage title="View Transfer" />} />
+            <Route path="inventory/transfer/:id/edit" element={<PlaceholderPage title="Edit Transfer" />} />
+            <Route path="inventory/audit" element={<PlaceholderPage title="Stock Audit" />} />
+            <Route path="inventory/supplier-outward" element={<PlaceholderPage title="Supplier Outward" />} />
+            <Route path="inventory/supplier-outward/new" element={<PlaceholderPage title="New Supplier Outward" />} />
+            <Route path="inventory/supplier-outward/:id" element={<PlaceholderPage title="Supplier Outward Detail" />} />
+            <Route path="inventory/consumption" element={<PlaceholderPage title="Material Consumption" />} />
+            <Route path="inventory/consumption/new" element={<PlaceholderPage title="New Consumption" />} />
+            <Route path="inventory/raw-materials" element={<PlaceholderPage title="Raw Materials" />} />
+            <Route path="inventory/raw-materials/new" element={<PlaceholderPage title="Add Raw Material" />} />
+            <Route path="inventory/raw-materials/edit/:id" element={<PlaceholderPage title="Edit Raw Material" />} />
+            <Route path="inventory/accessory-entry" element={<PlaceholderPage title="Accessory Entry" />} />
 
-
-            <Route path="orders/delivery-challan" element={<DeliveryChallanPage />} />
-            <Route path="orders/delivery-challan/new" element={<DeliveryChallanForm />} />
-            <Route path="orders/delivery-challan/:id/edit" element={<DeliveryChallanForm mode="edit" />} />
-
-            <Route path="sales" element={<Navigate to="sale-bill" replace />} />
-            <Route path="sales/sale-bill" element={<SalesListPage pageTitle="Sale Bill" pageDescription="Review sale bills, payment status, and customer return access..." primaryActionLabel="New Sale Bill" primaryActionPath="/sales/sale-bill/new" returnPathBuilder={(saleId) => `/sales/sales-return/${saleId}`} />} />
-            <Route path="sales/sale-bill/new" element={<BillingPage listPath="/sales/sale-bill" pageTitle="Sale Bill" pageDescription="..." listLabel="..." backButtonLabel="..." returnPathBuilder={(saleId) => `/sales/sales-return/${saleId}`} />} />
-            <Route path="sales/sales-return" element={<SalesListPage pageTitle="Sales Return" pageDescription="..." showPrimaryAction={false} returnPathBuilder={(saleId) => `/sales/sales-return/${saleId}`} />} />
-            <Route path="sales/sales-return/:id" element={<SalesReturnPage listPath="/sales/sales-return" pageTitle="Sales Return" pageDescription="..." listLabel="..." />} />
-
-            {/* Sale Challan / Delivery Challan Unification */}
-            <Route path="sales/sale-challan" element={<DeliveryChallanPage />} />
-            <Route path="sales/sale-challan/new" element={<DeliveryChallanForm />} />
-            <Route path="sales/sale-challan/:id" element={<DeliveryChallanForm mode="view" />} />
-            <Route path="sales/sale-challan/:id/edit" element={<DeliveryChallanForm mode="edit" />} />
-
-            {/* Legacy Fallbacks for Challan */}
+            {/* Sales */}
+            <Route path="sales" element={<Navigate to="sales/sale-bill" replace />} />
+            <Route path="sales/sale-bill" element={<SalesBillListPage />} />
+            <Route path="sales/sale-bill/new" element={<SalesBillFormPage />} />
+            <Route path="sales/sales-return" element={<SalesReturnPage />} />
+            <Route path="sales/sales-return/:id" element={<SalesReturnPage />} />
+            <Route path="sales/sale-challan" element={<PlaceholderPage title="Sale Challan" />} />
+            <Route path="sales/sale-challan/new" element={<PlaceholderPage title="New Sale Challan" />} />
+            <Route path="sales/sale-challan/:id" element={<PlaceholderPage title="Sale Challan Detail" />} />
+            <Route path="sales/sale-challan/:id/edit" element={<PlaceholderPage title="Edit Sale Challan" />} />
+            <Route path="orders/delivery-challan" element={<PlaceholderPage title="Delivery Challan" />} />
+            <Route path="orders/delivery-challan/new" element={<PlaceholderPage title="New Delivery Challan" />} />
+            <Route path="orders/delivery-challan/:id/edit" element={<PlaceholderPage title="Edit Delivery Challan" />} />
             <Route path="sale-challan" element={<Navigate to="sales/sale-challan" replace />} />
             <Route path="sale-challans" element={<Navigate to="sales/sale-challan" replace />} />
 
-            <Route path="pricing" element={<Navigate to="price-lists" replace />} />
-            <Route path="pricing/price-lists" element={<PriceListPage />} />
-            <Route path="pricing/price-lists/new" element={<PriceListFormPage />} />
-            <Route path="pricing/schemes" element={<SchemeListPage />} />
-            <Route path="pricing/schemes/new" element={<SchemeFormPage />} />
-            <Route path="pricing/schemes/:id/edit" element={<SchemeFormPage />} />
+            {/* Purchase */}
+            <Route path="purchase" element={<PurchaseListPage />} />
+            <Route path="purchase/new" element={<PurchaseFormPage />} />
 
-            <Route path="customers" element={<Navigate to="rewards" replace />} />
-            <Route path="customers/rewards" element={<CustomerRewardsPage />} />
-            <Route path="customers/credit-notes" element={<CreditNotesPage />} />
+            {/* Pricing */}
+            <Route path="pricing" element={<Navigate to="pricing/price-lists" replace />} />
+            <Route path="pricing/price-lists" element={<PlaceholderPage title="Price Lists" />} />
+            <Route path="pricing/price-lists/new" element={<PlaceholderPage title="New Price List" />} />
+            <Route path="pricing/schemes" element={<PlaceholderPage title="Schemes" />} />
+            <Route path="pricing/schemes/new" element={<PlaceholderPage title="New Scheme" />} />
+            <Route path="pricing/schemes/:id/edit" element={<PlaceholderPage title="Edit Scheme" />} />
 
-            <Route path="setup" element={<SetupLandingPage />} />
-            <Route path="setup/accounts" element={<Navigate to="custom-fields" replace />} />
-            <Route path="setup/accounts/custom-fields" element={<SetupCustomFieldsAccountsPage />} />
-            <Route path="setup/accounts/country" element={<SetupCountryPage />} />
-            <Route path="setup/accounts/states" element={<SetupAccountsPlaceholderPage pageKey="states" />} />
-            <Route path="setup/accounts/city" element={<SetupAccountsPlaceholderPage pageKey="city" />} />
-            <Route path="setup/accounts/allocate-fbt-types" element={<SetupAccountsPlaceholderPage pageKey="allocate-fbt-types" />} />
-            <Route path="setup/accounts/customer-database" element={<SetupAccountsPlaceholderPage pageKey="customer-database" />} />
-            <Route path="setup/accounts/account-groups" element={<SetupAccountsPlaceholderPage pageKey="account-groups" />} />
-            <Route path="setup/accounts/balance-sheet-groups" element={<SetupAccountsPlaceholderPage pageKey="balance-sheet-groups" />} />
-            <Route path="setup/accounts/allocate-balance-sheet-groups" element={<SetupAccountsPlaceholderPage pageKey="allocate-balance-sheet-groups" />} />
-            <Route path="setup/accounts/branch-setup" element={<SetupAccountsPlaceholderPage pageKey="branch-setup" />} />
+            {/* Customers */}
+            <Route path="customers" element={<Navigate to="customers/rewards" replace />} />
+            <Route path="customers/rewards" element={<PlaceholderPage title="Customer Rewards" />} />
+            <Route path="customers/credit-notes" element={<PlaceholderPage title="Credit Notes" />} />
 
-            <Route path="setup/accounts/new-account" element={<AccountMasterPage />} />
-            <Route path="setup/stores" element={<StoreMasterPage />} />
+            {/* Setup */}
+            <Route path="setup" element={<PlaceholderPage title="Setup" />} />
             <Route path="setup/groups" element={<GroupsPage />} />
             <Route path="setup/hsn-codes" element={<HSNCodePage />} />
             <Route path="setup/sizes" element={<SizesPage />} />
             <Route path="setup/barcode-print" element={<BarcodePrintingPage />} />
-            <Route path="setup/counters" element={<CounterMasterPage />} />
+            <Route path="setup/stores" element={<PlaceholderPage title="Store Setup" />} />
+            <Route path="setup/counters" element={<PlaceholderPage title="Counter Master" />} />
             <Route path="setup/taxes" element={<Navigate to="/ho/gst/tax-rates" replace />} />
-            <Route path="setup/party-wise" element={<SetupGenericTablePage title="Party Wise Rules" description="Configure default parameters, price lists, and calculation rules for parties." />} />
-            <Route path="setup/other-account-details" element={<SetupGenericTablePage title="Other Account Details" description="Configure budgets, limits, and advanced account-level flags." />} />
-            <Route path="setup/configurations" element={<SetupGenericTablePage title="System Configurations" description="Refine system behaviors, voucher parameters, and POS rules." />} />
+            <Route path="setup/accounts" element={<Navigate to="setup/accounts/custom-fields" replace />} />
+            <Route path="setup/accounts/custom-fields" element={<PlaceholderPage title="Custom Fields" />} />
+            <Route path="setup/accounts/country" element={<PlaceholderPage title="Country Setup" />} />
+            <Route path="setup/accounts/states" element={<PlaceholderPage title="States" />} />
+            <Route path="setup/accounts/city" element={<PlaceholderPage title="City" />} />
+            <Route path="setup/accounts/new-account" element={<PlaceholderPage title="Account Master" />} />
+            <Route path="setup/configurations" element={<PlaceholderPage title="Configurations" />} />
+            <Route path="setup/party-wise" element={<PlaceholderPage title="Party Wise Rules" />} />
+            <Route path="setup/other-account-details" element={<PlaceholderPage title="Other Account Details" />} />
 
-            {/* ENHANCED REPORTS SECTION */}
+            {/* Reports */}
             <Route path="reports" element={<ReportsQueriesLayout />}>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<ReportsDashboard />} />
-
-              {/* Specialized Reports */}
               <Route path="sales" element={<SalesReportPage />} />
               <Route path="purchase" element={<PurchaseReportPage />} />
               <Route path="stock" element={<StockReportPage />} />
@@ -250,55 +261,44 @@ function AppRoutes() {
               <Route path="consolidated" element={<ConsolidatedStockPage />} />
               <Route path="closure-history" element={<StoreClosureAuditPage />} />
               <Route path="closure" element={<DayEndClosurePage />} />
-
-              {/* Dynamic Engine Reports */}
               <Route path="sale-challan-reports" element={<DynamicReportPage config={CHALLAN_REPORT_CONFIG} />} />
               <Route path="scheme-reports" element={<DynamicReportPage config={SCHEME_REPORT_CONFIG} />} />
               <Route path="agent-wise-reports" element={<DynamicReportPage config={AGENT_WISE_REPORT_CONFIG} />} />
               <Route path="order-reports" element={<OrderReportPage />} />
               <Route path="item-reports" element={<DynamicReportPage config={STOCK_AGING_CONFIG} />} />
               <Route path="stock-reports" element={<StockReportPage />} />
-
-              {/* Financial Analysis / Master Reports */}
               <Route path="financial-analysis" element={<GstSummaryReportPage />} />
               <Route path="sale-registers" element={<SalesReportPage />} />
+              <Route path="in-transit" element={<InTransitMonitorPage />} />
             </Route>
 
+            {/* Settings */}
             <Route path="settings/company" element={<CompanyProfilePage />} />
             <Route path="data-import" element={<DataImportExportPage />} />
-
-            {/* GRN Unified Flow (Inventory & Purchase) */}
-            <Route path="inventory/grn" element={<GRNListPage />} />
-            <Route path="inventory/grn/new" element={<GRNFormPage />} />
-            <Route path="inventory/grn/edit/:id" element={<GRNFormPage />} />
-            <Route path="inventory/grn/view/:id" element={<GRNFormPage mode="view" />} />
-
             <Route path="profile" element={<ProfilePage />} />
           </Route>
+        </Route>
 
-          {/* Store/Branch Portal */}
-          <Route path="/store" element={<RoleProtectedRoute allowedRoles={['Staff']}><RoleDashboardLayout /></RoleProtectedRoute>}>
-            <Route index element={<DashboardHomePage />} />
-            <Route path="inventory/stock-overview" element={<StockOverviewPage />} />
-            <Route path="inventory/receipt" element={<MovementHistoryPage />} />
-            <Route path="inventory/audit-view" element={<StockAuditView />} />
+        {/* Store/Branch Portal */}
+        <Route path="/store" element={<RoleProtectedRoute allowedRoles={['Staff']}><RoleDashboardLayout /></RoleProtectedRoute>}>
+          <Route index element={<DashboardHomePage />} />
+          <Route path="inventory/stock-overview" element={<StockOverviewPage />} />
+          <Route path="inventory/receipt" element={<MovementHistoryPage />} />
+          <Route path="inventory/audit-view" element={<StockAuditView />} />
+          <Route path="sales/sale-bill/new" element={<SalesBillFormPage />} />
+          <Route path="sales/sale-bill" element={<SalesBillListPage />} />
+          <Route path="sales/sales-return" element={<SalesReturnPage />} />
+          <Route path="reports" element={<ReportsDashboard />} />
+          <Route path="reports/sales" element={<SalesReportPage />} />
+          <Route path="reports/purchase" element={<PurchaseReportPage />} />
+          <Route path="reports/stock" element={<StockReportPage />} />
+          <Route path="reports/collection" element={<CollectionReportPage />} />
+          <Route path="reports/closure" element={<DayEndClosurePage />} />
+          <Route path="profile" element={<ProfilePage />} />
+        </Route>
 
-            <Route path="sales/sale-bill/new" element={<SalesBillFormPage />} />
-            <Route path="sales/sale-bill" element={<SalesBillListPage />} />
-            <Route path="sales/sales-return" element={<SalesReturnPage />} />
-
-            <Route path="reports" element={<ReportsDashboard />} />
-            <Route path="reports/sales" element={<SalesReportPage />} />
-            <Route path="reports/purchase" element={<PurchaseReportPage />} />
-            <Route path="reports/stock" element={<StockReportPage />} />
-            <Route path="reports/collection" element={<CollectionReportPage />} />
-            <Route path="reports/closure" element={<DayEndClosurePage />} />
-
-            <Route path="profile" element={<ProfilePage />} />
-          </Route>
-
-          <Route path="/404" element={<NotFoundPage />} />
-          <Route path="*" element={<Navigate to="/404" replace />} />
+        <Route path="/404" element={<NotFoundPage />} />
+        <Route path="*" element={<Navigate to="/404" replace />} />
       </Routes>
     </Suspense>
   );

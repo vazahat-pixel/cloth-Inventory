@@ -473,43 +473,6 @@ function ItemFormPage({ mode = 'edit' }) {
                   <Grid size={12}><TextField fullWidth size="small" label="Item Description" multiline minRows={2} {...register('description')} disabled={isViewMode} /></Grid>
                 </Grid>
               </FormSection>
-
-              <FormSection title="Stock & Inventory Settings" subtitle="Configure where and how stock is managed.">
-                <Grid container spacing={2}>
-                  <Grid size={{ xs: 12, md: 4 }}>
-                    <Controller
-                      name="defaultWarehouse"
-                      control={control}
-                      render={({ field }) => (
-                        <TextField
-                          {...field} select size="small" fullWidth label="Default Warehouse (For Opening Stock)"
-                          value={field.value ?? ''} disabled={isViewMode}
-                          helperText="The location where initial inventory will be added."
-                        >
-                          <MenuItem value="">No Warehouse / Manual Later</MenuItem>
-                          {warehouses.map((w) => (
-                            <MenuItem key={w.id || w._id} value={w.id || w._id}>
-                              {w.name} {w.location ? `(${w.location})` : ''}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                      )}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 4 }}>
-                    <TextField
-                      fullWidth size="small" type="number" label="Global Reorder Level"
-                      {...register('reorderLevel')} disabled={isViewMode}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 4 }}>
-                    <TextField
-                      fullWidth size="small" type="number" label="Global Reorder Quantity"
-                      {...register('reorderQty')} disabled={isViewMode}
-                    />
-                  </Grid>
-                </Grid>
-              </FormSection>
             </Stack>
           </Box>
 
