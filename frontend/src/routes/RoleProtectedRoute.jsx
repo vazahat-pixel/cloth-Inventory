@@ -8,7 +8,8 @@ function RoleProtectedRoute({ allowedRoles, children }) {
   const pathname = location.pathname;
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace state={{ from: location }} />;
+    const isHo = pathname.startsWith('/ho');
+    return <Navigate to={isHo ? '/login/ho' : '/login/store'} replace state={{ from: location }} />;
   }
 
   const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];

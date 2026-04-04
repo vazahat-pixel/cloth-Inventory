@@ -45,7 +45,6 @@ const normalizeStockRows = (rows = []) =>
       brand: row.brand?.name || row.brand || '',
       category: row.category?.name || row.category || '',
       availableStock: Number(row.available ?? 0),
-      reservedStock: Number(row.reserved ?? 0),
       inTransit: Number(row.inTransit || 0),
       reorderLevel: Number(row.reorderLevel || 0),
       status: row.status || 'OK',
@@ -60,7 +59,6 @@ const toExportRows = (rows = []) =>
     color: row.color,
     warehouse: row.warehouse,
     available_stock: row.availableStock,
-    reserved_stock: row.reservedStock,
     in_transit: row.inTransit,
     reorder_level: row.reorderLevel,
     status: row.status,
@@ -166,7 +164,7 @@ function StockOverviewPage() {
     <Box>
       <PageHeader
         title="Stock Overview"
-        subtitle="Review item, size, color, warehouse, reserve, transit, and reorder visibility before moving into audit or journey drilldowns."
+        subtitle="Review item, size, color, warehouse, transit, and reorder visibility before moving into audit or journey drilldowns."
         breadcrumbs={[
           { label: 'Inventory' },
           { label: 'Stock Overview', active: true },
@@ -295,7 +293,6 @@ function StockOverviewPage() {
                 <TableCell sx={{ fontWeight: 700 }}>Color</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Location</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">Available Stock</TableCell>
-                <TableCell sx={{ fontWeight: 700 }} align="right">Reserved Stock</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">In Transit</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">Reorder Level</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
@@ -311,7 +308,6 @@ function StockOverviewPage() {
                   <TableCell>{row.color || '--'}</TableCell>
                   <TableCell>{row.warehouse}</TableCell>
                   <TableCell align="right">{row.availableStock}</TableCell>
-                  <TableCell align="right">{row.reservedStock}</TableCell>
                   <TableCell align="right">{row.inTransit}</TableCell>
                   <TableCell align="right">{row.reorderLevel}</TableCell>
                   <TableCell>
@@ -339,7 +335,7 @@ function StockOverviewPage() {
               ))}
               {!paginatedRows.length ? (
                 <TableRow>
-                  <TableCell colSpan={11} sx={{ py: 6, textAlign: 'center' }}>
+                  <TableCell colSpan={10} sx={{ py: 6, textAlign: 'center' }}>
                     <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
                       No stock rows available
                     </Typography>

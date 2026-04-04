@@ -17,8 +17,9 @@ function Topbar() {
   const title = getPageTitle(location.pathname);
 
   const handleLogout = () => {
+    const isHo = location.pathname.startsWith('/ho');
     dispatch(logout());
-    navigate('/login', { replace: true });
+    navigate(isHo ? '/login/ho' : '/login/store', { replace: true });
   };
 
   return (

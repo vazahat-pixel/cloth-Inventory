@@ -1,6 +1,9 @@
 const Item = require('../../models/item.model');
 const Group = require('../../models/group.model');
+const Brand = require('../../models/brand.model');
+const HSNCode = require('../../models/hsnCode.model');
 const Counter = require('../../models/counter.model');
+const WarehouseInventory = require('../../models/warehouseInventory.model');
 const FormulaEngine = require('../../utils/formula.engine');
 const { generateUniqueBarcode: generateBarcode } = require('../../services/barcode.service');
 
@@ -57,7 +60,7 @@ const populateItem = async (itemId) =>
     .populate('categoryId', 'name groupName groupType')
     .populate('subCategoryId', 'name groupName groupType')
     .populate('styleId', 'name groupName groupType')
-    .populate('brand', 'brandName name')
+    .populate('brand', 'name brandName')
     .populate('hsCodeId', 'code hsnCode gstRate gstPercent');
 
 class ItemService {
@@ -65,23 +68,27 @@ class ItemService {
     if (data.itemCode) data.itemCode = String(data.itemCode).trim().toUpperCase();
     if (data.type) data.type = data.type.trim().toUpperCase();
     
-    // Ensure all descriptors are top-level
-    const descriptors = ['fabric', 'pattern', 'fit', 'gender', 'occasion', 'uom', 'description'];
+    // Ensure all descriptors are top-level and normalized
+    const descriptors = ['fabric', 'pattern', 'fit', 'gender', 'occasion', 'uom', 'description', 
+                       'composition', 'gsm', 'width', 'shrinkage', 'shadeNo', 'accessorySize', 'packingType'];
     descriptors.forEach(field => {
-      if (data[field]) data[field] = data[field].toString().trim();
+      if (data[field]) {
+        data[field] = data[field].toString().trim();
+        if (field === 'uom') data[field] = data[field].toUpperCase();
+      }
     });
 
-    // Handle Hierarchy IDs
-    const hierarchyFields = ['sectionId', 'categoryId', 'subCategoryId', 'styleId'];
-    hierarchyFields.forEach(field => {
-      if (data[field]) data[field] = normalizeId(data[field]);
+    // Handle Entity IDs (Hierarchy & Defaults)
+    const entityIdFields = ['sectionId', 'categoryId', 'subCategoryId', 'styleId', 'brand', 'hsCodeId', 'defaultWarehouse'];
+    entityIdFields.forEach(field => {
+      data[field] = normalizeId(data[field]);
     });
 
     // Fallback for older frontend versions that might send specific keys
-    if (data.section && !data.sectionId) data.sectionId = normalizeId(data.section);
-    if (data.category && !data.categoryId) data.categoryId = normalizeId(data.category);
-    if (data.subCategory && !data.subCategoryId) data.subCategoryId = normalizeId(data.subCategory);
-    if (data.styleType && !data.styleId) data.styleId = normalizeId(data.styleType);
+    if (data.section) data.sectionId = normalizeId(data.sectionId || data.section);
+    if (data.category) data.categoryId = normalizeId(data.categoryId || data.category);
+    if (data.subCategory) data.subCategoryId = normalizeId(data.subCategoryId || data.subCategory);
+    if (data.styleType) data.styleId = normalizeId(data.styleId || data.styleType);
 
     // Sync groupIds for tag-based searches
     data.groupIds = [data.sectionId, data.categoryId, data.subCategoryId, data.styleId].filter(Boolean);
@@ -111,22 +118,31 @@ class ItemService {
     if (data.hsnCodeId && !data.hsCodeId) data.hsCodeId = data.hsnCodeId;
   }
 
-  async generateNextCode(type = 'GARMENT') {
+  async getNextCode(type = 'GARMENT') {
     const normalizedType = (type || 'GARMENT').toUpperCase();
-    const counter = await Counter.findOneAndUpdate(
-      { name: `itemCode_${normalizedType}` },
-      { $inc: { seq: 1 } },
-      { upsert: true, new: true }
-    );
-    const prefix = normalizedType === 'GARMENT' ? 'ST' : 'ACC';
-    return `${prefix}-${String(counter.seq).padStart(4, '0')}`;
+    const counter = await Counter.findOne({ name: `itemCode_${normalizedType}` });
+    const seq = (counter?.seq || 0) + 1;
+    const prefix = normalizedType === 'GARMENT' ? 'ST' : normalizedType === 'FABRIC' ? 'FB' : 'ACC';
+    return `${prefix}-${String(seq).padStart(4, '0')}`;
   }
 
   async createItem(data = {}) {
     await this.normalizeItemData(data);
 
-    const itemCode = data.itemCode;
-    if (!itemCode) throw new Error('itemCode is required');
+    let itemCode = data.itemCode;
+    
+    // Auto-generate itemCode if not provided
+    if (!itemCode) {
+      const type = data.type || 'GARMENT';
+      const normalizedType = type.toUpperCase();
+      const counter = await Counter.findOneAndUpdate(
+        { name: `itemCode_${normalizedType}` },
+        { $inc: { seq: 1 } },
+        { upsert: true, new: true }
+      );
+      const prefix = normalizedType === 'GARMENT' ? 'ST' : normalizedType === 'FABRIC' ? 'FB' : 'ACC';
+      itemCode = `${prefix}-${String(counter.seq).padStart(4, '0')}`;
+    }
 
     const existingItem = await Item.findOne({ itemCode });
     if (existingItem) throw new Error(`Item with code ${itemCode} already exists`);
@@ -135,7 +151,7 @@ class ItemService {
     await ensureGroupsExist(groupIds);
 
     if (!Array.isArray(data.sizes) || !data.sizes.length) {
-      throw new Error('Garment Item must have at least one size pricing');
+      throw new Error('Item must have at least one size variant');
     }
 
     await ensureSizeSKUs(data.sizes);
@@ -157,6 +173,35 @@ class ItemService {
     });
 
     await item.save();
+
+    // Initialize Inventory in the default warehouse if specified
+    if (item.defaultWarehouse && item.sizes && item.sizes.length > 0) {
+      const inventoryOps = item.sizes
+        .filter(variant => variant.stock > 0)
+        .map(variant => ({
+          updateOne: {
+            filter: { 
+              warehouseId: item.defaultWarehouse, 
+              barcode: variant.sku || variant.barcode 
+            },
+            update: {
+              $set: {
+                itemId: item._id,
+                variantId: variant._id || variant.id,
+                quantity: variant.stock,
+                reorderLevel: variant.reorderLevel || 0,
+                lastUpdated: new Date()
+              }
+            },
+            upsert: true
+          }
+        }));
+
+      if (inventoryOps.length > 0) {
+        await WarehouseInventory.bulkWrite(inventoryOps);
+      }
+    }
+
     return populateItem(item._id);
   }
 
@@ -172,12 +217,14 @@ class ItemService {
       'fabric', 'pattern', 'fit', 'gender', 'uom', 'images', 'groupIds', 'sizes',
       'sectionId', 'categoryId', 'subCategoryId', 'styleId', 'type',
       'reorderLevel', 'reorderQty', 'openingStock', 'openingStockRate', 
-      'stockTrackingEnabled', 'barcodeEnabled', 'isActive', 'customFields'
+      'stockTrackingEnabled', 'barcodeEnabled', 'isActive', 'customFields',
+      'defaultWarehouse', 'composition', 'gsm', 'width', 'shrinkage', 'shadeNo',
+      'accessorySize', 'packingType'
     ];
 
     fieldsToUpdate.forEach(field => {
       if (data[field] !== undefined) {
-        if (['brand', 'hsCodeId', 'sectionId', 'categoryId', 'subCategoryId', 'styleId'].includes(field)) {
+        if (['brand', 'hsCodeId', 'sectionId', 'categoryId', 'subCategoryId', 'styleId', 'defaultWarehouse'].includes(field)) {
           item[field] = normalizeId(data[field]);
         } else if (field === 'groupIds') {
           item.groupIds = normalizeGroupIds(data[field]);
@@ -212,7 +259,7 @@ class ItemService {
       .populate('categoryId', 'name groupName groupType')
       .populate('subCategoryId', 'name groupName groupType')
       .populate('styleId', 'name groupName groupType')
-      .populate('brand', 'brandName name')
+      .populate('brand', 'name brandName')
       .populate('hsCodeId', 'code hsnCode gstRate gstPercent')
       .sort({ createdAt: -1 });
   }
@@ -224,7 +271,7 @@ class ItemService {
       .populate('categoryId', 'name groupName groupType')
       .populate('subCategoryId', 'name groupName groupType')
       .populate('styleId', 'name groupName groupType')
-      .populate('brand', 'brandName name')
+      .populate('brand', 'name brandName')
       .populate('hsCodeId', 'code hsnCode gstRate gstPercent');
   }
 
@@ -239,7 +286,7 @@ class ItemService {
         { 'sizes.sku': barcode }
       ]
     })
-    .populate('brand', 'brandName name')
+    .populate('brand', 'name brandName')
     .populate('hsCodeId', 'code hsnCode gstRate gstPercent');
 
     if (!item) return null;

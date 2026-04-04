@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams } from 'react-router-dom';
-import { 
-  Alert, 
-  Box, 
-  Button, 
-  Grid, 
-  MenuItem, 
-  Paper, 
-  Stack, 
-  Tab, 
-  Tabs, 
-  TextField, 
+import {
+  Alert,
+  Box,
+  Button,
+  Grid,
+  MenuItem,
+  Paper,
+  Stack,
+  Tab,
+  Tabs,
+  TextField,
   Typography,
   CircularProgress
 } from '@mui/material';
@@ -31,9 +31,9 @@ import api from '../../services/api';
 const createVariantId = () => `var-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 const COMMON_COLORS = [
-  'Black', 'White', 'Off-White', 'Navy Blue', 'Royal Blue', 'Sky Blue', 'Light Blue', 'Dark Green', 'Olive Green', 
-  'Bottle Green', 'Mint Green', 'Red', 'Maroon', 'Wine', 'Crimson', 'Yellow', 'Mustard', 'Orange', 'Rust', 
-  'Pink', 'Dusty Rose', 'Grey', 'Light Grey', 'Charcoal', 'Beige', 'Cream', 'Camel', 'Dark Brown', 'Khaki', 
+  'Black', 'White', 'Off-White', 'Navy Blue', 'Royal Blue', 'Sky Blue', 'Light Blue', 'Dark Green', 'Olive Green',
+  'Bottle Green', 'Mint Green', 'Red', 'Maroon', 'Wine', 'Crimson', 'Yellow', 'Mustard', 'Orange', 'Rust',
+  'Pink', 'Dusty Rose', 'Grey', 'Light Grey', 'Charcoal', 'Beige', 'Cream', 'Camel', 'Dark Brown', 'Khaki',
   'Turquoise', 'Teal', 'Purple', 'Lavender', 'Magenta', 'Peach', 'Coral', 'Salmon', 'Gold', 'Silver', 'Copper'
 ];
 
@@ -51,6 +51,7 @@ const defaultValues = {
   stockTrackingEnabled: true, barcodeEnabled: true,
   vendorId: '',
   accessorySize: '', packingType: '',
+  composition: '', gsm: '', width: '', shrinkage: '', shadeNo: '',
 };
 
 function ItemFormPage({ mode = 'edit' }) {
@@ -61,14 +62,14 @@ function ItemFormPage({ mode = 'edit' }) {
   const navigate = useAppNavigate();
   const items = useSelector((state) => state.items.records);
   const masters = useSelector((state) => state.masters || {});
-  
+
   const brands = masters.brands || [];
   const itemGroups = masters.itemGroups || [];
   const warehouses = masters.warehouses || [];
   const hsnCodes = masters.hsnCodes || [];
   const sizes = masters.sizes || [];
   const suppliers = masters.suppliers || [];
- 
+
   const { register, handleSubmit, reset, watch, setValue, control, formState: { errors } } = useForm({
     defaultValues,
   });
@@ -124,49 +125,55 @@ function ItemFormPage({ mode = 'edit' }) {
 
       reset({
         type: existingItem.type || 'GARMENT',
-        itemCode: existingItem.itemCode || '', 
-        itemName: existingItem.itemName || '', 
+        itemCode: existingItem.itemCode || '',
+        itemName: existingItem.itemName || '',
         brand: getId(existingItem.brand) ? String(getId(existingItem.brand)) : '',
-        hsCodeId: getId(existingItem.hsCodeId || existingItem.hsnCodeId) ? String(getId(existingItem.hsCodeId || existingItem.hsnCodeId)) : '', 
-        uom: existingItem.uom || 'PCS', 
-        description: existingItem.description || '', 
-        status: existingItem.status || 'Active', 
+        hsCodeId: getId(existingItem.hsCodeId || existingItem.hsnCodeId) ? String(getId(existingItem.hsCodeId || existingItem.hsnCodeId)) : '',
+        uom: existingItem.uom || 'PCS',
+        description: existingItem.description || '',
+        status: existingItem.status || 'Active',
         fabric: existingItem.fabric || '',
-        pattern: existingItem.pattern || '', 
-        fit: existingItem.fit || '', 
+        pattern: existingItem.pattern || '',
+        fit: existingItem.fit || '',
         gender: existingItem.gender || '',
         sectionId: getGroupIdByType('Section'),
         categoryId: getGroupIdByType('Category'),
         subCategoryId: getGroupIdByType('Sub Category'),
         subSubCategoryId: getGroupIdByType('Style / Type'),
-        defaultWarehouse: getId(existingItem.defaultWarehouse || existingItem.warehouseId) ? String(getId(existingItem.defaultWarehouse || existingItem.warehouseId)) : '', 
-        reorderLevel: Number(existingItem.reorderLevel || 0), 
+        defaultWarehouse: getId(existingItem.defaultWarehouse || existingItem.warehouseId) ? String(getId(existingItem.defaultWarehouse || existingItem.warehouseId)) : '',
+        reorderLevel: Number(existingItem.reorderLevel || 0),
         reorderQty: Number(existingItem.reorderQty || 0),
-        openingStock: Number(existingItem.openingStock || 0), 
+        openingStock: Number(existingItem.openingStock || 0),
         openingStockRate: Number(existingItem.openingStockRate || 0),
-        stockTrackingEnabled: existingItem.stockTrackingEnabled ?? true, 
+        stockTrackingEnabled: existingItem.stockTrackingEnabled ?? true,
         barcodeEnabled: existingItem.barcodeEnabled ?? true,
         accessorySize: existingItem.accessorySize || '',
         packingType: existingItem.packingType || '',
+        composition: existingItem.composition || '',
+        gsm: existingItem.gsm || '',
+        width: existingItem.width || '',
+        shrinkage: existingItem.shrinkage || '',
+        shadeNo: existingItem.shadeNo || '',
       });
 
       const mappedVariants = (existingItem.sizes || []).map(s => ({
         id: s._id || s.id || createVariantId(),
         size: s.size,
-        color: existingItem.shade || '',
+        color: s.color || existingItem.shade || '',
         sku: s.sku || s.barcode || '',
         mrp: Number(s.mrp || 0),
         stock: Number(s.stock || 0),
+        reorderLevel: Number(s.reorderLevel || 0),
         status: s.isActive === false ? 'Inactive' : 'Active'
       }));
-      
+
       setVariants(mappedVariants);
-      
-      const next = Array(5).fill(null); 
-      (existingItem.images || []).slice(0, 5).forEach((img, index) => { 
-        next[index] = typeof img === 'string' ? { preview: img, name: `Image ${index+1}` } : img; 
-      }); 
-      setImages(next); 
+
+      const next = Array(5).fill(null);
+      (existingItem.images || []).slice(0, 5).forEach((img, index) => {
+        next[index] = typeof img === 'string' ? { preview: img, name: `Image ${index + 1}` } : img;
+      });
+      setImages(next);
       return;
     }
     reset(defaultValues); setVariants([]); setImages(Array(5).fill(null));
@@ -178,7 +185,7 @@ function ItemFormPage({ mode = 'edit' }) {
   }, [hsnCodes, setValue, watch]);
 
   const handleImageChange = (index) => async (event) => {
-    const file = event.target.files?.[0]; 
+    const file = event.target.files?.[0];
     if (!file) return;
 
     setUploadingImage(index);
@@ -205,22 +212,22 @@ function ItemFormPage({ mode = 'edit' }) {
     }
   };
 
-  const removeImage = (index) => setImages((prev) => { 
-    const next = [...prev]; 
-    next[index] = null; 
-    return next; 
+  const removeImage = (index) => setImages((prev) => {
+    const next = [...prev];
+    next[index] = null;
+    return next;
   });
 
   const onSubmit = async (data, statusOverride = data.status || 'Active', stay = false) => {
-    if (!variants.length) { 
-      setErrorMessage('Please add at least one Size/Variant and Pricing.'); 
-      setActiveTab('variants'); 
-      return; 
+    if (!variants.length) {
+      setErrorMessage('Please add at least one Size/Variant and Pricing.');
+      setActiveTab('variants');
+      return;
     }
     if (!data.itemCode || !data.itemName) {
       setErrorMessage('Code and Name are required.');
-      setActiveTab('basic'); 
-      return; 
+      setActiveTab('basic');
+      return;
     }
 
     const payload = {
@@ -232,10 +239,10 @@ function ItemFormPage({ mode = 'edit' }) {
       subCategoryId: data.subCategoryId,
       styleId: data.subSubCategoryId, // Mapping UI subSubCategoryId to styleId
       groupIds: [data.sectionId, data.categoryId, data.subCategoryId, data.subSubCategoryId].filter(Boolean),
-      category: data.categoryId, 
+      category: data.categoryId,
       uom: data.uom,
       hsCodeId: data.hsCodeId,
-      gstTax: data.gstSlabId, 
+      gstTax: data.gstSlabId,
       fabric: data.fabric,
       pattern: data.pattern,
       fit: data.fit,
@@ -266,7 +273,7 @@ function ItemFormPage({ mode = 'edit' }) {
       } else {
         await dispatch(addItem(payload)).unwrap();
       }
-      
+
       if (stay) {
         setSuccessMessage(`Item saved successfully.`);
         setTimeout(() => setSuccessMessage(''), 3000);
@@ -310,9 +317,9 @@ function ItemFormPage({ mode = 'edit' }) {
       {errorMessage && <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>{errorMessage}</Alert>}
 
       <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, mb: 2, overflow: 'hidden' }}>
-        <Tabs 
-          value={activeTab} 
-          onChange={(_, value) => setActiveTab(value)} 
+        <Tabs
+          value={activeTab}
+          onChange={(_, value) => setActiveTab(value)}
           sx={{ px: 2, pt: 1, borderBottom: '1px solid #e2e8f0', bgcolor: '#f8fafc' }}
         >
           {TABS.map(([value, label]) => (
@@ -327,26 +334,36 @@ function ItemFormPage({ mode = 'edit' }) {
               <FormSection title="Core Information" subtitle="Basic identity and classification.">
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, md: 2 }}>
-                    <TextField fullWidth size="small" select label="Item Type *" {...register('type')} disabled={isViewMode || isEditMode}>
-                      <MenuItem value="GARMENT">Garment</MenuItem>
-                      <MenuItem value="ACCESSORY">Accessory</MenuItem>
-                    </TextField>
+                    <Controller
+                      name="type"
+                      control={control}
+                      render={({ field }) => (
+                        <TextField
+                          {...field} fullWidth size="small" select label="Item Type *"
+                          disabled={isViewMode || isEditMode} value={field.value || ''}
+                        >
+                          <MenuItem value="GARMENT">Finished Garment</MenuItem>
+                          <MenuItem value="FABRIC">Fabric</MenuItem>
+                          <MenuItem value="ACCESSORY">Accessory / Trim Item</MenuItem>
+                        </TextField>
+                      )}
+                    />
                   </Grid>
                   <Grid size={{ xs: 12, md: 3 }}>
-                    <TextField 
-                      fullWidth size="small" label="Item/Style Code *" 
-                      {...register('itemCode', { required: 'Code is required' })} 
-                      error={Boolean(errors.itemCode)} 
-                      disabled={isViewMode} 
-                      InputLabelProps={{ shrink: Boolean(styleCode) || isEditMode }}
+                    <TextField
+                      fullWidth size="small" label="Item/Style Code *"
+                      {...register('itemCode', { required: 'Code is required' })}
+                      error={Boolean(errors.itemCode)}
+                      disabled={isViewMode}
+                      InputLabelProps={{ shrink: true }}
                     />
                   </Grid>
                   <Grid size={{ xs: 12, md: 4 }}>
-                    <TextField 
-                      fullWidth size="small" label="Item Name *" 
-                      {...register('itemName', { required: 'Name is required' })} 
-                      error={Boolean(errors.itemName)} 
-                      disabled={isViewMode} 
+                    <TextField
+                      fullWidth size="small" label="Item Name *"
+                      {...register('itemName', { required: 'Name is required' })}
+                      error={Boolean(errors.itemName)}
+                      disabled={isViewMode}
                     />
                   </Grid>
                   <Grid size={{ xs: 12, md: 3 }}>
@@ -369,13 +386,24 @@ function ItemFormPage({ mode = 'edit' }) {
                     />
                   </Grid>
                   <Grid size={{ xs: 12, md: 3 }}>
-                    <TextField fullWidth size="small" select label="Unit (UOM) *" {...register('uom')} disabled={isViewMode}>
-                      <MenuItem value="PCS">Piece (PCS)</MenuItem>
-                      <MenuItem value="SET">Set (SET)</MenuItem>
-                      <MenuItem value="DOZ">Dozen (DOZ)</MenuItem>
-                      <MenuItem value="PKT">Packet (PKT)</MenuItem>
-                      <MenuItem value="BOX">Box (BOX)</MenuItem>
-                    </TextField>
+                    <Controller
+                      name="uom"
+                      control={control}
+                      render={({ field }) => (
+                        <TextField
+                          {...field} fullWidth size="small" select label="Unit (UOM) *"
+                          disabled={isViewMode} value={field.value || ''}
+                        >
+                          <MenuItem value="PCS">Piece (PCS)</MenuItem>
+                          <MenuItem value="MTR">Metre (MTR)</MenuItem>
+                          <MenuItem value="ROLL">Roll (ROLL)</MenuItem>
+                          <MenuItem value="SET">Set (SET)</MenuItem>
+                          <MenuItem value="DOZ">Dozen (DOZ)</MenuItem>
+                          <MenuItem value="PKT">Packet (PKT)</MenuItem>
+                          <MenuItem value="BOX">Box (BOX)</MenuItem>
+                        </TextField>
+                      )}
+                    />
                   </Grid>
                 </Grid>
               </FormSection>
@@ -409,7 +437,19 @@ function ItemFormPage({ mode = 'edit' }) {
                 </Grid>
               </FormSection>
 
-              <FormSection title="Technical Attributes" subtitle="Additional specifications for Garments and Accessories.">
+              {typeWatch === 'FABRIC' && (
+                <FormSection title="Fabric Specifications" subtitle="Technical details for raw material tracking.">
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Composition" {...register('composition')} placeholder="e.g. 100% Cotton" disabled={isViewMode} /></Grid>
+                    <Grid size={{ xs: 12, md: 2 }}><TextField fullWidth size="small" label="GSM" {...register('gsm')} placeholder="e.g. 180" disabled={isViewMode} /></Grid>
+                    <Grid size={{ xs: 12, md: 2 }}><TextField fullWidth size="small" label="Width (Inches)" {...register('width')} placeholder="e.g. 58" disabled={isViewMode} /></Grid>
+                    <Grid size={{ xs: 12, md: 2 }}><TextField fullWidth size="small" label="Shrinkage" {...register('shrinkage')} placeholder="e.g. 2%" disabled={isViewMode} /></Grid>
+                    <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Shade / Color No." {...register('shadeNo')} placeholder="e.g. SH-402" disabled={isViewMode} /></Grid>
+                  </Grid>
+                </FormSection>
+              )}
+
+              <FormSection title="Technical Attributes" subtitle="Additional specifications for classifications.">
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, md: 3 }}>
                     <Controller
@@ -417,11 +457,19 @@ function ItemFormPage({ mode = 'edit' }) {
                       render={({ field }) => <TextField {...field} select size="small" fullWidth label="Brand" value={field.value ?? ''} disabled={isViewMode} InputLabelProps={{ shrink: true }}>{renderAsyncValueOption(field.value, brands)}<MenuItem value="">Select Brand</MenuItem>{brands.map((b) => <MenuItem key={b.id || b._id} value={b.id || b._id}>{b.brandName || b.name}</MenuItem>)}</TextField>}
                     />
                   </Grid>
-                  <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Fabric / Material" {...register('fabric')} disabled={isViewMode} /></Grid>
-                  <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Pattern" {...register('pattern')} disabled={isViewMode} /></Grid>
-                  <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Fit" {...register('fit')} disabled={isViewMode} /></Grid>
-                  <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Accessory Size / Specs" {...register('accessorySize')} disabled={isViewMode} /></Grid>
-                  <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Packing Type" {...register('packingType')} disabled={isViewMode} /></Grid>
+                  {typeWatch !== 'FABRIC' && (
+                    <>
+                      <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Fabric / Material" {...register('fabric')} disabled={isViewMode} /></Grid>
+                      <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Pattern" {...register('pattern')} disabled={isViewMode} /></Grid>
+                      <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Fit" {...register('fit')} disabled={isViewMode} /></Grid>
+                    </>
+                  )}
+                  {typeWatch === 'ACCESSORY' && (
+                    <>
+                      <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Accessory Size / Specs" {...register('accessorySize')} disabled={isViewMode} /></Grid>
+                      <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Packing Type" {...register('packingType')} disabled={isViewMode} /></Grid>
+                    </>
+                  )}
                   <Grid size={12}><TextField fullWidth size="small" label="Item Description" multiline minRows={2} {...register('description')} disabled={isViewMode} /></Grid>
                 </Grid>
               </FormSection>
@@ -430,12 +478,12 @@ function ItemFormPage({ mode = 'edit' }) {
 
           {/* Variants Tab */}
           <Box sx={{ display: activeTab === 'variants' ? 'block' : 'none' }}>
-              <VariantTable 
-                variants={variants} onChange={setVariants} 
-                styleCode={styleCode || 'ITEM'} readOnly={isViewMode} 
-                sizeOptions={sizes.map(s => s.sizeCode || s.name)} 
-              />
-            </Box>
+            <VariantTable
+              variants={variants} onChange={setVariants}
+              styleCode={styleCode || 'ITEM'} readOnly={isViewMode}
+              sizeOptions={sizes.map(s => s.sizeCode || s.name)}
+            />
+          </Box>
 
           {/* Media Tab */}
           <Box sx={{ display: activeTab === 'media' ? 'block' : 'none' }}>
@@ -455,7 +503,7 @@ function ItemFormPage({ mode = 'edit' }) {
                             <UploadFileIcon sx={{ fontSize: 32 }} />
                             <Typography variant="body2" sx={{ fontWeight: 700 }}>{index === 0 ? 'Main Image' : `Image ${index + 1}`}</Typography>
                           </Stack>
-                           <input hidden type="file" accept="image/*" onChange={handleImageChange(index)} />
+                          <input hidden type="file" accept="image/*" onChange={handleImageChange(index)} />
                         </Button>
                       )}
                     </Paper>

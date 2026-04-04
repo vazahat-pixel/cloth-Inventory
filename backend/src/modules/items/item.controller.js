@@ -15,7 +15,7 @@ class ItemController {
   getNextCode = async (req, res) => {
     try {
       const { type } = req.query;
-      const code = await itemService.generateNextCode(type);
+      const code = await itemService.getNextCode(type);
       return sendSuccess(res, { code }, 'Next code generated successfully');
     } catch (e) { return sendError(res, e.message); }
   }

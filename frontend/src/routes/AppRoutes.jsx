@@ -1,116 +1,47 @@
-import { Suspense, lazy } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
-import { Box, CircularProgress } from '@mui/material';
-
-// Layouts & Page Utilities (Static imports for reliability)
-import AuthLayout from '../layouts/AuthLayout';
+import React, { Suspense, lazy } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import RoleDashboardLayout from '../layouts/RoleDashboardLayout';
-import LoginPage from '../pages/auth/LoginPage';
-import RegisterPage from '../pages/auth/RegisterPage';
-import DashboardHome from '../pages/dashboard/DashboardHome';
-import ProtectedRoute from './ProtectedRoute';
-import PublicRoute from './PublicRoute';
+import LoadingOverlay from '../components/LoadingOverlay';
 import RoleProtectedRoute from './RoleProtectedRoute';
-import RoleRedirect from './RoleRedirect';
+import PublicRoute from './PublicRoute';
 
-// --- Loading Placeholder ---
-const PageLoader = () => (
-  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
-    <CircularProgress size={40} sx={{ color: '#10b981' }} />
-  </Box>
-);
+// Auth
+const LoginPage = lazy(() => import('../pages/auth/LoginPage'));
+const RegisterPage = lazy(() => import('../pages/auth/RegisterPage'));
 
-// --- Modules (Lazy loaded by feature set) ---
-const PurchaseReturnPageStaff = lazy(() => import('../modules/store/PurchaseReturnPage'));
-const StoreReceiptPage = lazy(() => import('../modules/store/StoreReceiptPage'));
+// Common
+const DashboardHomePage = lazy(() => import('../pages/dashboard/DashboardHome'));
+
+// Items & Catalog
+const ItemListPage = lazy(() => import('../modules/items/ItemListPage'));
+const ItemFormPage = lazy(() => import('../modules/items/ItemFormPage'));
+
+const GroupsPage = lazy(() => import('../modules/setup/GroupsPage'));
+const HSNCodePage = lazy(() => import('../modules/setup/HSNCodePage'));
+const SizesPage = lazy(() => import('../modules/setup/SizesPage'));
+const BarcodePrintingPage = lazy(() => import('../modules/setup/BarcodePrintingPage'));
+const BrandListPage = lazy(() => import('../modules/masters/brands/ListPage'));
 
 // Masters
 const SuppliersListPage = lazy(() => import('../modules/masters/suppliers/ListPage'));
 const CustomersListPage = lazy(() => import('../modules/masters/customers/ListPage'));
-const WarehousesListPage = lazy(() => import('../modules/masters/warehouses/ListPage'));
 const StoresListPage = lazy(() => import('../modules/masters/stores/ListPage'));
-const BrandsListPage = lazy(() => import('../modules/masters/brands/ListPage'));
-const ItemGroupsListPage = lazy(() => import('../modules/masters/itemGroups/ListPage'));
-
-// Placeholders/Shared
-const PurchasePlaceholderPage = lazy(() => import('../modules/purchase/PurchasePlaceholderPage'));
-const InventoryPlaceholderPage = lazy(() => import('../modules/inventory/InventoryPlaceholderPage'));
-const BillingPlaceholderPage = lazy(() => import('../modules/sales/BillingPlaceholderPage'));
-const SetupAccountsPlaceholderPage = lazy(() => import('../modules/setup/SetupAccountsPlaceholderPage'));
-
-// Items & Setup
-const ItemListPage = lazy(() => import('../modules/items/ItemListPage'));
-const ItemFormPage = lazy(() => import('../modules/items/ItemFormPage'));
-const GroupsPage = lazy(() => import('../modules/setup/GroupsPage'));
-const SizesPage = lazy(() => import('../modules/setup/SizesPage'));
+const WarehousesListPage = lazy(() => import('../modules/masters/warehouses/ListPage'));
 
 // Inventory
 const StockOverviewPage = lazy(() => import('../modules/inventory/StockOverviewPage'));
-const StockTransferPage = lazy(() => import('../modules/inventory/StockTransferPage'));
-const StockTransferFormPage = lazy(() => import('../modules/inventory/StockTransferFormPage'));
-const StockAuditPage = lazy(() => import('../modules/inventory/StockAuditPage'));
 const StockAdjustmentPage = lazy(() => import('../modules/inventory/StockAdjustmentPage'));
 const MovementHistoryPage = lazy(() => import('../modules/inventory/MovementHistoryPage'));
 const StockAuditView = lazy(() => import('../modules/inventory/StockAuditView'));
-const SupplierOutwardListPage = lazy(() => import('../modules/supplierOutward/SupplierOutwardListPage'));
-const SupplierOutwardFormPage = lazy(() => import('../modules/supplierOutward/SupplierOutwardFormPage'));
-const SupplierOutwardViewPage = lazy(() => import('../modules/supplierOutward/SupplierOutwardViewPage'));
-
-const MaterialConsumptionListPage = lazy(() => import('../modules/consumption/MaterialConsumptionListPage'));
-const MaterialConsumptionFormPage = lazy(() => import('../modules/consumption/MaterialConsumptionFormPage'));
-
-const RawMaterialListPage = lazy(() => import('../modules/rawMaterials/RawMaterialListPage'));
-const RawMaterialFormPage = lazy(() => import('../modules/rawMaterials/RawMaterialFormPage'));
 
 // Purchase
 const PurchaseListPage = lazy(() => import('../modules/purchase/PurchaseListPage'));
 const PurchaseFormPage = lazy(() => import('../modules/purchase/PurchaseFormPage'));
-const PurchaseOrderListPage = lazy(() => import('../modules/purchase/PurchaseOrderListPage'));
-const PurchaseOrderFormPage = lazy(() => import('../modules/purchase/PurchaseOrderFormPage'));
-const PurchaseReturnListPage = lazy(() => import('../modules/purchase/PurchaseReturnListPage'));
-const PurchaseReturnPage = lazy(() => import('../modules/purchase/PurchaseReturnPage'));
 
-// Delivery & Dispatch
-const DeliveryChallanPage = lazy(() => import('../modules/dispatch/DeliveryChallanPage'));
-const DeliveryChallanForm = lazy(() => import('../modules/dispatch/DeliveryChallanForm'));
-
-// Sales & Billing
-const SalesListPage = lazy(() => import('../modules/sales/SalesListPage'));
-const BillingPage = lazy(() => import('../modules/sales/BillingPage'));
+// Sales & Orders
+const SalesBillListPage = lazy(() => import('../modules/sales/SalesListPage'));
+const SalesBillFormPage = lazy(() => import('../modules/sales/BillingPage'));
 const SalesReturnPage = lazy(() => import('../modules/sales/SalesReturnPage'));
-
-// Pricing
-const PriceListPage = lazy(() => import('../modules/pricing/PriceListPage'));
-const PriceListFormPage = lazy(() => import('../modules/pricing/PriceListFormPage'));
-const SchemeListPage = lazy(() => import('../modules/pricing/SchemeListPage'));
-const SchemeFormPage = lazy(() => import('../modules/pricing/SchemeFormPage'));
-
-// CRM (Shared / Minimal)
-const CreditNotesPage = lazy(() => import('../modules/customers/CreditNotesPage'));
-const CustomerRewardsPage = lazy(() => import('../modules/customers/CustomerRewardsPage'));
-
-// Setup & GST
-const SetupLandingPage = lazy(() => import('../modules/setup/SetupLandingPage'));
-const SetupCustomFieldsAccountsPage = lazy(() => import('../modules/setup/SetupCustomFieldsAccountsPage'));
-const SetupCountryPage = lazy(() => import('../modules/setup/SetupCountryPage'));
-const SetupGenericTablePage = lazy(() => import('../modules/setup/SetupGenericTablePage'));
-const AccountMasterPage = lazy(() => import('../modules/setup/AccountMasterPage'));
-const StoreMasterPage = lazy(() => import('../modules/setup/StoreMasterPage'));
-const HSNCodePage = lazy(() => import('../modules/setup/HSNCodePage'));
-const BarcodePrintingPage = lazy(() => import('../modules/setup/BarcodePrintingPage'));
-const CounterMasterPage = lazy(() => import('../modules/setup/CounterMasterPage'));
-
-// Tax & GST Reports
-const TaxRatesPage = lazy(() => import('../modules/gst/TaxRatesPage'));
-const TaxGroupPage = lazy(() => import('../modules/gst/TaxGroupPage'));
-const InvoiceTaxReportPage = lazy(() => import('../modules/gst/InvoiceTaxReportPage'));
-const GSTRSummaryPage = lazy(() => import('../modules/gst/GSTRSummaryPage'));
-
-// Accounts
-const AccountsDashboard = lazy(() => import('../modules/accounts/AccountsDashboard'));
-const BankPaymentPage = lazy(() => import('../modules/accounts/BankPaymentPage'));
-const BankPaymentListPage = lazy(() => import('../modules/accounts/BankPaymentListPage'));
-const BankReceiptPage = lazy(() => import('../modules/accounts/BankReceiptPage'));
 
 // Reports
 const ReportsDashboard = lazy(() => import('../modules/reports/ReportsDashboard'));
@@ -118,14 +49,7 @@ const SalesReportPage = lazy(() => import('../modules/reports/SalesReportPage'))
 const PurchaseReportPage = lazy(() => import('../modules/reports/PurchaseReportPage'));
 const StockReportPage = lazy(() => import('../modules/reports/StockReportPage'));
 const ProfitReportPage = lazy(() => import('../modules/reports/ProfitReportPage'));
-const CustomerReportPage = lazy(() => import('../modules/reports/CustomerReportPage'));
-const VendorReportPage = lazy(() => import('../modules/reports/VendorReportPage'));
-const MovementReportPage = lazy(() => import('../modules/reports/MovementReportPage'));
-const AgeAnalysisPage = lazy(() => import('../modules/reports/AgeAnalysisPage'));
-const LedgerReportPage = lazy(() => import('../modules/reports/LedgerReportPage'));
-const BankBookPage = lazy(() => import('../modules/reports/BankBookPage'));
 const CollectionReportPage = lazy(() => import('../modules/reports/CollectionReportPage'));
-const YieldAnalysisPage = lazy(() => import('../modules/reports/YieldAnalysisPage'));
 const ConsolidatedStockPage = lazy(() => import('../modules/reports/ConsolidatedStockPage'));
 const DayEndClosurePage = lazy(() => import('../modules/reports/DayEndClosurePage'));
 
@@ -138,14 +62,7 @@ const InTransitMonitorPage = lazy(() => import('../modules/reports/InTransitMoni
 const OrderReportPage = lazy(() => import('../modules/reports/OrderReportPage'));
 
 // Settings & Tools
-const SettingsLayout = lazy(() => import('../modules/settings/SettingsLayout'));
 const CompanyProfilePage = lazy(() => import('../modules/settings/CompanyProfilePage'));
-const UsersPage = lazy(() => import('../modules/settings/UsersPage'));
-const RolesPage = lazy(() => import('../modules/settings/RolesPage'));
-const NumberSeriesPage = lazy(() => import('../modules/settings/NumberSeriesPage'));
-const PreferencesPage = lazy(() => import('../modules/settings/PreferencesPage'));
-const PrintTemplatesPage = lazy(() => import('../modules/settings/PrintTemplatesPage'));
-const AuditLogPage = lazy(() => import('../modules/settings/AuditLogPage'));
 const ProfilePage = lazy(() => import('../modules/profile/ProfilePage'));
 const DataImportExportPage = lazy(() => import('../modules/data/DataImportExportPage'));
 const GRNListPage = lazy(() => import('../modules/grn/GRNListPage'));
@@ -156,85 +73,67 @@ const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
 // --- CONFIGURATIONS FOR DYNAMIC REPORTS ---
 const CHALLAN_REPORT_CONFIG = {
   title: 'Sale Challan Report',
-  description: 'Summary of delivery challans and current delivery statuses.',
-  endpoint: '/sale-challans',
+  description: 'List of all delivery challans issued to customers/stores.',
+  endpoint: '/delivery-challans',
+  dataKey: 'challans',
   columns: [
-    { field: 'status', headerName: 'Status' },
-    { field: 'count', headerName: 'Total Challans' },
-    { field: 'totalAmount', headerName: 'Total Amount', transform: (v) => `₹${Number(v || 0).toLocaleString()}` }
+    { field: 'challanNo', headerName: 'Challan #' },
+    { field: 'date', headerName: 'Date', transform: v => new Date(v).toLocaleDateString() },
+    { field: 'partyName', headerName: 'Customer/Branch', transform: (v, row) => row.customerId?.name || row.storeId?.name || 'N/A' },
+    { field: 'totalItems', headerName: 'Total Qty' },
+    { field: 'grandTotal', headerName: 'Amount', transform: v => Number(v || 0).toLocaleString() }
   ],
   filterConfig: { showDateRange: true }
 };
 
 const SCHEME_REPORT_CONFIG = {
-  title: 'Active Schemes Report',
-  description: 'Overview of active promotional schemes and discouts.',
-  endpoint: '/schemes',
+  title: 'Promotion Eligibility Report',
+  description: 'Analysis of scheme performance and usage.',
+  endpoint: '/pricing/schemes',
+  dataKey: 'schemes',
   columns: [
     { field: 'name', headerName: 'Scheme Name' },
     { field: 'type', headerName: 'Type' },
-    { field: 'value', headerName: 'Value' },
-    { field: 'startDate', headerName: 'Start Date', transform: (v) => v ? new Date(v).toLocaleDateString() : 'N/A' },
-    { field: 'endDate', headerName: 'End Date', transform: (v) => v ? new Date(v).toLocaleDateString() : 'N/A' }
+    { field: 'status', headerName: 'Status' }
   ]
 };
 
 const AGENT_WISE_REPORT_CONFIG = {
-  title: 'Agent performance',
-  description: 'Sales performance tracking by Handled By / Cashier / Agent.',
-  endpoint: '/agent-wise',
+  title: 'Agent Sales Analysis',
+  description: 'Sales performance segmented by sales agents.',
+  endpoint: '/sales/agent-report',
+  dataKey: 'report',
   columns: [
-    { field: 'agentName', headerName: 'Agent / Salesperson' },
-    { field: 'totalSales', headerName: 'Gross Sales', transform: (v) => `₹${Number(v || 0).toLocaleString()}` },
-    { field: 'count', headerName: 'Invoice Count' }
-  ],
-  filterConfig: { showDateRange: true }
-};
-
-const STOCK_AGING_CONFIG = {
-  title: 'Stock Aging Analysis',
-  description: 'Monitoring slow-moving and fast-moving inventory based on duration in stock.',
-  endpoint: '/stock-aging',
-  columns: [
-    { field: 'sku', headerName: 'SKU' },
-    { field: 'name', headerName: 'Item Name' },
-    { field: 'currentStock', headerName: 'Current Stock' },
-    { field: 'daysInStock', headerName: 'Days In Inventory' },
-    { field: 'category', headerName: 'Aging Category' }
+    { field: 'agentName', headerName: 'Agent' },
+    { field: 'billCount', headerName: 'Bills' },
+    { field: 'totalSales', headerName: 'Total Sales', transform: v => Number(v || 0).toLocaleString() }
   ]
 };
 
-const TRIAL_BALANCE_CONFIG = {
-  title: 'Trial Balance',
-  description: 'Consolidated summary of all ledger balances.',
-  endpoint: '/trial-balance',
-  dataKey: 'trialBalance',
+const STOCK_AGING_CONFIG = {
+  title: 'Item Master Registry',
+  description: 'Comprehensive list of all items in the master catalog.',
+  endpoint: '/items',
+  dataKey: 'items',
   columns: [
-    { field: 'code', headerName: 'Account Code' },
-    { field: 'name', headerName: 'Account Name' },
-    { field: 'type', headerName: 'Group' },
-    { field: 'totalDebit', headerName: 'Debit', transform: v => Number(v || 0).toLocaleString() },
-    { field: 'totalCredit', headerName: 'Credit', transform: v => Number(v || 0).toLocaleString() },
-    { field: 'balance', headerName: 'Net Balance', transform: v => Number(v || 0).toLocaleString() }
-  ],
-  filterConfig: { showDateRange: true }
+    { field: 'sku', headerName: 'SKU' },
+    { field: 'itemName', headerName: 'Name' },
+    { field: 'category', headerName: 'Category' },
+    { field: 'mrp', headerName: 'MRP', transform: v => Number(v || 0).toLocaleString() }
+  ]
 };
-
 
 function AppRoutes() {
   return (
-    <Suspense fallback={<PageLoader />}>
+    <Suspense fallback={<LoadingOverlay />}>
       <Routes>
-        <Route element={<PublicRoute />}>
-          <Route element={<AuthLayout />}>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/login/:role" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/register/:role" element={<RegisterPage />} />
-          </Route>
-        </Route>
+        <Route path="/" element={<Navigate to="/ho" replace />} />
 
-        <Route path="/" element={<RoleRedirect />} />
+        {/* Auth Routes */}
+        <Route path="/login/:role" element={<PublicRoute><LoginPage /></PublicRoute>} />
+        <Route path="/login" element={<Navigate to="/login/ho" replace />} />
+        <Route path="/register/:role" element={<PublicRoute><RegisterPage /></PublicRoute>} />
+        <Route path="/register" element={<Navigate to="/register/ho" replace />} />
 
         {/* Head Office Panel */}
         <Route element={<RoleProtectedRoute allowedRoles={['admin', 'Admin']} />}>
@@ -249,7 +148,7 @@ function AppRoutes() {
             <Route path="masters/stores" element={<StoresListPage />} />
             <Route path="masters/brands" element={<BrandsListPage />} />
             <Route path="masters/item-groups" element={<ItemGroupsListPage />} />
-            
+
             {/* Legacy redirect for base masters path */}
             <Route path="masters" element={<Navigate to="masters/suppliers" replace />} />
 
@@ -271,13 +170,14 @@ function AppRoutes() {
             <Route path="inventory/supplier-outward" element={<SupplierOutwardListPage />} />
             <Route path="inventory/supplier-outward/new" element={<SupplierOutwardFormPage />} />
             <Route path="inventory/supplier-outward/:id" element={<SupplierOutwardViewPage />} />
-            
+
             <Route path="inventory/consumption" element={<MaterialConsumptionListPage />} />
             <Route path="inventory/consumption/new" element={<MaterialConsumptionFormPage />} />
 
             <Route path="inventory/raw-materials" element={<RawMaterialListPage />} />
             <Route path="inventory/raw-materials/new" element={<RawMaterialFormPage />} />
             <Route path="inventory/raw-materials/edit/:id" element={<RawMaterialFormPage />} />
+            <Route path="inventory/accessory-entry" element={<AccessoryDirectEntryPage />} />
 
 
             <Route path="orders/delivery-challan" element={<DeliveryChallanPage />} />
@@ -344,18 +244,10 @@ function AppRoutes() {
               {/* Specialized Reports */}
               <Route path="sales" element={<SalesReportPage />} />
               <Route path="purchase" element={<PurchaseReportPage />} />
-              <Route path="ledger" element={<LedgerReportPage />} />
-              <Route path="bank-book" element={<BankBookPage />} />
               <Route path="stock" element={<StockReportPage />} />
               <Route path="profit" element={<ProfitReportPage />} />
               <Route path="collection" element={<CollectionReportPage />} />
-              <Route path="customers" element={<CustomerReportPage />} />
-              <Route path="vendors" element={<VendorReportPage />} />
-              <Route path="movement" element={<MovementHistoryPage />} />
-              <Route path="age-analysis" element={<AgeAnalysisPage />} />
-              <Route path="production/yield" element={<YieldAnalysisPage />} />
-              <Route path="inventory/consolidated" element={<ConsolidatedStockPage />} />
-              <Route path="inventory/in-transit" element={<InTransitMonitorPage />} />
+              <Route path="consolidated" element={<ConsolidatedStockPage />} />
               <Route path="closure-history" element={<StoreClosureAuditPage />} />
               <Route path="closure" element={<DayEndClosurePage />} />
 
@@ -368,78 +260,45 @@ function AppRoutes() {
               <Route path="stock-reports" element={<StockReportPage />} />
 
               {/* Financial Analysis / Master Reports */}
-              <Route path="financial-reports" element={<DynamicReportPage config={TRIAL_BALANCE_CONFIG} />} />
-              <Route path="balance-sheet" element={<DynamicReportPage config={{ title: 'Balance Sheet', endpoint: '/balance-sheet', filterConfig: { showDateTo: true } }} />} />
               <Route path="financial-analysis" element={<GstSummaryReportPage />} />
-
-              {/* Fallback for others */}
               <Route path="sale-registers" element={<SalesReportPage />} />
-              <Route path="customer-item-sale-analysis" element={<CustomerReportPage />} />
-              <Route path="excise-reports" element={<GstSummaryReportPage />} />
             </Route>
 
-            <Route path="gst" element={<Navigate to="tax-rates" replace />} />
-            <Route path="gst/tax-rates" element={<TaxRatesPage />} />
-            <Route path="gst/tax-groups" element={<TaxGroupPage />} />
-            <Route path="gst/invoice-report" element={<InvoiceTaxReportPage />} />
-            <Route path="gst/gstr-summary" element={<GSTRSummaryPage />} />
-
-            <Route path="accounts" element={<Navigate to="a-c-vouchers" replace />} />
-            <Route path="accounts/a-c-vouchers" element={<AccountsDashboard />} />
-            <Route path="accounts/bank-payment" element={<BankPaymentPage />} />
-            <Route path="accounts/bank-payment/:id" element={<BankPaymentPage mode="view" />} />
-            <Route path="accounts/bank-payment-list" element={<BankPaymentListPage />} />
-            <Route path="accounts/bank-receipt" element={<BankReceiptPage />} />
-
-            <Route path="settings" element={<SettingsLayout />}>
-              <Route index element={<Navigate to="company" replace />} />
-              <Route path="company" element={<CompanyProfilePage />} />
-              <Route path="users" element={<UsersPage />} />
-              <Route path="roles" element={<RolesPage />} />
-              <Route path="number-series" element={<NumberSeriesPage />} />
-              <Route path="preferences" element={<PreferencesPage />} />
-              <Route path="print-templates" element={<PrintTemplatesPage />} />
-              <Route path="audit-logs" element={<AuditLogPage />} />
-            </Route>
-
+            <Route path="settings/company" element={<CompanyProfilePage />} />
             <Route path="data-import" element={<DataImportExportPage />} />
 
             {/* GRN Unified Flow (Inventory & Purchase) */}
             <Route path="inventory/grn" element={<GRNListPage />} />
             <Route path="inventory/grn/new" element={<GRNFormPage />} />
-            <Route path="inventory/grn/:id" element={<GRNFormPage mode="view" />} />
-            <Route path="inventory/grn/:id/edit" element={<GRNFormPage mode="edit" />} />
+            <Route path="inventory/grn/edit/:id" element={<GRNFormPage />} />
+            <Route path="inventory/grn/view/:id" element={<GRNFormPage mode="view" />} />
 
-            {/* Aliases for Purchase/Procurement pathing */}
-            <Route path="grn" element={<Navigate to="/ho/inventory/grn" replace />} />
-            <Route path="grn/new" element={<Navigate to="/ho/inventory/grn/new" replace />} />
-            <Route path="purchase/grn" element={<Navigate to="/ho/inventory/grn" replace />} />
             <Route path="profile" element={<ProfilePage />} />
-            <Route path="*" element={<NotFoundPage />} />
           </Route>
-        </Route>
 
-        {/* Store Panel */}
-        <Route element={<RoleProtectedRoute allowedRoles={['store_staff', 'Staff', 'Manager', 'admin', 'Admin']} />}>
-          <Route path="/store" element={<RoleDashboardLayout />}>
-            <Route index element={<DashboardHome />} />
+          {/* Store/Branch Portal */}
+          <Route path="/store" element={<RoleProtectedRoute allowedRoles={['Staff']}><RoleDashboardLayout /></RoleProtectedRoute>}>
+            <Route index element={<DashboardHomePage />} />
             <Route path="inventory/stock-overview" element={<StockOverviewPage />} />
-            <Route path="inventory/receipt" element={<StoreReceiptPage />} />
+            <Route path="inventory/receipt" element={<MovementHistoryPage />} />
             <Route path="inventory/audit-view" element={<StockAuditView />} />
-            <Route path="sales/sale-bill" element={<SalesListPage pageTitle="Sale Bill" primaryActionPath="/sales/sale-bill/new" />} />
-            <Route path="sales/sale-bill/new" element={<BillingPage listPath="/sales/sale-bill" />} />
-            <Route path="sales/sales-return" element={<SalesListPage pageTitle="Sales Return" showPrimaryAction={false} />} />
-            <Route path="sales/sales-return/:id" element={<SalesReturnPage listPath="/sales/sales-return" />} />
+
+            <Route path="sales/sale-bill/new" element={<SalesBillFormPage />} />
+            <Route path="sales/sale-bill" element={<SalesBillListPage />} />
+            <Route path="sales/sales-return" element={<SalesReturnPage />} />
+
+            <Route path="reports" element={<ReportsDashboard />} />
             <Route path="reports/sales" element={<SalesReportPage />} />
             <Route path="reports/purchase" element={<PurchaseReportPage />} />
             <Route path="reports/stock" element={<StockReportPage />} />
             <Route path="reports/collection" element={<CollectionReportPage />} />
             <Route path="reports/closure" element={<DayEndClosurePage />} />
+
             <Route path="profile" element={<ProfilePage />} />
           </Route>
-        </Route>
 
-        <Route path="*" element={<RoleRedirect />} />
+          <Route path="/404" element={<NotFoundPage />} />
+          <Route path="*" element={<Navigate to="/404" replace />} />
       </Routes>
     </Suspense>
   );

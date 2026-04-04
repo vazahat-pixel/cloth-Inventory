@@ -6,7 +6,17 @@ const variantSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  color: {
+    type: String,
+    trim: true
+  },
   sku: {
+    type: String,
+    unique: true,
+    sparse: true,
+    trim: true
+  },
+  barcode: {
     type: String,
     unique: true,
     sparse: true,
@@ -21,6 +31,11 @@ const variantSchema = new mongoose.Schema({
   stock: {
     type: Number,
     default: 0
+  },
+  reorderLevel: {
+    type: Number,
+    default: 0,
+    min: 0
   },
   isActive: {
     type: Boolean,
@@ -105,22 +120,17 @@ const itemSchema = new mongoose.Schema({
     ref: 'Group',
     index: true
   }],
-  hsCodeId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'HsnCode'
-  },
-  gstTax: {
-    type: Number,
-    min: 0,
-    max: 100
-  },
+  hsCodeId: { type: mongoose.Schema.Types.ObjectId, ref: 'HSNCode', index: true },
+  gstPercent: { type: Number, default: 0 },
+  purchasePrice: { type: Number, default: 0 },
+  mrp: { type: Number, default: 0 },
   vendorId: {
     type: String,
     trim: true
   },
   // Inventory & Defaults
 
-  defaultWarehouse: { type: String, trim: true },
+  defaultWarehouse: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', index: true },
   reorderLevel: { type: Number, default: 0 },
   reorderQty: { type: Number, default: 0 },
   openingStock: { type: Number, default: 0 },

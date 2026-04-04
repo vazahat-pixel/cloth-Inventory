@@ -28,19 +28,13 @@ const registerRoutes = (app) => {
     app.use('/api/purchase-orders', require('./modules/purchase/purchaseOrder.routes'));
     app.use('/api/reports', require('./modules/reports/report.routes'));
     app.use('/api/grn', require('./modules/grn/grn.routes'));
-    app.use('/api/account-master', require('./modules/accountMaster/accountMaster.routes'));
-    app.use('/api/accounting', require('./modules/accounting/accounting.routes'));
-    app.use('/api/accounts', require('./modules/accounts/accounts.routes'));
-    app.use('/api/vouchers', require('./modules/vouchers/voucher.routes'));
     app.use('/api/brands', require('./modules/brands/brand.routes'));
     app.use('/api/customers', require('./modules/customers/customer.routes'));
     app.use('/api/dispatch', require('./modules/dispatch/dispatch.routes'));
     app.use('/api/dashboard', require('./modules/dashboard/dashboard.routes'));
     app.use('/api/stock-returns', require('./modules/stockReturn/stockReturn.routes'));
-    app.use('/api/supplier-outward', require('./modules/supplierOutward/supplierOutward.routes'));
-    app.use('/api/consumption', require('./modules/consumption/consumption.routes'));
     app.use('/api/pricing', require('./modules/pricing/pricing.routes'));
-    app.use('/api/raw-materials', require('./routes/rawMaterial.route'));
+    app.use('/api/settings', require('./modules/settings/settings.routes'));
 };
 
 module.exports = registerRoutes;

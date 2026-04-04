@@ -26,4 +26,4 @@ const hsnCodeSchema = new mongoose.Schema(
 
 // HSN Indexing is handled by unique: true on the code field
 
-module.exports = mongoose.model('HsnCode', hsnCodeSchema);
+module.exports = mongoose.model('HSNCode', hsnCodeSchema);

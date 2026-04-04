@@ -80,11 +80,11 @@ function CompanyProfilePage() {
     <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2 }}>
       <Stack spacing={2} sx={{ px: { xs: 2, sm: 3 }, pt: { xs: 2, sm: 3 }, pb: 3 }}>
         <Box>
-          <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a' }}>
-            Company Profile
+          <Typography variant="h4" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
+            Warehouse Settings
           </Typography>
-          <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
-            Business and tax registration details. Used on invoices and reports.
+          <Typography variant="body1" sx={{ color: '#64748b', mt: 1, fontWeight: 500 }}>
+            Configure your warehouse identity, address, and GST registration for invoices.
           </Typography>
         </Box>
         <Box component="form" onSubmit={handleSubmit(onSubmit)}>

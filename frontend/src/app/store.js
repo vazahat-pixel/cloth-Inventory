@@ -9,13 +9,9 @@ import salesReducer from '../modules/sales/salesSlice';
 import pricingReducer from '../modules/pricing/pricingSlice';
 import gstReducer from '../modules/gst/gstSlice';
 import settingsReducer from '../modules/settings/settingsSlice';
-import accountsReducer from '../modules/accounts/accountsSlice';
 import grnReducer from '../modules/grn/grnSlice';
 import dispatchReducer from '../modules/dispatch/dispatchSlice';
-import supplierOutwardReducer from '../modules/supplierOutward/supplierOutwardSlice';
 import reportsReducer from '../modules/reports/reportsSlice';
-import rawMaterialReducer from '../modules/rawMaterials/rawMaterialSlice';
-import consumptionReducer from '../modules/consumption/consumptionSlice';
 
 export const store = configureStore({
   reducer: {
@@ -29,12 +25,8 @@ export const store = configureStore({
     customerRewards: customerRewardsReducer,
     gst: gstReducer,
     settings: settingsReducer,
-    accounts: accountsReducer,
     grn: grnReducer,
     dispatch: dispatchReducer,
-    supplierOutward: supplierOutwardReducer,
-    consumption: consumptionReducer,
     reports: reportsReducer,
-    rawMaterial: rawMaterialReducer,
   },
 });
