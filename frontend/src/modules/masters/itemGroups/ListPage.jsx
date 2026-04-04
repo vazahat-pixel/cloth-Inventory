@@ -1,7 +1,7 @@
-import SetupGroupsScreen from '../../erp/SetupGroupsScreen';
+import GroupsPage from '../../setup/GroupsPage';
 
 function ItemGroupsListPage() {
-  return <SetupGroupsScreen />;
+  return <GroupsPage />;
 }
 
 export default ItemGroupsListPage;
