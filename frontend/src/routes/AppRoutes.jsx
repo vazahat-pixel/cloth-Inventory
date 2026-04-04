@@ -150,7 +150,6 @@ const ProfilePage = lazy(() => import('../modules/profile/ProfilePage'));
 const DataImportExportPage = lazy(() => import('../modules/data/DataImportExportPage'));
 const GRNListPage = lazy(() => import('../modules/grn/GRNListPage'));
 const GRNFormPage = lazy(() => import('../modules/grn/GRNFormPage'));
-const AccessoryDirectEntryPage = lazy(() => import('../modules/items/AccessoryDirectEntryPage'));
 const HoMasterDashboard = lazy(() => import('../modules/reports/HoMasterDashboard'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
 
@@ -279,7 +278,6 @@ function AppRoutes() {
             <Route path="inventory/raw-materials" element={<RawMaterialListPage />} />
             <Route path="inventory/raw-materials/new" element={<RawMaterialFormPage />} />
             <Route path="inventory/raw-materials/edit/:id" element={<RawMaterialFormPage />} />
-            <Route path="inventory/accessory-entry" element={<AccessoryDirectEntryPage />} />
 
 
             <Route path="orders/delivery-challan" element={<DeliveryChallanPage />} />
