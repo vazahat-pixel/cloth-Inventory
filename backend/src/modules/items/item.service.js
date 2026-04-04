@@ -249,6 +249,36 @@ class ItemService {
     }
 
     await item.save();
+
+    // Initialize/Update Inventory in the default warehouse
+    if (item.defaultWarehouse && item.sizes && item.sizes.length > 0) {
+      const inventoryOps = item.sizes
+        .filter(variant => variant.stock > 0)
+        .map(variant => ({
+          updateOne: {
+            filter: { 
+              warehouseId: item.defaultWarehouse, 
+              barcode: variant.sku || variant.barcode 
+            },
+            update: {
+              $set: {
+                itemId: item._id,
+                variantId: variant._id || variant.id,
+                quantity: variant.stock,
+                reorderLevel: variant.reorderLevel || 0,
+                lastUpdated: new Date()
+              }
+            },
+            upsert: true
+          }
+        }));
+
+      if (inventoryOps.length > 0) {
+        const WarehouseInventory = require('../../models/warehouseInventory.model');
+        await WarehouseInventory.bulkWrite(inventoryOps);
+      }
+    }
+
     return populateItem(item._id);
   }
 
