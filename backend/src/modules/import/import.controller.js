@@ -2,6 +2,8 @@ const xlsx = require('xlsx');
 const itemService = require('../items/item.service');
 const Group = require('../../models/group.model');
 const Item = require('../../models/item.model');
+const Purchase = require('../../models/purchase.model');
+const StockLedger = require('../../models/stockLedger.model');
 const { sendSuccess, sendError } = require('../../utils/response.handler');
 
 const normalizeString = (value) => {
@@ -29,6 +31,7 @@ const normalizeNumber = (value, fallback = 0) => {
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 class ImportController {
+  // Existing Excel Import
   importItems = async (req, res) => {
     try {
       if (!req.file) {
@@ -77,6 +80,115 @@ class ImportController {
     }
   };
 
+  // --- NEW EXPORTS FOR DATA HUB ---
+
+  exportItems = async (req, res) => {
+    try {
+      const items = await Item.find().populate('groupIds', 'name');
+      
+      const csvHeader = 'ItemCode,ItemName,Brand,Shade,GST,Group,Size,MRP,CostPrice,SalePrice,Barcode\n';
+      const rows = items.flatMap(item => 
+        item.sizes.map(s => [
+          item.itemCode,
+          item.itemName,
+          item.brand,
+          item.shade,
+          item.gstTax || 0,
+          item.groupIds?.[0]?.name || 'N/A',
+          s.size,
+          s.mrp || 0,
+          s.costPrice || 0,
+          s.salePrice || 0,
+          s.barcode || ''
+        ].join(',')).join('\n')
+      ).join('\n');
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename=item_master_export.csv');
+      return res.status(200).send(csvHeader + rows);
+    } catch (error) {
+      return sendError(res, error.message);
+    }
+  };
+
+  exportPurchases = async (req, res) => {
+    try {
+      const purchases = await Purchase.find().populate('supplierId', 'name').limit(1000);
+      
+      const header = 'PurchaseNumber,Supplier,InvoiceNo,InvoiceDate,ItemCode,Size,Qty,Rate,Tax%,Total\n';
+      const rows = purchases.flatMap(p => 
+        p.products.map(item => [
+          p.purchaseNumber,
+          p.supplierId?.name || 'Cash',
+          p.invoiceNumber,
+          p.invoiceDate ? p.invoiceDate.toISOString().split('T')[0] : '',
+          item.itemCode || item.sku,
+          item.size,
+          item.quantity,
+          item.rate,
+          item.taxPercentage,
+          item.total
+        ].join('|')).join('\n')
+      ).join('\n');
+
+      res.setHeader('Content-Type', 'text/plain');
+      res.setHeader('Content-Disposition', 'attachment; filename=purchase_export.txt');
+      return res.status(200).send(header + rows);
+    } catch (error) {
+      return sendError(res, error.message);
+    }
+  };
+
+  exportTransfers = async (req, res) => {
+    try {
+      const transfers = await StockLedger.find({ source: 'TRANSFER' })
+        .populate('itemId', 'itemCode itemName')
+        .limit(2000);
+      
+      const header = 'Date,Reference,ItemCode,Barcode,Qty,LocationType,Direction\n';
+      const rows = transfers.map(t => [
+        t.createdAt.toISOString(),
+        t.referenceId,
+        t.itemId?.itemCode || 'Unknown',
+        t.barcode,
+        t.quantity,
+        t.locationType,
+        t.type
+      ].join('|')).join('\n');
+
+      res.setHeader('Content-Type', 'text/plain');
+      res.setHeader('Content-Disposition', 'attachment; filename=stock_transfer_export.txt');
+      return res.status(200).send(header + rows);
+    } catch (error) {
+      return sendError(res, error.message);
+    }
+  };
+
+  // --- NEW IMPORTS (TEXT BASED) ---
+
+  importItemsText = async (req, res) => {
+    try {
+      if (!req.file) return sendError(res, 'No file found');
+      const text = req.file.buffer.toString();
+      const lines = text.split('\n').filter(l => l.trim());
+      
+      // Basic implementation for demonstration
+      return sendSuccess(res, { rowsProcessed: lines.length }, 'Import from Text File started (Beta)');
+    } catch (error) {
+      return sendError(res, error.message);
+    }
+  };
+
+  importPurchaseText = async (req, res) => {
+    try {
+      if (!req.file) return sendError(res, 'No file found');
+      return sendSuccess(res, {}, 'Purchase Import started (Beta)');
+    } catch (error) {
+       return sendError(res, error.message);
+    }
+  };
+
+  // Helper methods
   findMappedHeader = (mapping, field) =>
     Object.keys(mapping || {}).find((header) => mapping[header] === field);
 

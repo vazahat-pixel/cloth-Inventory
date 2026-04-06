@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
+  Alert,
   Box,
   Breadcrumbs,
   Button,
@@ -21,7 +22,7 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import SearchIcon from '@mui/icons-material/Search';
-import { addMasterRecord, deleteMasterRecord, updateMasterRecord, fetchMasters } from '../mastersSlice';
+import { addMasterRecord, deleteMasterRecord, updateMasterRecord, fetchMasters, clearMastersError } from '../mastersSlice';
 import DeleteConfirmDialog from './DeleteConfirmDialog';
 
 function MasterListPage({
@@ -36,7 +37,7 @@ function MasterListPage({
   addButtonLabel,
 }) {
   const dispatch = useDispatch();
-  const records = useSelector((state) => state.masters?.[entityKey] || []);
+  const { [entityKey]: records = [], error, loading } = useSelector((state) => state.masters || {});
 
   const [searchText, setSearchText] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -71,11 +72,13 @@ function MasterListPage({
   };
 
   const openAddDialog = () => {
+    dispatch(clearMastersError());
     setEditingRow(null);
     setIsDialogOpen(true);
   };
 
   const openEditDialog = (row) => {
+    dispatch(clearMastersError());
     setEditingRow(row);
     setIsDialogOpen(true);
   };
@@ -122,6 +125,11 @@ function MasterListPage({
 
   return (
     <>
+      {error && (
+        <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => dispatch(clearMastersError())}>
+          {error}
+        </Alert>
+      )}
       <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2 }}>
         <Stack spacing={2} sx={{ px: { xs: 2, sm: 3 }, pt: { xs: 2, sm: 3 }, pb: 2 }}>
           <Breadcrumbs separator="/" aria-label="masters-breadcrumb">

@@ -47,14 +47,14 @@ export const getRoleBasePath = (role) => {
 
 const adminSidebarItems = [
   { label: 'Search Home', path: '/', icon: HomeIcon },
-  { label: 'Goods Control', path: '/inventory/stock-overview', icon: Inventory2Icon, matchPaths: ['/inventory/stock-overview', '/items', '/grn', '/setup/barcode-print', '/setup/groups', '/setup/hsn-codes', '/setup/sizes', '/masters/brands'], drilldown: true },
+  { label: 'Goods Control', path: '/inventory/stock-overview', icon: Inventory2Icon, matchPaths: ['/inventory/stock-overview', '/items', '/inventory/grn', '/setup/barcode-print', '/setup/groups', '/setup/hsn-codes', '/setup/sizes', '/masters/brands'], drilldown: true },
   { label: 'Sales & Billing', path: '/sales', icon: PointOfSaleIcon, matchPaths: billingMatchPaths, drilldown: true },
   { label: 'Reports & Analytics', path: '/reports', icon: AssessmentOutlinedIcon, matchPaths: reportsQueriesMatchPaths, drilldown: true },
   { label: 'Suppliers', path: '/masters/suppliers', icon: BusinessIcon, matchPaths: ['/masters/suppliers', '/suppliers/material-ledger'], drilldown: true },
   { label: 'Customers', path: '/masters/customers', icon: PeopleIcon },
   { label: 'Stores', path: '/masters/stores', icon: StorefrontIcon },
   { label: 'Warehouse Settings', path: '/settings/company', icon: WarehouseIcon },
-  { label: 'Data Hub', path: '/data-import', icon: FileUploadOutlinedIcon, matchPaths: dataImportNavItems, drilldown: true },
+  { label: 'Data Hub', path: '/data-import', icon: FileUploadOutlinedIcon, matchPaths: dataImportMatchPaths, drilldown: true },
 ];
 
 export const adminNavConfig = {
@@ -74,7 +74,7 @@ export const adminNavConfig = {
       { label: 'Size Masters', path: '/ho/setup/sizes' },
       { label: 'Brand Registry', path: '/ho/masters/brands' },
     ],
-    '/items': [{ label: 'Back to Registry', path: '/ho/inventory' }],
+    '/items': [{ label: 'Back to Registry', path: '/items' }],
     '/sales': billingNavItems,
     '/reports': [
       ...reportsQueriesNavItems.map(i => ({ ...i, drilldown: i.path === '/reports/financial-reports' })),

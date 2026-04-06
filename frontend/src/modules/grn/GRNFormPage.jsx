@@ -213,6 +213,7 @@ function GRNFormPage({ mode = 'edit' }) {
   const totals = useMemo(() => {
     return lines.reduce((acc, curr) => {
       acc.received += Number(curr.receivedQty || 0);
+      acc.totalValue += (Number(curr.costPrice || 0) * Number(curr.receivedQty || 0));
       return acc;
     }, { received: 0 });
   }, [lines]);
@@ -229,7 +230,7 @@ function GRNFormPage({ mode = 'edit' }) {
 
   const handleBarcodeScan = (barcode) => {
     if (!barcode) return;
-    
+
     // 1. Check if item already exists in the scan lines
     const existingIdx = lines.findIndex(l => l.sku === barcode || l.barcode === barcode);
     if (existingIdx !== -1) {
@@ -434,9 +435,9 @@ function GRNFormPage({ mode = 'edit' }) {
       {!isLocked && (
         <Box sx={{ mb: 3 }}>
           <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>Select Receipt Type</Typography>
-          <ToggleButtonGroup 
-            exclusive 
-            value={formValues.grnType} 
+          <ToggleButtonGroup
+            exclusive
+            value={formValues.grnType}
             onChange={(e, val) => { if (val) setFormValues({ ...formValues, grnType: val }); }}
             color="primary"
             sx={{ bgcolor: 'white' }}

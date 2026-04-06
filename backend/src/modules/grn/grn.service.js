@@ -266,7 +266,7 @@ const approveGRN = async (id, userId) => {
         } else if (grnType === 'GARMENT') {
             // ─── Garment (Job Work Return): Settle material consumption ─────
             console.log(`[GRN-APPROVAL] GARMENT GRN — Processing material consumption settlement...`);
-            
+
             if (grn.consumptionDetails && grn.consumptionDetails.length > 0) {
                 await settleConsumption({
                     grnId: grn._id,
@@ -408,5 +408,6 @@ module.exports = {
     getGRNById,
     getGrnsByPurchase,
     getAllGrns,
-    getNextSuggestedNumber
+    getNextSuggestedNumber,
+    updateGRN
 };
