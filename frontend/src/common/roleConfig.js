@@ -67,7 +67,7 @@ export const adminNavConfig = {
       { label: 'Garment Master', path: '/ho/items' },
       { label: 'Inventory Overview', path: '/ho/inventory/stock-overview' },
       { label: 'Barcode Print', path: '/ho/setup/barcode-print' },
-      { label: 'Scan-to-Receipt (GRN)', path: '/ho/grn' },
+      { label: 'Scan-to-Receipt (GRN)', path: '/ho/inventory/grn' },
       { label: 'Item Groups (Hierarchy)', path: '/ho/setup/groups' },
       { label: 'HSN Masters', path: '/ho/setup/hsn-codes' },
       { label: 'Size Masters', path: '/ho/setup/sizes' },

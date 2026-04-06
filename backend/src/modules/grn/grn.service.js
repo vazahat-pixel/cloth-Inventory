@@ -1,32 +1,114 @@
 const GRN = require('../../models/grn.model');
 const Purchase = require('../../models/purchase.model');
 const Item = require('../../models/item.model');
+const SupplierInventory = require('../../models/supplierInventory.model');
+const MaterialConsumption = require('../../models/materialConsumption.model');
 const { GrnStatus, DocumentType } = require('../../core/enums');
 const { withTransaction } = require('../../services/transaction.service');
 const { getNextSequence } = require('../../services/sequence.service');
 const workflowService = require('../workflow/workflow.service.js');
-
 const stockLedgerService = require('../inventory/stockLedger.service');
 
-/**
- * Generate unique GRN Number (GRN-YYYY-XXXXX)
- */
+// ─── Number Generators ────────────────────────────────────────────────────────
+
 const generateGrnNumber = async (session = null) => {
     const year = new Date().getFullYear();
     const prefix = `GRN-${year}-`;
-    const counterName = `GRN_${year}`;
-
-    const seq = await getNextSequence(counterName, session);
+    const seq = await getNextSequence(`GRN_${year}`, session);
     return `${prefix}${seq.toString().padStart(5, '0')}`;
 };
 
-/**
- * Step 1: Create a new GRN (Partial Receiving Support)
- * Manages the increment of received counts without affecting physical stock.
- */
+const generateConsumptionNumber = async (session = null) => {
+    const year = new Date().getFullYear();
+    const seq = await getNextSequence(`MC_${year}`, session);
+    return `MC-${year}-${seq.toString().padStart(5, '0')}`;
+};
+
+// ─── Internal: Settle Material Consumption (GARMENT GRN Only) ─────────────────
+// Called during GARMENT GRN approval to:
+//  1. Deduct consumed + wasted material from Supplier's virtual inventory
+//  2. Compute pendingQty (what's still at tailor's end)
+//  3. Create a full MaterialConsumption audit record
+
+const settleConsumption = async ({ grnId, supplierId, jobWorkId, consumptionDetails }, session) => {
+    if (!consumptionDetails || consumptionDetails.length === 0) return null;
+
+    const settledItems = [];
+
+    for (const detail of consumptionDetails) {
+        const usedQty = Number(detail.usedQty || 0);
+        const wasteQty = Number(detail.wasteQty || 0);
+        const givenQty = Number(detail.givenQty || 0);
+        const pendingQty = Math.max(0, givenQty - usedQty - wasteQty);
+
+        const totalDeduction = usedQty + wasteQty;
+
+        if (totalDeduction > 0 && detail.barcode) {
+            // Deduct from Supplier's virtual inventory balance
+            const supplierInv = await SupplierInventory.findOne({
+                supplierId,
+                barcode: detail.barcode
+            }).session(session);
+
+            if (!supplierInv) {
+                console.warn(`[CONSUMPTION] Supplier inventory not found for barcode: ${detail.barcode}. Skipping deduction.`);
+            } else if (supplierInv.quantity < totalDeduction) {
+                throw new Error(
+                    `Material balance insufficient for ${detail.itemName || detail.barcode}. ` +
+                    `Available at supplier: ${supplierInv.quantity}, Trying to deduct: ${totalDeduction}`
+                );
+            } else {
+                supplierInv.quantity -= totalDeduction;
+                supplierInv.lastUpdated = Date.now();
+                await supplierInv.save({ session });
+                console.log(`[CONSUMPTION] ${detail.barcode}: deducted ${totalDeduction}, remaining: ${supplierInv.quantity}`);
+            }
+        }
+
+        settledItems.push({
+            itemId: detail.itemId,
+            variantId: detail.variantId,
+            barcode: detail.barcode,
+            itemName: detail.itemName,
+            itemCode: detail.itemCode,
+            uom: detail.uom || 'MTR',
+            givenQty,
+            usedQty,
+            wasteQty,
+            pendingQty,
+            notes: detail.notes || ''
+        });
+    }
+
+    // Create the MaterialConsumption audit record
+    const consumptionNumber = await generateConsumptionNumber(session);
+    const record = await MaterialConsumption.create([{
+        consumptionNumber,
+        supplierId,
+        jobWorkId: jobWorkId || null,
+        grnId,
+        items: settledItems,
+        status: 'SETTLED',
+        consumptionDate: new Date(),
+    }], { session });
+
+    console.log(`[CONSUMPTION] Created record: ${consumptionNumber} for GRN: ${grnId}`);
+    return record[0];
+};
+
+// ─── Step 1: Create GRN (Draft) ───────────────────────────────────────────────
+
 const createGRN = async (grnData, userId) => {
     return await withTransaction(async (session) => {
-        const { purchaseId, purchaseOrderId, supplierId, warehouseId, invoiceNumber, invoiceDate, remarks, items } = grnData;
+        const {
+            grnType = 'FABRIC', // Default to FABRIC for safety
+            purchaseId, purchaseOrderId,
+            supplierId, warehouseId,
+            invoiceNumber, invoiceDate,
+            remarks, items,
+            jobWorkId,
+            consumptionDetails
+        } = grnData;
 
         // 1. Validate Parent Document (Optional for Direct GRN)
         let parentDoc = null;
@@ -39,140 +121,122 @@ const createGRN = async (grnData, userId) => {
             if (!parentDoc) throw new Error('Purchase document not found');
         }
 
+        // 2. For GARMENT GRN, Job Work Reference is recommended
+        if (grnType === 'GARMENT' && !jobWorkId) {
+            console.warn('[GRN-CREATE] Garment GRN created without Job Work Reference. Consumption will be manual-only.');
+        }
+
+        // 3. Process line items
         const processedItems = [];
-        const existingGrns = await GRN.find({
-            $or: [{ purchaseId }, { purchaseOrderId }],
-            isDeleted: false
-        }).session(session);
 
         for (const item of items) {
             const itemId = item.itemId || item.productId;
-            const variantId = item.variantId; // This is the _id of the size variant
+            const variantId = item.variantId;
             let sku = item.sku;
-            
-            let orderedQty = item.orderedQty || 0;
 
-            // If linked to a parent document, validate quantities
-            if (parentDoc) {
-                const parentItems = parentDoc.items || parentDoc.products || [];
-                const originalItem = parentItems.find(p =>
-                    (p.itemId || p.productId || p._id).toString() === itemId.toString() &&
-                    (p.variantId || p._id).toString() === variantId.toString()
-                );
-
-                if (originalItem) {
-                    orderedQty = originalItem.quantity || originalItem.qty || orderedQty;
-                }
-            }
-
-            // Calculate historical total received for this specific variant
-            let totalPreviouslyReceived = 0;
-            if (existingGrns.length > 0 && itemId && variantId) {
-                existingGrns.forEach(g => {
-                    if (g.items && Array.isArray(g.items)) {
-                        const prevItem = g.items.find(i => {
-                            const curItemId = (i.itemId || i.productId);
-                            return curItemId && curItemId.toString() === itemId.toString() &&
-                                i.variantId && i.variantId.toString() === variantId.toString();
-                        });
-                        if (prevItem) {
-                            totalPreviouslyReceived += (prevItem.receivedQty || 0);
-                        }
-                    }
-                });
-            }
-
-            const currentTotalReceived = totalPreviouslyReceived + item.receivedQty;
-
-            // Overage Error Check (Optional but helpful)
-            if (orderedQty > 0 && currentTotalReceived > orderedQty) {
-                // Throwing error or warning? Let's stay strict for now or disable if not linked.
-                // throw new Error(`Overage for SKU ${sku}. Total received (${currentTotalReceived}) exceeds ordered (${orderedQty}).`);
-            }
-
-            const originalItem = parentDoc ? parentDoc.items.find(p => 
-                (p.itemId || p.productId || p._id).toString() === itemId.toString() &&
-                (p.variantId || p._id).toString() === variantId.toString()
-            ) : null;
-
-            
-            // BACKEND FAIL-SAFE: If SKU is missing, recover it from Item Master
+            // FAIL-SAFE: Recover SKU + itemName + uom from Item Master if missing
+            let masterItem = null;
             if (!sku && itemId) {
-                const masterDoc = await Item.findById(itemId).session(session);
-                if (masterDoc && masterDoc.sizes) {
-                    const variant = masterDoc.sizes.find(v => (v._id || v.id).toString() === variantId.toString());
+                masterItem = await Item.findById(itemId).session(session);
+                if (masterItem?.sizes) {
+                    const variant = masterItem.sizes.find(v => (v._id || v.id).toString() === variantId?.toString());
                     sku = variant?.sku;
                 }
-                // If still missing, check Top Level
-                if (!sku) sku = masterDoc?.sku || masterDoc?.itemCode;
+                if (!sku) sku = masterItem?.sku || masterItem?.itemCode;
+            } else if (itemId) {
+                masterItem = await Item.findById(itemId).session(session);
+            }
+
+            // Tax logic: Only compute for FABRIC and ACCESSORY
+            let taxPercent = 0;
+            let taxAmount = 0;
+            let totalWithTax = 0;
+
+            if (grnType !== 'GARMENT') {
+                taxPercent = Number(item.taxPercent || item.tax || 0);
+                const baseValue = Number(item.costPrice || 0) * Number(item.receivedQty || 0);
+                taxAmount = (baseValue * taxPercent) / 100;
+                totalWithTax = baseValue + taxAmount;
             }
 
             processedItems.push({
                 itemId,
                 variantId,
-                sku: sku || 'N/A', // Ultimate fallback for model integrity
-                receivedQty: item.receivedQty,
-                costPrice: item.costPrice || (originalItem ? (originalItem.price || originalItem.rate || originalItem.costPrice) : 0),
-                tax: item.tax || (originalItem ? (originalItem.taxPercent || originalItem.tax) : 0),
-                discount: item.discount || (originalItem ? (originalItem.discountPercent || originalItem.discount) : 0),
-                size: item.size || (originalItem ? originalItem.size : '-'),
-                color: item.color || (originalItem ? originalItem.color : '-'),
-                batchNumber: item.lotNumber || item.batchNumber || `BATCH-${Date.now()}`
+                sku: sku || 'N/A',
+                itemName: item.itemName || masterItem?.itemName || '',
+                size: item.size || '',
+                color: item.color || '',
+                uom: item.uom || masterItem?.uom || 'PCS',
+                receivedQty: Number(item.receivedQty || 0),
+                costPrice: Number(item.costPrice || 0),
+                taxPercent,
+                taxAmount,
+                totalWithTax,
+                discount: Number(item.discount || 0),
+                batchNumber: item.batchNumber || `B-${Date.now().toString().slice(-6)}`
             });
         }
 
-        console.log('Processed Items for GRN:', processedItems);
+        // 4. Compute invoice-level totals
+        const totalQty = processedItems.reduce((s, i) => s + i.receivedQty, 0);
+        const totalValue = processedItems.reduce((s, i) => s + (i.costPrice * i.receivedQty), 0);
+        const totalTaxAmount = processedItems.reduce((s, i) => s + i.taxAmount, 0);
+        const grandTotal = totalValue + totalTaxAmount;
 
         const grnNumber = await generateGrnNumber(session);
 
         const grn = new GRN({
             grnNumber,
+            grnType,
             purchaseId: purchaseId || null,
             purchaseOrderId: purchaseOrderId || null,
-            jobWorkId: grnData.jobWorkId || null,
-            consumptionDetails: grnData.consumptionDetails || [],
+            jobWorkId: jobWorkId || null,
             supplierId,
             warehouseId,
             invoiceNumber,
             invoiceDate,
             remarks,
             items: processedItems,
+            consumptionDetails: consumptionDetails || [],
+            totalQty,
+            totalValue,
+            totalTaxAmount,
+            grandTotal,
             receivedBy: userId,
-            status: GrnStatus.DRAFT // Start as Draft
+            status: GrnStatus.DRAFT
         });
 
         await grn.save({ session });
 
-        const parentId = purchaseOrderId || purchaseId;
-        const parentType = purchaseOrderId ? DocumentType.PO : DocumentType.PURCHASE;
-
-        await workflowService.linkDocuments(parentId, grn._id, parentType, DocumentType.GRN);
-        await workflowService.updateStatus(grn._id, DocumentType.GRN, null, GrnStatus.DRAFT, userId, `Created Draft GRN ${grnNumber} from ${purchaseOrderId ? 'PO' : 'Purchase'}`);
+        // Link to workflow if parent doc exists
+        if (purchaseOrderId || purchaseId) {
+            const parentId = purchaseOrderId || purchaseId;
+            const parentType = purchaseOrderId ? DocumentType.PO : DocumentType.PURCHASE;
+            await workflowService.linkDocuments(parentId, grn._id, parentType, DocumentType.GRN);
+        }
+        await workflowService.updateStatus(grn._id, DocumentType.GRN, null, GrnStatus.DRAFT, userId, `Created ${grnType} GRN ${grnNumber}`);
 
         return grn;
     });
 };
 
-/**
- * Step 2: Approve GRN & Post Stock
- */
+// ─── Step 2: Approve GRN & Post Stock ────────────────────────────────────────
+
 const approveGRN = async (id, userId) => {
     return await withTransaction(async (session) => {
         const grn = await GRN.findOne({ _id: id, isDeleted: false }).session(session);
         if (!grn) throw new Error('GRN not found');
         if (grn.status !== GrnStatus.DRAFT) throw new Error(`GRN cannot be approved in ${grn.status} status`);
 
-        // 1. Update Status
+        const { grnType } = grn;
         const oldStatus = grn.status;
-        grn.status = GrnStatus.APPROVED;
-        await grn.save({ session });
 
-        // 2. Post to Stock Ledger and Master Inventory for each item
+        console.log(`[GRN-APPROVAL] Type: ${grnType}, GRN: ${grn.grnNumber}, Warehouse: ${grn.warehouseId}`);
+
+        // 1. Post Physical Stock to Warehouse (All types)
         const stockService = require('../../services/stock.service');
-        console.log(`[GRN-APPROVAL] Posting stock for GRN: ${grn.grnNumber}, Warehouse: ${grn.warehouseId}`);
-        
+
         for (const item of grn.items) {
-            console.log(`   -> Item: ${item.sku}, Variant: ${item.variantId}, Qty: ${item.receivedQty}`);
             await stockService.addStock({
                 itemId: item.itemId,
                 barcode: item.sku,
@@ -188,9 +252,42 @@ const approveGRN = async (id, userId) => {
             });
         }
 
-        console.log(`[GRN-APPROVAL] Successfully posted all items to Warehouse stock.`);
-        
-        // 3. Update Purchase Order Fulfillment if linked
+        // 2. TYPE-SPECIFIC POST-PROCESSING
+        if (grnType === 'FABRIC' || grnType === 'ACCESSORY') {
+            // ─── Fabric / Accessory: Finalize tax totals ────────────────────
+            // Re-compute totals from stored line items
+            const totalTaxAmount = grn.items.reduce((s, i) => s + (i.taxAmount || 0), 0);
+            const totalValue = grn.items.reduce((s, i) => s + (i.costPrice * i.receivedQty), 0);
+            grn.totalTaxAmount = totalTaxAmount;
+            grn.grandTotal = totalValue + totalTaxAmount;
+
+            console.log(`[GRN-APPROVAL] ${grnType} GRN — Tax posted: ₹${totalTaxAmount.toFixed(2)}, Grand Total: ₹${grn.grandTotal.toFixed(2)}`);
+
+        } else if (grnType === 'GARMENT') {
+            // ─── Garment (Job Work Return): Settle material consumption ─────
+            console.log(`[GRN-APPROVAL] GARMENT GRN — Processing material consumption settlement...`);
+            
+            if (grn.consumptionDetails && grn.consumptionDetails.length > 0) {
+                await settleConsumption({
+                    grnId: grn._id,
+                    supplierId: grn.supplierId,
+                    jobWorkId: grn.jobWorkId,
+                    consumptionDetails: grn.consumptionDetails,
+                }, session);
+            } else {
+                console.warn(`[GRN-APPROVAL] GARMENT GRN approved with no consumption details. Supplier inventory NOT adjusted.`);
+            }
+
+            // GARMENT GRN has zero tax
+            grn.totalTaxAmount = 0;
+            grn.grandTotal = grn.totalValue;
+        }
+
+        // 3. Update Approval Status
+        grn.status = GrnStatus.APPROVED;
+        await grn.save({ session });
+
+        // 4. Update Purchase Order Fulfillment if linked
         if (grn.purchaseOrderId) {
             const PurchaseOrder = require('../../models/purchaseOrder.model');
             const po = await PurchaseOrder.findById(grn.purchaseOrderId).session(session);
@@ -201,8 +298,7 @@ const approveGRN = async (id, userId) => {
                         poItem.receivedQty = (poItem.receivedQty || 0) + item.receivedQty;
                     }
                 }
-                
-                // Determine PO Status
+
                 let isFullyFulfilled = true;
                 let hasAnyReceiving = false;
                 for (const poItem of po.items) {
@@ -213,46 +309,100 @@ const approveGRN = async (id, userId) => {
                 const { PurchaseOrderStatus } = require('../../core/enums');
                 if (isFullyFulfilled) po.status = PurchaseOrderStatus.COMPLETED;
                 else if (hasAnyReceiving) po.status = PurchaseOrderStatus.PARTIALLY_RECEIVED;
-                
                 await po.save({ session });
             }
         }
 
-        await workflowService.updateStatus(grn._id, DocumentType.GRN, oldStatus, GrnStatus.APPROVED, userId, `Approved GRN ${grn.grnNumber} and posted stock to warehouse.`);
+        await workflowService.updateStatus(
+            grn._id, DocumentType.GRN, oldStatus, GrnStatus.APPROVED, userId,
+            `Approved ${grnType} GRN ${grn.grnNumber} and posted stock to warehouse.`
+        );
 
         return grn;
     });
 };
+
+// ─── Read Operations ──────────────────────────────────────────────────────────
 
 const getGRNById = async (id) => {
     return await GRN.findOne({ _id: id, isDeleted: false })
         .populate('supplierId', 'name supplierName')
         .populate('warehouseId', 'name')
         .populate('purchaseOrderId', 'poNumber items')
-        .populate('items.itemId', 'itemName itemCode shade gstTax sizes');
+        .populate('jobWorkId', 'outwardNumber outwardDate')
+        .populate('items.itemId', 'itemName itemCode uom gstPercent sizes');
 };
 
 const getGrnsByPurchase = async (purchaseId) => {
     return await GRN.find({ purchaseId, isDeleted: false }).sort({ createdAt: -1 });
 };
 
-const getAllGrns = async () => {
-    return await GRN.find({ isDeleted: false })
+const getAllGrns = async (filters = {}) => {
+    const query = { isDeleted: false };
+    if (filters.grnType) query.grnType = filters.grnType;
+    if (filters.supplierId) query.supplierId = filters.supplierId;
+    if (filters.status) query.status = filters.status;
+
+    return await GRN.find(query)
         .populate('supplierId', 'name supplierName')
         .populate('warehouseId', 'name')
-        .populate('items.itemId', 'itemName itemCode shade gstTax sizes')
+        .populate('items.itemId', 'itemName itemCode uom')
         .sort({ createdAt: -1 });
 };
 
 const getNextSuggestedNumber = async () => {
-    // Note: In this simple implementation, we generate it. 
-    // Usually, we'd peek, but here we just return a generated one for now.
     return await generateGrnNumber();
 };
+
+// ─── Update GRN (Draft only) ──────────────────────────────────────────────────
+
+const updateGRN = async (id, updateData, userId) => {
+    return await withTransaction(async (session) => {
+        const grn = await GRN.findOne({ _id: id, isDeleted: false }).session(session);
+        if (!grn) throw new Error('GRN not found');
+        if (grn.status !== GrnStatus.DRAFT) throw new Error('Only DRAFT GRNs can be updated');
+
+        // Re-compute tax if items changed and not GARMENT type
+        if (updateData.items) {
+            const grnType = updateData.grnType || grn.grnType;
+            updateData.items = updateData.items.map(item => {
+                if (grnType !== 'GARMENT') {
+                    const taxPercent = Number(item.taxPercent || 0);
+                    const baseValue = Number(item.costPrice || 0) * Number(item.receivedQty || 0);
+                    item.taxAmount = (baseValue * taxPercent) / 100;
+                    item.totalWithTax = baseValue + item.taxAmount;
+                } else {
+                    item.taxPercent = 0;
+                    item.taxAmount = 0;
+                    item.totalWithTax = Number(item.costPrice || 0) * Number(item.receivedQty || 0);
+                }
+                return item;
+            });
+
+            updateData.totalQty = updateData.items.reduce((s, i) => s + Number(i.receivedQty || 0), 0);
+            updateData.totalValue = updateData.items.reduce((s, i) => s + (Number(i.costPrice || 0) * Number(i.receivedQty || 0)), 0);
+            updateData.totalTaxAmount = updateData.items.reduce((s, i) => s + Number(i.taxAmount || 0), 0);
+            updateData.grandTotal = updateData.totalValue + updateData.totalTaxAmount;
+        }
+
+        Object.assign(grn, updateData);
+        await grn.save({ session });
+        return grn;
+    });
+};
+
+// const getAllGrns = async () => {
+//     return await GRN.find({ isDeleted: false })
+//         .populate('supplierId', 'name supplierName')
+//         .populate('warehouseId', 'name')
+//         .populate('items.itemId', 'itemName itemCode shade gstPercent sizes')
+//         .sort({ createdAt: -1 });
+// };
 
 module.exports = {
     createGRN,
     approveGRN,
+    updateGRN,
     getGRNById,
     getGrnsByPurchase,
     getAllGrns,
