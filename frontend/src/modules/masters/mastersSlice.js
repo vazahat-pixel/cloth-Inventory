@@ -138,6 +138,18 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
         description: record.description,
         isActive: record.status !== 'Inactive',
       };
+    } else if (entityKey === 'stores') {
+      // Stores: ensure structure matches model
+      payload = {
+        name: record.name,
+        managerName: record.managerName,
+        managerPhone: record.managerPhone,
+        email: record.email,
+        password: record.password,
+        location: record.location,
+        gstNumber: record.gstNumber,
+        isActive: record.isActive !== false,
+      };
     }
 
     const response = await api.post(endpoint, payload);
@@ -234,6 +246,17 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
         parentId: updates.parentId === '' ? null : updates.parentId,
         description: updates.description,
         isActive: updates.status !== 'Inactive',
+      };
+    } else if (entityKey === 'stores') {
+      payload = {
+        name: updates.name,
+        managerName: updates.managerName,
+        managerPhone: updates.managerPhone,
+        email: updates.email,
+        password: updates.password,
+        location: updates.location,
+        gstNumber: updates.gstNumber,
+        isActive: updates.isActive !== false,
       };
     }
 

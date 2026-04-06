@@ -48,7 +48,7 @@ export const approveGrn = createAsyncThunk('grn/approveGrn', async (id, { reject
 
 export const updateGrn = createAsyncThunk('grn/updateGrn', async ({ id, updateData }, { rejectWithValue }) => {
   try {
-    const response = await api.put(`/grn/${id}`, updateData);
+    const response = await api.patch(`/grn/${id}`, updateData);
     return response.data.grn || response.data.data;
   } catch (err) {
     return rejectWithValue(err.response?.data?.message || 'Failed to update GRN');

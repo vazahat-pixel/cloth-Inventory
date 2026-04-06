@@ -87,7 +87,7 @@ const GRNListPage = () => {
         <Button
           variant="contained"
           startIcon={<AddIcon />}
-          onClick={() => navigate('/ho/grn/new')}
+          onClick={() => navigate('/ho/inventory/grn/new')}
           sx={{ borderRadius: 2, px: 3, py: 1, textTransform: 'none', fontWeight: 700 }}
         >
           Create New GRN
@@ -140,7 +140,7 @@ const GRNListPage = () => {
                   <TableCell align="center">
                     <Stack direction="row" spacing={1} justifyContent="center">
                       <Tooltip title="View Details">
-                        <IconButton size="small" onClick={() => navigate(`/ho/grn/${grn._id}`)}>
+                        <IconButton size="small" onClick={() => navigate(`/ho/inventory/grn/${grn._id}`)}>
                           <VisibilityIcon sx={{ fontSize: 18 }} />
                         </IconButton>
                       </Tooltip>

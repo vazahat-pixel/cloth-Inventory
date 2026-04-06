@@ -47,7 +47,7 @@ export const getRoleBasePath = (role) => {
 
 const adminSidebarItems = [
   { label: 'Search Home', path: '/', icon: HomeIcon },
-  { label: 'Goods Control', path: '/inventory/stock-overview', icon: Inventory2Icon, matchPaths: ['/inventory/stock-overview', '/items', '/grn', '/setup/barcode-print', '/setup/groups', '/setup/hsn-codes', '/setup/sizes', '/masters/brands'], drilldown: true },
+  { label: 'Goods Control', path: '/inventory/stock-overview', icon: Inventory2Icon, matchPaths: ['/inventory/stock-overview', '/items', '/inventory/grn', '/setup/barcode-print', '/setup/groups', '/setup/hsn-codes', '/setup/sizes', '/masters/brands'], drilldown: true },
   { label: 'Sales & Billing', path: '/sales', icon: PointOfSaleIcon, matchPaths: billingMatchPaths, drilldown: true },
   { label: 'Reports & Analytics', path: '/reports', icon: AssessmentOutlinedIcon, matchPaths: reportsQueriesMatchPaths, drilldown: true },
   { label: 'Suppliers', path: '/masters/suppliers', icon: BusinessIcon },
@@ -64,16 +64,16 @@ export const adminNavConfig = {
   mainNav: adminSidebarItems,
   children: {
     '/inventory/stock-overview': [
-      { label: 'Garment Master', path: '/ho/items' },
-      { label: 'Inventory Overview', path: '/ho/inventory/stock-overview' },
-      { label: 'Barcode Print', path: '/ho/setup/barcode-print' },
-      { label: 'Scan-to-Receipt (GRN)', path: '/ho/grn' },
-      { label: 'Item Groups (Hierarchy)', path: '/ho/setup/groups' },
-      { label: 'HSN Masters', path: '/ho/setup/hsn-codes' },
-      { label: 'Size Masters', path: '/ho/setup/sizes' },
-      { label: 'Brand Registry', path: '/ho/masters/brands' },
+      { label: 'Garment Master', path: '/items' },
+      { label: 'Inventory Overview', path: '/inventory/stock-overview' },
+      { label: 'Barcode Print', path: '/setup/barcode-print' },
+      { label: 'Scan-to-Receipt (GRN)', path: '/inventory/grn' },
+      { label: 'Item Groups (Hierarchy)', path: '/setup/groups' },
+      { label: 'HSN Masters', path: '/setup/hsn-codes' },
+      { label: 'Size Masters', path: '/setup/sizes' },
+      { label: 'Brand Registry', path: '/masters/brands' },
     ],
-    '/items': [{ label: 'Back to Registry', path: '/ho/inventory' }],
+    '/items': [{ label: 'Back to Registry', path: '/items' }],
     '/sales': billingNavItems,
     '/reports': [
       ...reportsQueriesNavItems.map(i => ({ ...i, drilldown: i.path === '/reports/financial-reports' })),

@@ -55,11 +55,21 @@ const getNextNumber = async (req, res, next) => {
     }
 };
 
+const update = async (req, res, next) => {
+    try {
+        const grn = await grnService.updateGRN(req.params.id, req.body, req.user._id);
+        return sendSuccess(res, { grn }, 'GRN updated successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
 module.exports = {
     create,
     getById,
     getAll,
     getByPurchase,
     approve,
-    getNextNumber
+    getNextNumber,
+    update
 };

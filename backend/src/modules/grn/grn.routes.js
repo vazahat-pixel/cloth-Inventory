@@ -20,7 +20,8 @@ router.get('/suggested-number', grnController.getNextNumber);
 router.get('/purchase/:purchaseId', grnController.getByPurchase);
 
 router.route('/:id')
-    .get(grnController.getById);
+    .get(grnController.getById)
+    .patch(grnController.update);
 
 router.patch('/:id/approve', requireAdmin, grnController.approve);
 

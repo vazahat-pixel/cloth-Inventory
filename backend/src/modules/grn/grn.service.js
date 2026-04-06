@@ -250,11 +250,54 @@ const getNextSuggestedNumber = async () => {
     return await generateGrnNumber();
 };
 
+/**
+ * Update an existing GRN (Draft only)
+ */
+const updateGRN = async (id, updateData, userId) => {
+    return await withTransaction(async (session) => {
+        const grn = await GRN.findById(id).session(session);
+        if (!grn) throw new Error('GRN not found');
+        if (grn.status !== GrnStatus.DRAFT) {
+            throw new Error(`Cannot update GRN in ${grn.status} status. Only DRAFTs can be modified.`);
+        }
+
+        const { supplierId, warehouseId, invoiceNumber, invoiceDate, remarks, items, jobWorkId, consumptionDetails } = updateData;
+
+        // Note: In update, we don't allow changing purchaseOrderId to avoid complex bookkeeping.
+        // If they need a different PO, they should delete and create a new GRN.
+
+        const processedItems = items.map(item => ({
+            itemId: item.itemId,
+            variantId: item.variantId,
+            sku: item.sku || 'N/A',
+            receivedQty: item.receivedQty,
+            costPrice: item.costPrice || 0,
+            batchNumber: item.batchNumber || `BATCH-UPD-${Date.now()}`
+        }));
+
+        grn.supplierId = supplierId || grn.supplierId;
+        grn.warehouseId = warehouseId || grn.warehouseId;
+        grn.invoiceNumber = invoiceNumber || grn.invoiceNumber;
+        grn.invoiceDate = invoiceDate || grn.invoiceDate;
+        grn.remarks = remarks || grn.remarks;
+        grn.jobWorkId = jobWorkId || grn.jobWorkId;
+        grn.consumptionDetails = consumptionDetails || grn.consumptionDetails;
+        grn.items = processedItems;
+        grn.updatedBy = userId;
+
+        await grn.save({ session });
+        await workflowService.updateStatus(grn._id, DocumentType.GRN, GrnStatus.DRAFT, GrnStatus.DRAFT, userId, `Updated Draft GRN ${grn.grnNumber}`);
+
+        return grn;
+    });
+};
+
 module.exports = {
     createGRN,
     approveGRN,
     getGRNById,
     getGrnsByPurchase,
     getAllGrns,
-    getNextSuggestedNumber
+    getNextSuggestedNumber,
+    updateGRN
 };

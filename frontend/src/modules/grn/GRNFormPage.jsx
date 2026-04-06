@@ -65,7 +65,6 @@ function GRNFormPage({ mode = 'edit' }) {
   const warehouses = useSelector((state) => state.masters.warehouses || []);
   const suppliers = useSelector((state) => state.masters.suppliers || []);
   const allItems = useSelector((state) => state.items.records || []);
-  const supplierOutwards = useSelector((state) => state.supplierOutward.records || []);
 
   const [formValues, setFormValues] = useState(defaultForm);
   const [lines, setLines] = useState([]);
@@ -101,7 +100,6 @@ function GRNFormPage({ mode = 'edit' }) {
     dispatch(fetchMasters('warehouses'));
     dispatch(fetchMasters('suppliers'));
     dispatch(fetchItems());
-    import('../supplierOutward/supplierOutwardSlice').then(m => dispatch(m.fetchSupplierOutwards()));
   }, [dispatch]);
 
   const fetchSupplierBalance = async (supplierId) => {
@@ -182,8 +180,9 @@ function GRNFormPage({ mode = 'edit' }) {
     return lines.reduce((acc, curr) => {
       acc.ordered += Number(curr.orderedQty || 0);
       acc.received += Number(curr.receivedQty || 0);
+      acc.totalValue += (Number(curr.costPrice || 0) * Number(curr.receivedQty || 0));
       return acc;
-    }, { ordered: 0, received: 0 });
+    }, { ordered: 0, received: 0, totalValue: 0 });
   }, [lines]);
 
   const updateLine = (idx, field, val) => {
@@ -357,7 +356,7 @@ function GRNFormPage({ mode = 'edit' }) {
       }
 
       setSuccessMessage(isDraft ? 'GRN saved as draft.' : 'GRN approved successfully.');
-      setTimeout(() => navigate('/ho/grn'), 1500);
+      setTimeout(() => navigate('/ho/inventory/grn'), 1500);
     } catch (err) {
       setErrorMessage(err || 'Failed to save GRN');
     }
@@ -374,11 +373,11 @@ function GRNFormPage({ mode = 'edit' }) {
         subtitle="Receipt goods against Purchase Order or Voucher."
         breadcrumbs={[
           { label: 'Purchase' },
-          { label: 'GRN', href: '/ho/grn' },
+          { label: 'GRN', href: '/ho/inventory/grn' },
           { label: id ? 'Edit' : 'New', active: true },
         ]}
         actions={[
-          <Button key="back" variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate('/ho/grn')}>Back</Button>,
+          <Button key="back" variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate('/ho/inventory/grn')}>Back</Button>,
           !isLocked ? (
             <Button key="draft" variant="contained" color="primary" sx={{ bgcolor: '#2563eb' }} startIcon={<SaveOutlinedIcon />} onClick={() => handleSave(true)}>Save Draft</Button>
           ) : null,
@@ -444,24 +443,6 @@ function GRNFormPage({ mode = 'edit' }) {
                 </TextField>
               </Grid>
 
-              <Grid item xs={12} md={4}>
-                <TextField
-                  select
-                  fullWidth
-                  label="Link Job Work (Outward)"
-                  size="small"
-                  value={formValues.jobWorkId || ''}
-                  onChange={e => setFormValues({ ...formValues, jobWorkId: e.target.value })}
-                  disabled={isLocked}
-                >
-                  <MenuItem value="">Not Linked (Direct GRN)</MenuItem>
-                  {supplierOutwards.map(so => (
-                    <MenuItem key={so._id || so.id} value={so._id || so.id}>
-                      {so.outwardNumber} - {so.supplierId?.name}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
 
               <Grid item xs={12} md={4}>
                 <TextField
