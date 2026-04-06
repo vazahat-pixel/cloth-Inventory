@@ -585,13 +585,20 @@ const getAllSales = async (query, user) => {
     return { sales, total, page: parseInt(page), limit: parseInt(limit) };
 };
 
-const getSaleById = async (id) => {
+const getSaleById = async (id, user = null) => {
     const sale = await Sale.findOne({ _id: id, isDeleted: false })
         .populate('storeId')
         .populate('cashierId', 'name')
         .populate('customerId', 'customerName mobileNumber loyaltyPoints')
         .populate('items.itemId', 'itemName itemCode shade gstTax sizes');
+    
     if (!sale) throw new Error('Sale not found');
+
+    // Security check: Only allow access if user is Admin or belongs to this store
+    if (user && user.role === 'store_staff' && sale.storeId && String(sale.storeId._id || sale.storeId) !== String(user.shopId)) {
+        throw new Error('Access denied to this sale record');
+    }
+
     return sale;
 };
 

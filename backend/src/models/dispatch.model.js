@@ -11,6 +11,14 @@ const dispatchItemSchema = new mongoose.Schema({
         type: Number,
         required: true,
         min: 1
+    },
+    rate: {
+        type: Number,
+        default: 0
+    },
+    tax: {
+        type: Number,
+        default: 0
     }
 }, { _id: false });
 

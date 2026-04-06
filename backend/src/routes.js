@@ -24,6 +24,7 @@ const registerRoutes = (app) => {
     app.use('/api/warehouses', require('./modules/warehouses/warehouse.routes'));
     app.use('/api/suppliers', require('./modules/suppliers/supplier.routes'));
     app.use('/api/delivery-challans', require('./modules/deliveryChallan/deliveryChallan.routes'));
+    app.use('/api/delivery-challan', require('./modules/dispatch/dispatch.routes'));
     app.use('/api/purchase', require('./modules/purchase/purchase.routes'));
     app.use('/api/purchase-orders', require('./modules/purchase/purchaseOrder.routes'));
     app.use('/api/reports', require('./modules/reports/report.routes'));

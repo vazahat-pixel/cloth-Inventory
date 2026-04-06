@@ -60,55 +60,94 @@ const populateDispatchItemsManual = async (dispatches) => {
  */
 const createDispatch = async (dispatchData, userId) => {
     return await withTransaction(async (session) => {
-        const { sourceWarehouseId, destinationStoreId, products, ...rest } = dispatchData;
+        const { sourceId, sourceWarehouseId, destinationStoreId, products, ...rest } = dispatchData;
+        const finalSourceId = sourceId || sourceWarehouseId;
 
         // 1. Resolve source and destination entities
-        const source = await Warehouse.findById(sourceWarehouseId).session(session)
-            || await Store.findById(sourceWarehouseId).session(session);
+        const source = await Warehouse.findById(finalSourceId).session(session)
+            || await Store.findById(finalSourceId).session(session);
         const destination = await Store.findById(destinationStoreId).session(session);
 
-        if (!source || !destination) {
-            throw new Error('Source or Destination not found');
-        }
+        if (!source) throw new Error('Source entity not found');
+        if (!destination) throw new Error('Destination store not found');
 
-        // 2. Compare GSTINs
+        // 2. Compare GSTINs and fetch Store Discount
         const sourceGst = (source.gstNumber || '').trim().toUpperCase();
         const destGst = (destination.gstNumber || '').trim().toUpperCase();
         const isSameEntity = sourceGst === destGst;
+        const transferDiscountPct = destination.transferDiscountPct || 0;
 
         // 3. Prepare items with Prices (CRITICAL: Every move needs a price for model validation)
         const Product = require('../../models/product.model');
+        const { calculateGST } = require('../../services/gst.service');
         const enrichedItems = [];
+        let totalSubTotal = 0;
+        let totalTaxAmount = 0;
+        let totalCGST = 0;
+        let totalSGST = 0;
+        let totalIGST = 0;
+
         for (const p of products) {
             const productDoc = await Product.findById(p.productId).populate('itemId').session(session);
-            if (productDoc && (productDoc.itemId?.type === 'FABRIC' || productDoc.itemType === 'FABRIC')) {
+            if (!productDoc) throw new Error(`Product not found for ID: ${p.productId}`);
+
+            if (productDoc.itemId?.type === 'FABRIC' || productDoc.itemType === 'FABRIC') {
                 throw new Error(`Item ${productDoc.itemName || ''} is a FABRIC and cannot be dispatched to a store.`);
             }
 
-            let rate = p.rate;
-            if (!rate || rate <= 0) {
-                rate = productDoc ? productDoc.mrp || productDoc.salePrice : 0;
+            // A. Base Price (MRP or SalePrice)
+            let baseRate = p.rate || productDoc.mrp || productDoc.salePrice || 0;
+            
+            // B. Apply Store Discount (Internal Billing Price)
+            const discountedRate = Number((baseRate * (1 - transferDiscountPct / 100)).toFixed(2));
+            const lineSubTotal = discountedRate * p.quantity;
+
+            let taxData = { cgst: 0, sgst: 0, igst: 0, totalTax: 0 };
+            
+            // C. Tax Calculation: Only for Different GSTIN entities
+            if (!isSameEntity) {
+                const gstPct = productDoc.itemId?.gstTax || 0;
+                if (gstPct > 0) {
+                    // Decide CGST+SGST vs IGST based on State
+                    const isIntraState = (source.location?.state || '').toLowerCase() === (destination.location?.state || '').toLowerCase();
+                    taxData = calculateGST(lineSubTotal, gstPct, isIntraState ? 'CGST_SGST' : 'IGST');
+                }
             }
+
             enrichedItems.push({
                 productId: p.productId,
                 quantity: p.quantity,
-                price: Number(rate || 0),
-                appliedPrice: Number(rate || 0),
-                total: Number((rate || 0) * (p.quantity || 0))
+                price: baseRate, // MRP
+                appliedPrice: discountedRate, // Dispatched Rate
+                effectiveRate: discountedRate,
+                taxPercentage: isSameEntity ? 0 : (productDoc.itemId?.gstTax || 0),
+                taxAmount: taxData.totalTax,
+                total: lineSubTotal + taxData.totalTax,
+                // Nested breakup for Sale model compatibility
+                cgst: taxData.cgst,
+                sgst: taxData.sgst,
+                igst: taxData.igst
             });
+
+            totalSubTotal += lineSubTotal;
+            totalTaxAmount += taxData.totalTax;
+            totalCGST += taxData.cgst;
+            totalSGST += taxData.sgst;
+            totalIGST += taxData.igst;
         }
-        const totalAmount = enrichedItems.reduce((sum, item) => sum + item.total, 0);
 
         let generatedDoc = null;
 
         if (isSameEntity) {
-            // ACTION: CREATE DELIVERY CHALLAN (Stock Transfer)
+            // ACTION: CREATE DELIVERY CHALLAN (Stock Transfer / Stock Movement)
             const challan = await challanService.createChallan({
                 ...rest,
                 storeId: destinationStoreId,
-                sourceId: sourceWarehouseId,
+                sourceId: finalSourceId,
                 items: enrichedItems,
-                type: 'STOCK_TRANSFER'
+                type: 'STOCK_TRANSFER',
+                totalValue: totalSubTotal,
+                notes: rest.notes || `Stock Transfer to ${destination.name} (GST Match)`
             }, userId, session);
 
             generatedDoc = {
@@ -120,16 +159,36 @@ const createDispatch = async (dispatchData, userId) => {
             // ACTION: CREATE TAX INVOICE (Internal Sale)
             const sale = await salesService.createSale({
                 ...rest,
-                storeId: sourceWarehouseId,
+                storeId: finalSourceId,
                 destinationStoreId,
-                items: enrichedItems,
+                products: enrichedItems.map(ei => ({
+                    barcode: ei.barcode || ei.productId.barcode, // Sales service usually expects barcode lookup
+                    productId: ei.productId,
+                    quantity: ei.quantity,
+                    rate: ei.appliedPrice,
+                    mrp: ei.price,
+                    taxAmount: ei.taxAmount,
+                    taxPercentage: ei.taxPercentage,
+                    total: ei.total,
+                    cgst: ei.cgst,
+                    sgst: ei.sgst,
+                    igst: ei.igst
+                })),
                 type: 'INTERNAL_SALE',
-                subTotal: totalAmount,
-                grandTotal: totalAmount,
+                subTotal: totalSubTotal,
+                tax: totalTaxAmount,
+                totalTax: totalTaxAmount,
+                taxBreakup: {
+                    cgst: totalCGST,
+                    sgst: totalSGST,
+                    igst: totalIGST
+                },
+                grandTotal: totalSubTotal + totalTaxAmount,
                 customerId: null,
                 paymentMode: 'CREDIT',
                 amountPaid: 0,
-                discount: 0
+                discount: 0,
+                notes: rest.notes || `Internal Sale Transfer - GST Diff: ${source.name} -> ${destination.name}`
             }, userId, session);
 
             generatedDoc = {
@@ -149,11 +208,13 @@ const createDispatch = async (dispatchData, userId) => {
 
         const dispatchMaster = new Dispatch({
             dispatchNumber,
-            sourceWarehouseId,
+            sourceWarehouseId: finalSourceId,
             destinationStoreId,
-            items: products.map(p => ({
-                variantId: p.productId,
-                qty: p.quantity
+            items: enrichedItems.map(ei => ({
+                variantId: ei.productId,
+                qty: ei.quantity,
+                rate: ei.appliedPrice,
+                tax: ei.taxAmount / ei.quantity // Per unit tax
             })),
             status: finalStatus,
             referenceId: generatedDoc.documentId,
@@ -174,7 +235,7 @@ const createDispatch = async (dispatchData, userId) => {
             for (const p of products) {
                 await stockService.reserveStock({
                     variantId: p.productId,
-                    locationId: sourceWarehouseId,
+                    locationId: finalSourceId,
                     locationType: 'WAREHOUSE',
                     qty: p.quantity,
                     session
@@ -204,6 +265,16 @@ const updateDispatch = async (id, dispatchData, userId) => {
         const { products, vehicleNumber, driverName, notes } = dispatchData;
         const stockService = require('../../services/stock.service');
 
+        // Resolve Entities for GST/Discount check
+        const source = await Warehouse.findById(dispatchMaster.sourceWarehouseId).session(session)
+            || await Store.findById(dispatchMaster.sourceWarehouseId).session(session);
+        const destination = await Store.findById(dispatchMaster.destinationStoreId).session(session);
+
+        const sourceGst = (source.gstNumber || '').trim().toUpperCase();
+        const destGst = (destination.gstNumber || '').trim().toUpperCase();
+        const isSameEntity = sourceGst === destGst;
+        const transferDiscountPct = destination.transferDiscountPct || 0;
+
         // 1. Release OLD Reservations
         for (const item of dispatchMaster.items) {
             await stockService.releaseStock({
@@ -217,22 +288,50 @@ const updateDispatch = async (id, dispatchData, userId) => {
 
         // 2. Prepare new items with Prices
         const Product = require('../../models/product.model');
+        const { calculateGST } = require('../../services/gst.service');
         const enrichedItems = [];
+        let totalSubTotal = 0;
+        let totalTaxAmount = 0;
+        let totalCGST = 0;
+        let totalSGST = 0;
+        let totalIGST = 0;
+
         for (const p of products) {
-            let rate = p.rate;
-            if (!rate || rate <= 0) {
-                const product = await Product.findById(p.productId).session(session);
-                rate = product ? product.salePrice : 0;
+            const productDoc = await Product.findById(p.productId || p.variantId).populate('itemId').session(session);
+            if (!productDoc) throw new Error(`Product not found for updating dispatch`);
+
+            let baseRate = p.rate || productDoc.mrp || productDoc.salePrice || 0;
+            const discountedRate = Number((baseRate * (1 - transferDiscountPct / 100)).toFixed(2));
+            const lineSubTotal = discountedRate * (p.quantity || p.qty);
+
+            let taxData = { cgst: 0, sgst: 0, igst: 0, totalTax: 0 };
+            if (!isSameEntity) {
+                const gstPct = productDoc.itemId?.gstTax || 0;
+                if (gstPct > 0) {
+                    const isIntraState = (source.location?.state || '').toLowerCase() === (destination.location?.state || '').toLowerCase();
+                    taxData = calculateGST(lineSubTotal, gstPct, isIntraState ? 'CGST_SGST' : 'IGST');
+                }
             }
+
             enrichedItems.push({
-                productId: p.productId,
-                quantity: p.quantity,
-                price: Number(rate || 0),
-                appliedPrice: Number(rate || 0),
-                total: Number((rate || 0) * (p.quantity || 0))
+                productId: productDoc._id,
+                quantity: (p.quantity || p.qty),
+                price: baseRate,
+                appliedPrice: discountedRate,
+                taxPercentage: isSameEntity ? 0 : (productDoc.itemId?.gstTax || 0),
+                taxAmount: taxData.totalTax,
+                total: lineSubTotal + taxData.totalTax,
+                cgst: taxData.cgst,
+                sgst: taxData.sgst,
+                igst: taxData.igst
             });
+
+            totalSubTotal += lineSubTotal;
+            totalTaxAmount += taxData.totalTax;
+            totalCGST += taxData.cgst;
+            totalSGST += taxData.sgst;
+            totalIGST += taxData.igst;
         }
-        const totalAmount = enrichedItems.reduce((sum, item) => sum + item.total, 0);
 
         // 3. Update parent Document
         const DeliveryChallan = require('../../models/deliveryChallan.model');
@@ -244,49 +343,63 @@ const updateDispatch = async (id, dispatchData, userId) => {
                 driverName: driverName || dispatchMaster.driverName,
                 notes: notes,
                 items: enrichedItems,
-                totalValue: totalAmount
+                totalValue: totalSubTotal
             }, { session });
         } else if (dispatchMaster.referenceType === 'Sale') {
             await Sale.findByIdAndUpdate(dispatchMaster.referenceId, {
                 vehicleNumber: vehicleNumber || dispatchMaster.vehicleNumber,
                 driverName: driverName || dispatchMaster.driverName,
                 notes: notes,
-                items: enrichedItems,
-                subTotal: totalAmount,
-                grandTotal: totalAmount
+                items: enrichedItems.map(ei => ({
+                    productId: ei.productId,
+                    quantity: ei.quantity,
+                    rate: ei.appliedPrice,
+                    mrp: ei.price,
+                    taxAmount: ei.taxAmount,
+                    taxPercentage: ei.taxPercentage,
+                    total: ei.total,
+                    cgst: ei.cgst,
+                    sgst: ei.sgst,
+                    igst: ei.igst
+                })),
+                subTotal: totalSubTotal,
+                tax: totalTaxAmount,
+                totalTax: totalTaxAmount,
+                taxBreakup: {
+                    cgst: totalCGST,
+                    sgst: totalSGST,
+                    igst: totalIGST
+                },
+                grandTotal: totalSubTotal + totalTaxAmount
             }, { session });
         }
 
-        // 4. Update Dispatch Record
+        // 4. Update the Dispatch Master itself
+        dispatchMaster.items = enrichedItems.map(ei => ({
+            variantId: ei.productId,
+            qty: ei.quantity,
+            rate: ei.appliedPrice,
+            tax: ei.taxAmount / ei.quantity
+        }));
         dispatchMaster.vehicleNumber = vehicleNumber || dispatchMaster.vehicleNumber;
         dispatchMaster.driverName = driverName || dispatchMaster.driverName;
         dispatchMaster.notes = notes || dispatchMaster.notes;
-        dispatchMaster.items = products.map(p => ({
-            variantId: p.productId,
-            qty: p.quantity
-        }));
         await dispatchMaster.save({ session });
 
-        // 5. Apply NEW Reservations
-        for (const p of products) {
+        // 5. Reserve NEW Stock
+        for (const item of dispatchMaster.items) {
             await stockService.reserveStock({
-                variantId: p.productId,
+                variantId: item.variantId,
                 locationId: dispatchMaster.sourceWarehouseId,
                 locationType: 'WAREHOUSE',
-                qty: p.quantity,
+                qty: item.qty,
                 session
             });
         }
-
-        return {
-            dispatchId: dispatchMaster._id,
-            dispatchNumber: dispatchMaster.dispatchNumber,
-            status: dispatchMaster.status,
-            message: `Successfully updated draft dispatch: ${dispatchMaster.dispatchNumber}`
-        };
+        
+        return dispatchMaster;
     });
 };
-
 const confirmDispatch = async (id, userId) => {
     const stockService = require('../../services/stock.service');
     const DeliveryChallan = require('../../models/deliveryChallan.model');
@@ -462,6 +575,8 @@ const receiveDispatch = async (id, userId) => {
                 console.log(`[RELABEL] New Barcode generated for Store: ${targetBarcode}`);
             }
 
+            const landingCost = (item.rate || 0) + (item.tax || 0);
+
             await stockService.addStock({
                 itemId: parentItem._id,
                 barcode: targetBarcode, 
@@ -470,6 +585,7 @@ const receiveDispatch = async (id, userId) => {
                 locationType: 'STORE',
                 qty: item.qty,
                 type: 'RECEIVE',
+                purchaseRate: landingCost,
                 referenceId: dispatch._id,
                 referenceType: 'Dispatch',
                 performedBy: userId,

@@ -12,6 +12,7 @@ const storeInventorySchema = new mongoose.Schema(
         damagedQuantity: { type: Number, default: 0, min: 0 },
         quantitySold: { type: Number, default: 0, min: 0 },
         quantityReturned: { type: Number, default: 0, min: 0 },
+        lastPurchaseRate: { type: Number, default: 0 },
         minStockLevel: { type: Number, default: 0, min: 0 },
         lastUpdated: { type: Date, default: Date.now },
     },

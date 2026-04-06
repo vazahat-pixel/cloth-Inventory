@@ -301,8 +301,17 @@ class ItemService {
     return populateItem(item._id);
   }
 
-  async getAllItems(query = {}) {
-    return Item.find(query)
+  async getAllItems(query = {}, user = null) {
+    const filter = { ...query };
+
+    // Apply role-based scoping for production safety
+    if (user && user.role === 'store_staff') {
+      // Stores should only see finished goods (Garments & Accessories) that are active
+      filter.type = { $in: ['GARMENT', 'ACCESSORY'] };
+      filter.isActive = true;
+    }
+
+    return Item.find(filter)
       .populate('groupIds', 'name groupType level parentId isActive')
       .populate('sectionId', 'name groupName groupType')
       .populate('categoryId', 'name groupName groupType')

@@ -65,7 +65,13 @@ const _updateInventory = async ({ itemId, barcode, variantId, locationId, locati
     }
     
     inventory.quantity = newQty;
-    if (locationType === 'STORE') inventory.quantityAvailable = newQty;
+    if (locationType === 'STORE') {
+        inventory.quantityAvailable = newQty;
+        // Update purchase history rate for COGS logic
+        if (arguments[0].purchaseRate && arguments[0].purchaseRate > 0) {
+            inventory.lastPurchaseRate = arguments[0].purchaseRate;
+        }
+    }
     inventory.lastUpdated = Date.now();
     await inventory.save({ session });
     

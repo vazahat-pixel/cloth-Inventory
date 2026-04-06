@@ -68,7 +68,7 @@ const getAllSales = async (req, res, next) => {
 
 const getSaleById = async (req, res, next) => {
     try {
-        const sale = await salesService.getSaleById(req.params.id);
+        const sale = await salesService.getSaleById(req.params.id, req.user);
         return sendSuccess(res, { sale }, 'Sale details retrieved');
     } catch (err) {
         return sendNotFound(res, err.message);

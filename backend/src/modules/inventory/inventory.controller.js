@@ -191,18 +191,36 @@ class InventoryController {
       const { warehouseId, barcode } = req.params;
       const WarehouseInventory = require('../../models/warehouseInventory.model');
       
-      const stock = await WarehouseInventory.findOne({ warehouseId, barcode })
-        .populate('itemId', 'itemName itemCode itemRole shade gstTax');
+      const stock = await WarehouseInventory.findOne({ 
+        warehouseId, 
+        $or: [ { barcode: barcode }, { variantId: barcode } ] 
+      })
+      .populate('itemId');
 
       if (!stock) {
         return sendNotFound(res, 'Item not found in this warehouse stock');
       }
 
-      return sendSuccess(res, stock, 'Item scanned successfully');
+      // Find the specific variant to get the price
+      const item = stock.itemId;
+      const variant = item.sizes.find(sz => sz.barcode === barcode || sz._id.toString() === stock.variantId || sz.sku === barcode);
+      
+      const responseData = {
+        ...stock.toObject(),
+        itemName: item.itemName,
+        itemCode: item.itemCode,
+        type: item.type,
+        size: variant?.size || '-',
+        color: variant?.color || item.shade || '-',
+        rate: variant?.mrp || item.salePrice || 0,
+        gstPercent: item.gstTax || 0
+      };
+
+      return sendSuccess(res, responseData, 'Item scanned successfully');
     } catch (e) {
       return sendError(res, e.message);
     }
-  };
+  };;
 
   /**
    * CLIENT DEMO DASHBOARD High-Level Stats

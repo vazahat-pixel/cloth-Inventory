@@ -26,6 +26,12 @@ const storesColumns = [
     { field: 'managerName', headerName: 'Manager Name', minWidth: 150 },
     { field: 'managerPhone', headerName: 'Contact Number', minWidth: 140 },
     { field: 'email', headerName: 'Login Email', minWidth: 180 },
+    { 
+        field: 'transferDiscountPct', 
+        headerName: 'Disc (%)', 
+        minWidth: 100,
+        render: (value) => <Typography sx={{ color: '#ec4899', fontWeight: 600 }}>{value || 0}%</Typography>
+    },
     {
         field: 'isActive',
         headerName: 'Status',

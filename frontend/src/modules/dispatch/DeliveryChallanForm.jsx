@@ -82,16 +82,13 @@ function DeliveryChallanForm({
 
     const variantOptions = useMemo(() => {
         const flattened = [];
-        // The thunk now returns the array directly to the stock state
         const items = Array.isArray(stockRows) ? stockRows : (Array.isArray(stockRows?.items) ? stockRows.items : []);
         
         items.forEach(item => {
-            // Strictly exclude FABRIC from store transfers as per business rule
             if (item.type === 'FABRIC') return;
 
             if (item.sizes && Array.isArray(item.sizes)) {
                 item.sizes.forEach(sz => {
-                    // Only show variants that actually have stock in the warehouse
                     if (Number(sz.stock || 0) > 0) {
                         flattened.push({
                             variantId: sz._id,
@@ -99,11 +96,13 @@ function DeliveryChallanForm({
                             itemName: item.itemName,
                             itemCode: item.itemCode,
                             itemType: item.type,
-                            sku: sz.sku || item.itemCode,
+                            sku: sz.sku || sz.barcode || item.itemCode,
+                            barcode: sz.barcode || sz.sku || '',
                             size: sz.size || '-',
-                            color: item.shade || '-',
+                            color: item.shade || sz.color || '-',
                             available: Number(sz.stock),
-                            rate: Number(sz.salePrice || item.salePrice || 0)
+                            mrp: Number(sz.mrp || item.salePrice || 0),
+                            gstPercent: Number(item.hsCodeId?.gstPercent || item.gstPercent || 0)
                         });
                     }
                 });
@@ -122,38 +121,50 @@ function DeliveryChallanForm({
         if (!code) return;
         if (!sourceId) { setError("Select source warehouse first"); return; }
         
-        try {
-            // Check if already in lines
-            const existing = lines.find(l => l.barcode === code);
+        // 1. LOCAL SEARCH FIRST (for immediate performance)
+        const localMatch = variantOptions.find(o => 
+            String(o.sku).toLowerCase() === String(code).toLowerCase() || 
+            String(o.barcode).toLowerCase() === String(code).toLowerCase() ||
+            String(o.variantId).toLowerCase() === String(code).toLowerCase()
+        );
+
+        if (localMatch) {
+            const existing = lines.find(l => l.variantId === localMatch.variantId);
             if (existing) {
                 updateQuantity(existing.variantId, existing.quantity + 1);
-                return;
+            } else {
+                setLines(prev => [...prev, { ...localMatch, quantity: 1, barcode: localMatch.sku }]);
             }
+            setError(''); // Clear error if was previously shown
+            return;
+        }
 
-            // Fetch variant from source stock via API
+        // 2. REMOTE FALLBACK (in case inventory wasn't fully pre-loaded/refreshed)
+        try {
             const res = await api.get(`/inventory/warehouse/${sourceId}/scan/${code}`);
             const item = res.data.data || res.data;
             
             if (item) {
-                // Rule: Fabrics cannot be transferred to stores
                 if (item.itemId?.type === 'FABRIC' || item.itemType === 'FABRIC') {
                     setError("Fabric items cannot be transferred to store. They are for production use only.");
                     return;
                 }
                 const newLine = {
-                    itemId: item.itemId._id || item.itemId,
+                    itemId: item.itemId?._id || item.itemId,
                     variantId: item.variantId,
                     barcode: item.barcode,
-                    itemName: item.itemId.itemName || 'Item',
-                    itemCode: item.itemId.itemCode || '',
+                    itemName: item.itemId?.itemName || 'Item',
+                    itemCode: item.itemId?.itemCode || '',
                     sku: item.barcode,
-                    size: item.size || '-',
-                    color: item.color || '-',
+                    size: item.size || item.variantId?.size || '-',
+                    color: item.color || item.variantId?.color || '-',
                     available: item.quantity,
                     quantity: 1,
-                    rate: item.rate || 0
+                    mrp: item.rate || item.mrp || 0,
+                    gstPercent: Number(item.gstPercent || item.itemId?.hsCodeId?.gstPercent || 0)
                 };
                 setLines(prev => [...prev, newLine]);
+                setError('');
             }
         } catch (err) {
             setError("Item not found in source warehouse or invalid barcode");
@@ -189,18 +200,34 @@ function DeliveryChallanForm({
         }
     }, [activeLocations, sourceId, storeId]);
 
+    const activeStore = useMemo(() => stores.find(s => s.id === storeId || s._id === storeId), [stores, storeId]);
+    const discountPct = activeStore?.transferDiscountPct || 0;
+
     const totals = useMemo(() => {
-        const subTotal = lines.reduce((acc, l) => acc + (l.rate * l.quantity), 0);
-        // Estimate 12% GST for preview if in Invoice mode (Standard for most garments)
+        const grossSubtotal = lines.reduce((acc, l) => acc + ((l.mrp || 0) * l.quantity), 0);
+        const discountAmount = (grossSubtotal * discountPct) / 100;
+        const taxableValue = grossSubtotal - discountAmount;
+        
         const isInvoice = dispatchMode?.type === 'INVOICE';
-        const taxRate = isInvoice ? 0.12 : 0;
-        const tax = subTotal * taxRate;
+        
+        // Exact Tax Calculation: Summing up item-wise tax after discount
+        const taxAmount = lines.reduce((acc, l) => {
+            if (!isInvoice) return 0;
+            const itemGross = (l.mrp || 0) * l.quantity;
+            const itemDiscount = (itemGross * discountPct) / 100;
+            const itemTaxable = itemGross - itemDiscount;
+            const itemTax = (itemTaxable * (l.gstPercent || 0)) / 100;
+            return acc + itemTax;
+        }, 0);
+        
         return {
-            subTotal,
-            tax,
-            grandTotal: subTotal + tax
+            grossSubtotal,
+            discountAmount,
+            taxableValue,
+            taxAmount,
+            grandTotal: taxableValue + taxAmount
         };
-    }, [lines, dispatchMode]);
+    }, [lines, dispatchMode, discountPct]);
 
     const { id } = useParams();
     const isEditMode = !!id;
@@ -261,15 +288,15 @@ function DeliveryChallanForm({
             notes: `Dispatch of ${lines.length} items to store.`
         };
 
-        const endpoint = isEditMode ? `/delivery-challan/${id}` : '/delivery-challan';
-        const method = isEditMode ? 'put' : 'post';
-
-        api[method](endpoint, payload)
+        const action = isEditMode ? updateChallan({ id, data: payload }) : addChallan(payload);
+        
+        dispatch(action)
+            .unwrap()
             .then((res) => {
-                alert(`Successfully ${isEditMode ? 'updated' : 'generated'} Challan (#${res.data.data?.dcNumber || ''})`);
+                alert(`Successfully ${isEditMode ? 'updated' : 'generated'} Challan (#${res.dcNumber || res.data?.dcNumber || ''})`);
                 navigate(listPath);
             })
-            .catch(err => setError(err.response?.data?.message || "Failed to save challan"));
+            .catch(err => setError(err || "Failed to save challan"));
     };
 
     return (
@@ -393,6 +420,7 @@ function DeliveryChallanForm({
                             <TableRow>
                                 <TableCell>Item</TableCell>
                                 <TableCell>SKU</TableCell>
+                                <TableCell align="right">MRP</TableCell>
                                 <TableCell align="right">Available</TableCell>
                                 <TableCell align="right">Qty</TableCell>
                                 <TableCell align="center">Action</TableCell>
@@ -403,6 +431,7 @@ function DeliveryChallanForm({
                                 <TableRow key={l.variantId}>
                                     <TableCell>{l.itemName} ({l.size}/{l.color})</TableCell>
                                     <TableCell>{l.sku}</TableCell>
+                                    <TableCell align="right">₹{(l.mrp || 0).toLocaleString()}</TableCell>
                                     <TableCell align="right">{l.available}</TableCell>
                                     <TableCell align="right">
                                         <TextField
@@ -435,13 +464,22 @@ function DeliveryChallanForm({
                     <Box sx={{ alignSelf: 'flex-end', width: { xs: '100%', md: 300 }, textAlign: 'right' }}>
                         <Stack spacing={1}>
                             <Stack direction="row" justifyContent="space-between">
-                                <Typography color="text.secondary">Total Subtotal:</Typography>
-                                <Typography sx={{ fontWeight: 700 }}>₹{totals.subTotal.toLocaleString()}</Typography>
+                                <Typography color="text.secondary">Gross Subtotal:</Typography>
+                                <Typography sx={{ fontWeight: 600 }}>₹{totals.grossSubtotal.toLocaleString()}</Typography>
+                            </Stack>
+                            <Stack direction="row" justifyContent="space-between">
+                                <Typography color="text.secondary">Discount ({discountPct}%):</Typography>
+                                <Typography sx={{ fontWeight: 600, color: '#ec4899' }}>-₹{totals.discountAmount.toLocaleString()}</Typography>
+                            </Stack>
+                            <Divider />
+                            <Stack direction="row" justifyContent="space-between">
+                                <Typography color="text.secondary">Taxable Value:</Typography>
+                                <Typography sx={{ fontWeight: 600 }}>₹{totals.taxableValue.toLocaleString()}</Typography>
                             </Stack>
                             {dispatchMode?.type === 'INVOICE' && (
                                 <Stack direction="row" justifyContent="space-between">
-                                    <Typography color="text.secondary">Estimated Tax (12%):</Typography>
-                                    <Typography sx={{ fontWeight: 700, color: '#10b981' }}>₹{totals.tax.toLocaleString()}</Typography>
+                                    <Typography color="text.secondary">Total GST (Item-wise):</Typography>
+                                    <Typography sx={{ fontWeight: 600, color: '#10b981' }}>+₹{totals.taxAmount.toLocaleString()}</Typography>
                                 </Stack>
                             )}
                             <Divider />

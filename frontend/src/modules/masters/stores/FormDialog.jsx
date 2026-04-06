@@ -13,6 +13,13 @@ const storeFields = [
         type: 'password', 
         helperText: 'Default: Store@123 (Used for first time login)' 
     },
+    { 
+        name: 'transferDiscountPct', 
+        label: 'Transfer Discount (%)', 
+        required: false, 
+        type: 'number',
+        helperText: 'Discount applied on Warehouse-to-Store transfers'
+    },
     { name: 'city', label: 'City', required: true },
     { name: 'state', label: 'State', required: true },
     { name: 'address', label: 'Complete Address', required: true, multiline: true },
@@ -34,6 +41,7 @@ function StoresFormDialog({ open, onClose, onSubmit, initialValues }) {
 
     const flattenedInitialValues = initialValues ? {
         ...initialValues,
+        transferDiscountPct: initialValues.transferDiscountPct || 0,
         city: initialValues.location?.city || initialValues.city || '',
         state: initialValues.location?.state || initialValues.state || '',
         address: initialValues.location?.address || initialValues.address || '',

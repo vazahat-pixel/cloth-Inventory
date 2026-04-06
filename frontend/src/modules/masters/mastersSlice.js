@@ -148,6 +148,7 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
         password: record.password,
         location: record.location,
         gstNumber: record.gstNumber,
+        transferDiscountPct: record.transferDiscountPct,
         isActive: record.isActive !== false,
       };
     }
@@ -256,6 +257,7 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
         password: updates.password,
         location: updates.location,
         gstNumber: updates.gstNumber,
+        transferDiscountPct: updates.transferDiscountPct,
         isActive: updates.isActive !== false,
       };
     }

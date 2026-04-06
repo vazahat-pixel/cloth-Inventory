@@ -22,7 +22,7 @@ class ItemController {
 
   getAllItems = async (req, res) => {
     try {
-      const items = await itemService.getAllItems(req.query);
+      const items = await itemService.getAllItems(req.query, req.user);
       return sendSuccess(res, { items }, 'Items fetched successfully');
     } catch (error) {
       return sendError(res, error.message);
