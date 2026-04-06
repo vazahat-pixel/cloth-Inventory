@@ -149,7 +149,7 @@ function AppRoutes() {
         <Route path="/register" element={<Navigate to="/register/ho" replace />} />
 
         {/* Head Office Panel */}
-        <Route element={<RoleProtectedRoute allowedRoles={['admin', 'Admin']} />}>
+        <Route element={<RoleProtectedRoute allowedRoles={['admin', 'Admin', 'superadmin']} />}>
           <Route path="/ho" element={<RoleDashboardLayout />}>
             <Route index element={<DashboardHomePage />} />
             <Route path="master-dashboard" element={<HoMasterDashboard />} />
@@ -221,6 +221,7 @@ function AppRoutes() {
             <Route path="orders/delivery-challan/new" element={<DeliveryChallanForm />} />
             <Route path="orders/delivery-challan/:id" element={<DeliveryChallanForm mode="view" />} />
             <Route path="orders/delivery-challan/:id/edit" element={<DeliveryChallanForm mode="edit" />} />
+            <Route path="orders/delivery-challan/:id/receive" element={<DeliveryChallanForm mode="receive" />} />
             <Route path="sale-challan" element={<Navigate to="sales/sale-challan" replace />} />
             <Route path="sale-challans" element={<Navigate to="sales/sale-challan" replace />} />
 
@@ -294,7 +295,7 @@ function AppRoutes() {
         </Route>
 
         {/* Store/Branch Portal */}
-        <Route path="/store" element={<RoleProtectedRoute allowedRoles={['Staff']}><RoleDashboardLayout /></RoleProtectedRoute>}>
+        <Route path="/store" element={<RoleProtectedRoute allowedRoles={['Staff', 'store_staff', 'store_manager', 'accountant', 'Manager', 'Accountant', 'store_manager_admin']}><RoleDashboardLayout /></RoleProtectedRoute>}>
           <Route index element={<DashboardHomePage />} />
           <Route path="inventory/stock-overview" element={<StockOverviewPage />} />
           <Route path="inventory/receipt" element={<DeliveryChallanPage />} />
@@ -309,6 +310,11 @@ function AppRoutes() {
           <Route path="reports/collection" element={<CollectionReportPage />} />
           <Route path="reports/closure" element={<DayEndClosurePage />} />
           <Route path="profile" element={<ProfilePage />} />
+          
+          {/* Delivery Challan / Receipt Routes for Store */}
+          <Route path="orders/delivery-challan" element={<DeliveryChallanPage />} />
+          <Route path="orders/delivery-challan/:id/receive" element={<DeliveryChallanForm mode="receive" />} />
+          <Route path="orders/delivery-challan/:id" element={<DeliveryChallanForm mode="view" />} />
         </Route>
 
         <Route path="/404" element={<NotFoundPage />} />

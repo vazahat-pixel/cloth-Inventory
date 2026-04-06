@@ -36,11 +36,13 @@ const getTodayDate = () => new Date().toISOString().slice(0, 10);
 
 function DeliveryChallanForm({
     listPath = '/orders/delivery-challan',
-    pageTitle = 'New Delivery Challan',
+    pageTitle: providedTitle = 'New Delivery Challan',
     saveLabel = 'Save Challan',
+    mode = 'edit' // edit, view, receive
 }) {
     const dispatch = useDispatch();
     const navigate = useAppNavigate();
+    const { id } = useParams();
 
     const [date, setDate] = useState(getTodayDate());
     const [sourceId, setSourceId] = useState('');
@@ -48,16 +50,26 @@ function DeliveryChallanForm({
     const [lines, setLines] = useState([]);
     const [variantPickerValue, setVariantPickerValue] = useState(null);
     const [error, setError] = useState('');
-    const [status, setStatus] = useState('PENDING'); // Tracking status for locking
+    const [status, setStatus] = useState('PENDING');
     const [challanNumber, setChallanNumber] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const isLocked = (status === 'DISPATCHED' || status === 'RECEIVED') && (!isReceiveMode);
+    const isReceiveMode = mode === 'receive';
+    const isViewMode = mode === 'view';
+
+    const getFormTitle = () => {
+        if (isReceiveMode) return 'Stock Receipt Audit (Verified)';
+        if (status === 'RECEIVED') return 'Sale Bill (Received)';
+        if (status === 'DISPATCHED') return 'Sale Bill (Finalized & Locked)';
+        return 'Sale Challan (Edit Draft)';
+    };
     
-    // FORM LOCKING: Permanent block for Dispatched/Received records
-    const isLocked = status === 'DISPATCHED' || status === 'RECEIVED';
+    const pageTitle = getFormTitle();
 
     const warehouses = useSelector((state) => state.masters.warehouses || []);
     const stores = useSelector((state) => state.masters.stores || []);
     const stockRows = useSelector((state) => state.inventory.stock || []);
-
 
     useEffect(() => {
         dispatch(fetchMasters('warehouses'));
@@ -65,25 +77,13 @@ function DeliveryChallanForm({
     }, [dispatch]);
 
     useEffect(() => {
-        if (sourceId) {
+        if (sourceId && !isReceiveMode) {
             dispatch(fetchWarehouseStock(sourceId));
         }
-    }, [dispatch, sourceId]);
-
-
-    const activeLocations = useMemo(
-        () => [...warehouses, ...stores].filter((w) => String(w.status || w.isActive).toLowerCase() !== 'false'),
-        [warehouses, stores],
-    );
-
-
-    const warehouseStock = useMemo(() => {
-        if (!sourceId) return [];
-        // When using fetchWarehouseStock, stockRows already contains normalized items for that specific warehouse
-        return stockRows;
-    }, [stockRows, sourceId]);
+    }, [dispatch, sourceId, isReceiveMode]);
 
     const variantOptions = useMemo(() => {
+        if (isReceiveMode) return [];
         const flattened = [];
         const items = Array.isArray(stockRows) ? stockRows : (Array.isArray(stockRows?.items) ? stockRows.items : []);
         
@@ -113,22 +113,30 @@ function DeliveryChallanForm({
         });
 
         return flattened;
-    }, [stockRows]);
-
-    const filteredOptions = useMemo(() => {
-        const ids = new Set(lines.map((l) => l.variantId));
-        return variantOptions.filter((o) => !ids.has(o.variantId));
-    }, [lines, variantOptions]);
+    }, [stockRows, isReceiveMode]);
 
     const handleScanner = async (code) => {
         if (!code) return;
-        if (!sourceId) { setError("Select source warehouse first"); return; }
-        
-        // 1. LOCAL SEARCH FIRST (for immediate performance)
+        const normalizedCode = String(code).trim().toLowerCase();
+
+        if (isReceiveMode) {
+            const match = lines.find(l => 
+                String(l.sku).toLowerCase() === normalizedCode || 
+                String(l.barcode).toLowerCase() === normalizedCode
+            );
+            if (match) {
+                updateReceivedQuantity(match.variantId, (match.receivedQty || 0) + 1);
+                setError('');
+            } else {
+                setError(`Item ${code} not found in this dispatch.`);
+            }
+            return;
+        }
+
         const localMatch = variantOptions.find(o => 
-            String(o.sku).toLowerCase() === String(code).toLowerCase() || 
-            String(o.barcode).toLowerCase() === String(code).toLowerCase() ||
-            String(o.variantId).toLowerCase() === String(code).toLowerCase()
+            String(o.sku).toLowerCase() === normalizedCode || 
+            String(o.barcode).toLowerCase() === normalizedCode ||
+            String(o.variantId).toLowerCase() === normalizedCode
         );
 
         if (localMatch) {
@@ -138,20 +146,14 @@ function DeliveryChallanForm({
             } else {
                 setLines(prev => [...prev, { ...localMatch, quantity: 1, barcode: localMatch.sku }]);
             }
-            setError(''); // Clear error if was previously shown
+            setError('');
             return;
         }
 
-        // 2. REMOTE FALLBACK (in case inventory wasn't fully pre-loaded/refreshed)
         try {
             const res = await api.get(`/inventory/warehouse/${sourceId}/scan/${code}`);
             const item = res.data.data || res.data;
-            
             if (item) {
-                if (item.itemId?.type === 'FABRIC' || item.itemType === 'FABRIC') {
-                    setError("Fabric items cannot be transferred to store. They are for production use only.");
-                    return;
-                }
                 const newLine = {
                     itemId: item.itemId?._id || item.itemId,
                     variantId: item.variantId,
@@ -177,66 +179,19 @@ function DeliveryChallanForm({
     const updateQuantity = (variantId, val) => {
         setLines(prev => prev.map(l => {
             if (l.variantId !== variantId) return l;
-            const q = Math.max(1, Math.min(Number(val), l.available));
-            return { ...l, quantity: q };
+            return { ...l, quantity: Math.max(1, Math.min(Number(val), l.available)) };
         }));
     };
 
-    const removeLine = (variantId) => {
-        setLines(prev => prev.filter(l => l.variantId !== variantId));
+    const updateReceivedQuantity = (variantId, val) => {
+        setLines(prev => prev.map(l => {
+            if (l.variantId !== variantId) return l;
+            return { ...l, receivedQty: Math.max(0, Math.min(Number(val), (l.quantity || 0) + 100)) };
+        }));
     };
 
-    const dispatchMode = useMemo(() => {
-        if (!sourceId || !storeId) return null;
-        const src = activeLocations.find(l => l.id === sourceId);
-        const dst = activeLocations.find(l => l.id === storeId);
-        
-        if (!src || !dst) return null;
-        
-        const srcGst = (src.gstNumber || '').trim().toUpperCase();
-        const dstGst = (dst.gstNumber || '').trim().toUpperCase();
-        
-        if (srcGst === dstGst) {
-            return { type: 'CHALLAN', label: 'Delivery Challan', color: 'info.main', description: 'Same GSTIN: Internal Stock Transfer.' };
-        } else {
-            return { type: 'INVOICE', label: 'Tax Invoice', color: 'success.main', description: 'Different GSTIN: Inter-Entity Sale (Taxable).' };
-        }
-    }, [activeLocations, sourceId, storeId]);
-
-    const activeStore = useMemo(() => stores.find(s => s.id === storeId || s._id === storeId), [stores, storeId]);
-    const discountPct = activeStore?.transferDiscountPct || 0;
-
-    const totals = useMemo(() => {
-        const grossSubtotal = lines.reduce((acc, l) => acc + ((l.mrp || 0) * l.quantity), 0);
-        const discountAmount = (grossSubtotal * discountPct) / 100;
-        const taxableValue = grossSubtotal - discountAmount;
-        
-        const isInvoice = dispatchMode?.type === 'INVOICE';
-        
-        // Exact Tax Calculation: Summing up item-wise tax after discount
-        const taxAmount = lines.reduce((acc, l) => {
-            if (!isInvoice) return 0;
-            const itemGross = (l.mrp || 0) * l.quantity;
-            const itemDiscount = (itemGross * discountPct) / 100;
-            const itemTaxable = itemGross - itemDiscount;
-            const itemTax = (itemTaxable * (l.gstPercent || 0)) / 100;
-            return acc + itemTax;
-        }, 0);
-        
-        return {
-            grossSubtotal,
-            discountAmount,
-            taxableValue,
-            taxAmount,
-            grandTotal: taxableValue + taxAmount
-        };
-    }, [lines, dispatchMode, discountPct]);
-
-    const { id } = useParams();
-    const isEditMode = !!id;
-
     useEffect(() => {
-        if (isEditMode) {
+        if (id) {
             api.get(`/dispatch/${id}`).then(res => {
                 const data = res.data.dispatch || res.data.data;
                 if (data) {
@@ -252,10 +207,12 @@ function DeliveryChallanForm({
                                 itemId: v.itemId || item.itemId,
                                 itemName: v.itemName || v.name || 'Unknown Item',
                                 sku: v.sku || v.barcode || '-',
+                                barcode: v.barcode || v.sku || '-',
                                 size: v.size || '-',
                                 color: v.color || '-',
-                                available: Number(item.qty + 100), // Buffer for editing
+                                available: Number(item.qty + 100),
                                 quantity: Number(item.qty),
+                                receivedQty: Number(item.qty),
                                 mrp: Number(item.mrp || item.rate || 0),
                                 gstPercent: Number(item.taxPercentage || 0)
                             };
@@ -265,278 +222,161 @@ function DeliveryChallanForm({
                     setStatus(data.status || 'PENDING');
                     setChallanNumber(data.dispatchNumber || '');
                 }
-            }).catch(err => {
-                setError("Failed to load dispatch details for editing.");
             });
         }
-    }, [id, isEditMode]);
+    }, [id]);
 
-    const handleSave = (status = 'SENT') => {
+    const handleSave = async (targetStatus = 'SENT') => {
         setError('');
-        if (!sourceId) { setError("Please select a source warehouse"); return; }
-        if (!storeId) { setError("Please select a destination store"); return; }
-        if (sourceId === storeId) { setError("Source and destination cannot be same"); return; }
-        if (!lines.length) { setError("Add at least one item to dispatch"); return; }
+        if (!sourceId || !storeId || !lines.length) { setError("Incomplete data"); return; }
+        setIsSubmitting(true);
 
-        const payload = {
-            dcDate: date,
-            sourceId: sourceId,
-            destinationStoreId: storeId,
-            items: lines.map(l => ({
-                itemId: l.itemId,
-                variantId: l.variantId,
-                barcode: l.barcode,
-                quantity: l.quantity,
-                rate: l.rate
-            })),
-            status: status, // DRAFT or SENT
-            type: 'WAREHOUSE_TO_STORE',
-            notes: `Dispatch of ${lines.length} items to store.`
-        };
-
-        const action = isEditMode ? updateChallan({ id, data: payload }) : addChallan(payload);
-        
-        dispatch(action)
-            .unwrap()
-            .then((res) => {
-                alert(`Successfully ${isEditMode ? 'updated' : 'generated'} Challan (#${res.dcNumber || res.data?.dcNumber || ''})`);
+        try {
+            if (isReceiveMode) {
+                const payload = {
+                    receivedItems: lines.map(l => ({
+                        variantId: l.variantId,
+                        receivedQty: l.receivedQty
+                    }))
+                };
+                await api.post(`/dispatch/${id}/receive`, payload);
+                alert("Stock successfully audited and added to inventory!");
                 navigate(listPath);
-            })
-            .catch(err => setError(err || "Failed to save challan"));
+                return;
+            }
+
+            const payload = {
+                dcDate: date,
+                sourceId,
+                destinationStoreId: storeId,
+                items: lines.map(l => ({
+                    itemId: l.itemId,
+                    variantId: l.variantId,
+                    barcode: l.barcode,
+                    quantity: l.quantity,
+                    rate: l.mrp
+                })),
+                status: targetStatus,
+                type: 'WAREHOUSE_TO_STORE'
+            };
+
+            const action = id ? updateChallan({ id, data: payload }) : addChallan(payload);
+            await dispatch(action).unwrap();
+            alert("Success!");
+            navigate(listPath);
+        } catch (err) {
+            setError(err.message || "Failed to process");
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
         <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3 }}>
             <Stack direction="row" spacing={2} sx={{ mb: 4, alignItems: 'center' }}>
-                <Button startIcon={<ArrowBackIcon />} onClick={() => navigate(listPath)}>
-                    Back
-                </Button>
+                <Button startIcon={<ArrowBackIcon />} onClick={() => navigate(listPath)}>Back</Button>
                 <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', flex: 1 }}>
                     {pageTitle} {challanNumber && `| ${challanNumber}`}
                 </Typography>
-
                 {status && (
-                    <Box sx={{ 
-                        px: 1.5, py: 0.5, borderRadius: 1.5, fontSize: '0.75rem', fontWeight: 800,
-                        bgcolor: status === 'DISPATCHED' ? '#dcfce7' : '#fef9c3',
-                        color: status === 'DISPATCHED' ? '#166534' : '#854d0e',
-                        border: `1px solid ${status === 'DISPATCHED' ? '#bbf7d0' : '#fef08a'}`
-                    }}>
-                        {status === 'PENDING' ? '🏷️ SALE CHALLAN (DRAFT)' : '📊 SALE BILL (LOCKED)'}
+                    <Box sx={{ px: 1.5, py: 0.5, borderRadius: 1.5, fontSize: '0.75rem', fontWeight: 800, bgcolor: status === 'RECEIVED' ? '#dcfce7' : '#fef9c3', color: status === 'RECEIVED' ? '#166534' : '#854d0e', border: '1px solid #e2e8f0' }}>
+                        {status === 'RECEIVED' ? '✓ STOCK IN' : (status === 'DISPATCHED' ? '📊 SENT' : '🏷️ DRAFT')}
                     </Box>
                 )}
             </Stack>
 
-            {isLocked && (
-                <Box sx={{ mb: 2, p: 1.5, bgcolor: '#f1f5f9', borderLeft: '4px solid #475569', borderRadius: 1 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569' }}>
-                    🔒 This dispatch is confirmed and locked. Sale Bill has been generated. No further edits are possible.
-                  </Typography>
-                </Box>
-            )}
-
-            <Stack spacing={4} sx={{ pointerEvents: isLocked ? 'none' : 'auto', opacity: isLocked ? 0.8 : 1 }}>
-                <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-                    <TextField
-                        type="date"
-                        label="Date"
-                        fullWidth
-                        size="small"
-                        InputLabelProps={{ shrink: true }}
-                        value={date}
-                        onChange={(e) => setDate(e.target.value)}
-                        disabled={isLocked}
-                    />
-                    <FormControl fullWidth size="small" disabled={isLocked}>
-                        <InputLabel>Source Warehouse</InputLabel>
-                        <Select
-                            value={sourceId}
-                            label="Source Warehouse"
-                            onChange={(e) => {
-                                setSourceId(e.target.value);
-                                setLines([]);
-                            }}
-                        >
-                            <MenuItem value="">Select Warehouse</MenuItem>
-                            {warehouses.filter(w => String(w.status || w.isActive).toLowerCase() !== 'false').map((s) => (
-                                <MenuItem key={s.id} value={s.id}>{s.name || s.warehouseName}</MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
-                    <FormControl fullWidth size="small" disabled={isLocked}>
-                        <InputLabel>Destination Store</InputLabel>
-                        <Select
-                            value={storeId}
-                            label="Destination Store"
-                            onChange={(e) => setStoreId(e.target.value)}
-                        >
-                            <MenuItem value="">Select Store</MenuItem>
-                            {stores.filter(s => String(s.status || s.isActive).toLowerCase() !== 'false').map((s) => (
-                                <MenuItem key={s.id} value={s.id}>{s.name || s.storeName}</MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
+            <Stack spacing={4}>
+                <Stack direction="row" spacing={2} sx={{ opacity: isReceiveMode || isLocked ? 0.6 : 1, pointerEvents: isReceiveMode || isLocked ? 'none' : 'auto' }}>
+                    <TextField type="date" label="Date" size="small" fullWidth value={date} />
+                    <TextField label="Source" size="small" fullWidth value={warehouses.find(w => w.id === sourceId)?.name || 'Warehouse'} disabled />
+                    <TextField label="Destination" size="small" fullWidth value={stores.find(s => s.id === storeId)?.name || 'Store'} disabled />
                 </Stack>
 
-                {dispatchMode && (
-                    <Box sx={{ p: 2, bgcolor: `${dispatchMode.color}05`, border: `1px solid ${dispatchMode.color}`, borderRadius: 2 }}>
-                        <Typography sx={{ color: dispatchMode.color, fontWeight: 700, fontSize: '0.85rem' }}>
-                            {dispatchMode.label.toUpperCase()} MODE DETECTED
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: '#475569' }}>
-                            {dispatchMode.description}
-                        </Typography>
+                {isReceiveMode && (
+                    <Box sx={{ p: 2, bgcolor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 2 }}>
+                        <Typography sx={{ fontWeight: 900, color: '#166534' }}>⚡ AUDIT MODE ACTIVE</Typography>
+                        <Typography variant="caption">Scan garments to verify received quantity. Mismatches will be logged.</Typography>
                     </Box>
                 )}
 
-                <Typography variant="h6">Items to Dispatch</Typography>
-                <Stack direction="row" spacing={2}>
-                    <TextField 
-                        fullWidth size="small"
-                        placeholder="⚡ Fast Scan: Scan garment barcode or type SKU..."
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                                e.preventDefault();
-                                handleScanner(e.target.value);
-                                e.target.value = '';
-                            }
-                        }}
-                        InputProps={{
-                            startAdornment: <Typography sx={{ mr: 1, color: '#3b82f6', fontWeight: 700 }}>🔍</Typography>,
-                            sx: { bgcolor: '#eff6ff', border: '1px dashed #3b82f6' }
-                        }}
-                        helperText="Press Enter after scanning or typing."
-                    />
-                    <Autocomplete
-                        size="small"
-                        options={filteredOptions}
-                        getOptionLabel={(o) => `${o.sku} | ${o.itemName} (${o.size}/${o.color}) - Stock: ${o.available}`}
-                        value={variantPickerValue}
-                        onChange={(_, v) => v && handleScanner(v.sku)}
-                        sx={{ flex: 1.5 }}
-                        renderInput={(params) => <TextField {...params} label="Manual Search" />}
-                        isOptionEqualToValue={(option, value) => option.variantId === value.variantId}
-                    />
-                </Stack>
+                <TextField 
+                    fullWidth size="small"
+                    placeholder="Scan barcode to audit/add item..."
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleScanner(e.target.value);
+                            e.target.value = '';
+                        }
+                    }}
+                    sx={{ bgcolor: '#f8fafc' }}
+                />
 
-                {error && <Typography color="error">{error}</Typography>}
-
-                <TableContainer border="1px solid #e2e8f0" borderRadius={1}>
+                <TableContainer component={Paper} elevation={0} variant="outlined">
                     <Table size="small">
                         <TableHead sx={{ bgcolor: '#f8fafc' }}>
                             <TableRow>
-                                <TableCell>Item</TableCell>
-                                <TableCell>SKU</TableCell>
-                                <TableCell align="right">MRP</TableCell>
-                                <TableCell align="right">Available</TableCell>
-                                <TableCell align="right">Qty</TableCell>
-                                <TableCell align="center">Action</TableCell>
+                                <TableCell sx={{ fontWeight: 700 }}>Garment Variant</TableCell>
+                                <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 700 }}>MRP</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 700 }}>Expected Qty</TableCell>
+                                {isReceiveMode && <TableCell align="right" sx={{ fontWeight: 700, color: '#166534' }}>Received Qty</TableCell>}
+                                {!isReceiveMode && <TableCell align="right" sx={{ fontWeight: 700 }}>Dispatch Qty</TableCell>}
+                                {!isLocked && <TableCell align="center">Action</TableCell>}
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             {lines.map((l) => (
-                                <TableRow key={l.variantId}>
+                                <TableRow key={l.variantId} sx={{ bgcolor: isReceiveMode && l.receivedQty != l.quantity ? '#fff1f2' : 'inherit' }}>
                                     <TableCell>{l.itemName} ({l.size}/{l.color})</TableCell>
                                     <TableCell>{l.sku}</TableCell>
                                     <TableCell align="right">₹{(l.mrp || 0).toLocaleString()}</TableCell>
-                                    <TableCell align="right">{l.available}</TableCell>
-                                    <TableCell align="right">
-                                        <TextField
-                                            size="small"
-                                            type="number"
-                                            value={l.quantity}
-                                            onChange={(e) => updateQuantity(l.variantId, e.target.value)}
-                                            inputProps={{ style: { textAlign: 'right', width: 80 } }}
-                                        />
-                                    </TableCell>
-                                    <TableCell align="center">
-                                        <IconButton size="small" color="error" onClick={() => removeLine(l.variantId)}>
-                                            <DeleteOutlineIcon fontSize="small" />
-                                        </IconButton>
-                                    </TableCell>
+                                    <TableCell align="right" sx={{ fontWeight: 700 }}>{l.quantity}</TableCell>
+                                    {isReceiveMode && (
+                                        <TableCell align="right">
+                                            <TextField 
+                                                size="small" type="number" value={l.receivedQty} 
+                                                onChange={(e) => updateReceivedQuantity(l.variantId, e.target.value)}
+                                                inputProps={{ style: { textAlign: 'right', fontWeight: 800, width: 70 } }}
+                                            />
+                                        </TableCell>
+                                    )}
+                                    {!isReceiveMode && (
+                                        <TableCell align="right">
+                                            <TextField 
+                                                size="small" type="number" value={l.quantity} 
+                                                onChange={(e) => updateQuantity(l.variantId, e.target.value)}
+                                                inputProps={{ style: { textAlign: 'right', width: 70 } }}
+                                                disabled={isLocked}
+                                            />
+                                        </TableCell>
+                                    )}
+                                    {!isLocked && (
+                                        <TableCell align="center">
+                                            <IconButton color="error" onClick={() => setLines(prev => prev.filter(x => x.variantId !== l.variantId))} disabled={isReceiveMode}>
+                                                <DeleteOutlineIcon size="small" />
+                                            </IconButton>
+                                        </TableCell>
+                                    )}
                                 </TableRow>
                             ))}
-                            {lines.length === 0 && (
-                                <TableRow>
-                                    <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
-                                        No items added.
-                                    </TableCell>
-                                </TableRow>
-                            )}
                         </TableBody>
                     </Table>
                 </TableContainer>
 
-                {(dispatchMode?.type === 'INVOICE' || lines.length > 0) && (
-                    <Box sx={{ alignSelf: 'flex-end', width: { xs: '100%', md: 300 }, textAlign: 'right' }}>
-                        <Stack spacing={1}>
-                            <Stack direction="row" justifyContent="space-between">
-                                <Typography color="text.secondary">Gross Subtotal:</Typography>
-                                <Typography sx={{ fontWeight: 600 }}>₹{totals.grossSubtotal.toLocaleString()}</Typography>
-                            </Stack>
-                            <Stack direction="row" justifyContent="space-between">
-                                <Typography color="text.secondary">Discount ({discountPct}%):</Typography>
-                                <Typography sx={{ fontWeight: 600, color: '#ec4899' }}>-₹{totals.discountAmount.toLocaleString()}</Typography>
-                            </Stack>
-                            <Divider />
-                            <Stack direction="row" justifyContent="space-between">
-                                <Typography color="text.secondary">Taxable Value:</Typography>
-                                <Typography sx={{ fontWeight: 600 }}>₹{totals.taxableValue.toLocaleString()}</Typography>
-                            </Stack>
-                            {dispatchMode?.type === 'INVOICE' && (
-                                <Stack direction="row" justifyContent="space-between">
-                                    <Typography color="text.secondary">Total GST (Item-wise):</Typography>
-                                    <Typography sx={{ fontWeight: 600, color: '#10b981' }}>+₹{totals.taxAmount.toLocaleString()}</Typography>
-                                </Stack>
-                            )}
-                            <Divider />
-                            <Stack direction="row" justifyContent="space-between">
-                                <Typography variant="h6" sx={{ fontWeight: 800 }}>Total Value:</Typography>
-                                <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a' }}>
-                                    ₹{totals.grandTotal.toLocaleString()}
-                                </Typography>
-                            </Stack>
-                        </Stack>
-                    </Box>
-                )}
-            </Stack>
-
-            <Stack direction="row" spacing={2} sx={{ mt: 4, justifyContent: 'flex-end' }}>
-                <Button variant="outlined" onClick={() => navigate(listPath)}>Cancel</Button>
-                
-                {!isLocked && (
-                    <>
-                        <Button 
-                            variant="outlined" 
-                            color="secondary" 
-                            onClick={() => handleSave('DRAFT')}
-                            sx={{ borderColor: 'secondary.main', color: 'secondary.main', fontWeight: 700 }}
-                        >
-                            Save Sale Challan (Draft)
+                <Stack direction="row" spacing={2} justifyContent="flex-end">
+                    <Button variant="outlined" onClick={() => navigate(listPath)}>Cancel</Button>
+                    {isReceiveMode && (
+                        <Button variant="contained" color="success" onClick={() => handleSave()} disabled={isSubmitting}>
+                            Confirm Verified Stock-In
                         </Button>
-
-                        <Button 
-                            variant="contained" 
-                            color="primary"
-                            startIcon={<SaveOutlinedIcon />} 
-                            onClick={() => handleSave('SENT')}
-                            sx={{ boxShadow: '0 4px 12px rgba(37, 99, 235, 0.2)', fontWeight: 700, bgcolor: '#0f172a' }}
-                        >
-                            Confirm & Generate Sale Bill
-                        </Button>
-                    </>
-                )}
-                
-                {isLocked && status === 'DISPATCHED' && (
-                    <Button 
-                        variant="contained" 
-                        color="success"
-                        disabled
-                        sx={{ fontWeight: 700 }}
-                    >
-                        ✓ Dispatched & Invoiced
-                    </Button>
-                )}
+                    )}
+                    {!isReceiveMode && !isLocked && (
+                      <Button variant="contained" color="primary" onClick={() => handleSave()} disabled={isSubmitting}>
+                          {providedTitle}
+                      </Button>
+                    )}
+                </Stack>
             </Stack>
         </Paper>
     );

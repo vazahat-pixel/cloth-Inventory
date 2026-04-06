@@ -13,7 +13,8 @@ const create = async (req, res, next) => {
 const receive = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const dispatch = await dispatchService.receiveDispatch(id, req.user._id);
+        const { receivedItems } = req.body;
+        const dispatch = await dispatchService.receiveDispatch(id, req.user._id, receivedItems);
         return sendSuccess(res, { dispatch }, 'Stock received and inventory updated');
     } catch (error) {
         next(error);

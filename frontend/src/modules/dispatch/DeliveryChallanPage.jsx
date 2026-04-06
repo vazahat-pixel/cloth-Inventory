@@ -30,7 +30,8 @@ function DeliveryChallanPage({
     const { records: challans = [], loading, error } = useSelector((state) => state.dispatch);
     const { user } = useSelector((state) => state.auth);
 
-    const isStoreUser = ['store_staff', 'store_manager', 'accountant'].includes(user?.role);
+    const normalizedRole = String(user?.role || '').toLowerCase();
+    const isStoreUser = normalizedRole.includes('staff') || normalizedRole.includes('manager') || normalizedRole.includes('accountant');
 
     useEffect(() => {
         dispatch(fetchChallans());
@@ -126,9 +127,9 @@ function DeliveryChallanPage({
                                                     variant="text"
                                                     size="small"
                                                     disabled={loading}
-                                                    onClick={() => navigate(`/orders/delivery-challan/${row.id || row._id}/edit`)}
+                                                    onClick={() => navigate(`/orders/delivery-challan/${row.id || row._id}/${(status === 'DISPATCHED' && isStoreUser) ? 'receive' : 'view'}`)}
                                                 >
-                                                    {status === 'PENDING' ? 'Edit' : 'View'}
+                                                    {(status === 'DISPATCHED' && isStoreUser) ? 'Process Receipt' : (status === 'PENDING' ? 'Edit' : 'View')}
                                                 </Button>
 
                                                 {status === 'PENDING' && !isStoreUser && (
@@ -141,19 +142,6 @@ function DeliveryChallanPage({
                                                         onClick={() => dispatch(updateChallanStatus({ id: row.id || row._id, status: 'DISPATCHED' }))}
                                                     >
                                                         Finalize & Bill
-                                                    </Button>
-                                                )}
-
-                                                {status === 'DISPATCHED' && isStoreUser && (
-                                                    <Button
-                                                        variant="contained"
-                                                        color="success"
-                                                        size="small"
-                                                        sx={{ fontWeight: 700, borderRadius: 1.5 }}
-                                                        disabled={loading}
-                                                        onClick={() => handleMarkReceived(row)}
-                                                    >
-                                                        Receive Stock
                                                     </Button>
                                                 )}
                                             </Stack>
