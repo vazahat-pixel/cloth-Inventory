@@ -11,6 +11,13 @@ const Dispatch = require('../../models/dispatch.model');
 const Item = require('../../models/item.model');
 const { getNextSequence } = require('../../services/sequence.service');
 
+// Correct path — stock.service is in ../../services/
+const stockService = require('../../services/stock.service');
+
+/* ─────────────────────────────────────────────
+   Helper: Populate item details onto dispatch items array
+   Works with both lean objects and Mongoose docs
+───────────────────────────────────────────── */
 const populateDispatchItemsManual = async (dispatches) => {
     const isSingle = !Array.isArray(dispatches);
     const docs = isSingle ? [dispatches] : dispatches;
@@ -23,13 +30,11 @@ const populateDispatchItemsManual = async (dispatches) => {
             return v ? String(v) : null;
         }).filter(Boolean);
 
-        // Find Items containing these variations
         const items = await Item.find({ "sizes._id": { $in: variantIds } })
             .populate('brand', 'name brandName')
             .populate('groupIds', 'name groupType groupName')
             .lean();
 
-        // Map them back to the dispatch items
         doc.items = (doc.items || []).map(di => {
             const vid = String(di.variantId?._id || di.variantId);
             const parentItem = items.find(it => (it.sizes || []).some(sz => String(sz._id) === vid));
@@ -57,11 +62,25 @@ const populateDispatchItemsManual = async (dispatches) => {
     return isSingle ? docs[0] : docs;
 };
 
-/**
- * UNIFIED DISPATCH SYSTEM
- * Routes dispatches between same GSTIN (Delivery Challan)
- * and different GSTIN (Tax Invoice / Sale)
- */
+/* ─────────────────────────────────────────────
+   Helper: Resolve barcode + itemId for a variant
+   Returns { barcode, itemId, itemDoc, variant }
+───────────────────────────────────────────── */
+const resolveVariantInfo = async (variantId, session) => {
+    const vid = variantId?._id || variantId;
+    const itemDoc = await Item.findOne({ "sizes._id": vid }).session(session);
+    if (!itemDoc) throw new Error(`Item not found for variantId: ${vid}`);
+    const variant = (itemDoc.sizes || []).find(sz => String(sz._id) === String(vid));
+    if (!variant) throw new Error(`Variant not found: ${vid}`);
+    const barcode = variant.sku || variant.barcode || itemDoc.itemCode;
+    return { barcode, itemId: itemDoc._id, itemDoc, variant };
+};
+
+/* ─────────────────────────────────────────────
+   CREATE DISPATCH
+   PENDING → saves as Sale Challan Draft, no stock movement
+   SENT    → saves as Sale Bill, deducts warehouse stock, adds in-transit to store
+───────────────────────────────────────────── */
 const createDispatch = async (dispatchData, userId) => {
     return await withTransaction(async (session) => {
         const { sourceId, sourceWarehouseId, destinationStoreId, products, items, ...rest } = dispatchData;
@@ -83,7 +102,7 @@ const createDispatch = async (dispatchData, userId) => {
         const isSameEntity = sourceGst === destGst;
         const transferDiscountPct = destination.transferDiscountPct || 0;
 
-        // 2. Prepare Detailed Items (Using Item Master Sizes instead of Product model)
+        // 2. Prepare Detailed Items (Using Item Master Sizes)
         const { calculateGST } = require('../../services/gst.service');
         const enrichedItems = [];
         let totalSubTotal = 0;
@@ -96,7 +115,6 @@ const createDispatch = async (dispatchData, userId) => {
             const variantId = p.variantId || p.productId;
             if (!variantId) throw new Error("Item variant ID missing in request");
 
-            // Look up in Item Master Sizes
             const itemDoc = await Item.findOne({ "sizes._id": variantId })
                 .populate('hsCodeId')
                 .session(session);
@@ -106,7 +124,6 @@ const createDispatch = async (dispatchData, userId) => {
             const variant = itemDoc.sizes.id(variantId);
             if (!variant) throw new Error(`Variant not found in Item Master: ${variantId}`);
 
-            // Base Price (MRP)
             const baseRate = p.mrp || p.rate || variant.mrp || itemDoc.salePrice || 0;
             const discountedRate = Number((baseRate * (1 - transferDiscountPct / 100)).toFixed(2));
             const lineSubTotal = discountedRate * p.quantity;
@@ -121,12 +138,14 @@ const createDispatch = async (dispatchData, userId) => {
                 }
             }
 
+            const barcode = variant.sku || variant.barcode || itemDoc.itemCode;
+
             enrichedItems.push({
                 itemId: itemDoc._id,
                 variantId: variant._id,
                 qty: p.quantity,
-                barcode: variant.sku || itemDoc.itemCode || p.sku,
-                rate: discountedRate, // Applied billing rate
+                barcode,
+                rate: discountedRate,
                 mrp: baseRate,
                 taxPercentage: isDraft || isSameEntity ? 0 : gstPct,
                 taxAmount: taxData.totalTax,
@@ -134,7 +153,7 @@ const createDispatch = async (dispatchData, userId) => {
                 cgst: taxData.cgst,
                 sgst: taxData.sgst,
                 igst: taxData.igst,
-                sku: variant.sku || itemDoc.itemCode || p.sku
+                sku: barcode
             });
 
             totalSubTotal += lineSubTotal;
@@ -149,7 +168,7 @@ const createDispatch = async (dispatchData, userId) => {
         if (!isDraft) {
             if (isSameEntity) {
                 const challan = await challanService.createChallan({
-                    destinationStoreId, // Correct Field Name
+                    destinationStoreId,
                     sourceId: finalSourceId,
                     items: enrichedItems.map(ei => ({ 
                         itemId: ei.itemId,
@@ -158,7 +177,7 @@ const createDispatch = async (dispatchData, userId) => {
                         quantity: ei.qty,
                         rate: ei.rate
                     })),
-                    type: 'WAREHOUSE_TO_STORE', // Correct Enum
+                    type: 'WAREHOUSE_TO_STORE',
                     totalValue: totalSubTotal,
                     notes: rest.notes || `Stock Transfer to ${destination.name}`
                 }, userId, session);
@@ -191,7 +210,7 @@ const createDispatch = async (dispatchData, userId) => {
 
         // 4. Create Dispatch Record
         const sequence = await getNextSequence(`DISPATCH_${new Date().getFullYear()}`, session);
-        const prefix = isDraft ? 'SCH' : 'DSP'; // Sale Challan vs Dispatch Bill
+        const prefix = isDraft ? 'SCH' : 'DSP';
         const dispatchNumber = `${prefix}-${new Date().getFullYear()}-${sequence.toString().padStart(5, '0')}`;
 
         const dispatchMaster = new Dispatch({
@@ -209,50 +228,78 @@ const createDispatch = async (dispatchData, userId) => {
 
         await dispatchMaster.save({ session });
 
+        // 5. ⚡ INVENTORY MOVEMENT — Only for DISPATCHED (non-draft)
+        //    Deduct from warehouse → add to in-transit at destination store
+        if (!isDraft) {
+            for (const ei of enrichedItems) {
+                const barcode = ei.barcode;
+                const itemId = ei.itemId;
+                const variantId = ei.variantId;
+
+                // A. Deduct physical stock from source warehouse
+                await stockService.removeStock({
+                    itemId,
+                    barcode,
+                    variantId,
+                    locationId: finalSourceId,
+                    locationType: 'WAREHOUSE',
+                    qty: ei.qty,
+                    type: 'TRANSFER',
+                    referenceId: dispatchMaster._id,
+                    referenceType: 'Dispatch',
+                    performedBy: userId,
+                    session
+                });
+
+                // B. Add to in-transit pool at destination store
+                await stockService.addInTransit({
+                    itemId,
+                    barcode,
+                    variantId,
+                    locationId: destinationStoreId,
+                    locationType: 'STORE',
+                    qty: ei.qty,
+                    session
+                });
+            }
+        }
+
         return dispatchMaster;
     });
 };
 
+/* ─────────────────────────────────────────────
+   UPDATE DISPATCH (Draft only)
+───────────────────────────────────────────── */
 const updateDispatch = async (id, dispatchData, userId) => {
     return await withTransaction(async (session) => {
         const dispatchMaster = await Dispatch.findById(id).session(session);
         if (!dispatchMaster) throw new Error('Dispatch record not found');
         if (dispatchMaster.status !== 'PENDING') throw new Error('Only Draft/Pending dispatches can be updated');
 
-        const { products, notes } = dispatchData;
-        const stockService = require('../../services/stock.service');
+        const { items: newItems, products, notes, sourceId, destinationStoreId } = dispatchData;
+        const finalProducts = newItems || products || [];
 
         // Resolve Entities for GST/Discount check
         const source = await Warehouse.findById(dispatchMaster.sourceWarehouseId).session(session)
             || await Store.findById(dispatchMaster.sourceWarehouseId).session(session);
         const destination = await Store.findById(dispatchMaster.destinationStoreId).session(session);
 
+        if (!source || !destination) throw new Error('Source or destination not found');
+
         const sourceGst = (source.gstNumber || '').trim().toUpperCase();
         const destGst = (destination.gstNumber || '').trim().toUpperCase();
         const isSameEntity = sourceGst === destGst;
         const transferDiscountPct = destination.transferDiscountPct || 0;
 
-        // 1. Release OLD Reservations
-        for (const item of dispatchMaster.items) {
-            await stockService.releaseStock({
-                variantId: item.variantId,
-                locationId: dispatchMaster.sourceWarehouseId,
-                locationType: 'WAREHOUSE',
-                qty: item.qty,
-                session
-            });
-        }
-
-        // 2. Prepare new items with Prices (Using Item Master)
+        // Prepare new items with Prices
         const { calculateGST } = require('../../services/gst.service');
         const enrichedItems = [];
         let totalSubTotal = 0;
         let totalTaxAmount = 0;
-        let totalCGST = 0;
-        let totalSGST = 0;
-        let totalIGST = 0;
+        let totalCGST = 0, totalSGST = 0, totalIGST = 0;
 
-        for (const p of products) {
+        for (const p of finalProducts) {
             const variantId = p.variantId || p.productId;
             const itemDoc = await Item.findOne({ "sizes._id": variantId })
                 .populate('hsCodeId')
@@ -261,7 +308,7 @@ const updateDispatch = async (id, dispatchData, userId) => {
             if (!itemDoc) throw new Error(`Item master record not found during update for variant ID: ${variantId}`);
             const variant = itemDoc.sizes.id(variantId);
 
-            let baseRate = p.rate || variant.mrp || itemDoc.salePrice || 0;
+            const baseRate = p.mrp || p.rate || variant.mrp || itemDoc.salePrice || 0;
             const discountedRate = Number((baseRate * (1 - transferDiscountPct / 100)).toFixed(2));
             const qty = (p.quantity || p.qty || 0);
             const lineSubTotal = discountedRate * qty;
@@ -275,19 +322,20 @@ const updateDispatch = async (id, dispatchData, userId) => {
                 }
             }
 
+            const barcode = variant.sku || variant.barcode || itemDoc.itemCode;
+
             enrichedItems.push({
                 itemId: itemDoc._id,
                 variantId: variant._id,
-                qty: qty,
-                barcode: variant.sku || itemDoc.itemCode || p.sku,
+                qty,
+                barcode,
                 rate: discountedRate,
                 mrp: baseRate,
                 taxPercentage: isSameEntity ? 0 : (itemDoc.gstPercent || itemDoc.hsCodeId?.gstPercent || 0),
                 taxAmount: taxData.totalTax,
                 total: lineSubTotal + taxData.totalTax,
-                cgst: taxData.cgst,
-                sgst: taxData.sgst,
-                igst: taxData.igst
+                cgst: taxData.cgst, sgst: taxData.sgst, igst: taxData.igst,
+                sku: barcode
             });
 
             totalSubTotal += lineSubTotal;
@@ -297,115 +345,51 @@ const updateDispatch = async (id, dispatchData, userId) => {
             totalIGST += taxData.igst;
         }
 
-        // 3. Update parent Document
-        const DeliveryChallan = require('../../models/deliveryChallan.model');
-        const Sale = require('../../models/sale.model');
-
-        if (dispatchMaster.referenceType === 'DeliveryChallan') {
-            await DeliveryChallan.findByIdAndUpdate(dispatchMaster.referenceId, {
-                vehicleNumber: vehicleNumber || dispatchMaster.vehicleNumber,
-                driverName: driverName || dispatchMaster.driverName,
-                notes: notes,
-                items: enrichedItems.map(ei => ({ 
-                    itemId: ei.itemId,
-                    variantId: ei.variantId,
-                    barcode: ei.barcode,
-                    quantity: ei.qty,
-                    rate: ei.rate
-                })),
-                totalValue: totalSubTotal
-            }, { session });
-        } else if (dispatchMaster.referenceType === 'Sale') {
-            await Sale.findByIdAndUpdate(dispatchMaster.referenceId, {
-                vehicleNumber: vehicleNumber || dispatchMaster.vehicleNumber,
-                driverName: driverName || dispatchMaster.driverName,
-                notes: notes,
-                items: enrichedItems.map(ei => ({
-                    productId: ei.variantId,
-                    quantity: ei.qty,
-                    barcode: ei.barcode,
-                    rate: ei.rate,
-                    mrp: ei.mrp,
-                    taxAmount: ei.taxAmount,
-                    taxPercentage: ei.taxPercentage,
-                    total: ei.total,
-                    cgst: ei.cgst,
-                    sgst: ei.sgst,
-                    igst: ei.igst
-                })),
-                subTotal: totalSubTotal,
-                tax: totalTaxAmount,
-                totalTax: totalTaxAmount,
-                taxBreakup: {
-                    cgst: totalCGST,
-                    sgst: totalSGST,
-                    igst: totalIGST
-                },
-                grandTotal: totalSubTotal + totalTaxAmount
-            }, { session });
-        }
-
-        // 4. Update the Dispatch Master itself
-        dispatchMaster.items = enrichedItems.map(ei => ({
-            variantId: ei.variantId,
-            qty: ei.qty,
-            rate: ei.appliedPrice,
-            tax: ei.taxAmount / ei.quantity
-        }));
+        // Update the Dispatch Master
+        dispatchMaster.items = enrichedItems;
         dispatchMaster.notes = notes || dispatchMaster.notes;
         await dispatchMaster.save({ session });
-
-        // 5. Reserve NEW Stock
-        for (const item of dispatchMaster.items) {
-            await stockService.reserveStock({
-                variantId: item.variantId,
-                locationId: dispatchMaster.sourceWarehouseId,
-                locationType: 'WAREHOUSE',
-                qty: item.qty,
-                session
-            });
-        }
         
         return dispatchMaster;
     });
 };
-const confirmDispatch = async (id, userId) => {
-    const stockService = require('../../services/stock.service');
-    const DeliveryChallan = require('../../models/deliveryChallan.model');
-    const Sale = require('../../models/sale.model');
 
+/* ─────────────────────────────────────────────
+   CONFIRM DISPATCH (PENDING → DISPATCHED)
+   Deducts warehouse stock, adds in-transit to store
+───────────────────────────────────────────── */
+const confirmDispatch = async (id, userId) => {
     return await withTransaction(async (session) => {
         const dispatch = await Dispatch.findById(id).session(session);
         if (!dispatch) throw new Error('Dispatch record not found');
         if (dispatch.status !== 'PENDING') throw new Error(`Cannot confirm dispatch with status: ${dispatch.status}`);
 
-        // 1. Release Reservation and Deduct Physical Stock
+        // Process each item: deduct from warehouse, add to store in-transit
         for (const item of dispatch.items) {
-            // First release the logical reservation
-            await stockService.releaseStock({
-                variantId: item.variantId,
-                locationId: dispatch.sourceWarehouseId,
-                locationType: 'WAREHOUSE',
-                qty: item.qty,
-                session
-            });
+            // Resolve barcode and itemId from Item master
+            const { barcode, itemId } = await resolveVariantInfo(item.variantId, session);
+            const variantId = item.variantId?._id || item.variantId;
 
-            // Then physically deduct from source warehouse
+            // A. Deduct physical stock from source warehouse
             await stockService.removeStock({
-                variantId: item.variantId,
+                itemId,
+                barcode,
+                variantId,
                 locationId: dispatch.sourceWarehouseId,
                 locationType: 'WAREHOUSE',
                 qty: item.qty,
                 type: 'TRANSFER',
-                referenceId: dispatch.referenceId,
-                referenceType: dispatch.referenceType,
+                referenceId: dispatch._id,
+                referenceType: 'Dispatch',
                 performedBy: userId,
                 session
             });
 
-            // 3. Move to In-Transit pool for destination store
+            // B. Add to in-transit pool at destination store
             await stockService.addInTransit({
-                variantId: item.variantId,
+                itemId,
+                barcode,
+                variantId,
                 locationId: dispatch.destinationStoreId,
                 locationType: 'STORE',
                 qty: item.qty,
@@ -413,15 +397,15 @@ const confirmDispatch = async (id, userId) => {
             });
         }
 
-        // 2. Update Dispatch Status
+        // Update Dispatch Status
         dispatch.status = 'DISPATCHED';
         dispatch.dispatchedAt = new Date();
         await dispatch.save({ session });
 
-        // 3. Update related document (Challan or Sale)
-        if (dispatch.referenceType === 'DeliveryChallan') {
+        // Update related billing document if exists
+        if (dispatch.referenceType === 'DeliveryChallan' && dispatch.referenceId) {
             await DeliveryChallan.findByIdAndUpdate(dispatch.referenceId, { status: 'DISPATCHED' }, { session });
-        } else if (dispatch.referenceType === 'Sale') {
+        } else if (dispatch.referenceType === 'Sale' && dispatch.referenceId) {
             await Sale.findByIdAndUpdate(dispatch.referenceId, { deliveryStatus: 'DISPATCHED' }, { session });
         }
 
@@ -429,35 +413,22 @@ const confirmDispatch = async (id, userId) => {
     });
 };
 
+/* ─────────────────────────────────────────────
+   CANCEL DISPATCH (PENDING only)
+   Releases any reservations if applicable
+───────────────────────────────────────────── */
 const cancelDispatch = async (id, userId) => {
-    const stockService = require('../../services/stock.service');
-    const DeliveryChallan = require('../../models/deliveryChallan.model');
-    const Sale = require('../../models/sale.model');
-
     return await withTransaction(async (session) => {
         const dispatch = await Dispatch.findById(id).session(session);
         if (!dispatch) throw new Error('Dispatch record not found');
-        if (dispatch.status !== 'PENDING') throw new Error(`Only PENDING (Draft) dispatches can be cancelled. Current status is ${dispatch.status}`);
+        if (dispatch.status !== 'PENDING') throw new Error(`Only PENDING (Draft) dispatches can be cancelled. Current status: ${dispatch.status}`);
 
-        // 1. Release Reservation
-        for (const item of dispatch.items) {
-            await stockService.releaseStock({
-                variantId: item.variantId,
-                locationId: dispatch.sourceWarehouseId,
-                locationType: 'WAREHOUSE',
-                qty: item.qty,
-                session
-            });
-        }
-
-        // 2. Mark Dispatch as Cancelled
         dispatch.status = 'CANCELLED';
         await dispatch.save({ session });
 
-        // 3. Cancel corresponding document
-        if (dispatch.referenceType === 'DeliveryChallan') {
+        if (dispatch.referenceType === 'DeliveryChallan' && dispatch.referenceId) {
             await DeliveryChallan.findByIdAndUpdate(dispatch.referenceId, { status: 'CANCELLED' }, { session });
-        } else if (dispatch.referenceType === 'Sale') {
+        } else if (dispatch.referenceType === 'Sale' && dispatch.referenceId) {
             await Sale.findByIdAndUpdate(dispatch.referenceId, { status: 'CANCELLED', deliveryStatus: 'CANCELED' }, { session });
         }
 
@@ -465,13 +436,19 @@ const cancelDispatch = async (id, userId) => {
     });
 };
 
+/* ─────────────────────────────────────────────
+   GET DISPATCHES (list)
+───────────────────────────────────────────── */
 const getDispatches = async (query, user) => {
     const { status, sourceId, destinationId } = query;
     const filter = {};
 
     // Security: Filter by shopId for store-based roles
-    const storeRoles = ['store_staff', 'store_manager', 'accountant'];
-    if (user && storeRoles.includes(user.role)) {
+    const storeRoles = ['store_staff', 'store_manager', 'accountant', 'Staff', 'Manager', 'Accountant'];
+    const normalizedRole = (user?.role || '').toLowerCase();
+    const isStoreRole = normalizedRole.includes('staff') || normalizedRole.includes('manager') || normalizedRole.includes('accountant');
+    
+    if (user && isStoreRole) {
         if (!user.shopId) throw new Error('User is not linked to any store.');
         filter.$or = [
             { sourceWarehouseId: user.shopId },
@@ -492,6 +469,9 @@ const getDispatches = async (query, user) => {
     return await populateDispatchItemsManual(dispatches);
 };
 
+/* ─────────────────────────────────────────────
+   GET DISPATCH BY ID
+───────────────────────────────────────────── */
 const getDispatchById = async (id) => {
     const dispatch = await Dispatch.findById(id)
         .populate('sourceWarehouseId')
@@ -502,61 +482,64 @@ const getDispatchById = async (id) => {
     return await populateDispatchItemsManual(dispatch);
 };
 
+/* ─────────────────────────────────────────────
+   RECEIVE DISPATCH (DISPATCHED → RECEIVED)
+   Clears in-transit, adds physical stock to store
+   Accepts optional receivedItems for partial/audited receipts
+───────────────────────────────────────────── */
 const receiveDispatch = async (id, userId, receivedItems = []) => {
     return await withTransaction(async (session) => {
         const dispatch = await Dispatch.findById(id).session(session);
         if (!dispatch) throw new Error('Dispatch not found');
         if (dispatch.status !== 'DISPATCHED') throw new Error('Only dispatched items can be received');
 
-        const itemsToProcess = dispatch.items || [];
-        const Item = require('../../models/item.model');
-        const Store = require('../../models/store.model');
-        const stockService = require('../inventory/inventory.service');
+        for (const item of dispatch.items) {
+            // Resolve barcode and itemId from Item master
+            const variantId = item.variantId?._id || item.variantId;
+            const { barcode, itemId } = await resolveVariantInfo(variantId, session);
 
-        for (const item of itemsToProcess) {
-            // Find parent item to get variant details
-            const parentItem = await Item.findOne({ "sizes._id": item.variantId }).session(session);
-            if (!parentItem) {
-                console.error(`[RECEIVE-ERROR] Item not found for variant ${item.variantId}`);
-                continue;
+            // 1. ALWAYS clear the FULL dispatched qty from in-transit (regardless of audit qty)
+            //    But gracefully handle if in-transit record doesn't exist yet (edge case)
+            try {
+                await stockService.removeInTransit({
+                    itemId,
+                    barcode,
+                    variantId,
+                    locationId: dispatch.destinationStoreId,
+                    locationType: 'STORE',
+                    qty: item.qty,
+                    session
+                });
+            } catch (err) {
+                console.warn(`[RECEIVE-WARN] Could not remove from in-transit (may not exist): ${err.message}`);
             }
-            
-            const variant = (parentItem.sizes || []).find(sz => String(sz._id) === String(item.variantId));
-            const originalBarcode = variant.sku || parentItem.itemCode;
 
-            // 1. ALWAYS remove the FULL quantity from in-transit (Clear the pool)
-            await stockService.removeInTransit({
-                itemId: parentItem._id,
-                barcode: originalBarcode, 
-                variantId: item.variantId,
-                locationId: dispatch.destinationStoreId,
-                locationType: 'STORE',
-                qty: item.qty,
-                session
-            });
-
-            // 2. Add only the RECEIVED quantity to physical inventory
-            // If receivedItems was provided (Audit mode), find the verified qty. Otherwise, use dispatch qty.
-            const verified = (receivedItems || []).find(ri => String(ri.variantId) === String(item.variantId));
+            // 2. Add VERIFIED quantity to physical store inventory
+            //    If audit payload provided, use it; otherwise use dispatched qty
+            const verified = (receivedItems || []).find(ri => String(ri.variantId) === String(variantId));
             const qtyToReceive = verified ? Number(verified.receivedQty) : item.qty;
 
             if (qtyToReceive > 0) {
+                // Check if relabeling is required
                 const systemConfigService = require('../systemConfig/systemConfig.service');
                 const relabelOnTransfer = await systemConfigService.getConfigByKey('relabelOnTransfer', false);
                 
-                let targetBarcode = originalBarcode;
+                let targetBarcode = barcode;
                 if (relabelOnTransfer) {
                     const store = await Store.findById(dispatch.destinationStoreId).session(session);
-                    const storeCode = store ? store.storeCode : 'STR';
-                    targetBarcode = `${storeCode}-${originalBarcode}`;
+                    const storeCode = store ? (store.storeCode || 'STR') : 'STR';
+                    targetBarcode = `${storeCode}-${barcode}`;
+                    console.log(`[RELABEL] New Barcode for Store: ${targetBarcode}`);
                 }
 
-                const landingCost = (item.rate || 0) + (item.taxAmount / item.qty || 0);
+                // Landing cost = rate + tax per unit
+                const taxPerUnit = item.qty > 0 ? ((item.taxAmount || 0) / item.qty) : 0;
+                const landingCost = (item.rate || 0) + taxPerUnit;
 
                 await stockService.addStock({
-                    itemId: parentItem._id,
-                    barcode: targetBarcode, 
-                    variantId: item.variantId,
+                    itemId,
+                    barcode: targetBarcode,
+                    variantId,
                     locationId: dispatch.destinationStoreId,
                     locationType: 'STORE',
                     qty: qtyToReceive,
@@ -570,7 +553,7 @@ const receiveDispatch = async (id, userId, receivedItems = []) => {
             }
         }
 
-        // 2. Update Status
+        // Update Dispatch Status
         dispatch.status = 'RECEIVED';
         dispatch.receivedAt = new Date();
         await dispatch.save({ session });
