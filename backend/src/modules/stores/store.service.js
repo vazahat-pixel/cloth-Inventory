@@ -42,6 +42,7 @@ const createStore = async (storeData, userId) => {
     // Automatically create OR link a manager user for this store if email is provided
     if (storeData.email) {
         let user = await User.findOne({ email: storeData.email.toLowerCase() });
+        
         if (!user) {
             await User.create({
                 name: storeData.managerName || storeData.name,
@@ -53,7 +54,15 @@ const createStore = async (storeData, userId) => {
                 mobile: storeData.managerPhone
             });
         } else {
-            // Link existing user to this store
+            // Prevent overwriting a Warehouse Admin or a user from a different store
+            if (user.role === 'admin') {
+                throw new Error('This email belongs to a Warehouse Administrator and cannot be used for a store manager.');
+            }
+            if (user.shopId && user.shopId.toString() !== savedStore._id.toString()) {
+                throw new Error('This email is already linked to another store.');
+            }
+
+            // Link/Sync existing user to this store if it's already their store or they belonged to no store
             user.shopId = savedStore._id;
             user.shopName = savedStore.name;
             user.role = 'store_staff';

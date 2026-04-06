@@ -50,7 +50,7 @@ const adminSidebarItems = [
   { label: 'Goods Control', path: '/inventory/stock-overview', icon: Inventory2Icon, matchPaths: ['/inventory/stock-overview', '/items', '/inventory/grn', '/setup/barcode-print', '/setup/groups', '/setup/hsn-codes', '/setup/sizes', '/masters/brands'], drilldown: true },
   { label: 'Sales & Billing', path: '/sales', icon: PointOfSaleIcon, matchPaths: billingMatchPaths, drilldown: true },
   { label: 'Reports & Analytics', path: '/reports', icon: AssessmentOutlinedIcon, matchPaths: reportsQueriesMatchPaths, drilldown: true },
-  { label: 'Suppliers', path: '/masters/suppliers', icon: BusinessIcon },
+  { label: 'Suppliers', path: '/masters/suppliers', icon: BusinessIcon, matchPaths: ['/masters/suppliers', '/suppliers/material-ledger'], drilldown: true },
   { label: 'Customers', path: '/masters/customers', icon: PeopleIcon },
   { label: 'Stores', path: '/masters/stores', icon: StorefrontIcon },
   { label: 'Warehouse Settings', path: '/settings/company', icon: WarehouseIcon },
@@ -68,6 +68,7 @@ export const adminNavConfig = {
       { label: 'Inventory Overview', path: '/ho/inventory/stock-overview' },
       { label: 'Barcode Print', path: '/ho/setup/barcode-print' },
       { label: 'Scan-to-Receipt (GRN)', path: '/ho/inventory/grn' },
+      { label: 'Stock Dispatch (DC)', path: '/ho/orders/delivery-challan' },
       { label: 'Item Groups (Hierarchy)', path: '/ho/setup/groups' },
       { label: 'HSN Masters', path: '/ho/setup/hsn-codes' },
       { label: 'Size Masters', path: '/ho/setup/sizes' },
@@ -81,6 +82,10 @@ export const adminNavConfig = {
       { label: 'Day-End Audit History', path: '/reports/closure' }
     ],
     '/data-import': dataImportNavItems,
+    '/masters/suppliers': [
+      { label: 'Supplier List', path: '/ho/masters/suppliers' },
+      { label: 'Material Ledger', path: '/ho/suppliers/material-ledger' }
+    ]
   },
 };
 

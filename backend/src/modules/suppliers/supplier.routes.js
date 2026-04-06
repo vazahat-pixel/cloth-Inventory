@@ -19,5 +19,6 @@ router.route('/:id')
 
 const supplierInventoryController = require('./supplierInventory.controller');
 router.get('/:supplierId/inventory', supplierInventoryController.getSupplierStock);
+router.get('/:supplierId/material-ledger', supplierInventoryController.getMaterialLedger);
 
 module.exports = router;

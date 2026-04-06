@@ -74,7 +74,7 @@ function GRNFormPage({ mode = 'edit' }) {
   const [formValues, setFormValues] = useState(defaultForm);
   const [lines, setLines] = useState([]);
   const [consumptionLines, setConsumptionLines] = useState([]);
-  const [supplierStock, setSupplierStock] = useState([]);
+  const [warehouseStock, setWarehouseStock] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -108,19 +108,39 @@ function GRNFormPage({ mode = 'edit' }) {
     // import('../supplierOutward/supplierOutwardSlice').then(m => dispatch(m.fetchSupplierOutwards()));
   }, [dispatch]);
 
-  const fetchSupplierBalance = async (supplierId) => {
-    if (!supplierId) return;
+  const fetchWarehouseFabrics = async (warehouseId) => {
+    if (!warehouseId) return;
     try {
-      const res = await (await import('../../services/api')).default.get(`/suppliers/${supplierId}/inventory`);
-      setSupplierStock(res.data.data.inventory || []);
-    } catch (e) { console.error('Failed to fetch supplier inventory', e); }
+      const res = await (await import('../../services/api')).default.get(`/inventory/warehouse-stock/${warehouseId}`);
+      const enrichedItems = res.data.items || [];
+      const flatOptions = [];
+      enrichedItems.forEach(item => {
+        if (item.type !== 'FABRIC') return; // Only show Fabric type as per requirement
+        Object.values(item.sizes || []).forEach(sz => {
+          if (sz.availableStock > 0 || sz.stock > 0) {
+             const qty = sz.availableStock > 0 ? sz.availableStock : sz.stock;
+             const barcode = sz.sku || sz.barcode || `${item.itemCode}-${sz.size}`;
+             flatOptions.push({
+               itemId: item._id || item.id,
+               itemName: item.itemName,
+               itemCode: item.itemCode,
+               variantId: sz._id || sz.id,
+               barcode: barcode,
+               quantity: qty,
+               label: `${item.itemName} (${sz.size}) [${barcode}] - Bal: ${qty}`
+             });
+          }
+        });
+      });
+      setWarehouseStock(flatOptions);
+    } catch (e) { console.error('Failed to fetch warehouse fabric stock', e); }
   };
 
   useEffect(() => {
-    if (formValues.supplierId) {
-      fetchSupplierBalance(formValues.supplierId);
+    if (formValues.warehouseId && formValues.grnType === 'GARMENT') {
+      fetchWarehouseFabrics(formValues.warehouseId);
     }
-  }, [formValues.supplierId]);
+  }, [formValues.warehouseId, formValues.grnType]);
 
   useEffect(() => {
     if (id) {
@@ -349,9 +369,13 @@ function GRNFormPage({ mode = 'edit' }) {
         consumptionDetails: consumptionLines.map(cl => ({
           itemId: cl.itemId,
           variantId: cl.variantId,
-          quantity: Number(cl.quantity || 0),
-          wasteQuantity: Number(cl.wasteQuantity || 0)
-        })).filter(c => (c.quantity + c.wasteQuantity) > 0),
+          barcode: cl.barcode,
+          itemName: cl.itemName,
+          availableQty: Number(cl.availableQty || 0),
+          usedQty: Number(cl.quantity || 0),
+          wasteQty: Number(cl.wasteQuantity || 0),
+          pendingQty: Number(cl.pendingQuantity || 0)
+        })).filter(c => (c.usedQty + c.wasteQty) > 0),
         totalValue: totals.totalValue,
         totalQty: totals.received
       };
@@ -666,102 +690,118 @@ function GRNFormPage({ mode = 'edit' }) {
         {formValues.grnType === 'GARMENT' && (
           <Grid item xs={12} sx={{ mt: 2 }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 1.5, color: '#ec4899', display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Box component="span" sx={{ width: 12, height: 12, bgcolor: '#ec4899', borderRadius: '50%' }} />
-              RAW MATERIAL CONSUMPTION / FABRIC SETTLEMENT
-            </Typography>
-            <TableContainer component={Paper} sx={{ borderRadius: 2, border: '1px solid #fce7f3' }}>
-              <Table size="small">
-                <TableHead sx={{ bgcolor: '#fff1f2' }}>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 700 }}>MATERIAL / FABRIC</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>AVAILABLE</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 700 }}>USED QTY</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 700 }}>WASTAGE</TableCell>
-                    {!isLocked && <TableCell align="center" sx={{ fontWeight: 700 }}>ACTION</TableCell>}
+            <Box component="span" sx={{ width: 12, height: 12, bgcolor: '#ec4899', borderRadius: '50%' }} />
+            RAW MATERIAL CONSUMPTION / FABRIC SETTLEMENT
+          </Typography>
+          <TableContainer component={Paper} sx={{ borderRadius: 2, border: '1px solid #fce7f3' }}>
+            <Table size="small">
+              <TableHead sx={{ bgcolor: '#fff1f2' }}>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 700 }}>MATERIAL / FABRIC</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>AVAILABLE</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700 }}>USED QTY</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700 }}>WASTAGE</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700 }}>PENDING</TableCell>
+                  {!isLocked && <TableCell align="center" sx={{ fontWeight: 700 }}>ACTION</TableCell>}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {consumptionLines.map((line, idx) => (
+                  <TableRow key={idx} hover>
+                    <TableCell>
+                      <Stack>
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{line.itemName}</Typography>
+                        <Typography variant="caption" sx={{ color: '#ec4899' }}>{line.barcode}</Typography>
+                      </Stack>
+                    </TableCell>
+                    <TableCell>
+                      <Chip label={`${line.availableQty || 0} Unit`} size="small" variant="outlined" sx={{ fontWeight: 700 }} />
+                    </TableCell>
+                    <TableCell align="right">
+                      <TextField
+                        type="number"
+                        size="small"
+                        value={line.quantity}
+                        onChange={e => {
+                          const newLines = [...consumptionLines];
+                          newLines[idx].quantity = e.target.value;
+                          setConsumptionLines(newLines);
+                        }}
+                        disabled={isLocked}
+                        sx={{ width: 85 }}
+                      />
+                    </TableCell>
+                    <TableCell align="right">
+                      <TextField
+                        type="number"
+                        size="small"
+                        value={line.wasteQuantity}
+                        onChange={e => {
+                          const newLines = [...consumptionLines];
+                          newLines[idx].wasteQuantity = e.target.value;
+                          setConsumptionLines(newLines);
+                        }}
+                        disabled={isLocked}
+                        sx={{ width: 85 }}
+                      />
+                    </TableCell>
+                    <TableCell align="right">
+                      <TextField
+                        type="number"
+                        size="small"
+                        value={line.pendingQuantity}
+                        onChange={e => {
+                          const newLines = [...consumptionLines];
+                          newLines[idx].pendingQuantity = e.target.value;
+                          setConsumptionLines(newLines);
+                        }}
+                        disabled={isLocked}
+                        sx={{ width: 85 }}
+                      />
+                    </TableCell>
+                    {!isLocked && (
+                      <TableCell align="center">
+                        <IconButton color="error" size="small" onClick={() => setConsumptionLines(consumptionLines.filter((_, i) => i !== idx))}><DeleteOutlineIcon fontSize="small" /></IconButton>
+                      </TableCell>
+                    )}
                   </TableRow>
-                </TableHead>
-                <TableBody>
-                  {consumptionLines.map((line, idx) => (
-                    <TableRow key={idx} hover>
-                      <TableCell>
-                        <Stack>
-                          <Typography variant="body2" sx={{ fontWeight: 700 }}>{line.itemName}</Typography>
-                          <Typography variant="caption" sx={{ color: '#ec4899' }}>{line.barcode}</Typography>
-                        </Stack>
-                      </TableCell>
-                      <TableCell>
-                        <Chip label={`${line.availableQty || 0} Unit`} size="small" variant="outlined" sx={{ fontWeight: 700 }} />
-                      </TableCell>
-                      <TableCell align="right">
-                        <TextField
-                          type="number"
-                          size="small"
-                          value={line.quantity}
-                          onChange={e => {
-                            const newLines = [...consumptionLines];
-                            newLines[idx].quantity = e.target.value;
-                            setConsumptionLines(newLines);
-                          }}
-                          disabled={isLocked}
-                          sx={{ width: 85 }}
-                        />
-                      </TableCell>
-                      <TableCell align="right">
-                        <TextField
-                          type="number"
-                          size="small"
-                          value={line.wasteQuantity}
-                          onChange={e => {
-                            const newLines = [...consumptionLines];
-                            newLines[idx].wasteQuantity = e.target.value;
-                            setConsumptionLines(newLines);
-                          }}
-                          disabled={isLocked}
-                          sx={{ width: 85 }}
-                        />
-                      </TableCell>
-                      {!isLocked && (
-                        <TableCell align="center">
-                          <IconButton color="error" size="small" onClick={() => setConsumptionLines(consumptionLines.filter((_, i) => i !== idx))}><DeleteOutlineIcon fontSize="small" /></IconButton>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
-                  {!isLocked && (
-                    <TableRow>
-                      <TableCell colSpan={5} sx={{ p: 1.5, bgcolor: '#fff5f7' }}>
-                        <Autocomplete
-                          options={supplierStock}
-                          getOptionLabel={(o) => `${o.itemId?.itemCode} [${o.barcode}] - Bal: ${o.quantity}`}
-                          onChange={(_, newVal) => {
-                            if (newVal) {
-                              setConsumptionLines([...consumptionLines, {
-                                itemId: newVal.itemId?._id,
-                                variantId: newVal.variantId,
-                                itemName: newVal.itemId?.itemName,
-                                barcode: newVal.barcode,
-                                availableQty: newVal.quantity,
-                                quantity: 0,
-                                wasteQuantity: 0
-                              }]);
-                            }
-                          }}
-                          renderInput={(params) => <TextField {...params} label="Select Raw Material from Supplier Balance..." size="small" variant="standard" placeholder="Search fabric / accessories..." />}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  {consumptionLines.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={5} align="center" sx={{ py: 3, color: '#94a3b8', fontStyle: 'italic' }}>
-                        No raw material consumption added yet. Select from supplier balance above.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Grid>
+                ))}
+                {!isLocked && (
+                  <TableRow>
+                    <TableCell colSpan={6} sx={{ p: 1.5, bgcolor: '#fff5f7' }}>
+                      <Autocomplete
+                        options={warehouseStock}
+                        getOptionLabel={(o) => o.label}
+                        onChange={(_, newVal) => {
+                          if (newVal) {
+                            setConsumptionLines([...consumptionLines, {
+                              itemId: newVal.itemId,
+                              variantId: newVal.variantId,
+                              itemName: newVal.itemName,
+                              barcode: newVal.barcode,
+                              availableQty: newVal.quantity,
+                              quantity: 0,
+                              wasteQuantity: 0,
+                              pendingQuantity: newVal.quantity
+                            }]);
+                          }
+                        }}
+                        renderInput={(params) => <TextField {...params} label="Select Fabric from Warehouse Stock..." size="small" variant="standard" placeholder="Search available warehouse fabrics..." />}
+                      />
+                    </TableCell>
+                  </TableRow>
+                )}
+                {consumptionLines.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} align="center" sx={{ py: 3, color: '#94a3b8', fontStyle: 'italic' }}>
+                      No raw material consumption added yet. Select from supplier balance above.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Grid>
         )}
       </Grid>
 

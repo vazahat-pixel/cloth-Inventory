@@ -86,14 +86,19 @@ function DeliveryChallanForm({
         const items = Array.isArray(stockRows) ? stockRows : (Array.isArray(stockRows?.items) ? stockRows.items : []);
         
         items.forEach(item => {
+            // Strictly exclude FABRIC from store transfers as per business rule
+            if (item.type === 'FABRIC') return;
+
             if (item.sizes && Array.isArray(item.sizes)) {
                 item.sizes.forEach(sz => {
                     // Only show variants that actually have stock in the warehouse
                     if (Number(sz.stock || 0) > 0) {
                         flattened.push({
                             variantId: sz._id,
+                            itemId: item._id || item.id,
                             itemName: item.itemName,
                             itemCode: item.itemCode,
+                            itemType: item.type,
                             sku: sz.sku || item.itemCode,
                             size: sz.size || '-',
                             color: item.shade || '-',
@@ -130,6 +135,11 @@ function DeliveryChallanForm({
             const item = res.data.data || res.data;
             
             if (item) {
+                // Rule: Fabrics cannot be transferred to stores
+                if (item.itemId?.type === 'FABRIC' || item.itemType === 'FABRIC') {
+                    setError("Fabric items cannot be transferred to store. They are for production use only.");
+                    return;
+                }
                 const newLine = {
                     itemId: item.itemId._id || item.itemId,
                     variantId: item.variantId,
