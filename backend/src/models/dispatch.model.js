@@ -4,7 +4,7 @@ const { DispatchStatus } = require('../core/enums');
 const dispatchItemSchema = new mongoose.Schema({
     variantId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Product',
+        ref: 'Item',
         required: true
     },
     qty: {
@@ -67,8 +67,6 @@ const dispatchSchema = new mongoose.Schema(
         notes: {
             type: String
         },
-        vehicleNumber: { type: String, trim: true },
-        driverName: { type: String, trim: true },
         createdBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User',

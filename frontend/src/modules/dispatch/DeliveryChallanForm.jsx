@@ -45,11 +45,14 @@ function DeliveryChallanForm({
     const [date, setDate] = useState(getTodayDate());
     const [sourceId, setSourceId] = useState('');
     const [storeId, setStoreId] = useState('');
-    const [vehicleNumber, setVehicleNumber] = useState('');
-    const [driverName, setDriverName] = useState('');
     const [lines, setLines] = useState([]);
     const [variantPickerValue, setVariantPickerValue] = useState(null);
     const [error, setError] = useState('');
+    const [status, setStatus] = useState('PENDING'); // Tracking status for locking
+    const [challanNumber, setChallanNumber] = useState('');
+    
+    // FORM LOCKING: Permanent block for Dispatched/Received records
+    const isLocked = status === 'DISPATCHED' || status === 'RECEIVED';
 
     const warehouses = useSelector((state) => state.masters.warehouses || []);
     const stores = useSelector((state) => state.masters.stores || []);
@@ -240,28 +243,33 @@ function DeliveryChallanForm({
                     setDate(data.dispatchedAt ? new Date(data.dispatchedAt).toISOString().slice(0, 10) : getTodayDate());
                     setSourceId(data.sourceWarehouseId?._id || data.sourceWarehouseId || '');
                     setStoreId(data.destinationStoreId?._id || data.destinationStoreId || '');
-                    setVehicleNumber(data.vehicleNumber || '');
-                    setDriverName(data.driverName || '');
                     
                     if (data.items && Array.isArray(data.items)) {
-                        const prefilledLines = data.items.map(item => ({
-                            variantId: item.variantId?._id || item.variantId,
-                            itemName: item.variantId?.name || '-',
-                            sku: item.variantId?.sku || item.variantId?.barcode || '-',
-                            size: item.variantId?.size || '-',
-                            color: item.variantId?.color || '-',
-                            available: Number(item.qty), // Treat currently booked qty as available for editing
-                            quantity: Number(item.qty),
-                            rate: Number(item.variantId?.salePrice || item.rate || 0)
-                        }));
+                        const prefilledLines = data.items.map(item => {
+                            const v = item.variantId || {};
+                            return {
+                                variantId: v._id || item.variantId,
+                                itemId: v.itemId || item.itemId,
+                                itemName: v.itemName || v.name || 'Unknown Item',
+                                sku: v.sku || v.barcode || '-',
+                                size: v.size || '-',
+                                color: v.color || '-',
+                                available: Number(item.qty + 100), // Buffer for editing
+                                quantity: Number(item.qty),
+                                mrp: Number(item.mrp || item.rate || 0),
+                                gstPercent: Number(item.taxPercentage || 0)
+                            };
+                        });
                         setLines(prefilledLines);
                     }
+                    setStatus(data.status || 'PENDING');
+                    setChallanNumber(data.dispatchNumber || '');
                 }
             }).catch(err => {
                 setError("Failed to load dispatch details for editing.");
             });
         }
-    }, [id]);
+    }, [id, isEditMode]);
 
     const handleSave = (status = 'SENT') => {
         setError('');
@@ -274,8 +282,6 @@ function DeliveryChallanForm({
             dcDate: date,
             sourceId: sourceId,
             destinationStoreId: storeId,
-            vehicleNumber,
-            driverName,
             items: lines.map(l => ({
                 itemId: l.itemId,
                 variantId: l.variantId,
@@ -306,22 +312,42 @@ function DeliveryChallanForm({
                     Back
                 </Button>
                 <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', flex: 1 }}>
-                    {pageTitle}
+                    {pageTitle} {challanNumber && `| ${challanNumber}`}
                 </Typography>
+
+                {status && (
+                    <Box sx={{ 
+                        px: 1.5, py: 0.5, borderRadius: 1.5, fontSize: '0.75rem', fontWeight: 800,
+                        bgcolor: status === 'DISPATCHED' ? '#dcfce7' : '#fef9c3',
+                        color: status === 'DISPATCHED' ? '#166534' : '#854d0e',
+                        border: `1px solid ${status === 'DISPATCHED' ? '#bbf7d0' : '#fef08a'}`
+                    }}>
+                        {status === 'PENDING' ? '🏷️ SALE CHALLAN (DRAFT)' : '📊 SALE BILL (LOCKED)'}
+                    </Box>
+                )}
             </Stack>
 
-            <Stack spacing={3}>
+            {isLocked && (
+                <Box sx={{ mb: 2, p: 1.5, bgcolor: '#f1f5f9', borderLeft: '4px solid #475569', borderRadius: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569' }}>
+                    🔒 This dispatch is confirmed and locked. Sale Bill has been generated. No further edits are possible.
+                  </Typography>
+                </Box>
+            )}
+
+            <Stack spacing={4} sx={{ pointerEvents: isLocked ? 'none' : 'auto', opacity: isLocked ? 0.8 : 1 }}>
                 <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
                     <TextField
-                        label="Date"
                         type="date"
+                        label="Date"
                         fullWidth
                         size="small"
+                        InputLabelProps={{ shrink: true }}
                         value={date}
                         onChange={(e) => setDate(e.target.value)}
-                        InputLabelProps={{ shrink: true }}
+                        disabled={isLocked}
                     />
-                    <FormControl fullWidth size="small">
+                    <FormControl fullWidth size="small" disabled={isLocked}>
                         <InputLabel>Source Warehouse</InputLabel>
                         <Select
                             value={sourceId}
@@ -337,7 +363,7 @@ function DeliveryChallanForm({
                             ))}
                         </Select>
                     </FormControl>
-                    <FormControl fullWidth size="small">
+                    <FormControl fullWidth size="small" disabled={isLocked}>
                         <InputLabel>Destination Store</InputLabel>
                         <Select
                             value={storeId}
@@ -363,30 +389,11 @@ function DeliveryChallanForm({
                     </Box>
                 )}
 
-                <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-                    <TextField
-                        label="Vehicle Number"
-                        fullWidth
-                        size="small"
-                        value={vehicleNumber}
-                        onChange={(e) => setVehicleNumber(e.target.value)}
-                    />
-                    <TextField
-                        label="Driver Name"
-                        fullWidth
-                        size="small"
-                        value={driverName}
-                        onChange={(e) => setDriverName(e.target.value)}
-                    />
-                </Stack>
-
-                <Divider />
-
                 <Typography variant="h6">Items to Dispatch</Typography>
                 <Stack direction="row" spacing={2}>
                     <TextField 
                         fullWidth size="small"
-                        placeholder="⚡ Fast Scan: Scan item barcode or type SKU..."
+                        placeholder="⚡ Fast Scan: Scan garment barcode or type SKU..."
                         onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                                 e.preventDefault();
@@ -497,24 +504,39 @@ function DeliveryChallanForm({
             <Stack direction="row" spacing={2} sx={{ mt: 4, justifyContent: 'flex-end' }}>
                 <Button variant="outlined" onClick={() => navigate(listPath)}>Cancel</Button>
                 
-                {/* Dual Mode Buttons: Save as Draft vs Save & Dispatch */}
-                <Button 
-                    variant="outlined" 
-                    color="secondary" 
-                    onClick={() => handleSave('DRAFT')}
-                    sx={{ borderColor: 'secondary.main', color: 'secondary.main', fontWeight: 700 }}
-                >
-                    Save as Draft
-                </Button>
+                {!isLocked && (
+                    <>
+                        <Button 
+                            variant="outlined" 
+                            color="secondary" 
+                            onClick={() => handleSave('DRAFT')}
+                            sx={{ borderColor: 'secondary.main', color: 'secondary.main', fontWeight: 700 }}
+                        >
+                            Save Sale Challan (Draft)
+                        </Button>
 
-                <Button 
-                    variant="contained" 
-                    startIcon={<SaveOutlinedIcon />} 
-                    onClick={() => handleSave('SENT')}
-                    sx={{ boxShadow: '0 4px 12px rgba(37, 99, 235, 0.2)', fontWeight: 700 }}
-                >
-                    Save & Send (Issue DC)
-                </Button>
+                        <Button 
+                            variant="contained" 
+                            color="primary"
+                            startIcon={<SaveOutlinedIcon />} 
+                            onClick={() => handleSave('SENT')}
+                            sx={{ boxShadow: '0 4px 12px rgba(37, 99, 235, 0.2)', fontWeight: 700, bgcolor: '#0f172a' }}
+                        >
+                            Confirm & Generate Sale Bill
+                        </Button>
+                    </>
+                )}
+                
+                {isLocked && status === 'DISPATCHED' && (
+                    <Button 
+                        variant="contained" 
+                        color="success"
+                        disabled
+                        sx={{ fontWeight: 700 }}
+                    >
+                        ✓ Dispatched & Invoiced
+                    </Button>
+                )}
             </Stack>
         </Paper>
     );

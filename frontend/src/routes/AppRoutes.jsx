@@ -297,7 +297,7 @@ function AppRoutes() {
         <Route path="/store" element={<RoleProtectedRoute allowedRoles={['Staff']}><RoleDashboardLayout /></RoleProtectedRoute>}>
           <Route index element={<DashboardHomePage />} />
           <Route path="inventory/stock-overview" element={<StockOverviewPage />} />
-          <Route path="inventory/receipt" element={<MovementHistoryPage />} />
+          <Route path="inventory/receipt" element={<DeliveryChallanPage />} />
           <Route path="inventory/audit-view" element={<StockAuditView />} />
           <Route path="sales/sale-bill/new" element={<SalesBillFormPage />} />
           <Route path="sales/sale-bill" element={<SalesBillListPage />} />

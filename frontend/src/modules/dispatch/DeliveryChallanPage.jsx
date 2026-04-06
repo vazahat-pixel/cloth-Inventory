@@ -28,6 +28,9 @@ function DeliveryChallanPage({
     const navigate = useAppNavigate();
     const dispatch = useDispatch();
     const { records: challans = [], loading, error } = useSelector((state) => state.dispatch);
+    const { user } = useSelector((state) => state.auth);
+
+    const isStoreUser = ['store_staff', 'store_manager', 'accountant'].includes(user?.role);
 
     useEffect(() => {
         dispatch(fetchChallans());
@@ -42,10 +45,12 @@ function DeliveryChallanPage({
     const renderStatusChip = (status) => {
         const value = status || 'PENDING';
         let color = 'default';
-        if (value === 'DISPATCHED') color = 'warning';
-        if (value === 'RECEIVED') color = 'success';
-        if (value === 'CANCELLED') color = 'error';
-        return <Chip label={value} color={color} size="small" />;
+        let label = value;
+        if (value === 'PENDING') { color = 'info'; label = 'SALE CHALLAN (DRAFT)'; }
+        if (value === 'DISPATCHED') { color = 'warning'; label = 'SALE BILL (SENT)'; }
+        if (value === 'RECEIVED') { color = 'success'; label = 'STOCK IN'; }
+        if (value === 'CANCELLED') { color = 'error'; label = 'CANCELLED'; }
+        return <Chip label={label} color={color} size="small" sx={{ fontWeight: 700, fontSize: '0.7rem' }} />;
     };
 
     const canReceive = (row) => {
@@ -94,7 +99,6 @@ function DeliveryChallanPage({
                                 <TableCell sx={{ fontWeight: 700 }}>Challan No</TableCell>
                                 <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
                                 <TableCell sx={{ fontWeight: 700 }}>To Store</TableCell>
-                                <TableCell sx={{ fontWeight: 700 }}>Vehicle / Driver</TableCell>
                                 <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
                                 <TableCell sx={{ fontWeight: 700 }} align="right">
                                     Actions
@@ -104,7 +108,6 @@ function DeliveryChallanPage({
                         <TableBody>
                             {challans.map((row) => {
                                 const status = row.status || 'PENDING';
-                                const receiveAllowed = canReceive(row);
                                 return (
                                     <TableRow key={row.id || row._id} hover>
                                         <TableCell sx={{ fontWeight: 700 }}>
@@ -116,51 +119,44 @@ function DeliveryChallanPage({
                                         <TableCell>
                                             {row.destinationStoreId?.name || row.storeName || row.destination?.name || 'Store'}
                                         </TableCell>
-                                        <TableCell>
-                                            {row.vehicleNumber || '-'} / {row.driverName || '-'}
-                                        </TableCell>
                                         <TableCell>{renderStatusChip(status)}</TableCell>
                                         <TableCell align="right">
-                                            {status === 'PENDING' && (
-                                                <Stack direction="row" spacing={1} justifyContent="flex-end">
-                                                    <Button
-                                                        variant="text"
-                                                        size="small"
-                                                        disabled={loading}
-                                                        onClick={() => navigate(`/orders/delivery-challan/${row.id || row._id}/edit`)}
-                                                    >
-                                                        Edit
-                                                    </Button>
-                                                    <Button
-                                                        variant="outlined"
-                                                        color="error"
-                                                        size="small"
-                                                        disabled={loading}
-                                                        onClick={() => dispatch(updateChallanStatus({ id: row.id || row._id, status: 'CANCELLED' }))}
-                                                    >
-                                                        Cancel
-                                                    </Button>
+                                            <Stack direction="row" spacing={1} justifyContent="flex-end">
+                                                <Button
+                                                    variant="text"
+                                                    size="small"
+                                                    disabled={loading}
+                                                    onClick={() => navigate(`/orders/delivery-challan/${row.id || row._id}/edit`)}
+                                                >
+                                                    {status === 'PENDING' ? 'Edit' : 'View'}
+                                                </Button>
+
+                                                {status === 'PENDING' && !isStoreUser && (
                                                     <Button
                                                         variant="contained"
                                                         color="primary"
                                                         size="small"
+                                                        sx={{ fontWeight: 700, borderRadius: 1.5 }}
                                                         disabled={loading}
                                                         onClick={() => dispatch(updateChallanStatus({ id: row.id || row._id, status: 'DISPATCHED' }))}
                                                     >
-                                                        Dispatch
+                                                        Finalize & Bill
                                                     </Button>
-                                                </Stack>
-                                            )}
-                                            {status === 'DISPATCHED' && (
-                                                <Button
-                                                    variant="outlined"
-                                                    size="small"
-                                                    disabled={loading}
-                                                    onClick={() => handleMarkReceived(row)}
-                                                >
-                                                    Mark Received
-                                                </Button>
-                                            )}
+                                                )}
+
+                                                {status === 'DISPATCHED' && isStoreUser && (
+                                                    <Button
+                                                        variant="contained"
+                                                        color="success"
+                                                        size="small"
+                                                        sx={{ fontWeight: 700, borderRadius: 1.5 }}
+                                                        disabled={loading}
+                                                        onClick={() => handleMarkReceived(row)}
+                                                    >
+                                                        Receive Stock
+                                                    </Button>
+                                                )}
+                                            </Stack>
                                         </TableCell>
                                     </TableRow>
                                 );
@@ -169,16 +165,15 @@ function DeliveryChallanPage({
                     </Table>
                 </TableContainer>
             ) : (
-                <Box sx={{ py: 7, textAlign: 'center' }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0f172a', mb: 1 }}>
-                        No Delivery Challans Found
+                <Box sx={{ py: 10, textAlign: 'center' }}>
+                    <Typography variant="h6" sx={{ color: '#64748b', mb: 2 }}>
+                        {isStoreUser ? 'No incoming dispatches found for your store.' : 'You haven\'t dispatched any items to the stores yet.'}
                     </Typography>
-                    <Typography variant="body2" sx={{ color: '#64748b', mb: 2 }}>
-                        You haven't dispatched any items to the stores yet.
-                    </Typography>
-                    <Button variant="contained" onClick={() => navigate(createPath)}>
-                        {createLabel}
-                    </Button>
+                    {!isStoreUser && (
+                        <Button variant="contained" onClick={() => navigate(createPath)}>
+                            {createLabel}
+                        </Button>
+                    )}
                 </Box>
             )}
         </Paper>

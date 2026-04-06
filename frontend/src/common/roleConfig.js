@@ -36,11 +36,13 @@ const roleAliasMap = {
   Manager: 'store_staff',
   Staff: 'store_staff',
   admin: 'admin',
-  store_staff: 'store_staff'
+  store_staff: 'store_staff',
+  store_manager: 'store_staff',
+  accountant: 'store_staff'
 };
 
 export const getRoleBasePath = (role) => {
-  const normalizedRole = roleAliasMap[role] || 'admin';
+  const normalizedRole = roleAliasMap[role] || role || 'admin';
   const map = { admin: '/ho', store_staff: '/store' };
   return map[normalizedRole] || '/ho';
 };

@@ -32,6 +32,19 @@ export const updateChallan = createAsyncThunk('dispatch/updateChallan', async ({
     }
 });
 
+export const confirmChallan = createAsyncThunk(
+    'dispatch/confirmChallan',
+    async (id, { rejectWithValue }) => {
+        try {
+            const response = await api.post(`/dispatch/${id}/confirm`);
+            const raw = response.data.dispatch || response.data.data;
+            return normalizeResponse(raw, 'dispatch');
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to confirm and dispatch challan');
+        }
+    }
+);
+
 export const updateChallanStatus = createAsyncThunk(
     'dispatch/updateStatus',
     async ({ id, status }, { rejectWithValue }) => {
