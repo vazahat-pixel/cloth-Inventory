@@ -80,10 +80,14 @@ const createDispatch = async (dispatchData, userId) => {
         const Product = require('../../models/product.model');
         const enrichedItems = [];
         for (const p of products) {
+            const productDoc = await Product.findById(p.productId).populate('itemId').session(session);
+            if (productDoc && (productDoc.itemId?.type === 'FABRIC' || productDoc.itemType === 'FABRIC')) {
+                throw new Error(`Item ${productDoc.itemName || ''} is a FABRIC and cannot be dispatched to a store.`);
+            }
+
             let rate = p.rate;
             if (!rate || rate <= 0) {
-                const product = await Product.findById(p.productId).session(session);
-                rate = product ? product.salePrice : 0;
+                rate = productDoc ? productDoc.mrp || productDoc.salePrice : 0;
             }
             enrichedItems.push({
                 productId: p.productId,

@@ -40,10 +40,10 @@ function CompanyProfilePage() {
   useEffect(() => {
     const fetchPrimaryWarehouse = async () => {
       try {
-        // Fetch all warehouses and use the first active one (the primary)
-        const res = await api.get('/warehouses', { params: { limit: 1, isActive: true } });
-        const warehouses = res.data?.warehouses || res.data?.data?.warehouses || [];
-        const primary = warehouses[0];
+        // Use dedicated primary warehouse endpoint
+        const res = await api.get('/warehouses/primary');
+        const primary = res.data?.warehouse || res.data?.data?.warehouse;
+        
         if (primary) {
           setWarehouseId(primary._id);
           reset({

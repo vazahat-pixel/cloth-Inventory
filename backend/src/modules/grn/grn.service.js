@@ -30,38 +30,39 @@ const generateConsumptionNumber = async (session = null) => {
 //  2. Compute pendingQty (what's still at tailor's end)
 //  3. Create a full MaterialConsumption audit record
 
-const settleConsumption = async ({ grnId, supplierId, jobWorkId, consumptionDetails }, session) => {
+const settleConsumption = async ({ grnId, supplierId, warehouseId, jobWorkId, consumptionDetails, userId }, session) => {
     if (!consumptionDetails || consumptionDetails.length === 0) return null;
 
     const settledItems = [];
+    const stockService = require('../../services/stock.service');
 
     for (const detail of consumptionDetails) {
         const usedQty = Number(detail.usedQty || 0);
         const wasteQty = Number(detail.wasteQty || 0);
-        const givenQty = Number(detail.givenQty || 0);
-        const pendingQty = Math.max(0, givenQty - usedQty - wasteQty);
+        const pendingQty = Number(detail.pendingQty || 0);
 
         const totalDeduction = usedQty + wasteQty;
 
-        if (totalDeduction > 0 && detail.barcode) {
-            // Deduct from Supplier's virtual inventory balance
-            const supplierInv = await SupplierInventory.findOne({
-                supplierId,
-                barcode: detail.barcode
-            }).session(session);
-
-            if (!supplierInv) {
-                console.warn(`[CONSUMPTION] Supplier inventory not found for barcode: ${detail.barcode}. Skipping deduction.`);
-            } else if (supplierInv.quantity < totalDeduction) {
-                throw new Error(
-                    `Material balance insufficient for ${detail.itemName || detail.barcode}. ` +
-                    `Available at supplier: ${supplierInv.quantity}, Trying to deduct: ${totalDeduction}`
-                );
-            } else {
-                supplierInv.quantity -= totalDeduction;
-                supplierInv.lastUpdated = Date.now();
-                await supplierInv.save({ session });
-                console.log(`[CONSUMPTION] ${detail.barcode}: deducted ${totalDeduction}, remaining: ${supplierInv.quantity}`);
+        if (totalDeduction > 0 && detail.barcode && warehouseId) {
+            // Deduct directly from Warehouse Inventory utilizing stockService
+            try {
+                await stockService.removeStock({
+                    itemId: detail.itemId,
+                    barcode: detail.barcode,
+                    variantId: detail.variantId,
+                    locationId: warehouseId,
+                    locationType: 'WAREHOUSE',
+                    qty: totalDeduction,
+                    type: 'MANUFACTURING_CONSUMPTION',
+                    referenceId: grnId,
+                    referenceType: 'GRN',
+                    performedBy: userId,
+                    session
+                });
+                console.log(`[CONSUMPTION] ${detail.barcode}: deducted ${totalDeduction} from warehouse ${warehouseId}`);
+            } catch (err) {
+                console.warn(`[CONSUMPTION-WARNING] Failed to deduct ${detail.barcode} from warehouse ${warehouseId}: ${err.message}`);
+                throw new Error(`Fabric consumption failed: ${err.message}`);
             }
         }
 
@@ -72,7 +73,6 @@ const settleConsumption = async ({ grnId, supplierId, jobWorkId, consumptionDeta
             itemName: detail.itemName,
             itemCode: detail.itemCode,
             uom: detail.uom || 'MTR',
-            givenQty,
             usedQty,
             wasteQty,
             pendingQty,
@@ -271,6 +271,8 @@ const approveGRN = async (id, userId) => {
                 await settleConsumption({
                     grnId: grn._id,
                     supplierId: grn.supplierId,
+                    warehouseId: grn.warehouseId,
+                    userId,
                     jobWorkId: grn.jobWorkId,
                     consumptionDetails: grn.consumptionDetails,
                 }, session);

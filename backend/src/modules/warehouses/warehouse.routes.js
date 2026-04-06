@@ -18,9 +18,9 @@ const warehouseValidation = [
 
 router.use(protect); // Ensure all routes are protected
 
-// Public to all authenticated users (or restricted by role in future)
+// Public to all authenticated users (to populate dropdowns/settings)
 router.get('/', warehouseController.getAllWarehouses);
-router.get('/primary', requireAdmin, warehouseController.getPrimaryWarehouse);
+router.get('/primary', warehouseController.getPrimaryWarehouse);
 router.get('/:id', warehouseController.getWarehouseById);
 
 // Admin only routes

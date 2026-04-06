@@ -31,6 +31,7 @@ const StockMovementType = {
     GRN_RECEIPT: 'GRN_RECEIPT',
     DISPATCH: 'DISPATCH',
     RECEIVE: 'RECEIVE',
+    MANUFACTURING_CONSUMPTION: 'MANUFACTURING_CONSUMPTION',
 };
 
 const ProductionStatus = {

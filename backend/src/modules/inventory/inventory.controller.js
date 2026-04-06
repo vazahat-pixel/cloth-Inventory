@@ -118,7 +118,6 @@ class InventoryController {
         .populate('brand', 'name brandName')
         .populate('groupIds', 'name groupType level parentId isActive')
         .populate('hsCodeId', 'code hsnCode gstRate gstPercent')
-        .populate('session', 'name seasonName')
         .lean();
 
       // 4. Fetch the real-time Ledger Balances for these variants

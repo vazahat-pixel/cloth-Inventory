@@ -12,10 +12,10 @@ const registerRoutes = (app) => {
     app.use(activityLogger('ERP_SYSTEM'));
     app.use('/api/auth', authRoutes);
     app.use('/api/media', require('./modules/media/media.routes'));
-    app.use('/api/groups', protect, requireAdmin, groupRoutes);
+    app.use('/api/groups', protect, groupRoutes);
     app.use('/api/import', protect, requireAdmin, importRoutes);
-    app.use('/api/setup', protect, requireAdmin, setupRoutes);
-    app.use('/api/sizes', protect, requireAdmin, require('./modules/sizes/size.routes.js'));
+    app.use('/api/setup', protect, setupRoutes);
+    app.use('/api/sizes', protect, require('./modules/sizes/size.routes.js'));
     app.use('/api/items', itemRoutes);
     app.use('/api/inventory', inventoryRoutes);
     app.use('/api/store-inventory', protect, require('./modules/storeInventory/storeInventory.routes'));

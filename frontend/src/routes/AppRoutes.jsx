@@ -23,8 +23,8 @@ const BarcodePrintingPage = lazy(() => import('../modules/setup/BarcodePrintingP
 const BrandListPage = lazy(() => import('../modules/masters/brands/ListPage'));
 const ItemGroupsListPage = lazy(() => import('../modules/masters/itemGroups/ListPage'));
 
-// Masters
 const SuppliersListPage = lazy(() => import('../modules/masters/suppliers/ListPage'));
+const MaterialLedgerPage = lazy(() => import('../modules/suppliers/MaterialLedgerPage'));
 const CustomersListPage = lazy(() => import('../modules/masters/customers/ListPage'));
 const StoresListPage = lazy(() => import('../modules/masters/stores/ListPage'));
 const WarehousesListPage = lazy(() => import('../modules/masters/warehouses/ListPage'));
@@ -60,6 +60,8 @@ const InTransitMonitorPage = lazy(() => import('../modules/reports/InTransitMoni
 const SalesBillListPage = lazy(() => import('../modules/sales/SalesListPage'));
 const SalesBillFormPage = lazy(() => import('../modules/sales/BillingPage'));
 const SalesReturnPage = lazy(() => import('../modules/sales/SalesReturnPage'));
+const DeliveryChallanPage = lazy(() => import('../modules/dispatch/DeliveryChallanPage'));
+const DeliveryChallanForm = lazy(() => import('../modules/dispatch/DeliveryChallanForm'));
 
 // Purchase
 const PurchaseListPage = lazy(() => import('../modules/purchase/PurchaseListPage'));
@@ -152,6 +154,7 @@ function AppRoutes() {
 
             {/* Masters */}
             <Route path="masters/suppliers" element={<SuppliersListPage />} />
+            <Route path="suppliers/material-ledger" element={<MaterialLedgerPage />} />
             <Route path="masters/customers" element={<CustomersListPage />} />
             <Route path="masters/warehouses" element={<WarehousesListPage />} />
             <Route path="masters/stores" element={<StoresListPage />} />
@@ -190,6 +193,7 @@ function AppRoutes() {
             <Route path="inventory/supplier-outward" element={<PlaceholderPage title="Supplier Outward" />} />
             <Route path="inventory/supplier-outward/new" element={<PlaceholderPage title="New Supplier Outward" />} />
             <Route path="inventory/supplier-outward/:id" element={<PlaceholderPage title="Supplier Outward Detail" />} />
+            <Route path="inventory/material-ledger" element={<MaterialLedgerPage />} />
             <Route path="inventory/consumption" element={<PlaceholderPage title="Material Consumption" />} />
             <Route path="inventory/consumption/new" element={<PlaceholderPage title="New Consumption" />} />
             <Route path="inventory/raw-materials" element={<PlaceholderPage title="Raw Materials" />} />
@@ -207,9 +211,10 @@ function AppRoutes() {
             <Route path="sales/sale-challan/new" element={<PlaceholderPage title="New Sale Challan" />} />
             <Route path="sales/sale-challan/:id" element={<PlaceholderPage title="Sale Challan Detail" />} />
             <Route path="sales/sale-challan/:id/edit" element={<PlaceholderPage title="Edit Sale Challan" />} />
-            <Route path="orders/delivery-challan" element={<PlaceholderPage title="Delivery Challan" />} />
-            <Route path="orders/delivery-challan/new" element={<PlaceholderPage title="New Delivery Challan" />} />
-            <Route path="orders/delivery-challan/:id/edit" element={<PlaceholderPage title="Edit Delivery Challan" />} />
+            <Route path="orders/delivery-challan" element={<DeliveryChallanPage />} />
+            <Route path="orders/delivery-challan/new" element={<DeliveryChallanForm />} />
+            <Route path="orders/delivery-challan/:id" element={<DeliveryChallanForm mode="view" />} />
+            <Route path="orders/delivery-challan/:id/edit" element={<DeliveryChallanForm mode="edit" />} />
             <Route path="sale-challan" element={<Navigate to="sales/sale-challan" replace />} />
             <Route path="sale-challans" element={<Navigate to="sales/sale-challan" replace />} />
 

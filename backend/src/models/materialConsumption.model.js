@@ -10,10 +10,9 @@ const consumptionLineSchema = new mongoose.Schema({
     uom: { type: String, default: 'MTR' },
 
     // Quantities
-    givenQty: { type: Number, required: true, min: 0 },    // Dispatched via Job Work Outward
     usedQty: { type: Number, required: true, min: 0 },     // Consumed in manufacturing
     wasteQty: { type: Number, default: 0, min: 0 },        // Scrap / Cutting waste
-    pendingQty: { type: Number, default: 0, min: 0 },      // Still at tailor: givenQty - usedQty - wasteQty
+    pendingQty: { type: Number, default: 0, min: 0 },      // Remaining balance: opening - used - waste
 
     notes: { type: String },
 }, { _id: false });
