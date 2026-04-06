@@ -10,6 +10,16 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
 router.use(protect);
-router.post('/items', requireAdmin, upload.single('file'), (req, res) => importController.importItems(req, res));
+router.use(requireAdmin);
+
+// Exports
+router.get('/export-items', (req, res) => importController.exportItems(req, res));
+router.get('/export-purchase', (req, res) => importController.exportPurchases(req, res));
+router.get('/export-transfers', (req, res) => importController.exportTransfers(req, res));
+
+// Imports
+router.post('/items', upload.single('file'), (req, res) => importController.importItems(req, res));
+router.post('/items-text', upload.single('file'), (req, res) => importController.importItemsText(req, res));
+router.post('/purchase-text', upload.single('file'), (req, res) => importController.importPurchaseText(req, res));
 
 module.exports = router;

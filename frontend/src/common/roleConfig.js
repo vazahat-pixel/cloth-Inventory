@@ -54,7 +54,7 @@ const adminSidebarItems = [
   { label: 'Customers', path: '/masters/customers', icon: PeopleIcon },
   { label: 'Stores', path: '/masters/stores', icon: StorefrontIcon },
   { label: 'Warehouse Settings', path: '/settings/company', icon: WarehouseIcon },
-  { label: 'Data Hub', path: '/data-import', icon: FileUploadOutlinedIcon, matchPaths: dataImportNavItems, drilldown: true },
+  { label: 'Data Hub', path: '/data-import', icon: FileUploadOutlinedIcon, matchPaths: dataImportMatchPaths, drilldown: true },
 ];
 
 export const adminNavConfig = {

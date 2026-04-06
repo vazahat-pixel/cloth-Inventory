@@ -69,6 +69,8 @@ const PurchaseFormPage = lazy(() => import('../modules/purchase/PurchaseFormPage
 const CompanyProfilePage = lazy(() => import('../modules/settings/CompanyProfilePage'));
 const ProfilePage = lazy(() => import('../modules/profile/ProfilePage'));
 const DataImportExportPage = lazy(() => import('../modules/data/DataImportExportPage'));
+const DataHubSubPage = lazy(() => import('../modules/data/DataHubSubPage'));
+const SalesHubSubPage = lazy(() => import('../modules/sales/SalesHubSubPage'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
 
 // Placeholder for pages that are scaffolded but not yet built
@@ -198,11 +200,15 @@ function AppRoutes() {
             <Route path="inventory/accessory-entry" element={<PlaceholderPage title="Accessory Entry" />} />
 
             {/* Sales */}
-            <Route path="sales" element={<Navigate to="sales/sale-bill" replace />} />
-            <Route path="sales/sale-bill" element={<SalesBillListPage />} />
-            <Route path="sales/sale-bill/new" element={<SalesBillFormPage />} />
-            <Route path="sales/sales-return" element={<SalesReturnPage />} />
-            <Route path="sales/sales-return/:id" element={<SalesReturnPage />} />
+            <Route path="sales">
+              <Route index element={<Navigate to="sale-bill" replace />} />
+              <Route path="sale-bill" element={<SalesBillListPage />} />
+              <Route path="sale-bill/new" element={<SalesBillFormPage />} />
+              <Route path="sales-return" element={<SalesReturnPage />} />
+              <Route path="sales-return/:id" element={<SalesReturnPage />} />
+              <Route path=":key" element={<SalesHubSubPage />} />
+            </Route>
+            
             <Route path="sales/sale-challan" element={<PlaceholderPage title="Sale Challan" />} />
             <Route path="sales/sale-challan/new" element={<PlaceholderPage title="New Sale Challan" />} />
             <Route path="sales/sale-challan/:id" element={<PlaceholderPage title="Sale Challan Detail" />} />
@@ -274,7 +280,10 @@ function AppRoutes() {
 
             {/* Settings */}
             <Route path="settings/company" element={<CompanyProfilePage />} />
-            <Route path="data-import" element={<DataImportExportPage />} />
+            <Route path="data-import">
+              <Route index element={<DataImportExportPage />} />
+              <Route path=":key" element={<DataHubSubPage />} />
+            </Route>
             <Route path="profile" element={<ProfilePage />} />
           </Route>
         </Route>

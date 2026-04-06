@@ -490,13 +490,24 @@ function GRNFormPage({ mode = 'edit' }) {
                 <Grid item xs={12}>
                   <Paper elevation={0} sx={{ p: 2, bgcolor: '#f8fafc', border: '2px solid #3b82f6', borderRadius: 2 }}>
                     <Stack direction="row" spacing={2} alignItems="center">
-                      <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#1e40af', minWidth: 120 }}>SCAN BARCODE:</Typography>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#1e40af', minWidth: 120 }}>MANUAL SEARCH:</Typography>
+                      <Autocomplete
+                        fullWidth
+                        options={allItems}
+                        getOptionLabel={(o) => `${o.itemCode} - ${o.itemName}`}
+                        onChange={(_, newVal) => {
+                          if (newVal) {
+                             addItemToLines(newVal);
+                          }
+                        }}
+                        renderInput={(params) => <TextField {...params} placeholder="Search by Style Code or Name..." size="medium" sx={{ bgcolor: '#fff' }} />}
+                      />
+                      <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#1e40af', minWidth: 120, textAlign: 'right' }}>OR SCAN:</Typography>
                       <TextField
                         fullWidth
-                        autoFocus
-                        placeholder="Scan or type barcode and press Enter..."
+                        placeholder="Scan Barcode and press Enter..."
                         size="medium"
-                        value={searchText} // Borrowing searchText state or creating new scanInput
+                        value={searchText}
                         onChange={(e) => setSearchText(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && searchText.trim()) {
@@ -510,7 +521,6 @@ function GRNFormPage({ mode = 'edit' }) {
                           startAdornment: <SearchIcon sx={{ color: '#3b82f6', mr: 1 }} />
                         }}
                       />
-                      <Button variant="contained" sx={{ height: 44, px: 4, fontWeight: 700 }} onClick={() => { handleBarcodeScan(searchText); setSearchText(''); }}>Add</Button>
                     </Stack>
                   </Paper>
                 </Grid>

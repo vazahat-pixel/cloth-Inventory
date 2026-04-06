@@ -72,37 +72,14 @@ function DataImportExportPage() {
 
         try {
             if (type === 'products') {
-                // Fetch a large page of products and export to Excel on the client
-                const res = await api.get('/products', { params: { page: 1, limit: 100000 } });
-                // Backend returns { success, message, products, meta }
-                const data = res.data;
-                const products = data.products || data.data?.products || [];
-
-                const rows = products.map(p => ({
-                    Name: p.name,
-                    SKU: p.sku,
-                    Category: p.category,
-                    Brand: p.brand,
-                    'Cost Price': p.costPrice,
-                    'Sale Price': p.salePrice,
-                    Size: p.size,
-                    Color: p.color,
-                    Barcode: p.barcode
-                }));
-
-                const worksheet = XLSX.utils.json_to_sheet(rows);
-                const workbook = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(workbook, worksheet, 'Products');
-
-                const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-                const blob = new Blob([wbout], { type: 'application/octet-stream' });
-                const url = window.URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.setAttribute('download', `products_export_${Date.now()}.xlsx`);
-                document.body.appendChild(link);
-                link.click();
-                setStatus({ type: 'success', msg: 'Products exported successfully.' });
+                // Use new backend-optimized export
+                const auth = localStorage.getItem('cloth_erp_auth');
+                const token = auth ? JSON.parse(auth).token : '';
+                const url = `${import.meta.env.VITE_API_URL}/api/import/export-items?token=${token}`;
+                window.open(url, '_blank');
+                setStatus({ type: 'success', msg: 'Product export started.' });
+                setLoading(false);
+                return;
             } else if (type === 'inventory') {
                 // Use backend inventory-export report (admin only)
                 const res = await api.get('/reports/inventory-export');
