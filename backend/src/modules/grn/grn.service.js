@@ -366,6 +366,10 @@ const updateGRN = async (id, updateData, userId) => {
         if (updateData.items) {
             const grnType = updateData.grnType || grn.grnType;
             updateData.items = updateData.items.map(item => {
+                if (!item.sku) item.sku = 'N/A';
+                if (!item.variantId) item.variantId = item.sku || 'UNKNOWN';
+                if (!item.uom) item.uom = 'PCS';
+
                 if (grnType !== 'GARMENT') {
                     const taxPercent = Number(item.taxPercent || 0);
                     const baseValue = Number(item.costPrice || 0) * Number(item.receivedQty || 0);

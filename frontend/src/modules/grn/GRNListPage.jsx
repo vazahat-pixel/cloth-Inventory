@@ -140,25 +140,32 @@ const GRNListPage = () => {
                   <TableCell align="center">
                     <Stack direction="row" spacing={1} justifyContent="center">
                       <Tooltip title="View Details">
-                        <IconButton size="small" onClick={() => navigate(`/ho/inventory/grn/${grn._id}`)}>
+                        <IconButton size="small" onClick={() => navigate(`/ho/inventory/grn/view/${grn._id}`)}>
                           <VisibilityIcon sx={{ fontSize: 18 }} />
                         </IconButton>
                       </Tooltip>
                       {grn.status === 'DRAFT' && (
-                        <Tooltip title="Approve & Post Stock">
-                          <IconButton size="small" color="success" onClick={() => handleApprove(grn._id)}>
-                            <CheckCircleOutlineIcon sx={{ fontSize: 18 }} />
-                          </IconButton>
-                        </Tooltip>
+                        <>
+                          <Tooltip title="Edit Draft">
+                            <IconButton size="small" color="primary" onClick={() => navigate(`/ho/inventory/grn/edit/${grn._id}`)}>
+                              <ReceiptLongIcon sx={{ fontSize: 18 }} />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Approve & Post Stock">
+                            <IconButton size="small" color="success" onClick={() => handleApprove(grn._id)}>
+                              <CheckCircleOutlineIcon sx={{ fontSize: 18 }} />
+                            </IconButton>
+                          </Tooltip>
+                        </>
                       )}
 
                       {grn.status === 'APPROVED' && (
                         <>
-                          <Tooltip title="Generate Bill">
+                          <Tooltip title="Generate Purchase Bill (Voucher)">
                             <IconButton
                               size="small"
                               color="primary"
-                              onClick={() => navigate(`/purchase/purchase-voucher/new?grnId=${grn._id}`)}
+                              onClick={() => navigate(`/ho/purchase/new?grnId=${grn._id}`)}
                             >
                               <ReceiptIcon sx={{ fontSize: 18 }} />
                             </IconButton>
