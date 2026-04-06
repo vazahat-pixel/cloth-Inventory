@@ -36,6 +36,7 @@ const registerRoutes = (app) => {
     app.use('/api/stock-returns', require('./modules/stockReturn/stockReturn.routes'));
     app.use('/api/pricing', require('./modules/pricing/pricing.routes'));
     app.use('/api/settings', require('./modules/settings/settings.routes'));
+    app.use('/api/barcodes', require('./modules/barcodes/barcode.routes'));
 };
 
 module.exports = registerRoutes;
