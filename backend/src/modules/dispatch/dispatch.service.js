@@ -60,8 +60,9 @@ const populateDispatchItemsManual = async (dispatches) => {
  */
 const createDispatch = async (dispatchData, userId) => {
     return await withTransaction(async (session) => {
-        const { sourceId, sourceWarehouseId, destinationStoreId, products, ...rest } = dispatchData;
+        const { sourceId, sourceWarehouseId, destinationStoreId, products, items, ...rest } = dispatchData;
         const finalSourceId = sourceId || sourceWarehouseId;
+        const finalProducts = items || products || [];
 
         // 1. Resolve source and destination entities
         const source = await Warehouse.findById(finalSourceId).session(session)
@@ -87,7 +88,7 @@ const createDispatch = async (dispatchData, userId) => {
         let totalSGST = 0;
         let totalIGST = 0;
 
-        for (const p of products) {
+        for (const p of finalProducts) {
             const productDoc = await Product.findById(p.productId).populate('itemId').session(session);
             if (!productDoc) throw new Error(`Product not found for ID: ${p.productId}`);
 
@@ -232,7 +233,7 @@ const createDispatch = async (dispatchData, userId) => {
         const stockService = require('../../services/stock.service');
         if (isDraft) {
             // Reserve stock in Warehouse
-            for (const p of products) {
+            for (const p of finalProducts) {
                 await stockService.reserveStock({
                     variantId: p.productId,
                     locationId: finalSourceId,
