@@ -21,10 +21,12 @@ import {
   TableBody,
   TableCell,
   TableContainer,
-  TableHead,
   TableRow,
   TextField,
   Typography,
+  TableHead,
+  ToggleButtonGroup,
+  ToggleButton
 } from '@mui/material';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
@@ -40,6 +42,7 @@ import { fetchGrns, addGrn, approveGrn, updateGrn } from './grnSlice';
 
 const defaultForm = {
   grnNumber: '',
+  grnType: 'FABRIC',
   grnDate: new Date().toISOString().slice(0, 10),
   purchaseOrderId: '',
   supplierId: '',
@@ -65,6 +68,8 @@ function GRNFormPage({ mode = 'edit' }) {
   const warehouses = useSelector((state) => state.masters.warehouses || []);
   const suppliers = useSelector((state) => state.masters.suppliers || []);
   const allItems = useSelector((state) => state.items.records || []);
+  // const supplierOutwards = useSelector((state) => state.supplierOutward.records || []);
+  const supplierOutwards = []; // Placeholder until module is implemented
 
   const [formValues, setFormValues] = useState(defaultForm);
   const [lines, setLines] = useState([]);
@@ -100,6 +105,7 @@ function GRNFormPage({ mode = 'edit' }) {
     dispatch(fetchMasters('warehouses'));
     dispatch(fetchMasters('suppliers'));
     dispatch(fetchItems());
+    // import('../supplierOutward/supplierOutwardSlice').then(m => dispatch(m.fetchSupplierOutwards()));
   }, [dispatch]);
 
   const fetchSupplierBalance = async (supplierId) => {
@@ -126,6 +132,7 @@ function GRNFormPage({ mode = 'edit' }) {
     if (id && existingGrn) {
       setFormValues({
         grnNumber: existingGrn.grnNumber || '',
+        grnType: existingGrn.grnType || 'FABRIC',
         grnDate: existingGrn.grnDate?.slice(0, 10) || defaultForm.grnDate,
         purchaseOrderId: existingGrn.purchaseOrderId?._id || existingGrn.purchaseOrderId || '',
         supplierId: existingGrn.supplierId?._id || existingGrn.supplierId || '',
@@ -157,6 +164,7 @@ function GRNFormPage({ mode = 'edit' }) {
           orderedQty: poItem ? (poItem.qty || poItem.quantity) : (item.orderedQty || 0),
           receivedQty: item.receivedQty || 0,
           costPrice: item.costPrice || 0,
+          taxPercent: item.taxPercent || item.tax || 0,
           batchNumber: item.batchNumber || ''
         };
       }));
@@ -176,13 +184,18 @@ function GRNFormPage({ mode = 'edit' }) {
     }
   }, [id, existingGrn, purchaseOrders, searchParams, allItems]);
 
+  useEffect(() => {
+    if (!id && warehouses.length === 1 && !formValues.warehouseId) {
+      setFormValues(prev => ({ ...prev, warehouseId: warehouses[0]._id || warehouses[0].id }));
+    }
+  }, [warehouses, id, formValues.warehouseId]);
+
   const totals = useMemo(() => {
     return lines.reduce((acc, curr) => {
-      acc.ordered += Number(curr.orderedQty || 0);
       acc.received += Number(curr.receivedQty || 0);
       acc.totalValue += (Number(curr.costPrice || 0) * Number(curr.receivedQty || 0));
       return acc;
-    }, { ordered: 0, received: 0, totalValue: 0 });
+    }, { received: 0 });
   }, [lines]);
 
   const updateLine = (idx, field, val) => {
@@ -197,7 +210,7 @@ function GRNFormPage({ mode = 'edit' }) {
 
   const handleBarcodeScan = (barcode) => {
     if (!barcode) return;
-    
+
     // 1. Check if item already exists in the scan lines
     const existingIdx = lines.findIndex(l => l.sku === barcode || l.barcode === barcode);
     if (existingIdx !== -1) {
@@ -228,9 +241,10 @@ function GRNFormPage({ mode = 'edit' }) {
         size: foundVariant.size,
         color: foundItem.shade || '',
         sku: foundVariant.sku || foundVariant.barcode,
-        orderedQty: 0,
         receivedQty: 1,
-        costPrice: foundVariant.costPrice || 0,
+        uom: foundItem.uom || 'PCS',
+        costPrice: foundVariant.mrp || 0, // Using costPrice field for MRP to maintain backend compatibility
+        taxPercent: foundItem?.gstPercent || 0,
         batchNumber: `B-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`
       };
       setLines(prev => [newLine, ...prev]);
@@ -252,9 +266,10 @@ function GRNFormPage({ mode = 'edit' }) {
       shade: item.shade,
       size: v.size,
       sku: v.sku,
-      orderedQty: 0,
       receivedQty: 0,
-      costPrice: v.costPrice || 0,
+      uom: item.uom || 'PCS',
+      costPrice: v.mrp || 0,
+      taxPercent: item?.gstPercent || 0,
       batchNumber: `B-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`
     }));
 
@@ -302,9 +317,10 @@ function GRNFormPage({ mode = 'edit' }) {
               size: item.size || '',
               color: item.color || '',
               sku: sku || item.sku || item.itemCode || '',
-              orderedQty: item.qty || item.quantity,
               receivedQty: item.qty || item.quantity,
-              costPrice: item.costPrice || item.price || item.rate || 0,
+              uom: masterItem?.uom || 'PCS',
+              costPrice: variant?.mrp || item.costPrice || item.price || item.rate || 0,
+              taxPercent: masterItem?.gstPercent || item.taxPercent || item.tax || 0,
               batchNumber: `B-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`,
             };
           })
@@ -325,6 +341,7 @@ function GRNFormPage({ mode = 'edit' }) {
             sku: l.sku,
             receivedQty: Number(l.receivedQty || 0),
             costPrice: Number(l.costPrice || 0),
+            taxPercent: Number(l.taxPercent || 0),
             batchNumber: l.batchNumber || `B-${Date.now().toString().slice(-4)}`,
           }))
           .filter((l) => l.receivedQty > 0),
@@ -368,9 +385,10 @@ function GRNFormPage({ mode = 'edit' }) {
 
   return (
     <Box sx={{ p: 0 }}>
+      {/* Dynamic Navigation for Single Warehouse */}
       <PageHeader
         title={isViewMode ? 'View GRN' : id ? 'Edit GRN' : 'Create GRN'}
-        subtitle="Receipt goods against Purchase Order or Voucher."
+        subtitle="Manage stock in-flow through scanning or selection."
         breadcrumbs={[
           { label: 'Purchase' },
           { label: 'GRN', href: '/ho/inventory/grn' },
@@ -390,35 +408,54 @@ function GRNFormPage({ mode = 'edit' }) {
       {errorMessage && <Alert severity="error" sx={{ mb: 2 }}>{errorMessage}</Alert>}
       {successMessage && <Alert severity="success" sx={{ mb: 2 }}>{successMessage}</Alert>}
 
+      {!isLocked && (
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>Select Receipt Type</Typography>
+          <ToggleButtonGroup
+            exclusive
+            value={formValues.grnType}
+            onChange={(e, val) => { if (val) setFormValues({ ...formValues, grnType: val }); }}
+            color="primary"
+            sx={{ bgcolor: 'white' }}
+          >
+            <ToggleButton value="FABRIC" sx={{ px: 4, fontWeight: 700 }}>🧵 Fabric</ToggleButton>
+            <ToggleButton value="ACCESSORY" sx={{ px: 4, fontWeight: 700 }}>📦 Accessories</ToggleButton>
+            <ToggleButton value="GARMENT" sx={{ px: 4, fontWeight: 700 }}>👕 Garment (Job Work Return)</ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
+      )}
+
       <Grid container spacing={3}>
         <Grid item xs={12}>
-          <Paper sx={{ p: 3, borderRadius: 2 }}>
-            <Grid container spacing={2.5}>
+          <Paper sx={{ p: 4, borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <Grid container spacing={4}>
+              {/* SOURCE ROW */}
               <Grid item xs={12} md={4}>
+                <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>Link Purchase Order</Typography>
                 <TextField
                   select
                   fullWidth
-                  label="Purchase Order"
                   size="small"
-                  value={formValues.purchaseOrderId}
+                  value={formValues.purchaseOrderId || ''}
                   onChange={e => setFormValues({ ...formValues, purchaseOrderId: e.target.value })}
                   disabled={!!id}
+                  SelectProps={{ displayEmpty: true }}
                 >
-                  <MenuItem value="">Direct Receipt</MenuItem>
+                  <MenuItem value="">
+                    <Typography variant="body2" sx={{ color: '#64748b', fontStyle: 'italic' }}>Direct Receipt (No PO)</Typography>
+                  </MenuItem>
                   {filteredPurchaseOrders.map(po => (
-                    <MenuItem key={po._id || po.id} value={po._id || po.id}>
-                      {po.poNumber} - {typeof po.supplierId === 'object' ? po.supplierId.name : po.supplierId}
-                    </MenuItem>
+                    <MenuItem key={po._id || po.id} value={po._id || po.id}>{po.poNumber}</MenuItem>
                   ))}
                 </TextField>
               </Grid>
               <Grid item xs={12} md={4}>
+                <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>Supplier / Vendor</Typography>
                 <TextField
                   select
                   fullWidth
-                  label="Supplier"
                   size="small"
-                  value={formValues.supplierId}
+                  value={formValues.supplierId || ''}
                   onChange={e => setFormValues({ ...formValues, supplierId: e.target.value })}
                   disabled={!!id || !!formValues.purchaseOrderId}
                 >
@@ -428,14 +465,14 @@ function GRNFormPage({ mode = 'edit' }) {
                 </TextField>
               </Grid>
               <Grid item xs={12} md={4}>
+                <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>Target Warehouse</Typography>
                 <TextField
                   select
                   fullWidth
-                  label="Warehouse / Store"
                   size="small"
-                  value={formValues.warehouseId}
+                  value={formValues.warehouseId || ''}
                   onChange={e => setFormValues({ ...formValues, warehouseId: e.target.value })}
-                  disabled={isLocked}
+                  disabled={isLocked || (warehouses.length === 1 && !id)}
                 >
                   {warehouses.map(w => (
                     <MenuItem key={w._id || w.id} value={w._id || w.id}>{w.name}</MenuItem>
@@ -443,69 +480,81 @@ function GRNFormPage({ mode = 'edit' }) {
                 </TextField>
               </Grid>
 
-
-              <Grid item xs={12} md={4}>
+              {/* LOGISTICS & INVOICE ROW */}
+              {formValues.grnType === 'GARMENT' && (
+                <Grid item xs={12} md={4}>
+                  <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>Job Work Reference</Typography>
+                  <TextField
+                    select
+                    fullWidth
+                    size="small"
+                    value={formValues.jobWorkId || ''}
+                    onChange={e => setFormValues({ ...formValues, jobWorkId: e.target.value })}
+                    disabled={isLocked}
+                    SelectProps={{ displayEmpty: true }}
+                  >
+                    <MenuItem value="">
+                      <Typography variant="body2" sx={{ color: '#64748b', fontStyle: 'italic' }}>Direct (No Job Work)</Typography>
+                    </MenuItem>
+                    {supplierOutwards.map(so => (
+                      <MenuItem key={so._id || so.id} value={so._id || so.id}>{so.outwardNumber}</MenuItem>
+                    ))}
+                  </TextField>
+                </Grid>
+              )}
+              <Grid item xs={12} md={formValues.grnType === 'GARMENT' ? 4 : 6}>
+                <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>Supplier Bill / Challan #</Typography>
                 <TextField
                   fullWidth
-                  label="GRN Number"
-                  size="small"
-                  value={formValues.grnNumber}
-                  disabled
-                  placeholder="Autogenerated on save"
-                  helperText="Autogenerated on save"
-                />
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <TextField
-                  fullWidth
-                  label="Supplier Invoice / Challan No."
                   size="small"
                   value={formValues.invoiceNumber}
                   onChange={e => setFormValues({ ...formValues, invoiceNumber: e.target.value })}
                   disabled={isLocked}
-                  placeholder="Enter vendor's bill number"
+                  placeholder="Enter invoice number"
                 />
               </Grid>
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={formValues.grnType === 'GARMENT' ? 4 : 6}>
+                <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>Receipt Date</Typography>
                 <TextField
                   fullWidth
                   type="date"
-                  label="GRN / Receipt Date"
                   size="small"
                   value={(formValues.invoiceDate || formValues.grnDate)?.slice(0, 10)}
                   onChange={e => setFormValues({ ...formValues, invoiceDate: e.target.value, grnDate: e.target.value })}
                   disabled={isLocked}
-                  InputLabelProps={{ shrink: true }}
                 />
               </Grid>
 
+              {/* STATUS ROW */}
               <Grid item xs={12} md={4}>
-                <Box sx={{ p: 1, px: 2, bgcolor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 2, textAlign: 'center', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                  <Typography variant="caption" sx={{ color: '#166534', fontWeight: 700 }}>Total Units Received</Typography>
-                  <Typography variant="h6" sx={{ color: '#15803d', fontWeight: 900 }}>{totals.received}</Typography>
+                <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>GRN Number</Typography>
+                <TextField
+                  fullWidth
+                  size="small"
+                  value={formValues.grnNumber || 'AUTOGENERATE'}
+                  disabled
+                  sx={{ bgcolor: '#f8fafc' }}
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Typography variant="caption" sx={{ fontWeight: 800, color: '#166534', mb: 1, display: 'block', textTransform: 'uppercase' }}>Total Units Received</Typography>
+                <Box sx={{ px: 2, height: 40, bgcolor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 1.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <Typography variant="body1" sx={{ color: '#15803d', fontWeight: 900 }}>{totals.received} Items</Typography>
                 </Box>
               </Grid>
 
               {!isLocked && (
                 <Grid item xs={12}>
-                  <Paper elevation={0} sx={{ p: 2, bgcolor: '#f8fafc', border: '2px solid #3b82f6', borderRadius: 2 }}>
-                    <Stack direction="row" spacing={2} alignItems="center">
-                      <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#1e40af', minWidth: 120 }}>MANUAL SEARCH:</Typography>
-                      <Autocomplete
-                        fullWidth
-                        options={allItems}
-                        getOptionLabel={(o) => `${o.itemCode} - ${o.itemName}`}
-                        onChange={(_, newVal) => {
-                          if (newVal) {
-                             addItemToLines(newVal);
-                          }
-                        }}
-                        renderInput={(params) => <TextField {...params} placeholder="Search by Style Code or Name..." size="medium" sx={{ bgcolor: '#fff' }} />}
-                      />
-                      <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#1e40af', minWidth: 120, textAlign: 'right' }}>OR SCAN:</Typography>
+                  <Box sx={{ mt: 1, p: 2, bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderLeft: '4px solid #3b82f6', borderRadius: 2 }}>
+                    <Stack direction="row" spacing={3} alignItems="center">
+                      <Box>
+                        <Typography variant="caption" sx={{ fontWeight: 900, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: 1 }}>Scanning Active</Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 800, color: '#1e293b', lineHeight: 1 }}>Scan Barcodes</Typography>
+                      </Box>
                       <TextField
                         fullWidth
-                        placeholder="Scan Barcode and press Enter..."
+                        autoFocus
+                        placeholder="Scan tags one by one to add items to this GRN..."
                         size="medium"
                         value={searchText}
                         onChange={(e) => setSearchText(e.target.value)}
@@ -516,13 +565,14 @@ function GRNFormPage({ mode = 'edit' }) {
                             setSearchText('');
                           }
                         }}
-                        sx={{ bgcolor: '#fff' }}
+                        sx={{ bgcolor: 'white' }}
                         InputProps={{
-                          startAdornment: <SearchIcon sx={{ color: '#3b82f6', mr: 1 }} />
+                          startAdornment: <SearchIcon sx={{ color: '#3b82f6', mr: 1, fontSize: 22 }} />
                         }}
                       />
+                      <Button variant="contained" disableElevation sx={{ height: 52, px: 5, fontWeight: 800, borderRadius: 2, bgcolor: '#2563eb' }} onClick={() => { handleBarcodeScan(searchText); setSearchText(''); }}>Add Manually</Button>
                     </Stack>
-                  </Paper>
+                  </Box>
                 </Grid>
               )}
             </Grid>
@@ -537,9 +587,10 @@ function GRNFormPage({ mode = 'edit' }) {
                   <TableCell sx={{ fontWeight: 700 }}>ITEM / STYLE</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>SIZE</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700 }}>ORDERED</TableCell>
+
                   <TableCell align="right" sx={{ fontWeight: 700 }}>RECEIVED</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700 }}>COST PRICE</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700 }}>MRP</TableCell>
+                  {formValues.grnType !== 'GARMENT' && <TableCell align="right" sx={{ fontWeight: 700 }}>GST %</TableCell>}
                   <TableCell sx={{ fontWeight: 700 }}>BATCH #</TableCell>
                   {!isLocked && <TableCell align="center" sx={{ fontWeight: 700 }}>ACTION</TableCell>}
                 </TableRow>
@@ -559,7 +610,7 @@ function GRNFormPage({ mode = 'edit' }) {
                     <TableCell>
                       <Typography variant="caption" sx={{ fontFamily: 'monospace', color: '#64748b' }}>{line.sku}</Typography>
                     </TableCell>
-                    <TableCell align="right">{line.orderedQty || 0}</TableCell>
+
                     <TableCell align="right">
                       <TextField
                         type="number"
@@ -567,8 +618,11 @@ function GRNFormPage({ mode = 'edit' }) {
                         value={line.receivedQty}
                         onChange={e => updateLine(idx, 'receivedQty', e.target.value)}
                         disabled={isLocked}
-                        sx={{ width: 80 }}
+                        sx={{ width: 100 }}
                         onFocus={(e) => e.target.select()}
+                        InputProps={{
+                          endAdornment: <Typography variant="caption" sx={{ color: '#94a3b8', ml: 0.5 }}>{line.uom || 'PCS'}</Typography>
+                        }}
                       />
                     </TableCell>
                     <TableCell align="right">
@@ -581,6 +635,18 @@ function GRNFormPage({ mode = 'edit' }) {
                         sx={{ width: 90 }}
                       />
                     </TableCell>
+                    {formValues.grnType !== 'GARMENT' && (
+                      <TableCell align="right">
+                        <TextField
+                          type="number"
+                          size="small"
+                          value={line.taxPercent}
+                          onChange={e => updateLine(idx, 'taxPercent', e.target.value)}
+                          disabled={isLocked}
+                          sx={{ width: 70 }}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell>
                       <TextField size="small" value={line.batchNumber} onChange={e => updateLine(idx, 'batchNumber', e.target.value)} disabled={isLocked} sx={{ width: 120 }} />
                     </TableCell>
@@ -597,104 +663,106 @@ function GRNFormPage({ mode = 'edit' }) {
         </Grid>
 
         {/* NEW CONSUMPTION SECTION */}
-        <Grid item xs={12} sx={{ mt: 2 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 1.5, color: '#ec4899', display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Box component="span" sx={{ width: 12, height: 12, bgcolor: '#ec4899', borderRadius: '50%' }} />
-            RAW MATERIAL CONSUMPTION / FABRIC SETTLEMENT
-          </Typography>
-          <TableContainer component={Paper} sx={{ borderRadius: 2, border: '1px solid #fce7f3' }}>
-            <Table size="small">
-              <TableHead sx={{ bgcolor: '#fff1f2' }}>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 700 }}>MATERIAL / FABRIC</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>AVAILABLE</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700 }}>USED QTY</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700 }}>WASTAGE</TableCell>
-                  {!isLocked && <TableCell align="center" sx={{ fontWeight: 700 }}>ACTION</TableCell>}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {consumptionLines.map((line, idx) => (
-                  <TableRow key={idx} hover>
-                    <TableCell>
-                      <Stack>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{line.itemName}</Typography>
-                        <Typography variant="caption" sx={{ color: '#ec4899' }}>{line.barcode}</Typography>
-                      </Stack>
-                    </TableCell>
-                    <TableCell>
-                      <Chip label={`${line.availableQty || 0} Unit`} size="small" variant="outlined" sx={{ fontWeight: 700 }} />
-                    </TableCell>
-                    <TableCell align="right">
-                      <TextField
-                        type="number"
-                        size="small"
-                        value={line.quantity}
-                        onChange={e => {
-                          const newLines = [...consumptionLines];
-                          newLines[idx].quantity = e.target.value;
-                          setConsumptionLines(newLines);
-                        }}
-                        disabled={isLocked}
-                        sx={{ width: 85 }}
-                      />
-                    </TableCell>
-                    <TableCell align="right">
-                      <TextField
-                        type="number"
-                        size="small"
-                        value={line.wasteQuantity}
-                        onChange={e => {
-                          const newLines = [...consumptionLines];
-                          newLines[idx].wasteQuantity = e.target.value;
-                          setConsumptionLines(newLines);
-                        }}
-                        disabled={isLocked}
-                        sx={{ width: 85 }}
-                      />
-                    </TableCell>
-                    {!isLocked && (
-                      <TableCell align="center">
-                        <IconButton color="error" size="small" onClick={() => setConsumptionLines(consumptionLines.filter((_, i) => i !== idx))}><DeleteOutlineIcon fontSize="small" /></IconButton>
+        {formValues.grnType === 'GARMENT' && (
+          <Grid item xs={12} sx={{ mt: 2 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 1.5, color: '#ec4899', display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box component="span" sx={{ width: 12, height: 12, bgcolor: '#ec4899', borderRadius: '50%' }} />
+              RAW MATERIAL CONSUMPTION / FABRIC SETTLEMENT
+            </Typography>
+            <TableContainer component={Paper} sx={{ borderRadius: 2, border: '1px solid #fce7f3' }}>
+              <Table size="small">
+                <TableHead sx={{ bgcolor: '#fff1f2' }}>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 700 }}>MATERIAL / FABRIC</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>AVAILABLE</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700 }}>USED QTY</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700 }}>WASTAGE</TableCell>
+                    {!isLocked && <TableCell align="center" sx={{ fontWeight: 700 }}>ACTION</TableCell>}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {consumptionLines.map((line, idx) => (
+                    <TableRow key={idx} hover>
+                      <TableCell>
+                        <Stack>
+                          <Typography variant="body2" sx={{ fontWeight: 700 }}>{line.itemName}</Typography>
+                          <Typography variant="caption" sx={{ color: '#ec4899' }}>{line.barcode}</Typography>
+                        </Stack>
                       </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-                {!isLocked && (
-                  <TableRow>
-                    <TableCell colSpan={5} sx={{ p: 1.5, bgcolor: '#fff5f7' }}>
-                      <Autocomplete
-                        options={supplierStock}
-                        getOptionLabel={(o) => `${o.itemId?.itemCode} [${o.barcode}] - Bal: ${o.quantity}`}
-                        onChange={(_, newVal) => {
-                          if (newVal) {
-                            setConsumptionLines([...consumptionLines, {
-                              itemId: newVal.itemId?._id,
-                              variantId: newVal.variantId,
-                              itemName: newVal.itemId?.itemName,
-                              barcode: newVal.barcode,
-                              availableQty: newVal.quantity,
-                              quantity: 0,
-                              wasteQuantity: 0
-                            }]);
-                          }
-                        }}
-                        renderInput={(params) => <TextField {...params} label="Select Raw Material from Supplier Balance..." size="small" variant="standard" placeholder="Search fabric / accessories..." />}
-                      />
-                    </TableCell>
-                  </TableRow>
-                )}
-                {consumptionLines.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 3, color: '#94a3b8', fontStyle: 'italic' }}>
-                      No raw material consumption added yet. Select from supplier balance above.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Grid>
+                      <TableCell>
+                        <Chip label={`${line.availableQty || 0} Unit`} size="small" variant="outlined" sx={{ fontWeight: 700 }} />
+                      </TableCell>
+                      <TableCell align="right">
+                        <TextField
+                          type="number"
+                          size="small"
+                          value={line.quantity}
+                          onChange={e => {
+                            const newLines = [...consumptionLines];
+                            newLines[idx].quantity = e.target.value;
+                            setConsumptionLines(newLines);
+                          }}
+                          disabled={isLocked}
+                          sx={{ width: 85 }}
+                        />
+                      </TableCell>
+                      <TableCell align="right">
+                        <TextField
+                          type="number"
+                          size="small"
+                          value={line.wasteQuantity}
+                          onChange={e => {
+                            const newLines = [...consumptionLines];
+                            newLines[idx].wasteQuantity = e.target.value;
+                            setConsumptionLines(newLines);
+                          }}
+                          disabled={isLocked}
+                          sx={{ width: 85 }}
+                        />
+                      </TableCell>
+                      {!isLocked && (
+                        <TableCell align="center">
+                          <IconButton color="error" size="small" onClick={() => setConsumptionLines(consumptionLines.filter((_, i) => i !== idx))}><DeleteOutlineIcon fontSize="small" /></IconButton>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))}
+                  {!isLocked && (
+                    <TableRow>
+                      <TableCell colSpan={5} sx={{ p: 1.5, bgcolor: '#fff5f7' }}>
+                        <Autocomplete
+                          options={supplierStock}
+                          getOptionLabel={(o) => `${o.itemId?.itemCode} [${o.barcode}] - Bal: ${o.quantity}`}
+                          onChange={(_, newVal) => {
+                            if (newVal) {
+                              setConsumptionLines([...consumptionLines, {
+                                itemId: newVal.itemId?._id,
+                                variantId: newVal.variantId,
+                                itemName: newVal.itemId?.itemName,
+                                barcode: newVal.barcode,
+                                availableQty: newVal.quantity,
+                                quantity: 0,
+                                wasteQuantity: 0
+                              }]);
+                            }
+                          }}
+                          renderInput={(params) => <TextField {...params} label="Select Raw Material from Supplier Balance..." size="small" variant="standard" placeholder="Search fabric / accessories..." />}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {consumptionLines.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} align="center" sx={{ py: 3, color: '#94a3b8', fontStyle: 'italic' }}>
+                        No raw material consumption added yet. Select from supplier balance above.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Grid>
+        )}
       </Grid>
 
       <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>

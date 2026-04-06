@@ -42,26 +42,26 @@ const GRNListPage = () => {
       console.error('Fetch GRNs failed', err);
       // Fallback: search in purchases to show something if /all isn't ready
       try {
-          const fallback = await api.get('/purchase');
-          // Mock some status for demo if needed
-      } catch (e) {}
+        const fallback = await api.get('/purchase');
+        // Mock some status for demo if needed
+      } catch (e) { }
     } finally {
       setLoading(false);
     }
   };
 
   const handleApprove = async (id) => {
-      if (!window.confirm('Are you sure you want to approve this GRN and post stock to inventory?')) return;
-      setLoading(true);
-      try {
-          await api.patch(`/grn/${id}/approve`);
-          fetchGrns();
-      } catch (err) {
-          console.error('Approve failed', err);
-          alert(err.response?.data?.message || 'Failed to approve');
-      } finally {
-          setLoading(false);
-      }
+    if (!window.confirm('Are you sure you want to approve this GRN and post stock to inventory?')) return;
+    setLoading(true);
+    try {
+      await api.patch(`/grn/${id}/approve`);
+      fetchGrns();
+    } catch (err) {
+      console.error('Approve failed', err);
+      alert(err.response?.data?.message || 'Failed to approve');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getStatusColor = (status) => {
@@ -130,9 +130,9 @@ const GRNListPage = () => {
                   <TableCell>{grn.invoiceNumber}</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 700 }}>{grn.items?.length || 0}</TableCell>
                   <TableCell>
-                    <Chip 
-                      label={grn.status} 
-                      size="small" 
+                    <Chip
+                      label={grn.status}
+                      size="small"
                       color={getStatusColor(grn.status)}
                       sx={{ fontWeight: 800, fontSize: 10, height: 20 }}
                     />
@@ -151,22 +151,22 @@ const GRNListPage = () => {
                           </IconButton>
                         </Tooltip>
                       )}
-                      
+
                       {grn.status === 'APPROVED' && (
                         <>
                           <Tooltip title="Generate Bill">
-                            <IconButton 
-                              size="small" 
-                              color="primary" 
+                            <IconButton
+                              size="small"
+                              color="primary"
                               onClick={() => navigate(`/purchase/purchase-voucher/new?grnId=${grn._id}`)}
                             >
                               <ReceiptIcon sx={{ fontSize: 18 }} />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Print Barcodes / Labels">
-                            <IconButton 
-                              size="small" 
-                              color="info" 
+                            <IconButton
+                              size="small"
+                              color="info"
                               onClick={() => navigate(`/ho/setup/barcode-print?grnId=${grn._id}`)}
                             >
                               <PrintIcon sx={{ fontSize: 18 }} />

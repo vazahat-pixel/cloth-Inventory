@@ -2,12 +2,17 @@ const { body } = require('express-validator');
 
 const createGRNValidation = [
     body('purchaseId')
-        .optional()
+        .optional({ checkFalsy: true })
         .isMongoId().withMessage('Invalid Purchase ID'),
     
     body('purchaseOrderId')
-        .optional()
+        .optional({ checkFalsy: true })
         .isMongoId().withMessage('Invalid Purchase Order ID'),
+
+    body('jobWorkId')
+        .optional({ checkFalsy: true })
+        .isMongoId().withMessage('Invalid Job Work ID'),
+
     
     body('items')
         .isArray({ min: 1 }).withMessage('At least one item is required in the GRN'),

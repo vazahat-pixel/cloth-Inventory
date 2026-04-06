@@ -1,47 +1,50 @@
 const mongoose = require('mongoose');
 
+// Line-level tracking of each material given vs consumed
+const consumptionLineSchema = new mongoose.Schema({
+    itemId: { type: mongoose.Schema.Types.ObjectId, ref: 'Item', required: true },
+    variantId: { type: String },
+    barcode: { type: String, required: true },
+    itemName: { type: String },
+    itemCode: { type: String },
+    uom: { type: String, default: 'MTR' },
+
+    // Quantities
+    givenQty: { type: Number, required: true, min: 0 },    // Dispatched via Job Work Outward
+    usedQty: { type: Number, required: true, min: 0 },     // Consumed in manufacturing
+    wasteQty: { type: Number, default: 0, min: 0 },        // Scrap / Cutting waste
+    pendingQty: { type: Number, default: 0, min: 0 },      // Still at tailor: givenQty - usedQty - wasteQty
+
+    notes: { type: String },
+}, { _id: false });
+
 const materialConsumptionSchema = new mongoose.Schema({
-    consumptionNumber: {
+    consumptionNumber: { type: String, required: true, unique: true },
+
+    // Links
+    supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier', required: true },
+    jobWorkId: { type: mongoose.Schema.Types.ObjectId, ref: 'SupplierOutward', required: false },
+    grnId: { type: mongoose.Schema.Types.ObjectId, ref: 'GRN', required: true },   // The Garment GRN that triggered this settlement
+
+    // Line-level material ledger
+    items: [consumptionLineSchema],
+
+    // Status
+    status: {
         type: String,
-        required: true,
-        unique: true
+        enum: ['DRAFT', 'SETTLED', 'PARTIAL'],
+        default: 'SETTLED'
     },
-    supplierId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Supplier',
-        required: true
-    },
-    sourceOutwardId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'SupplierOutward',
-        required: true
-    },
-    items: [{
-        rawMaterialId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'RawMaterial',
-            required: true
-        },
-        quantityUsed: {
-            type: Number,
-            required: true
-        },
-        wastage: {
-            type: Number,
-            default: 0
-        },
-        notes: String
-    }],
-    consumptionDate: {
-        type: Date,
-        default: Date.now
-    },
-    notes: String,
-    createdBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true
-    }
+
+    consumptionDate: { type: Date, default: Date.now },
+    notes: { type: String },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });
 
+// Indexes for fast lookups
+materialConsumptionSchema.index({ supplierId: 1, consumptionDate: -1 });
+materialConsumptionSchema.index({ grnId: 1 });
+materialConsumptionSchema.index({ jobWorkId: 1 });
+
 module.exports = mongoose.model('MaterialConsumption', materialConsumptionSchema);
+

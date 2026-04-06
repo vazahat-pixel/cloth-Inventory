@@ -54,79 +54,78 @@ const VerticalTag = ({ label, mfgLine1, mfgLine2, type, design }) => {
   return (
     <Box sx={{ 
       width: '50mm', 
-      height: '110mm', 
+      minHeight: '135mm', 
       bgcolor: 'white', 
       color: 'black', 
       display: 'flex', 
       flexDirection: 'column', 
-      border: '1px solid #e2e8f0', 
-      p: '5mm',
+      border: '1.5px solid black', 
+      p: '4mm',
       pt: '3mm',
       boxSizing: 'border-box',
-      fontFamily: "'Inter', sans-serif",
-      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)'
+      fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+      position: 'relative'
     }}>
       {/* Barcode Section */}
-      <Box sx={{ textAlign: 'center', mb: 2 }}>
+      <Box sx={{ textAlign: 'center', mb: 1.5 }}>
         <img src={barcodeImg} style={{ width: '100%', height: '14mm', objectFit: 'contain' }} alt="barcode" />
-        <Typography sx={{ fontSize: '10pt', fontWeight: 600, mt: 0.5, letterSpacing: '2px' }}>{label.barcode}</Typography>
+        <Typography sx={{ fontSize: '9pt', fontWeight: 600, mt: 0.2, letterSpacing: '0.8mm' }}>{label.barcode}</Typography>
       </Box>
 
       {/* Product Details Section */}
-      <Stack spacing={0.4} sx={{ flex: 1 }}>
-        <Box sx={{ display: 'flex', fontSize: '10.5pt' }}>
-          <Typography sx={{ width: '18mm', fontWeight: 700, fontSize: 'inherit' }}>Article :</Typography>
-          <Typography sx={{ flex: 1, fontWeight: 700, fontSize: 'inherit' }}>{label.article}</Typography>
-        </Box>
-        
-        <Box sx={{ display: 'flex', fontSize: '10.5pt' }}>
-          <Typography sx={{ width: '18mm', fontWeight: 700, fontSize: 'inherit' }}>Group</Typography>
-          <Typography sx={{ flex: 1, fontWeight: 700, fontSize: 'inherit' }}>{label.category || 'SHIRT'}</Typography>
+      <Stack spacing={0.5} sx={{ px: 0.5, flex: 1 }}>
+        {[
+          { label: 'Article :', val: label.article },
+          { label: 'Group', val: label.category || 'SHIRT' },
+          { label: 'Type:', val: type },
+          { label: 'DESIGN :', val: design || 'COLLAR' },
+        ].map((item, i) => (
+          <Box key={i} sx={{ display: 'grid', gridTemplateColumns: '22mm 1fr', fontSize: '9.2pt', lineHeight: 1.1, alignItems: 'start' }}>
+            <Typography sx={{ fontWeight: 800, fontSize: 'inherit' }}>{item.label}</Typography>
+            <Typography sx={{ fontWeight: 700, fontSize: 'inherit', textTransform: 'uppercase' }}>{item.val}</Typography>
+          </Box>
+        ))}
+
+        <Box sx={{ display: 'grid', gridTemplateColumns: '22mm 1fr', fontSize: '9.5pt', mt: 0.2, alignItems: 'center' }}>
+          <Typography sx={{ fontWeight: 700, fontSize: 'inherit' }}>Size :</Typography>
+          <Typography sx={{ fontWeight: 900, fontSize: '11pt', textTransform: 'uppercase' }}>{label.size}</Typography>
         </Box>
 
-        <Box sx={{ display: 'flex', fontSize: '10pt' }}>
-          <Typography sx={{ width: '18mm', fontWeight: 600, fontSize: 'inherit' }}>Type:</Typography>
-          <Typography sx={{ flex: 1, fontWeight: 600, fontSize: 'inherit' }}>{type}</Typography>
+        <Box sx={{ display: 'grid', gridTemplateColumns: '22mm 1fr', fontSize: '9pt', alignItems: 'center' }}>
+          <Typography sx={{ fontWeight: 700, fontSize: 'inherit' }}>Qty: 1N</Typography>
+          <Typography sx={{ fontWeight: 700, fontSize: 'inherit', textTransform: 'uppercase' }}>F/S</Typography>
         </Box>
 
-        <Box sx={{ display: 'flex', fontSize: '10.5pt' }}>
-          <Typography sx={{ width: '18mm', fontWeight: 700, fontSize: 'inherit' }}>DESIGN :</Typography>
-          <Typography sx={{ flex: 1, fontWeight: 700, fontSize: 'inherit' }}>{design || 'COLLAR'}</Typography>
+        <Box sx={{ display: 'grid', gridTemplateColumns: '22mm 1fr', fontSize: '9pt', alignItems: 'center' }}>
+          <Typography sx={{ fontWeight: 700, fontSize: 'inherit' }}>Colour :</Typography>
+          <Typography sx={{ fontWeight: 700, fontSize: 'inherit', textTransform: 'uppercase' }}>{label.color}</Typography>
         </Box>
 
-        <Box sx={{ display: 'flex', fontSize: '10.5pt', mt: 0.5 }}>
-          <Typography sx={{ width: '18mm', fontWeight: 600, fontSize: 'inherit' }}>Size :</Typography>
-          <Typography sx={{ flex: 1, fontWeight: 700, fontSize: '11pt', ml: 4 }}>{label.size}</Typography>
+        <Box sx={{ mt: 1 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '22mm 1fr', alignItems: 'center' }}>
+            <Typography sx={{ fontWeight: 800, fontSize: '10pt' }}>MRP :</Typography>
+            <Typography sx={{ fontWeight: 900, fontSize: '14pt', textAlign: 'left' }}>
+              {Number(label.mrp || 0).toFixed(0)}
+            </Typography>
+          </Box>
+          <Box sx={{ textAlign: 'left', pl: '22mm', mt: -0.5 }}>
+            <Typography sx={{ fontSize: '7.5pt', fontWeight: 700 }}>(Incl of all taxes)</Typography>
+          </Box>
         </Box>
-
-        <Box sx={{ display: 'flex', fontSize: '10pt' }}>
-          <Typography sx={{ width: '18mm', fontWeight: 600, fontSize: 'inherit' }}>Qty: 1N</Typography>
-          <Typography sx={{ flex: 1, fontWeight: 600, fontSize: 'inherit', ml: 4 }}>F/S</Typography>
-        </Box>
-
-        <Box sx={{ display: 'flex', fontSize: '10pt' }}>
-          <Typography sx={{ width: '18mm', fontWeight: 600, fontSize: 'inherit' }}>Colour :</Typography>
-          <Typography sx={{ flex: 1, fontWeight: 600, fontSize: 'inherit' }}>{label.color}</Typography>
-        </Box>
-
-        <Box sx={{ display: 'flex', fontSize: '11pt', mt: 1, alignItems: 'center' }}>
-          <Typography sx={{ width: '18mm', fontWeight: 700, fontSize: 'inherit' }}>MRP :</Typography>
-          <Typography sx={{ flex: 1, fontWeight: 700, fontSize: '13pt', ml: 4 }}>{Number(label.mrp || 0).toFixed(0)}</Typography>
-        </Box>
-        <Typography sx={{ fontSize: '8.5pt', fontWeight: 600, textAlign: 'left', pl: '19mm' }}> (Incl of all taxes)</Typography>
       </Stack>
 
       {/* Manufacturing Section */}
-      <Box sx={{ mt: 'auto', borderTop: '0.1mm solid #eee', pt: 1.5 }}>
-        <Typography sx={{ fontSize: '8.5pt', fontWeight: 800, mb: 0.2 }}>MFG:</Typography>
-        <Typography sx={{ fontSize: '8.5pt', fontWeight: 700 }}>Mfg. & Marketed By</Typography>
-        <Typography sx={{ fontSize: '8.5pt', fontWeight: 600, color: '#333' }}>Rebel Mass Export Pvt. Ltd</Typography>
-        <Typography sx={{ fontSize: '8pt', fontWeight: 500 }}>{mfgLine1}</Typography>
-        <Typography sx={{ fontSize: '8pt', fontWeight: 500 }}>{mfgLine2}</Typography>
+      <Box sx={{ mt: 'auto', borderTop: '1px solid black', pt: 1.8, px: 0.5 }}>
+        <Typography sx={{ fontSize: '7.5pt', fontWeight: 900, mb: 0.1 }}>MFG:</Typography>
+        <Typography sx={{ fontSize: '7.5pt', fontWeight: 800 }}>Mfg. & Marketed By</Typography>
+        <Typography sx={{ fontSize: '7.5pt', fontWeight: 700 }}>Rebel Mass Export Pvt. Ltd</Typography>
+        <Typography sx={{ fontSize: '7pt', fontWeight: 600 }}>{mfgLine1}</Typography>
+        <Typography sx={{ fontSize: '7pt', fontWeight: 600 }}>{mfgLine2}</Typography>
         
         <Box sx={{ mt: 0.8 }}>
-          <Typography sx={{ fontSize: '8.5pt', fontWeight: 700 }}>Customer Care:</Typography>
-          <Typography sx={{ fontSize: '8.5pt', fontWeight: 500 }}>Email: info.dapolo@gmail.com</Typography>
+          <Typography sx={{ fontSize: '7.5pt', fontWeight: 800 }}>Customer Care:</Typography>
+          <Typography sx={{ fontSize: '7pt', fontWeight: 600 }}>Email: info.dapolo@gmail.com</Typography>
         </Box>
       </Box>
     </Box>
@@ -201,7 +200,7 @@ function BarcodePrintingPage() {
                 barcode: v.barcode || v.sku || p.barcode || p.itemCode,
                 salePrice: v.mrp || v.salePrice || p.salePrice || 0,
                 size: v.size || 'N/A',
-                color: p.shade || p.color || 'N/A',
+                color: v.color || p.shadeNo || p.color || p.shade || 'N/A',
                 category: categoryObj?.name || categoryObj?.groupName || 'SHIRT',
                 article: p.itemCode || p.sku
               });
@@ -239,37 +238,32 @@ function BarcodePrintingPage() {
     const printWindow = window.open('', '_blank');
     const styles = `
       <style>
-        @page { size: 50mm 110mm; margin: 0; }
+        @page { size: 50mm 135mm; margin: 0; }
         * { box-sizing: border-box; }
-        body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; background: #fff; color: #000; }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background: #fff; color: #000; }
         .label { 
-          width: 50mm; height: 110mm; box-sizing: border-box;
-          padding: 5mm; pt: 3mm; overflow: hidden; page-break-after: always;
+          width: 50mm; height: 135mm; box-sizing: border-box;
+          padding: 4.5mm; overflow: hidden; page-break-after: always;
           display: flex; flex-direction: column; justify-content: flex-start;
-          border-bottom: 2px dashed #eee;
+          border-bottom: 0.2mm solid #eee;
         }
-        .barcode-container { width: 100%; text-align: center; margin-bottom: 5mm; }
+        .barcode-container { width: 100%; text-align: center; margin-bottom: 4mm; }
         .barcode-img { width: 100%; height: 14mm; display: block; margin: 0 auto; object-fit: contain; }
-        .barcode-text { font-size: 10pt; font-weight: 600; letter-spacing: 2mm; margin-top: 1mm; text-align: center; }
+        .barcode-text { font-size: 9pt; font-weight: 600; letter-spacing: 0.8mm; margin-top: 1mm; text-align: center; }
         
-        .spec-container { display: flex; flex-direction: column; gap: 1.5mm; flex: 1; }
-        .info-row { display: flex; font-size: 10pt; line-height: 1.2; align-items: baseline; }
-        .info-col-key { width: 18mm; font-weight: 700; }
-        .info-col-val { flex: 1; font-weight: 700; }
-        .info-row-plain { display: flex; font-size: 10pt; line-height: 1.2; align-items: baseline; }
-        .info-row-plain .info-col-key { font-weight: 600; }
-        .info-row-plain .info-col-val { font-weight: 600; }
+        .spec-container { display: flex; flex-direction: column; gap: 1.2mm; flex: 1; padding: 0 0.5mm; }
+        .row { display: grid; grid-template-columns: 22mm 1fr; font-size: 9.2pt; line-height: 1.1; align-items: start; }
+        .key { font-weight: 800; }
+        .val { font-weight: 700; text-transform: uppercase; }
 
-        .mrp-section { mt: 3mm; }
-        .mrp-row { display: flex; font-size: 11pt; align-items: center; font-weight: 700; }
-        .mrp-key { width: 18mm; }
-        .mrp-val { font-size: 13pt; margin-left: 4mm; }
-        .tax-text { font-size: 8.5pt; font-weight: 600; margin-left: 19mm; }
+        .mrp-section { margin-top: 2mm; }
+        .mrp-row { display: grid; grid-template-columns: 22mm 1fr; font-size: 10pt; align-items: center; font-weight: 800; }
+        .mrp-val { font-size: 14pt; font-weight: 900; }
+        .tax-text { font-size: 7.5pt; font-weight: 700; margin-left: 22mm; margin-top: -0.5mm; }
 
-        .footer { font-size: 8pt; font-weight: 600; line-height: 1.3; border-top: 1px solid #eee; pt: 3mm; margin-top: auto; }
-        .mfg-title { font-size: 8.5pt; font-weight: 800; margin-bottom: 1mm; }
-        .mkt-by { font-size: 8.5pt; font-weight: 700; }
-        .comp { font-size: 8.5pt; font-weight: 600; }
+        .footer { font-size: 7.2pt; font-weight: 700; line-height: 1.3; border-top: 1px solid #000; padding-top: 2.5mm; margin-top: auto; padding-left: 0.5mm; }
+        .mfg-title { font-size: 7.5pt; font-weight: 900; margin-bottom: 0.5mm; }
+        .mf-line { font-size: 7pt; font-weight: 600; }
       </style>
     `;
 
@@ -281,31 +275,31 @@ function BarcodePrintingPage() {
         </div>
         
         <div class="spec-container">
-          <div class="info-row">
-            <span class="info-col-key">Article :</span> <span class="info-col-val">${label.article || ''}</span>
+          <div class="row">
+            <span class="key">Article :</span> <span class="val">${label.article || ''}</span>
           </div>
-          <div class="info-row">
-            <span class="info-col-key">Group</span> <span class="info-col-val">${label.category || 'SHIRT'}</span>
+          <div class="row">
+            <span class="key">Group</span> <span class="val">${label.category || 'SHIRT'}</span>
           </div>
-          <div class="info-row-plain">
-            <span class="info-col-key">Type:</span> <span class="info-col-val">${type}</span>
+          <div class="row">
+            <span class="key">Type:</span> <span class="val">${type}</span>
           </div>
-          <div class="info-row">
-            <span class="info-col-key">DESIGN :</span> <span class="info-col-val">${design}</span>
+          <div class="row">
+            <span class="key">DESIGN :</span> <span class="val">${design}</span>
           </div>
-          <div class="info-row">
-            <span class="info-col-key">Size :</span> <span class="info-col-val" style="font-size: 11pt; margin-left: 4mm;">${label.size}</span>
+          <div class="row" style="align-items: center; margin-top: 0.5mm;">
+            <span class="key">Size :</span> <span class="val" style="font-size: 11pt; font-weight: 900;">${label.size}</span>
           </div>
-          <div class="info-row-plain">
-            <span class="info-col-key">Qty: 1N</span> <span class="info-col-val" style="margin-left: 4mm;">F/S</span>
+          <div class="row" style="align-items: center;">
+            <span class="key">Qty: 1N</span> <span class="val">F/S</span>
           </div>
-          <div class="info-row-plain">
-            <span class="info-col-key">Colour :</span> <span class="info-col-val">${label.color || 'N/A'}</span>
+          <div class="row" style="align-items: center;">
+            <span class="key">Colour :</span> <span class="val">${label.color || 'N/A'}</span>
           </div>
           
           <div class="mrp-section">
             <div class="mrp-row">
-              <span class="mrp-key">MRP :</span> <span class="mrp-val">${Number(label.mrp || 0).toFixed(0)}</span>
+              <span class="key">MRP :</span> <span class="mrp-val">${Number(label.mrp || 0).toFixed(0)}</span>
             </div>
             <div class="tax-text">(Incl of all taxes)</div>
           </div>
@@ -313,10 +307,10 @@ function BarcodePrintingPage() {
 
         <div class="footer">
           <div class="mfg-title">MFG:</div>
-          <div class="mkt-by">Mfg. & Marketed By</div>
-          <div class="comp">Rebel Mass Export Pvt. Ltd</div>
-          <div>${mfgLine1}</div>
-          <div>${mfgLine2}</div>
+          <div>Mfg. & Marketed By</div>
+          <div>Rebel Mass Export Pvt. Ltd</div>
+          <div class="mf-line">${mfgLine1}</div>
+          <div class="mf-line">${mfgLine2}</div>
           <div style="margin-top: 2mm;">
             <b>Customer Care:</b><br/>
             Email: info.dapolo@gmail.com
@@ -429,8 +423,8 @@ function BarcodePrintingPage() {
                             sku: s.sku || s.barcode || v.itemCode,
                             printQty: 0,
                             mrp: s.mrp || s.salePrice || v.salePrice || 0,
-                            color: v.shade || v.color || 'N/A',
-                            category: (v.groupIds || []).find(g => g.groupType === 'Category')?.name || 'SHIRT',
+                            color: s.color || v.shadeNo || v.color || v.shade || 'N/A',
+                            category: (v.groupIds || []).find(g => g.groupType === 'Category')?.name || 'GARMENT',
                             article: v.itemCode
                           }));
                           setBatchLines(vars);
