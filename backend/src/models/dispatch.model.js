@@ -2,9 +2,18 @@ const mongoose = require('mongoose');
 const { DispatchStatus } = require('../core/enums');
 
 const dispatchItemSchema = new mongoose.Schema({
+    itemId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Item',
+        required: true
+    },
     variantId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Item',
+        required: true
+    },
+    barcode: {
+        type: String,
         required: true
     },
     qty: {

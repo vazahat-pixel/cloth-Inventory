@@ -64,6 +64,9 @@ function StockAuditView({ defaultTab = 0 }) {
   const [batchFilter, setBatchFilter] = useState('all');
 
   const { export: exportRows = [], movements: rawLedgerRows = [], loading } = useSelector((state) => state.inventory);
+  const itemsMaster = useSelector((state) => state.items?.records || []);
+  const warehousesMaster = useSelector((state) => state.masters?.warehouses || []);
+  const storesMaster = useSelector((state) => state.masters?.stores || []);
 
   useEffect(() => {
     dispatch(fetchInventoryExport());
@@ -102,12 +105,19 @@ function StockAuditView({ defaultTab = 0 }) {
   }));
 
   const itemOptions = useMemo(
-    () => Array.from(new Set(ledgerRows.map((row) => row.itemCode).filter(Boolean))),
-    [ledgerRows],
+    () => Array.from(new Set([
+      ...itemsMaster.map(i => i.itemCode),
+      ...ledgerRows.map(r => r.itemCode)
+    ])).filter(Boolean).sort(),
+    [itemsMaster, ledgerRows],
   );
   const warehouseOptions = useMemo(
-    () => Array.from(new Set(ledgerRows.map((row) => row.warehouse).filter(Boolean))),
-    [ledgerRows],
+    () => Array.from(new Set([
+      ...warehousesMaster.map(w => w.name),
+      ...storesMaster.map(s => s.name),
+      ...ledgerRows.map(r => r.warehouse)
+    ])).filter(Boolean).sort(),
+    [warehousesMaster, storesMaster, ledgerRows],
   );
   const batchOptions = useMemo(
     () => Array.from(new Set(ledgerRows.map((row) => row.batchNo).filter(Boolean))),
@@ -117,10 +127,16 @@ function StockAuditView({ defaultTab = 0 }) {
   const filteredLedgerRows = useMemo(
     () =>
       ledgerRows.filter((row) => {
-        const matchesItem = itemFilter === 'all' ? true : row.itemCode === itemFilter;
+        const matchesItem = itemFilter === 'all' ? true : (
+            String(row.itemCode).toLowerCase().includes(itemFilter.toLowerCase()) ||
+            itemFilter.toLowerCase().includes(String(row.itemCode).toLowerCase().replace(/-/g, ''))
+        );
         const matchesDateFrom = dateFrom ? String(row.date).slice(0, 10) >= dateFrom : true;
         const matchesDateTo = dateTo ? String(row.date).slice(0, 10) <= dateTo : true;
-        const matchesWarehouse = warehouseFilter === 'all' ? true : row.warehouse === warehouseFilter;
+        const matchesWarehouse = warehouseFilter === 'all' ? true : (
+            row.warehouse === warehouseFilter || 
+            String(row.warehouse).toLowerCase().includes(warehouseFilter.toLowerCase())
+        );
         const matchesMovementType = movementTypeFilter === 'all' ? true : row.movementType === movementTypeFilter;
         const matchesSourceType = sourceTypeFilter === 'all' ? true : row.source === sourceTypeFilter;
         const matchesBatch = batchFilter === 'all' ? true : row.batchNo === batchFilter;
@@ -132,8 +148,16 @@ function StockAuditView({ defaultTab = 0 }) {
   const filteredLocationRows = useMemo(
     () =>
       locationRows.filter((row) => {
-        const matchesItem = itemFilter === 'all' ? true : row.itemCode === itemFilter;
-        const matchesWarehouse = warehouseFilter === 'all' ? true : (row.warehouse === warehouseFilter || row.location === warehouseFilter);
+        const matchesItem = itemFilter === 'all' ? true : (
+            String(row.itemCode).toLowerCase().includes(itemFilter.toLowerCase()) ||
+            itemFilter.toLowerCase().replace(/-/g, '').includes(String(row.itemCode).toLowerCase().replace(/-/g, '')) ||
+            String(row.itemCode).toLowerCase().replace(/-/g, '').includes(itemFilter.toLowerCase().replace(/-/g, ''))
+        );
+        const matchesWarehouse = warehouseFilter === 'all' ? true : (
+            row.warehouse === warehouseFilter || 
+            row.location === warehouseFilter ||
+            String(row.location).toLowerCase().includes(warehouseFilter.toLowerCase())
+        );
         const matchesBatch = batchFilter === 'all' ? true : row.batch === batchFilter;
         return matchesItem && matchesWarehouse && matchesBatch;
       }),

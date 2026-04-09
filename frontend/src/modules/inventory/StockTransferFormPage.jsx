@@ -23,6 +23,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import SendOutlinedIcon from '@mui/icons-material/SendOutlined';
+import { Autocomplete } from '@mui/material';
 import PageHeader from '../../components/erp/PageHeader';
 import FilterBar from '../../components/erp/FilterBar';
 import FormSection from '../../components/erp/FormSection';
@@ -359,24 +360,28 @@ function StockTransferFormPage({ mode = 'edit' }) {
             <TextField fullWidth size="small" type="date" label="Transfer Date" value={formValues.transferDate} onChange={(event) => setFormValues((previous) => ({ ...previous, transferDate: event.target.value }))} InputLabelProps={{ shrink: true }} disabled={isViewMode} />
           </Grid>
           <Grid size={{ xs: 12, md: 3 }}>
-            <TextField fullWidth size="small" select label="From Location" value={formValues.fromLocation} onChange={(event) => setFormValues((previous) => ({ ...previous, fromLocation: event.target.value }))} disabled={isViewMode}>
-              <MenuItem value="">Select Source</MenuItem>
-              {fromLocationOptions.map((location) => (
-                <MenuItem key={`from-${location.id}`} value={location.id}>
-                  {location.name}
-                </MenuItem>
-              ))}
-            </TextField>
+            <Autocomplete
+              fullWidth
+              size="small"
+              options={fromLocationOptions}
+              getOptionLabel={(option) => option.name || ''}
+              value={fromLocationOptions.find(o => o.id === formValues.fromLocation) || null}
+              onChange={(_, newValue) => setFormValues((prev) => ({ ...prev, fromLocation: newValue?.id || '' }))}
+              disabled={isViewMode}
+              renderInput={(params) => <TextField {...params} label="From Location" />}
+            />
           </Grid>
           <Grid size={{ xs: 12, md: 3 }}>
-            <TextField fullWidth size="small" select label="To Location" value={formValues.toLocation} onChange={(event) => setFormValues((previous) => ({ ...previous, toLocation: event.target.value }))} disabled={isViewMode}>
-              <MenuItem value="">Select Destination</MenuItem>
-              {toLocationOptions.map((location) => (
-                <MenuItem key={`to-${location.id}`} value={location.id}>
-                  {location.name}
-                </MenuItem>
-              ))}
-            </TextField>
+            <Autocomplete
+              fullWidth
+              size="small"
+              options={toLocationOptions}
+              getOptionLabel={(option) => option.name || ''}
+              value={toLocationOptions.find(o => o.id === formValues.toLocation) || null}
+              onChange={(_, newValue) => setFormValues((prev) => ({ ...prev, toLocation: newValue?.id || '' }))}
+              disabled={isViewMode}
+              renderInput={(params) => <TextField {...params} label="To Location" />}
+            />
           </Grid>
           <Grid size={{ xs: 12, md: 4 }}>
             <TextField fullWidth size="small" label="Vehicle / Dispatch Details" value={formValues.vehicleDetails} onChange={(event) => setFormValues((previous) => ({ ...previous, vehicleDetails: event.target.value }))} disabled={isViewMode} />
@@ -412,34 +417,22 @@ function StockTransferFormPage({ mode = 'edit' }) {
 
       {!isViewMode ? (
         <FilterBar sx={{ mt: 2, mb: 2 }}>
-          <TextField
+          <Autocomplete
             fullWidth
             size="small"
-            select
-            label="Item Search"
-            value={linePicker}
-            onChange={(event) => setLinePicker(event.target.value)}
-            SelectProps={{
-              renderValue: (selected) => {
-                if (!selected) {
-                  return 'Select item / size';
-                }
-
-                const matchedRow = availableRows.find((row) => `${row.itemCode}-${row.size}` === selected);
-
-                return matchedRow
-                  ? `${matchedRow.itemCode} | ${matchedRow.itemName} | ${getSizeLabel(matchedRow.size)} | Avl ${matchedRow.availableQty}`
-                  : selected;
-              },
+            options={availableRows}
+            getOptionLabel={(row) => `${row.itemCode} | ${row.itemName} | ${getSizeLabel(row.size)} | Avl ${row.availableQty}`}
+            value={availableRows.find(row => `${row.itemCode}-${row.size}` === linePicker) || null}
+            onChange={(_, newValue) => setLinePicker(newValue ? `${newValue.itemCode}-${newValue.size}` : '')}
+            filterOptions={(options, state) => {
+              const query = state.inputValue.toLowerCase();
+              return options.filter(o => 
+                o.itemCode.toLowerCase().includes(query) || 
+                o.itemName.toLowerCase().includes(query)
+              ).slice(0, 100); // Only render top 100 for speed
             }}
-          >
-            <MenuItem value="">Select item / size</MenuItem>
-            {availableRows.map((row) => (
-              <MenuItem key={`${row.itemCode}-${row.size}`} value={`${row.itemCode}-${row.size}`}>
-                {`${row.itemCode} | ${row.itemName} | ${getSizeLabel(row.size)} | Avl ${row.availableQty}`}
-              </MenuItem>
-            ))}
-          </TextField>
+            renderInput={(params) => <TextField {...params} label="Search Items (Type code or name...)" />}
+          />
           <Button variant="outlined" startIcon={<AddCircleOutlineIcon />} onClick={addLine} disabled={!linePicker}>
             Add Item
           </Button>

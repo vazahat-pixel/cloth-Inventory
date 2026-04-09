@@ -15,7 +15,7 @@ const normalizeString = (value) => {
 };
 
 const normalizeId = (value) => {
-  if (!value) {
+  if (!value || value === 'null' || value === 'undefined') {
     return null;
   }
   if (typeof value === 'object') {
@@ -30,8 +30,10 @@ const normalizeGroupIds = (groupIds = []) =>
     .filter(Boolean))];
 
 const ensureGroupsExist = async (groupIds) => {
-  if (!groupIds.length) {
-    throw new Error('Item must belong to at least one Section/Group');
+  // Only enforce groups for GARMENT items. 
+  // Fabric/Accessories can be created as loose items if needed.
+  if (!groupIds || !groupIds.length) {
+    return; 
   }
 
   const groups = await Group.find({ _id: { $in: groupIds } }).select('_id');
@@ -116,6 +118,8 @@ class ItemService {
     }
 
     // Robust mapping for incoming fields (Frontend compatibility)
+    if (data.purchaseRate && !data.purchasePrice) data.purchasePrice = Number(data.purchaseRate);
+    if (data.saleRate && !data.mrp) data.mrp = Number(data.saleRate);
     if (data.hsnCodeId && !data.hsCodeId) data.hsCodeId = data.hsnCodeId;
   }
 
@@ -128,21 +132,34 @@ class ItemService {
   }
 
   async createItem(data = {}) {
+    console.log('📦 CREATING_ITEM_PAYLOAD:', JSON.stringify(data, null, 2));
     await this.normalizeItemData(data);
 
     let itemCode = data.itemCode;
+    const type = data.type || 'GARMENT';
+    const normalizedType = type.toUpperCase();
+    const counterName = `itemCode_${normalizedType}`;
+    const prefix = normalizedType === 'GARMENT' ? 'ST' : normalizedType === 'FABRIC' ? 'FB' : 'ACC';
     
-    // Auto-generate itemCode if not provided
+    // Auto-generate or Sync Counter if frontend provides an itemCode
     if (!itemCode) {
-      const type = data.type || 'GARMENT';
-      const normalizedType = type.toUpperCase();
       const counter = await Counter.findOneAndUpdate(
-        { name: `itemCode_${normalizedType}` },
+        { name: counterName },
         { $inc: { seq: 1 } },
         { upsert: true, new: true }
       );
-      const prefix = normalizedType === 'GARMENT' ? 'ST' : normalizedType === 'FABRIC' ? 'FB' : 'ACC';
       itemCode = `${prefix}-${String(counter.seq).padStart(4, '0')}`;
+    } else if (itemCode.startsWith(`${prefix}-`)) {
+      // Sync the counter if frontend provides a code like FB-0003
+      const numStr = itemCode.split('-')[1];
+      const num = parseInt(numStr, 10);
+      if (!isNaN(num)) {
+        await Counter.findOneAndUpdate(
+          { name: counterName },
+          { $max: { seq: num } },
+          { upsert: true, new: true }
+        );
+      }
     }
 
     const existingItem = await Item.findOne({ itemCode });
@@ -151,8 +168,11 @@ class ItemService {
     const groupIds = normalizeGroupIds(data.groupIds);
     await ensureGroupsExist(groupIds);
 
-    if (!Array.isArray(data.sizes) || !data.sizes.length) {
-      throw new Error('Item must have at least one size variant');
+    // Only GARMENT (Finished Good) items require size/color variants.
+    // FABRIC and ACCESSORY items are tracked by quantity only (MTR, PCS, DOZ etc.)
+    const itemType = (data.type || 'GARMENT').toUpperCase();
+    if (itemType === 'GARMENT' && (!Array.isArray(data.sizes) || !data.sizes.length)) {
+      throw new Error('Finished Garment item must have at least one size variant');
     }
 
     await ensureSizeSKUs(data.sizes);
@@ -160,20 +180,24 @@ class ItemService {
     const item = new Item({
       ...data,
       itemCode,
-      itemName: data.itemName || data.itemCode,
-      brand: normalizeId(data.brand),
-      description: data.description,
       groupIds,
-      sectionId: data.sectionId,
-      categoryId: data.categoryId,
-      subCategoryId: data.subCategoryId,
-      styleId: data.styleId,
-      hsCodeId: normalizeId(data.hsCodeId),
-      type: data.type || 'GARMENT',
-      images: data.images || []
+      sizes: data.sizes || [],
+      type: (data.type || 'GARMENT').toUpperCase()
     });
 
-    await item.save();
+    try {
+      await item.save();
+    } catch (error) {
+      if (error.name === 'ValidationError') {
+        const messages = Object.values(error.errors).map(err => err.message);
+        throw new Error(`Validation Failed: ${messages.join(', ')}`);
+      }
+      if (error.code === 11000) {
+        const field = Object.keys(error.keyPattern || {})[0] || 'field';
+        throw new Error(`Duplicate Record: An item with this ${field} already exists.`);
+      }
+      throw error;
+    }
 
     // Auto-initialize Inventory in warehouse (use defaultWarehouse or auto-detect first active one)
     const Warehouse = require('../../models/warehouse.model');
@@ -229,7 +253,7 @@ class ItemService {
       'reorderLevel', 'reorderQty', 'openingStock', 'openingStockRate', 
       'stockTrackingEnabled', 'barcodeEnabled', 'isActive', 'customFields',
       'defaultWarehouse', 'composition', 'gsm', 'width', 'shrinkage', 'shadeNo',
-      'accessorySize', 'packingType'
+      'accessorySize', 'packingType', 'purchasePrice', 'mrp'
     ];
 
     fieldsToUpdate.forEach(field => {

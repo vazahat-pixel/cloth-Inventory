@@ -76,13 +76,15 @@ function DeliveryChallanPage({
                         </Typography>
                     </Box>
 
-                    <Button
-                        variant="contained"
-                        startIcon={<AddCircleOutlineIcon />}
-                        onClick={() => navigate(createPath)}
-                    >
-                        {createLabel}
-                    </Button>
+                    {!isStoreUser && (
+                        <Button
+                            variant="contained"
+                            startIcon={<AddCircleOutlineIcon />}
+                            onClick={() => navigate(createPath)}
+                        >
+                            {createLabel}
+                        </Button>
+                    )}
                 </Stack>
 
                 {error && (
@@ -127,7 +129,16 @@ function DeliveryChallanPage({
                                                     variant="text"
                                                     size="small"
                                                     disabled={loading}
-                                                    onClick={() => navigate(`/orders/delivery-challan/${row.id || row._id}/${(status === 'DISPATCHED' && isStoreUser) ? 'receive' : 'view'}`)}
+                                                    onClick={() => {
+                                                        const id = row.id || row._id;
+                                                        if (status === 'DISPATCHED' && isStoreUser) {
+                                                            navigate(`/orders/delivery-challan/${id}/receive`);
+                                                        } else if (status === 'PENDING' && !isStoreUser) {
+                                                            navigate(`/orders/delivery-challan/${id}/edit`);
+                                                        } else {
+                                                            navigate(`/orders/delivery-challan/${id}`);
+                                                        }
+                                                    }}
                                                 >
                                                     {(status === 'DISPATCHED' && isStoreUser) ? 'Process Receipt' : (status === 'PENDING' ? 'Edit' : 'View')}
                                                 </Button>

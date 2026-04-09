@@ -86,18 +86,32 @@ class PricingService {
                         return acc + (freeCount * item.price);
                     }, 0);
                     break;
+                case 'FIXED_PRICE': // Any X items for Fixed Amount Y
+                    schemeDiscount = eligibleItems.reduce((acc, item) => {
+                        if (scheme.buyQuantity > 0) {
+                            const sets = Math.floor(item.quantity / scheme.buyQuantity);
+                            const standardCost = sets * scheme.buyQuantity * item.price;
+                            const comboCost = sets * (scheme.value || 0);
+                            return acc + (standardCost - comboCost);
+                        }
+                        return acc;
+                    }, 0);
+                    break;
+                case 'FREE_GIFT': // Metadata purely - staff gives gift
+                    schemeDiscount = 0;
+                    break;
                 default:
-                    // FREE_GIFT just adds metadata but doesn't change amount
                     break;
             }
 
-            if (schemeDiscount > 0) {
+            if (schemeDiscount > 0 || eligibleItems.length > 0) {
                 results.eligibleSchemes.push({
                     _id: scheme._id,
                     name: scheme.name,
                     type: scheme.type,
                     discount: schemeDiscount,
-                    description: scheme.description
+                    description: scheme.description,
+                    isTriggered: schemeDiscount > 0
                 });
             }
         }

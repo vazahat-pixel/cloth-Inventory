@@ -1,11 +1,17 @@
 const express = require('express');
 const pricingController = require('./pricing.controller');
+const promotionTypeController = require('./promotionType.controller');
 const { protect } = require('../../middlewares/auth.middleware');
 const { requireAny } = require('../../middlewares/role.middleware');
 
 const router = express.Router();
 
 router.use(protect);
+router.get('/promotion-types', promotionTypeController.getPromotionTypes);
+router.post('/promotion-types', promotionTypeController.createPromotionType);
+router.delete('/promotion-types/:id', promotionTypeController.deletePromotionType);
+
+router.get('/', (req, res) => require('../../utils/response.handler').sendSuccess(res, { schemes: [] }));
 
 // CRUD for Schemes & Coupons (already handled by masters/setup in some places, but centralized here is better)
 router.get('/schemes', pricingController.getSchemes);

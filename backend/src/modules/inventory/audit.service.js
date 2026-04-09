@@ -22,10 +22,10 @@ class AuditService {
 
     // 2. Aggregate all related documents in parallel for performance
     const [poList, grnList, movements, salesList] = await Promise.all([
-      PurchaseOrder.find({ 'items.productId': itemId }).sort({ createdAt: -1 }),
-      Purchase.find({ 'products.productId': itemId }).sort({ createdAt: -1 }),
+      PurchaseOrder.find({ 'items.itemId': itemId }).sort({ createdAt: -1 }),
+      Purchase.find({ 'products.itemId': itemId }).sort({ createdAt: -1 }),
       StockLedger.find({ itemId }).sort({ createdAt: -1 }),
-      Sale.find({ 'products.productId': itemId }).sort({ createdAt: -1 })
+      Sale.find({ 'items.itemId': itemId }).sort({ createdAt: -1 })
     ]);
 
     // 3. Build a chronological timeline of 'Events'

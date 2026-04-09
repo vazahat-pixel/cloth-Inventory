@@ -16,12 +16,22 @@ const DashboardHomePage = lazy(() => import('../pages/dashboard/DashboardHome'))
 const ItemListPage = lazy(() => import('../modules/items/ItemListPage'));
 const ItemFormPage = lazy(() => import('../modules/items/ItemFormPage'));
 
+const BrandListPage = lazy(() => import('../modules/masters/brands/ListPage'));
+const ItemGroupsListPage = lazy(() => import('../modules/masters/itemGroups/ListPage'));
+
+// Pricing
+const PriceListPage = lazy(() => import('../modules/pricing/PriceListPage'));
+const PriceListFormPage = lazy(() => import('../modules/pricing/PriceListFormPage'));
+const SchemeListPage = lazy(() => import('../modules/pricing/SchemeListPage'));
+const SchemeFormPage = lazy(() => import('../modules/pricing/SchemeFormPage'));
+const PromotionTypesMaster = lazy(() => import('../modules/pricing/PromotionTypesMaster'));
+
+// Setup
+const SalesmanListPage = lazy(() => import('../modules/setup/SalesmanListPage'));
 const GroupsPage = lazy(() => import('../modules/setup/GroupsPage'));
 const HSNCodePage = lazy(() => import('../modules/setup/HSNCodePage'));
 const SizesPage = lazy(() => import('../modules/setup/SizesPage'));
 const BarcodePrintingPage = lazy(() => import('../modules/setup/BarcodePrintingPage'));
-const BrandListPage = lazy(() => import('../modules/masters/brands/ListPage'));
-const ItemGroupsListPage = lazy(() => import('../modules/masters/itemGroups/ListPage'));
 
 const SuppliersListPage = lazy(() => import('../modules/masters/suppliers/ListPage'));
 const MaterialLedgerPage = lazy(() => import('../modules/suppliers/MaterialLedgerPage'));
@@ -66,6 +76,10 @@ const DeliveryChallanForm = lazy(() => import('../modules/dispatch/DeliveryChall
 // Purchase
 const PurchaseListPage = lazy(() => import('../modules/purchase/PurchaseListPage'));
 const PurchaseFormPage = lazy(() => import('../modules/purchase/PurchaseFormPage'));
+
+// Production
+const SupplierOutwardListPage = lazy(() => import('../modules/production/SupplierOutwardListPage'));
+const SupplierOutwardFormPage = lazy(() => import('../modules/production/SupplierOutwardFormPage'));
 
 // Settings & Tools
 const CompanyProfilePage = lazy(() => import('../modules/settings/CompanyProfilePage'));
@@ -231,23 +245,29 @@ function AppRoutes() {
 
             {/* Pricing */}
             <Route path="pricing" element={<Navigate to="pricing/price-lists" replace />} />
-            <Route path="pricing/price-lists" element={<PlaceholderPage title="Price Lists" />} />
-            <Route path="pricing/price-lists/new" element={<PlaceholderPage title="New Price List" />} />
-            <Route path="pricing/schemes" element={<PlaceholderPage title="Schemes" />} />
-            <Route path="pricing/schemes/new" element={<PlaceholderPage title="New Scheme" />} />
-            <Route path="pricing/schemes/:id/edit" element={<PlaceholderPage title="Edit Scheme" />} />
+            <Route path="pricing/price-lists" element={<PriceListPage />} />
+            <Route path="pricing/price-lists/new" element={<PriceListFormPage />} />
+            <Route path="pricing/schemes" element={<SchemeListPage />} />
+            <Route path="pricing/schemes/new" element={<SchemeFormPage />} />
+            <Route path="pricing/schemes/:id/edit" element={<SchemeFormPage mode="edit" />} />
+            <Route path="pricing/types" element={<PromotionTypesMaster />} />
+
+            {/* Production / Job Work */}
+            <Route path="production/outwards" element={<SupplierOutwardListPage />} />
+            <Route path="production/outwards/new" element={<SupplierOutwardFormPage />} />
+            <Route path="production/outwards/view/:id" element={<SupplierOutwardFormPage mode="view" />} />
 
             {/* Customers */}
             <Route path="customers" element={<Navigate to="customers/rewards" replace />} />
-            <Route path="customers/rewards" element={<PlaceholderPage title="Customer Rewards" />} />
-            <Route path="customers/credit-notes" element={<PlaceholderPage title="Credit Notes" />} />
-
+            <Route path="customers/regions" element={<PlaceholderPage title="Customer Regions" />} />
+            
             {/* Setup */}
             <Route path="setup" element={<PlaceholderPage title="Setup" />} />
             <Route path="setup/groups" element={<GroupsPage />} />
             <Route path="setup/hsn-codes" element={<HSNCodePage />} />
             <Route path="setup/sizes" element={<SizesPage />} />
             <Route path="setup/barcode-print" element={<BarcodePrintingPage />} />
+            <Route path="setup/salesmen" element={<SalesmanListPage />} />
             <Route path="setup/stores" element={<PlaceholderPage title="Store Setup" />} />
             <Route path="setup/counters" element={<PlaceholderPage title="Counter Master" />} />
             <Route path="setup/taxes" element={<Navigate to="/ho/gst/tax-rates" replace />} />
@@ -301,8 +321,9 @@ function AppRoutes() {
           <Route path="inventory/receipt" element={<DeliveryChallanPage />} />
           <Route path="inventory/audit-view" element={<StockAuditView />} />
           <Route path="sales/sale-bill/new" element={<SalesBillFormPage />} />
-          <Route path="sales/sale-bill" element={<SalesBillListPage />} />
-          <Route path="sales/sales-return" element={<SalesReturnPage />} />
+          <Route path="sales/sale-bill" element={<SalesBillListPage returnPathBuilder={(saleId) => `/sales/sales-return/${saleId}`} />} />
+          <Route path="sales/sales-return" element={<SalesReturnPage listPath="/store/sales/sale-bill" />} />
+          <Route path="sales/sales-return/:id" element={<SalesReturnPage listPath="/store/sales/sale-bill" />} />
           <Route path="reports" element={<ReportsDashboard />} />
           <Route path="reports/sales" element={<SalesReportPage />} />
           <Route path="reports/purchase" element={<PurchaseReportPage />} />

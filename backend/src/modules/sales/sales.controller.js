@@ -47,11 +47,15 @@ const createSale = async (req, res, next) => {
         }
 
         const error = validate(req, res);
-        if (error) return error;
+        if (error) {
+            console.error('Sale Validation Error:', error);
+            return error;
+        }
 
         const sale = await salesService.createSale(req.body, req.user._id);
         return sendCreated(res, { sale }, 'Sale completed successfully');
     } catch (err) {
+        console.error('Sale Service Error:', err.message, err.stack);
         return sendError(res, err.message, 400);
     }
 };

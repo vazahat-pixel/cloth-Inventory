@@ -6,10 +6,10 @@ const warehouseInventorySchema = new mongoose.Schema(
         itemId: { type: mongoose.Schema.Types.ObjectId, ref: 'Item', required: true },
         variantId: { type: String, required: true }, // Stores variant._id or SKU
         barcode: { type: String, required: true, index: true },
-        quantity: { type: Number, default: 0, min: 0 },
-        damagedQuantity: { type: Number, default: 0, min: 0 },
-        quantityInTransit: { type: Number, default: 0, min: 0 },
-        reorderLevel: { type: Number, default: 0, min: 0 },
+        quantity: { type: Number, default: 0 },
+        damagedQuantity: { type: Number, default: 0 },
+        quantityInTransit: { type: Number, default: 0 },
+        reorderLevel: { type: Number, default: 0 },
         lastUpdated: { type: Date, default: Date.now },
     },
     { timestamps: true }

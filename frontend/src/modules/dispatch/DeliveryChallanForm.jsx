@@ -54,9 +54,9 @@ function DeliveryChallanForm({
     const [challanNumber, setChallanNumber] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const isLocked = (status === 'DISPATCHED' || status === 'RECEIVED') && (!isReceiveMode);
     const isReceiveMode = mode === 'receive';
     const isViewMode = mode === 'view';
+    const isLocked = (status === 'DISPATCHED' || status === 'RECEIVED') && (!isReceiveMode);
 
     const getFormTitle = () => {
         if (isReceiveMode) return 'Stock Receipt Audit (Verified)';
@@ -150,6 +150,11 @@ function DeliveryChallanForm({
             return;
         }
 
+        if (!sourceId) {
+            setError("Please select a source warehouse before scanning.");
+            return;
+        }
+
         try {
             const res = await api.get(`/inventory/warehouse/${sourceId}/scan/${code}`);
             const item = res.data.data || res.data;
@@ -212,7 +217,7 @@ function DeliveryChallanForm({
                                 color: v.color || '-',
                                 available: Number(item.qty + 100),
                                 quantity: Number(item.qty),
-                                receivedQty: Number(item.qty),
+                                receivedQty: mode === 'receive' ? 0 : Number(item.qty),
                                 mrp: Number(item.mrp || item.rate || 0),
                                 gstPercent: Number(item.taxPercentage || 0)
                             };
@@ -287,9 +292,47 @@ function DeliveryChallanForm({
 
             <Stack spacing={4}>
                 <Stack direction="row" spacing={2} sx={{ opacity: isReceiveMode || isLocked ? 0.6 : 1, pointerEvents: isReceiveMode || isLocked ? 'none' : 'auto' }}>
-                    <TextField type="date" label="Date" size="small" fullWidth value={date} />
-                    <TextField label="Source" size="small" fullWidth value={warehouses.find(w => w.id === sourceId)?.name || 'Warehouse'} disabled />
-                    <TextField label="Destination" size="small" fullWidth value={stores.find(s => s.id === storeId)?.name || 'Store'} disabled />
+                    <TextField 
+                        type="date" 
+                        label="Date" 
+                        size="small" 
+                        fullWidth 
+                        value={date} 
+                        onChange={(e) => setDate(e.target.value)}
+                        disabled={isReceiveMode || isLocked}
+                    />
+
+                    <Autocomplete
+                        fullWidth
+                        size="small"
+                        options={warehouses}
+                        getOptionLabel={(w) => w.name || w.warehouseName || ''}
+                        value={warehouses.find(w => (w.id || w._id) === sourceId) || null}
+                        disabled={isReceiveMode || isLocked}
+                        onChange={(_, newValue) => {
+                            const newId = newValue ? (newValue.id || newValue._id) : '';
+                            if (lines.length > 0 && newId !== sourceId) {
+                                if (window.confirm("Changing source warehouse will clear current items. Continue?")) {
+                                    setLines([]);
+                                    setSourceId(newId);
+                                }
+                            } else {
+                                setSourceId(newId);
+                            }
+                        }}
+                        renderInput={(params) => <TextField {...params} label="Source Warehouse" />}
+                    />
+
+                    <Autocomplete
+                        fullWidth
+                        size="small"
+                        options={stores}
+                        getOptionLabel={(s) => s.name || s.storeName || ''}
+                        value={stores.find(s => (s.id || s._id) === storeId) || null}
+                        disabled={isReceiveMode || isLocked}
+                        onChange={(_, newValue) => setStoreId(newValue ? (newValue.id || newValue._id) : '')}
+                        renderInput={(params) => <TextField {...params} label="Destination Store" />}
+                    />
                 </Stack>
 
                 {isReceiveMode && (
@@ -301,6 +344,7 @@ function DeliveryChallanForm({
 
                 <TextField 
                     fullWidth size="small"
+                    autoFocus
                     placeholder="Scan barcode to audit/add item..."
                     onKeyDown={(e) => {
                         if (e.key === 'Enter') {

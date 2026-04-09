@@ -24,6 +24,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import ToggleOnIcon from '@mui/icons-material/ToggleOn';
 import ToggleOffIcon from '@mui/icons-material/ToggleOff';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { setSchemeStatus, fetchSchemes } from './pricingSlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchItems } from '../items/itemsSlice';
@@ -33,7 +34,8 @@ const SCHEME_TYPE_LABELS = {
   FLAT: 'Flat Discount',
   BOGO: 'BOGO (Buy 1 Get 1)',
   BUY_X_GET_Y: 'Buy X Get Y',
-  FREE_GIFT: 'Free Gift',
+  FIXED_PRICE: 'Fixed Price Bundle',
+  FREE_GIFT: 'Free Gift on Purchase',
 };
 
 const APPLICABILITY_LABELS = {

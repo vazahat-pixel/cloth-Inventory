@@ -17,9 +17,9 @@ const supplierOutwardSchema = new mongoose.Schema({
         required: true
     },
     items: [{
-        rawMaterialId: {
+        itemId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'RawMaterial',
+            ref: 'Item',
             required: true
         },
         code: String, // Material Code / Roll #
@@ -38,6 +38,11 @@ const supplierOutwardSchema = new mongoose.Schema({
     outwardDate: {
         type: Date,
         default: Date.now
+    },
+    targetItemId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Item',
+        required: false
     },
     notes: String,
     createdBy: {

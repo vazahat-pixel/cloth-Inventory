@@ -110,17 +110,17 @@ const getProductWiseSales = async (startDate, endDate, storeId) => {
 
     return await Sale.aggregate([
         { $match: query },
-        { $unwind: '$products' },
+        { $unwind: '$items' },
         {
             $group: {
-                _id: '$products.productId',
-                totalSold: { $sum: '$products.quantity' },
-                revenue: { $sum: '$products.total' }
+                _id: '$items.itemId',
+                totalSold: { $sum: '$items.quantity' },
+                revenue: { $sum: '$items.total' }
             }
         },
         {
             $lookup: {
-                from: 'products',
+                from: 'items',
                 localField: '_id',
                 foreignField: '_id',
                 as: 'product'
@@ -186,7 +186,7 @@ const getLowStockReport = async (storeId) => {
         
         const storeLow = await StoreInventory.find({
             $expr: { $lte: ['$quantityAvailable', '$minStockLevel'] }
-        }).populate('storeId', 'name').populate('productId', 'name sku');
+        }).populate('storeId', 'name').populate('itemId', 'name sku');
         
         return { factoryLow, storeLow };
     }
@@ -194,7 +194,7 @@ const getLowStockReport = async (storeId) => {
     const storeLow = await StoreInventory.find({
         storeId,
         $expr: { $lte: ['$quantityAvailable', '$minStockLevel'] }
-    }).populate('storeId', 'name').populate('productId', 'name sku');
+    }).populate('storeId', 'name').populate('itemId', 'name sku');
 
     return { factoryLow: [], storeLow };
 };
@@ -208,53 +208,58 @@ const getInventoryExport = async (storeId) => {
     if (storeId) warehouseQuery.warehouseId = storeId;
     const warehouseInventory = await WarehouseInventory.find(warehouseQuery)
         .populate('warehouseId', 'name')
-        .populate('productId', 'name sku barcode size color category brand');
+        .populate('itemId');
 
     // 2. Store inventory
     const storeQuery = {};
     if (storeId) storeQuery.storeId = storeId;
     const storeInventory = await StoreInventory.find(storeQuery)
         .populate('storeId', 'name')
-        .populate('productId', 'name sku barcode size color category brand');
+        .populate('itemId');
 
     const rows = [];
 
     warehouseInventory.forEach((inv) => {
-        if (!inv.productId || !inv.warehouseId) return;
+        if (!inv.itemId || !inv.warehouseId) return;
+        
+        // Find variant info if applicable
+        const variant = inv.itemId.sizes?.find(s => s._id.toString() === inv.variantId || s.barcode === inv.barcode);
+        
         rows.push({
             locationType: 'WAREHOUSE',
             locationName: inv.warehouseId.name,
-            productName: inv.productId.name,
-            sku: inv.productId.sku,
-            barcode: inv.productId.barcode,
-            size: inv.productId.size,
-            color: inv.productId.color,
-            category: inv.productId.category,
-            brand: inv.productId.brand,
+            productName: inv.itemId.itemName,
+            sku: variant?.sku || inv.itemId.itemCode,
+            barcode: inv.barcode || variant?.barcode || inv.itemId.itemCode,
+            size: variant?.size || inv.itemId.accessorySize || inv.itemId.width || '-',
+            color: variant?.color || inv.itemId.shadeNo || '-',
+            category: inv.itemId.categoryId,
+            brand: inv.itemId.brand,
             quantity: inv.quantity,
-            quantityAvailable: inv.quantity, // warehouse is always available
-            minStockLevel: inv.minStockLevel || 0
+            quantityAvailable: inv.quantity,
+            minStockLevel: inv.reorderLevel || 0
         });
     });
 
     storeInventory.forEach((inv) => {
-        if (!inv.productId || !inv.storeId) return;
-        const available = typeof inv.quantityAvailable === 'number'
-            ? inv.quantityAvailable
-            : inv.quantity || 0;
+        if (!inv.itemId || !inv.storeId) return;
+        
+        const variant = inv.itemId.sizes?.find(s => s._id.toString() === inv.variantId || s.barcode === inv.barcode);
+        const available = typeof inv.quantityAvailable === 'number' ? inv.quantityAvailable : inv.quantity || 0;
+        
         rows.push({
             locationType: 'STORE',
             locationName: inv.storeId.name,
-            productName: inv.productId.name,
-            sku: inv.productId.sku,
-            barcode: inv.productId.barcode,
-            size: inv.productId.size,
-            color: inv.productId.color,
-            category: inv.productId.category,
-            brand: inv.productId.brand,
+            productName: inv.itemId.itemName,
+            sku: variant?.sku || inv.itemId.itemCode,
+            barcode: inv.barcode || variant?.barcode || inv.itemId.itemCode,
+            size: variant?.size || inv.itemId.accessorySize || inv.itemId.width || '-',
+            color: variant?.color || inv.itemId.shadeNo || '-',
+            category: inv.itemId.categoryId,
+            brand: inv.itemId.brand,
             quantity: inv.quantity,
             quantityAvailable: available,
-            minStockLevel: inv.minStockLevel || 0
+            minStockLevel: inv.reorderLevel || 0
         });
     });
 
@@ -481,9 +486,9 @@ const getBalanceSheet = async (asOfDate) => {
  * Stock History Report
  */
 const getStockHistory = async (query = {}) => {
-    const { productId, type, storeId } = query;
+    const { itemId, type, storeId } = query;
     const filter = {};
-    if (productId) filter.variantId = productId;
+    if (itemId) filter.variantId = itemId;
     if (type) filter.type = type;
     if (storeId) {
         filter.$or = [
@@ -672,17 +677,17 @@ const getSalesReport = async (startDate, endDate, storeId) => {
 
     const itemWiseSales = await Sale.aggregate([
         { $match: match },
-        { $unwind: "$products" },
+        { $unwind: "$items" },
         {
             $group: {
-                _id: "$products.productId",
-                totalQty: { $sum: "$products.quantity" },
-                totalRevenue: { $sum: "$products.total" }
+                _id: "$items.itemId",
+                totalQty: { $sum: "$items.quantity" },
+                totalRevenue: { $sum: "$items.total" }
             }
         },
         {
             $lookup: {
-                from: "products",
+                from: "items",
                 localField: "_id",
                 foreignField: "_id",
                 as: "product"
@@ -717,8 +722,8 @@ const getStockReport = async () => {
         },
         {
             $lookup: {
-                from: "products",
-                localField: "_id",
+                from: "items",
+                localField: "itemId",
                 foreignField: "_id",
                 as: "product"
             }
@@ -744,8 +749,8 @@ const getStockReport = async () => {
         },
         {
             $lookup: {
-                from: "products",
-                localField: "_id",
+                from: "items",
+                localField: "itemId",
                 foreignField: "_id",
                 as: "product"
             }
@@ -781,7 +786,7 @@ const getMovementReport = async (startDate, endDate, variantId) => {
         { $match: match },
         {
             $lookup: {
-                from: "products",
+                from: "items",
                 localField: "variantId",
                 foreignField: "_id",
                 as: "product"
@@ -800,12 +805,12 @@ const getMovementReport = async (startDate, endDate, variantId) => {
         {
             $project: {
                 date: "$createdAt",
-                itemName: "$product.name",
-                productName: "$product.name",
-                sku: "$product.sku",
-                styleCode: "$product.sku",
-                size: "$product.size",
-                color: "$product.color",
+                itemName: "$product.itemName",
+                productName: "$product.itemName",
+                sku: "$product.itemCode",
+                styleCode: "$product.itemCode",
+                size: { $ifNull: ["$product.accessorySize", "-"] },
+                color: { $ifNull: ["$product.shadeNo", "-"] },
                 qty: 1,
                 quantityChange: "$qty",
                 type: 1,
@@ -879,7 +884,7 @@ const getProfitReport = async (startDate, endDate) => {
         { $unwind: "$products" },
         {
             $lookup: {
-                from: "products",
+                from: "items",
                 localField: "products.productId",
                 foreignField: "_id",
                 as: "productData"

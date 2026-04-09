@@ -39,6 +39,7 @@ import { fetchMasters } from '../masters/mastersSlice';
 import { fetchItems } from '../items/itemsSlice';
 import { fetchPurchaseOrders } from '../purchase/purchaseSlice';
 import { fetchGrns, addGrn, approveGrn, updateGrn } from './grnSlice';
+import { fetchOutwards } from '../production/productionSlice';
 
 const defaultForm = {
   grnNumber: '',
@@ -68,8 +69,7 @@ function GRNFormPage({ mode = 'edit' }) {
   const warehouses = useSelector((state) => state.masters.warehouses || []);
   const suppliers = useSelector((state) => state.masters.suppliers || []);
   const allItems = useSelector((state) => state.items.records || []);
-  // const supplierOutwards = useSelector((state) => state.supplierOutward.records || []);
-  const supplierOutwards = []; // Placeholder until module is implemented
+  const supplierOutwards = useSelector((state) => state.production.outwards || []);
 
   const [formValues, setFormValues] = useState(defaultForm);
   const [lines, setLines] = useState([]);
@@ -105,7 +105,7 @@ function GRNFormPage({ mode = 'edit' }) {
     dispatch(fetchMasters('warehouses'));
     dispatch(fetchMasters('suppliers'));
     dispatch(fetchItems());
-    // import('../supplierOutward/supplierOutwardSlice').then(m => dispatch(m.fetchSupplierOutwards()));
+    dispatch(fetchOutwards());
   }, [dispatch]);
 
   const fetchWarehouseFabrics = async (warehouseId) => {
@@ -348,6 +348,26 @@ function GRNFormPage({ mode = 'edit' }) {
       }
     }
   }, [formValues.purchaseOrderId, purchaseOrders, id, allItems]);
+
+  // AUTO-POPULATE CONSUMPTION from JOB WORK
+  useEffect(() => {
+    if (!id && formValues.jobWorkId && formValues.grnType === 'GARMENT') {
+       const so = supplierOutwards.find(o => (o._id || o.id) === formValues.jobWorkId);
+       if (so && so.items) {
+          const mappedConsumption = so.items.map(item => ({
+             itemId: item.itemId?._id || item.itemId,
+             variantId: item.variantId || null,
+             itemName: item.itemId?.itemName || 'Material',
+             barcode: item.code || 'N/A',
+             availableQty: item.quantity,
+             quantity: 0, // User will enter actual used quantity
+             wasteQuantity: 0,
+             pendingQuantity: item.quantity
+          }));
+          setConsumptionLines(mappedConsumption);
+       }
+    }
+  }, [formValues.jobWorkId, formValues.grnType, supplierOutwards, id]);
 
   const handleSave = async (isDraft = true) => {
     try {

@@ -13,6 +13,9 @@ import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import BuildOutlinedIcon from '@mui/icons-material/BuildOutlined';
 import PeopleIcon from '@mui/icons-material/People';
+import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
+import LoyaltyIcon from '@mui/icons-material/Loyalty';
+import SettingsSuggestIcon from '@mui/icons-material/SettingsSuggest';
 import BusinessIcon from '@mui/icons-material/Business';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import FileUploadOutlinedIcon from '@mui/icons-material/FileUploadOutlined';
@@ -50,12 +53,16 @@ export const getRoleBasePath = (role) => {
 const adminSidebarItems = [
   { label: 'Search Home', path: '/', icon: HomeIcon },
   { label: 'Goods Control', path: '/inventory/stock-overview', icon: Inventory2Icon, matchPaths: ['/inventory/stock-overview', '/items', '/inventory/grn', '/setup/barcode-print', '/setup/groups', '/setup/hsn-codes', '/setup/sizes', '/masters/brands'], drilldown: true },
+  { label: 'Procurement (Purchase)', path: '/ho/purchase/new', icon: ShoppingCartIcon },
   { label: 'Sales & Billing', path: '/sales', icon: PointOfSaleIcon, matchPaths: billingMatchPaths, drilldown: true },
   { label: 'Reports & Analytics', path: '/reports', icon: AssessmentOutlinedIcon, matchPaths: reportsQueriesMatchPaths, drilldown: true },
   { label: 'Suppliers', path: '/masters/suppliers', icon: BusinessIcon, matchPaths: ['/masters/suppliers', '/suppliers/material-ledger'], drilldown: true },
-  { label: 'Customers', path: '/masters/customers', icon: PeopleIcon },
-  { label: 'Stores', path: '/masters/stores', icon: StorefrontIcon },
-  { label: 'Warehouse Settings', path: '/settings/company', icon: WarehouseIcon },
+  { label: 'Customers & Loyalty', path: '/ho/masters/customers', icon: PeopleIcon },
+  { label: 'Offer Schemes', path: '/ho/pricing/schemes', icon: LoyaltyIcon },
+  { label: 'Offer Configs', path: '/ho/pricing/types', icon: SettingsSuggestIcon },
+  { label: 'Manufacturing', path: '/ho/production/outwards', icon: BuildOutlinedIcon, matchPaths: ['/ho/production/outwards', '/ho/production/outwards/new'], drilldown: true },
+  { label: 'Stores', path: '/ho/masters/stores', icon: StorefrontIcon },
+  { label: 'Warehouse Settings', path: '/ho/settings/company', icon: WarehouseIcon },
   { label: 'Data Hub', path: '/data-import', icon: FileUploadOutlinedIcon, matchPaths: dataImportMatchPaths, drilldown: true },
 ];
 
@@ -65,6 +72,10 @@ export const adminNavConfig = {
   label: 'Warehouse Dashboard',
   mainNav: adminSidebarItems,
   children: {
+    '/ho/production/outwards': [
+      { label: 'Job Work History', path: '/ho/production/outwards' },
+      { label: 'New Fabric Issue', path: '/ho/production/outwards/new' },
+    ],
     '/inventory/stock-overview': [
       { label: 'Garment Master', path: '/ho/items' },
       {label: 'Inventory Overview', path: '/ho/inventory/stock-overview'},
@@ -99,9 +110,10 @@ export const staffNavConfig = {
     { label: 'Search Home', path: '/', icon: HomeIcon },
     { label: 'Store Receipt (Inward)', path: '/inventory/receipt', icon: ReceiptIcon },
     { label: 'Billing POS', path: '/sales/sale-bill/new', icon: PointOfSaleIcon },
+    { label: 'Sale Registry (Bills)', path: '/sales/sale-bill', icon: DescriptionOutlinedIcon },
+    { label: 'Sales Returns', path: '/sales/sales-return', icon: ReceiptLongIcon },
     { label: 'Day-End Closure (Z-Report)', path: '/reports/closure', icon: LockClockIcon },
     { label: 'Stock Lookup', path: '/inventory/stock-overview', icon: Inventory2Icon },
-    { label: 'Sales Returns', path: '/sales/sales-return', icon: ReceiptLongIcon },
     { label: 'Analytics', path: '/reports', icon: AssessmentOutlinedIcon, matchPaths: ['/reports'], drilldown: true },
   ],
   children: {

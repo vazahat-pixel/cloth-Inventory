@@ -28,10 +28,20 @@ import {
   FormControlLabel,
   Radio,
   MenuItem,
+  InputAdornment,
+  Card,
+  CardContent,
+  Divider,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
+import SearchIcon from '@mui/icons-material/Search';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import SearchOffIcon from '@mui/icons-material/SearchOff';
 import { useForm } from 'react-hook-form';
 import { addSalesReturn, fetchSales, fetchSalesReturns } from './salesSlice';
 import { fetchMasters } from '../masters/mastersSlice';
@@ -83,6 +93,7 @@ function SalesReturnPage({
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const { register, handleSubmit, reset, watch } = useForm({
     defaultValues: {
@@ -215,15 +226,106 @@ function SalesReturnPage({
   };
 
   if (!sale) {
+    const filteredSales = sales.filter(s => 
+      String(s.invoiceNumber || s.billNumber || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      String(s.customerName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      String(s.phone || '').includes(searchQuery)
+    ).slice(0, 15);
+
     return (
-      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3, bgcolor: '#ffffff' }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a', mb: 1 }}>
-          Sales invoice not found
-        </Typography>
-        <Button variant="contained" onClick={() => navigate(listPath)}>
-          {listLabel}
-        </Button>
-      </Paper>
+      <Box sx={{ p: { xs: 2, md: 4 }, bgcolor: '#f8fafc', minHeight: '100vh' }}>
+        <Stack spacing={3}>
+          <Box>
+            <Typography variant="h4" sx={{ fontWeight: 800, color: '#0f172a' }}>
+              Sales Return & Exchange
+            </Typography>
+            <Typography variant="body1" sx={{ color: '#64748b' }}>
+              Search for an invoice or bill to process a return or issue a credit note.
+            </Typography>
+          </Box>
+
+          <Paper elevation={0} sx={{ p: 3, border: '1px solid #e2e8f0', borderRadius: 3, display: 'flex', gap: 2 }}>
+            <TextField
+              fullWidth
+              placeholder="Search by Bill Number, Customer Name, or Phone..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon color="action" />
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <Button variant="contained" sx={{ px: 4, borderRadius: 2, fontWeight: 700 }}>Search</Button>
+          </Paper>
+
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#475569', mt: 2 }}>
+            {searchQuery ? 'Search Results' : 'Recent Sales for Return'}
+          </Typography>
+
+          <Grid container spacing={2}>
+            {filteredSales.map((s) => (
+              <Grid item xs={12} md={4} key={s.id}>
+                <Card 
+                   elevation={0} 
+                   sx={{ 
+                     border: '1px solid #e2e8f0', 
+                     borderRadius: 3, 
+                     cursor: 'pointer',
+                     transition: '0.2s',
+                     '&:hover': { 
+                       borderColor: '#2563eb', 
+                       bgcolor: '#eff6ff', 
+                       transform: 'translateY(-2px)' 
+                     } 
+                   }}
+                   onClick={() => navigate(`${s.id}`)}
+                >
+                  <CardContent sx={{ p: 2.5 }}>
+                    <Stack spacing={1.5}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center">
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <ReceiptLongIcon sx={{ color: '#64748b' }} fontSize="small" />
+                          <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#0f172a' }}>
+                            {s.invoiceNumber || s.billNumber}
+                          </Typography>
+                        </Stack>
+                        <ArrowForwardIcon sx={{ color: '#2563eb' }} fontSize="small" />
+                      </Stack>
+                      
+                      <Divider />
+
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <PersonOutlineIcon sx={{ color: '#94a3b8' }} fontSize="small" />
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{s.customerName || 'Walk-in Customer'}</Typography>
+                      </Stack>
+
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <CalendarTodayIcon sx={{ color: '#94a3b8' }} fontSize="small" />
+                        <Typography variant="caption" sx={{ color: '#64748b' }}>
+                          {new Date(s.createdAt || s.date).toLocaleDateString()} • ₹{Number(s.totalAmount || s.grandTotal || 0).toLocaleString()}
+                        </Typography>
+                      </Stack>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+
+            {filteredSales.length === 0 && (
+              <Grid item xs={12}>
+                <Paper elevation={0} sx={{ p: 6, border: '1px dashed #cbd5e1', borderRadius: 4, textAlign: 'center', bgcolor: 'transparent' }}>
+                  <SearchOffIcon sx={{ fontSize: 64, color: '#cbd5e1', mb: 2 }} />
+                  <Typography variant="h6" sx={{ color: '#64748b' }}>No matching bills found.</Typography>
+                  <Typography variant="body2" sx={{ color: '#94a3b8' }}>Try searching with a different bill number or customer name.</Typography>
+                </Paper>
+              </Grid>
+            )}
+          </Grid>
+        </Stack>
+      </Box>
     );
   }
 

@@ -50,14 +50,15 @@ const _updateInventory = async ({ itemId, barcode, variantId, locationId, locati
 
     let inventory = await InventoryModel.findOne(filter).session(session);
     
+    const allowNegative = await systemConfigService.getConfigByKey('allowNegativeStock', false);
+
     if (!inventory) {
-        if (qty < 0) throw new Error(`Insufficient stock for barcode ${barcode} at ${locationType}`);
+        if (qty < 0 && !allowNegative) throw new Error(`Insufficient stock for barcode ${barcode} at ${locationType}`);
         const initData = { ...filter, itemId, variantId, quantity: 0 };
         if (locationType === 'STORE') initData.quantityAvailable = 0;
         inventory = new InventoryModel(initData);
     }
     
-    const allowNegative = await systemConfigService.getConfigByKey('allowNegativeStock', false);
     const newQty = (inventory.quantity || 0) + delta;
     
     if (!allowNegative && newQty < 0) {
@@ -125,8 +126,8 @@ const removeInTransit = async ({ itemId, barcode, variantId, locationId, locatio
     const transitQty = toFiniteNumber(qty);
     if (transitQty <= 0) throw new Error('Quantity must be positive');
 
-    const filter = { barcode };
     let InventoryModel;
+    const filter = {};
     if (locationType === 'STORE') {
         filter.storeId = locationId;
         InventoryModel = StoreInventory;
@@ -135,23 +136,36 @@ const removeInTransit = async ({ itemId, barcode, variantId, locationId, locatio
         InventoryModel = WarehouseInventory;
     }
 
-    const inventory = await InventoryModel.findOne(filter).session(session);
-    if (!inventory || (inventory.quantityInTransit || 0) < transitQty) {
-        throw new Error(`Insufficient in-transit stock for barcode ${barcode} at ${locationType} ${locationId}`);
+    // Attempt 1: Strict Barcode Search
+    let inventory = await InventoryModel.findOne({ ...filter, barcode }).session(session);
+    
+    // Attempt 2: Fallback to Variant Search (Handle barcode changes or legacy dispatches)
+    if (!inventory && variantId) {
+        inventory = await InventoryModel.findOne({ ...filter, variantId }).session(session);
     }
 
-    inventory.quantityInTransit = (inventory.quantityInTransit || 0) - transitQty;
+    if (!inventory) {
+        throw new Error(`CRITICAL: No in-transit record found for Item Code ${barcode || 'N/A'} (Variant: ${variantId}) at ${locationType} ${locationId}. Stock pool may be out of sync.`);
+    }
+
+    const currentTransit = inventory.quantityInTransit || 0;
+    if (currentTransit < transitQty) {
+        console.warn(`[SYNC-WARNING] Forcing receipt of ${transitQty} despite pool having only ${currentTransit}. Syncing pool to 0.`);
+    }
+
+    // Safety: Ensure we don't go below 0 for in-transit pool
+    inventory.quantityInTransit = Math.max(0, currentTransit - transitQty);
     inventory.lastUpdated = Date.now();
     await inventory.save({ session });
     
-    console.log(`[IN-TRANSIT-REMOVE] Location: ${locationId} (${locationType}), Barcode: ${barcode}, Balance: ${inventory.quantityInTransit}`);
+    console.log(`[IN-TRANSIT-REMOVE] Location: ${locationId} (${locationType}), Barcode: ${inventory.barcode}, Left in Transit: ${inventory.quantityInTransit}`);
     return inventory;
 };
 
 /**
  * Add stock to a location (Creation/Purchase/Return)
  */
-const addStock = async ({ itemId, barcode, variantId, locationId, locationType, qty, type, referenceId, referenceType, performedBy, session }) => {
+const addStock = async ({ itemId, barcode, variantId, locationId, locationType, qty, type, referenceId, referenceType, performedBy, purchaseRate, session }) => {
     const movementQty = toFiniteNumber(qty);
     if (movementQty <= 0) throw new Error('Quantity to add must be positive');
     if (!referenceId) throw new Error('referenceId is required for stock movement');
@@ -163,7 +177,7 @@ const addStock = async ({ itemId, barcode, variantId, locationId, locationType, 
     const beforeInv = await (locationType === 'STORE' ? StoreInventory : WarehouseInventory).findOne(filter).session(session);
     const before = beforeInv ? beforeInv.toObject() : null;
 
-    const inventory = await _updateInventory({ itemId, barcode, variantId, locationId, locationType, qty: movementQty, session });
+    const inventory = await _updateInventory({ itemId, barcode, variantId, locationId, locationType, qty: movementQty, purchaseRate, session });
 
     await StockMovement.create([{
         variantId,

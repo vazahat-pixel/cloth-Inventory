@@ -49,7 +49,7 @@ const settleConsumption = async ({ grnId, supplierId, warehouseId, jobWorkId, co
                 await stockService.removeStock({
                     itemId: detail.itemId,
                     barcode: detail.barcode,
-                    variantId: detail.variantId,
+                    variantId: detail.variantId || detail.itemId,
                     locationId: warehouseId,
                     locationType: 'WAREHOUSE',
                     qty: totalDeduction,
@@ -240,7 +240,7 @@ const approveGRN = async (id, userId) => {
             await stockService.addStock({
                 itemId: item.itemId,
                 barcode: item.sku,
-                variantId: item.variantId,
+                variantId: item.variantId || item.itemId,
                 locationId: grn.warehouseId,
                 locationType: 'WAREHOUSE',
                 qty: item.receivedQty,

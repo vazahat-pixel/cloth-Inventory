@@ -30,7 +30,7 @@ import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import { Controller, useForm } from 'react-hook-form';
 import { buildSizeLabelLookup, resolveSizeLabel } from '../../common/sizeDisplay';
 
-const COLOR_OPTIONS = ['Black', 'Blue', 'Red', 'White', 'Green', 'Grey', 'Navy', 'Yellow', 'Pink', 'Cream', 'Olive', 'Multi'];
+const INITIAL_COLORS = ['Black', 'Blue', 'Red', 'White', 'Green', 'Grey', 'Navy', 'Yellow', 'Pink', 'Cream', 'Olive', 'Multi'];
 
 const createVariantId = () => `var-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -63,8 +63,11 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingVariant, setEditingVariant] = useState(null);
   const [autoGenerateSku, setAutoGenerateSku] = useState(true);
+  const [localColors, setLocalColors] = useState(INITIAL_COLORS);
   const [selectedSizes, setSelectedSizes] = useState([]);
   const [selectedColors, setSelectedColors] = useState([]);
+  const [newColorInput, setNewColorInput] = useState('');
+  const [newSizeInput, setNewSizeInput] = useState('');
   const [generatorFeedback, setGeneratorFeedback] = useState(null);
 
   const previousStyleCodeRef = useRef(styleCode);
@@ -210,6 +213,32 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
     setter([...selectedList, value]);
   };
 
+  const handleAddCustomColor = (e) => {
+    if (e.key === 'Enter' || e.type === 'click') {
+      const val = newColorInput.trim();
+      if (!val) return;
+      if (!localColors.includes(val)) {
+        setLocalColors([...localColors, val]);
+      }
+      if (!selectedColors.includes(val)) {
+        setSelectedColors([...selectedColors, val]);
+      }
+      setNewColorInput('');
+    }
+  };
+
+  const handleAddCustomSize = (e) => {
+    if (e.key === 'Enter' || e.type === 'click') {
+      const val = newSizeInput.trim().toUpperCase();
+      if (!val) return;
+      
+      if (!selectedSizes.includes(val)) {
+        setSelectedSizes([...selectedSizes, val]);
+      }
+      setNewSizeInput('');
+    }
+  };
+
   const handleGenerateVariants = () => {
     if (!selectedSizes.length || !selectedColors.length) {
       setGeneratorFeedback({
@@ -291,7 +320,7 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
             <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 700 }}>
               Select Sizes
             </Typography>
-            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', mt: 1 }}>
+            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', mt: 1, mb: 1 }}>
               {normalizedSizeOptions.map((sizeOption) => (
                 <Chip
                   key={sizeOption.value}
@@ -303,16 +332,42 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
                   sx={{ mb: 1 }}
                 />
               ))}
-              {!normalizedSizeOptions.length && <Typography variant="caption" color="error">No sizes found in Master. Please add sizes in Setup first.</Typography>}
+              {/* Display manually added sizes that aren't in normalizedSizeOptions */}
+              {selectedSizes.filter(s => !normalizedSizeOptions.some(o => o.value === s)).map(customSize => (
+                 <Chip
+                  key={customSize}
+                  label={customSize}
+                  clickable
+                  color="secondary"
+                  variant="filled"
+                  onDelete={() => toggleBulkSelection(customSize, selectedSizes, setSelectedSizes)}
+                  onClick={() => toggleBulkSelection(customSize, selectedSizes, setSelectedSizes)}
+                  sx={{ mb: 1 }}
+                />
+              ))}
             </Stack>
+            <TextField
+              size="small"
+              placeholder="Add Custom Size (e.g. 44) + Press Enter"
+              value={newSizeInput}
+              onChange={(e) => setNewSizeInput(e.target.value)}
+              onKeyDown={handleAddCustomSize}
+              fullWidth
+              InputProps={{
+                endAdornment: (
+                  <Button size="small" onClick={handleAddCustomSize}>Add</Button>
+                )
+              }}
+              sx={{ mt: 1 }}
+            />
           </Box>
 
           <Box sx={{ flex: 1 }}>
             <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 700 }}>
               Select Colors
             </Typography>
-            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', mt: 1 }}>
-              {COLOR_OPTIONS.map((color) => (
+            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', mt: 1, mb: 1 }}>
+              {localColors.map((color) => (
                 <Chip
                   key={color}
                   label={color}
@@ -324,6 +379,20 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
                 />
               ))}
             </Stack>
+            <TextField
+              size="small"
+              placeholder="Add Custom Color (e.g. Ocean Blue) + Press Enter"
+              value={newColorInput}
+              onChange={(e) => setNewColorInput(e.target.value)}
+              onKeyDown={handleAddCustomColor}
+              fullWidth
+              InputProps={{
+                endAdornment: (
+                  <Button size="small" onClick={handleAddCustomColor}>Add</Button>
+                )
+              }}
+              sx={{ mt: 1 }}
+            />
           </Box>
         </Stack>
 
@@ -448,26 +517,23 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
                   name="size"
                   control={control}
                   rules={{ required: 'Size is required.' }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      select
-                      size="small"
-                      fullWidth
-                      label="Size"
-                      error={Boolean(errors.size)}
-                      helperText={errors.size?.message || ' '}
-                      SelectProps={{
-                        renderValue: (selected) => getSizeLabel(selected),
-                      }}
-                    >
-                      {normalizedSizeOptions.map((sizeOption) => (
-                        <MenuItem key={sizeOption.value} value={sizeOption.value}>
-                          {sizeOption.label}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                  )}
+                  render={({ field }) => {
+                    const isManualSize = field.value && !normalizedSizeOptions.some(o => o.value === field.value);
+                    return (
+                      <TextField
+                        {...field}
+                        size="small"
+                        fullWidth
+                        label="Size"
+                        placeholder="Ex: 42 or XL"
+                        error={Boolean(errors.size)}
+                        helperText={errors.size?.message || ' '}
+                        InputProps={isManualSize ? {
+                           endAdornment: <Chip label="Custom" size="small" color="secondary" sx={{ mr: 1 }} />
+                        } : {}}
+                      />
+                    );
+                  }}
                 />
 
                 <Controller
@@ -477,19 +543,27 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
                   render={({ field }) => (
                     <TextField
                       {...field}
-                      select
                       size="small"
                       fullWidth
-                      label="Color"
+                      label="Color (Name)"
+                      placeholder="Ex: Navy Blue"
                       error={Boolean(errors.color)}
                       helperText={errors.color?.message || ' '}
-                    >
-                      {COLOR_OPTIONS.map((color) => (
-                        <MenuItem key={color} value={color}>
-                          {color}
-                        </MenuItem>
-                      ))}
-                    </TextField>
+                    />
+                  )}
+                />
+
+                <Controller
+                  name="colorCode"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      size="small"
+                      fullWidth
+                      label="Color Hex/Brand Code"
+                      placeholder="Ex: #000080"
+                    />
                   )}
                 />
               </Stack>

@@ -347,10 +347,12 @@ const updateDispatch = async (id, dispatchData, userId) => {
 
         // 4. Update the Dispatch Master itself
         dispatchMaster.items = enrichedItems.map(ei => ({
+            itemId: ei.itemId,
             variantId: ei.variantId,
+            barcode: ei.barcode,
             qty: ei.qty,
-            rate: ei.appliedPrice,
-            tax: ei.taxAmount / ei.quantity
+            rate: ei.rate,
+            tax: ei.qty > 0 ? (ei.taxAmount / ei.qty) : 0
         }));
         dispatchMaster.notes = notes || dispatchMaster.notes;
         await dispatchMaster.save({ session });
@@ -381,6 +383,20 @@ const confirmDispatch = async (id, userId) => {
 
         // 1. Release Reservation and Deduct Physical Stock
         for (const item of dispatch.items) {
+            // Fallback for legacy dispatches missing itemId/barcode
+            let itmId = item.itemId;
+            let bcode = item.barcode;
+            
+            if (!itmId || !bcode) {
+                const Item = require('../../models/item.model');
+                const parent = await Item.findOne({ "sizes._id": item.variantId }).session(session);
+                if (parent) {
+                    itmId = itmId || parent._id;
+                    const variant = parent.sizes.id(item.variantId);
+                    bcode = bcode || (variant ? (variant.sku || variant.barcode || parent.itemCode) : 'UNKNOWN');
+                }
+            }
+
             // First release the logical reservation
             await stockService.releaseStock({
                 variantId: item.variantId,
@@ -392,19 +408,23 @@ const confirmDispatch = async (id, userId) => {
 
             // Then physically deduct from source warehouse
             await stockService.removeStock({
+                itemId: itmId,
+                barcode: bcode,
                 variantId: item.variantId,
                 locationId: dispatch.sourceWarehouseId,
                 locationType: 'WAREHOUSE',
                 qty: item.qty,
                 type: 'TRANSFER',
-                referenceId: dispatch.referenceId,
-                referenceType: dispatch.referenceType,
+                referenceId: dispatch._id,
+                referenceType: 'Dispatch',
                 performedBy: userId,
                 session
             });
 
             // 3. Move to In-Transit pool for destination store
             await stockService.addInTransit({
+                itemId: itmId,
+                barcode: bcode,
                 variantId: item.variantId,
                 locationId: dispatch.destinationStoreId,
                 locationType: 'STORE',
@@ -511,32 +531,42 @@ const receiveDispatch = async (id, userId, receivedItems = []) => {
         const itemsToProcess = dispatch.items || [];
         const Item = require('../../models/item.model');
         const Store = require('../../models/store.model');
-        const stockService = require('../inventory/inventory.service');
+        const stockService = require('../../services/stock.service');
 
         for (const item of itemsToProcess) {
-            // Find parent item to get variant details
-            const parentItem = await Item.findOne({ "sizes._id": item.variantId }).session(session);
-            if (!parentItem) {
-                console.error(`[RECEIVE-ERROR] Item not found for variant ${item.variantId}`);
-                continue;
-            }
+            // Fallback for legacy dispatches missing itemId/barcode
+            let itmId = item.itemId;
+            let bcode = item.barcode;
             
-            const variant = (parentItem.sizes || []).find(sz => String(sz._id) === String(item.variantId));
-            const originalBarcode = variant.sku || parentItem.itemCode;
+            if (!itmId || !bcode) {
+                const parent = await Item.findOne({ "sizes._id": String(item.variantId) }).session(session);
+                if (parent) {
+                    itmId = itmId || parent._id;
+                    const variant = (parent.sizes || []).find(sz => String(sz._id) === String(item.variantId));
+                    bcode = bcode || (variant ? (variant.sku || variant.barcode || parent.itemCode) : 'UNKNOWN');
+                } else {
+                    // Critical fallback if item is gone or mismatch
+                    itmId = itmId || item.variantId;
+                    bcode = bcode || 'LEGACY';
+                }
+            }
 
-            // 1. ALWAYS remove the FULL quantity from in-transit (Clear the pool)
-            await stockService.removeInTransit({
-                itemId: parentItem._id,
-                barcode: originalBarcode, 
-                variantId: item.variantId,
-                locationId: dispatch.destinationStoreId,
-                locationType: 'STORE',
-                qty: item.qty,
-                session
-            });
+            // 1. ALWAYS clear the pool from in-transit (Self-healing strategy)
+            try {
+                await stockService.removeInTransit({
+                    itemId: itmId,
+                    barcode: bcode, 
+                    variantId: item.variantId,
+                    locationId: dispatch.destinationStoreId,
+                    locationType: 'STORE',
+                    qty: item.qty,
+                    session
+                });
+            } catch (err) {
+                console.warn(`[RECOVERY] In-transit sync failed for ${bcode}. Error: ${err.message}. Proceeding with physical receipt to avoid system block.`);
+            }
 
             // 2. Add only the RECEIVED quantity to physical inventory
-            // If receivedItems was provided (Audit mode), find the verified qty. Otherwise, use dispatch qty.
             const verified = (receivedItems || []).find(ri => String(ri.variantId) === String(item.variantId));
             const qtyToReceive = verified ? Number(verified.receivedQty) : item.qty;
 
@@ -544,17 +574,19 @@ const receiveDispatch = async (id, userId, receivedItems = []) => {
                 const systemConfigService = require('../systemConfig/systemConfig.service');
                 const relabelOnTransfer = await systemConfigService.getConfigByKey('relabelOnTransfer', false);
                 
-                let targetBarcode = originalBarcode;
+                let targetBarcode = bcode;
                 if (relabelOnTransfer) {
                     const store = await Store.findById(dispatch.destinationStoreId).session(session);
                     const storeCode = store ? store.storeCode : 'STR';
-                    targetBarcode = `${storeCode}-${originalBarcode}`;
+                    targetBarcode = `${storeCode}-${bcode}`;
                 }
 
-                const landingCost = (item.rate || 0) + (item.taxAmount / item.qty || 0);
+                // In receiving, we use total per item instead of individual taxAmount field 
+                // as 'taxAmount' wasn't stored per line in early versions.
+                const landingCost = (item.rate || 0) + (item.tax || 0);
 
                 await stockService.addStock({
-                    itemId: parentItem._id,
+                    itemId: itmId,
                     barcode: targetBarcode, 
                     variantId: item.variantId,
                     locationId: dispatch.destinationStoreId,

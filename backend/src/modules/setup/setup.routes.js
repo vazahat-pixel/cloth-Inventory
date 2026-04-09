@@ -3,10 +3,18 @@ const router = express.Router();
 const hsnController = require('./hsnCode.controller');
 const formulaController = require('./formula.controller');
 const groupController = require('./group.controller');
+const salesmanController = require('./salesman.controller');
 const { protect } = require('../../middlewares/auth.middleware');
 const { requireAdmin } = require('../../middlewares/role.middleware');
 
 router.use(protect);
+
+// Salesmen Routes
+router.get('/salesmen', salesmanController.getAllSalesmen);
+router.put('/salesmen/:id', salesmanController.updateSalesman);
+router.patch('/salesmen/:id', salesmanController.updateSalesman);
+router.delete('/salesmen/:id', salesmanController.deleteSalesman);
+router.post('/salesmen', requireAdmin, salesmanController.createSalesman);
 
 // HSN Routes
 router.get('/hsn', hsnController.getAll);

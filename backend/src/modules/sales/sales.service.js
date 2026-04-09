@@ -1,4 +1,5 @@
 const Sale = require('../../models/sale.model');
+const mongoose = require('mongoose');
 const StoreInventory = require('../../models/storeInventory.model');
 const Product = require('../../models/product.model');
 const { SaleStatus, StockMovementType, DocumentType } = require('../../core/enums');
@@ -9,6 +10,7 @@ const { createAuditLog } = require('../../middlewares/audit.middleware');
 const { getIO } = require('../../config/socket');
 const Account = require('../../models/account.model');
 const ledgerService = require('../../services/ledger.service');
+const stockService = require('../../services/stock.service');
 const StorePricing = require('../../models/storePricing.model');
 const Customer = require('../../models/customer.model');
 const LoyaltyTransaction = require('../../models/loyaltyTransaction.model');
@@ -16,7 +18,10 @@ const CreditNote = require('../../models/creditNote.model');
 const { calculateGST } = require('../../services/gst.service');
 const { getNextSequence } = require('../../services/sequence.service');
 const Item = require('../../models/item.model');
-const stockLedgerService = require('../inventory/stockLedger.service');
+const toNumber = (val) => {
+    const n = Number(val);
+    return Number.isFinite(n) ? n : 0;
+};
 
 const {
     LoyaltyType,
@@ -67,7 +72,8 @@ const getProductForSale = async (barcode, storeId) => {
         barcode: variant.barcode,
         size: variant.size,
         color: variant.color || parentItem.shade,
-        salePrice: variant.salePrice || 0,
+        salePrice: toNumber(variant.salePrice || parentItem.salePrice || variant.mrp || parentItem.mrp),
+        mrp: toNumber(variant.mrp || parentItem.mrp || variant.salePrice || parentItem.salePrice),
         available: availableQty
     };
 };
@@ -95,6 +101,28 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             exchangeDetails // { originalSaleId, items: [{ barcode, quantity, price }] }
         } = saleData;
 
+        // 0. Find or Create Customer
+        let customer = null;
+        if (customerId && mongoose.Types.ObjectId.isValid(customerId)) {
+            customer = await Customer.findById(customerId).session(session);
+        } else if (customerMobile && customerMobile.trim()) {
+            // Find by phone or Create new on-the-fly
+            const trimmedMobile = customerMobile.trim();
+            customer = await Customer.findOne({ phone: trimmedMobile }).session(session);
+            
+            if (!customer && customerName && customerName.trim()) {
+                customer = new Customer({
+                    name: customerName.trim(),
+                    phone: trimmedMobile,
+                    isActive: true,
+                    createdBy: cashierId
+                });
+                await customer.save({ session });
+            }
+        }
+        const finalCustomerId = customer?._id || (mongoose.Types.ObjectId.isValid(customerId) ? customerId : null);
+        const finalCustomerName = customer?.name || customerName || 'Walk-in Customer';
+
         // 1. Generate Sale Number
         const saleNumber = await generateSaleNumber(session);
 
@@ -108,19 +136,40 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
 
         for (const item of products) {
             const barcode = item.barcode;
-            const inventory = await StoreInventory.findOne({ storeId, barcode }).populate('itemId').session(session);
+            let inventory = await StoreInventory.findOne({ storeId, barcode }).populate('itemId').session(session);
             
+            // IF SOURCE IS A WAREHOUSE, we need to check StockLedger/Warehouse Stock
+            if (!inventory) {
+                const Warehouse = require('../../models/warehouse.model');
+                const isWarehouse = await Warehouse.exists({ _id: storeId });
+
+                if (isWarehouse) {
+                    const WarehouseInventory = require('../../models/warehouseInventory.model');
+                    const warehouseInv = await WarehouseInventory.findOne({ warehouseId: storeId, barcode }).populate('itemId').session(session);
+
+                    if (warehouseInv) {
+                        // Create a "MOCK" inventory object to satisfy the existing logic
+                        inventory = {
+                            itemId: warehouseInv.itemId,
+                            variantId: warehouseInv.variantId,
+                            quantity: warehouseInv.quantity,
+                            fromWarehouse: true
+                        };
+                    }
+                }
+            }
+
             if (!inventory) throw new Error(`Stock not found for barcode: ${barcode}`);
             if (inventory.quantity < item.quantity) {
-                throw new Error(`Insufficient stock for ${inventory.itemId.itemName} (Available: ${inventory.quantity})`);
+                throw new Error(`Insufficient stock for ${inventory.itemId?.itemName || 'Item'} (Available: ${inventory.quantity})`);
             }
 
             const parentItem = inventory.itemId;
             const variant = parentItem.sizes?.find(s => s.barcode === barcode);
 
-            const mrp = item.mrp || variant?.mrp || 0;
-            const rate = item.rate || variant?.salePrice || 0;
-            const discount = item.discount || 0;
+            const mrp = toNumber(item.mrp || variant?.mrp || parentItem.mrp || variant?.salePrice || parentItem.salePrice);
+            const rate = toNumber(item.rate || item.price || variant?.salePrice || parentItem.salePrice);
+            const discount = toNumber(item.discount || 0);
 
             const taxableAmount = (rate * item.quantity);
             calculatedSubTotal += taxableAmount;
@@ -152,7 +201,8 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
                 variantId: inventory.variantId,
                 storeId,
                 quantity: item.quantity,
-                type: 'SALE'
+                type: 'SALE',
+                locationType: inventory.fromWarehouse ? 'WAREHOUSE' : 'STORE'
             });
         }
 
@@ -201,9 +251,10 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
         }
         // 2.1. Handle Loyalty Redemption
         let loyaltyRedemptionAmount = 0;
-        let customer = null;
         if (customerId) {
-            customer = await Customer.findById(customerId).session(session);
+            if (!customer) {
+                customer = await Customer.findById(customerId).session(session);
+            }
             if (!customer) throw new Error('Customer not found');
 
             if (redeemPoints > 0) {
@@ -290,6 +341,8 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             returnedItems: returnItemsProcessed,
             amountPaid,
             dueAmount,
+            customerId: finalCustomerId,
+            customerName: finalCustomerName,
             paymentMode: saleData.paymentMode || 'CASH',
             status: dueAmount > 0 ? SaleStatus.PARTIAL : SaleStatus.COMPLETED,
             saleDate: Date.now()
@@ -304,7 +357,7 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
                     barcode: mov.barcode,
                     variantId: mov.variantId,
                     locationId: mov.storeId,
-                    locationType: 'STORE',
+                    locationType: mov.locationType || 'STORE',
                     qty: mov.quantity,
                     type: 'SALE',
                     referenceId: sale._id,
@@ -330,10 +383,10 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
         }
 
         // Record Loyalty Transactions (both Redeem and Earn)
-        if (customerId) {
+        if (finalCustomerId) {
             if (sale.loyaltyRedeemed > 0) {
                 await LoyaltyTransaction.create([{
-                    customerId,
+                    customerId: finalCustomerId,
                     saleId: sale._id,
                     type: LoyaltyType.REDEEM,
                     points: Number(redeemPoints),
@@ -348,14 +401,16 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
         await workflowService.updateStatus(sale._id, DocumentType.SALE, 'STOCK_UPDATE', sale.status, cashierId, `Created Sale ${saleNumber}`);
 
         // 3.1 Earn Points for Customer
-        if (customer) {
+        if (customer || finalCustomerId) {
             const earnedPoints = Math.floor(finalGrandTotal / LOYALTY_EARNING_RATIO);
             if (earnedPoints > 0) {
-                customer.loyaltyPoints += earnedPoints;
-                customer.totalEarned += earnedPoints;
+                if (customer) {
+                    customer.loyaltyPoints += earnedPoints;
+                    customer.totalEarned += earnedPoints;
+                }
 
                 await LoyaltyTransaction.create([{
-                    customerId,
+                    customerId: finalCustomerId,
                     saleId: sale._id,
                     type: LoyaltyType.EARN,
                     points: earnedPoints,
@@ -364,8 +419,10 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
                     date: Date.now()
                 }], { session });
             }
-            customer.purchaseHistory.push(sale._id);
-            await customer.save({ session });
+            if (customer) {
+                customer.purchaseHistory.push(sale._id);
+                await customer.save({ session });
+            }
         }
 
         // 4. Audit Log

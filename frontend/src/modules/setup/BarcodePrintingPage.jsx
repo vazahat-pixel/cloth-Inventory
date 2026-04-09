@@ -351,15 +351,15 @@ function BarcodePrintingPage() {
             <Grid container spacing={6}>
               <Grid item xs={12} md={6}>
                 <Stack spacing={4}>
-                  <Box sx={{ p: 3, border: '1px dashed #cbd5e1', borderRadius: 3, bgcolor: '#f1f5f9' }}>
-                    <Typography variant="subtitle2" sx={{ mb: 2.5, color: '#475569', fontWeight: 800, textTransform: 'uppercase' }}>
+                  <Box sx={{ p: 4, border: '1px solid #e2e8f0', borderRadius: 4, bgcolor: '#f8fafc' }}>
+                    <Typography variant="subtitle2" sx={{ mb: 3, color: '#475569', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1 }}>
                       Vertical Tag Parameters
                     </Typography>
-                    <Stack spacing={2}>
-                      <TextField fullWidth size="small" label="Type" value={type} onChange={(e) => setType(e.target.value)} />
-                      <TextField fullWidth size="small" label="Design" value={design} onChange={(e) => setDesign(e.target.value)} />
-                      <TextField fullWidth size="small" label="Mfg Line 1" value={mfgLine1} onChange={(e) => setMfgLine1(e.target.value)} />
-                      <TextField fullWidth size="small" label="Mfg Line 2" value={mfgLine2} onChange={(e) => setMfgLine2(e.target.value)} />
+                    <Stack spacing={2.5}>
+                      <TextField fullWidth size="medium" label="Type" value={type} onChange={(e) => setType(e.target.value)} />
+                      <TextField fullWidth size="medium" label="Design" value={design} onChange={(e) => setDesign(e.target.value)} />
+                      <TextField fullWidth size="medium" label="Mfg Line 1" value={mfgLine1} onChange={(e) => setMfgLine1(e.target.value)} />
+                      <TextField fullWidth size="medium" label="Mfg Line 2" value={mfgLine2} onChange={(e) => setMfgLine2(e.target.value)} />
                     </Stack>
                   </Box>
 
@@ -367,10 +367,11 @@ function BarcodePrintingPage() {
                     options={products}
                     getOptionLabel={(o) => `${o.sku} - ${o.name} (${o.size})`}
                     onChange={(_, v) => setSelectedProduct(v)}
-                    renderInput={(params) => <TextField {...params} label="Select Product Attachment" size="small" />}
+                    sx={{ width: '100%', minWidth: { md: 400 } }}
+                    renderInput={(params) => <TextField {...params} label="Select Product Attachment" size="medium" placeholder="Search by SKU or Name..." />}
                   />
 
-                  <TextField fullWidth type="number" size="small" label="Print Quantity" value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} />
+                  <TextField fullWidth type="number" size="medium" label="Print Quantity" value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} />
 
                   <Button 
                     variant="contained" 
@@ -408,10 +409,10 @@ function BarcodePrintingPage() {
 
           {activeTab === 1 && (
             <Stack spacing={3}>
-              <Box sx={{ p: 2, bgcolor: '#f1f5f9', borderRadius: 2 }}>
-                <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 700 }}>SELECT STYLE FOR BATCH PRINTING</Typography>
-                <Grid container spacing={2} alignItems="center">
-                  <Grid item xs={12} md={6}>
+              <Box sx={{ p: 4, bgcolor: '#f1f5f9', borderRadius: 3, border: '1px solid #e2e8f0' }}>
+                <Typography variant="subtitle2" sx={{ mb: 3, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 1 }}>SELECT STYLE FOR BATCH PRINTING</Typography>
+                <Grid container spacing={4} alignItems="center">
+                  <Grid item xs={12} md={9}>
                     <Autocomplete
                       options={allItems}
                       getOptionLabel={(o) => `${o.itemCode} - ${o.itemName}`}
@@ -432,17 +433,21 @@ function BarcodePrintingPage() {
                           setBatchLines([]);
                         }
                       }}
-                      renderInput={(params) => <TextField {...params} label="Select Finished Good Style" size="small" />}
+                      sx={{ width: '100%', minWidth: { md: 500 } }}
+                      renderInput={(params) => <TextField {...params} label="Select Finished Good Style" size="medium" placeholder="Search for a style..." />}
+                      ListboxProps={{
+                        sx: { maxHeight: 400, boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', '& .MuiAutocomplete-option': { px: 2, py: 1.5, borderBottom: '1px solid #f1f5f9' } }
+                      }}
                     />
                   </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Stack direction="row" spacing={1}>
-                      <Button variant="outlined" component="label" startIcon={<UploadIcon />}>
+                  <Grid item xs={12} md={3}>
+                    <Stack direction="row" spacing={2}>
+                      <Button variant="outlined" component="label" startIcon={<UploadIcon />} sx={{ py: 1.2, px: 3, borderRadius: 2 }}>
                         Upload Excel
                         <input type="file" hidden onChange={handleExcelUpload} />
                       </Button>
-                      <Button variant="contained" color="success" disabled={!importResults.length} onClick={() => printBatch(importResults)}>
-                        Print Import ({importResults.length})
+                      <Button variant="contained" color="success" disabled={!importResults.length} onClick={() => printBatch(importResults)} sx={{ py: 1.2, px: 3, borderRadius: 2 }}>
+                        Print ({importResults.length})
                       </Button>
                     </Stack>
                   </Grid>
@@ -468,14 +473,14 @@ function BarcodePrintingPage() {
                           <TableCell align="right">
                             <TextField 
                               type="number" 
-                              size="small" 
+                              size="medium" 
                               value={line.printQty} 
                               onChange={(e) => {
                                 const next = [...batchLines];
                                 next[idx].printQty = Number(e.target.value);
                                 setBatchLines(next);
                               }}
-                              sx={{ width: 100 }}
+                              sx={{ width: 140 }}
                             />
                           </TableCell>
                           <TableCell align="right">{line.mrp}</TableCell>

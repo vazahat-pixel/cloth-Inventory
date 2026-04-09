@@ -4,13 +4,17 @@ const Item = require('../../models/item.model');
 const Product = require('../../models/product.model');
 const mongoose = require('mongoose');
 
+const toFiniteNumber = (val) => {
+    const n = Number(val);
+    return Number.isFinite(n) ? n : 0;
+};
+
 const populateInventoryManual = async (inventoryItems) => {
     if (!inventoryItems || inventoryItems.length === 0) return [];
 
     const itemIds = inventoryItems.map(item => item.itemId).filter(Boolean);
     const variantIds = inventoryItems.map(item => String(item.variantId || '')).filter(Boolean);
 
-    // Find Items using either itemId or by searching sizes for the variantId/SKU
     const items = await Item.find({ 
         $or: [
             { _id: { $in: itemIds } },
@@ -23,7 +27,6 @@ const populateInventoryManual = async (inventoryItems) => {
         .populate('groupIds', 'name groupType groupName')
         .lean();
 
-    // Map them back
     return inventoryItems.map(item => {
         const vid = String(item.variantId || '');
         const parentId = String(item.itemId || '');
@@ -34,16 +37,16 @@ const populateInventoryManual = async (inventoryItems) => {
         );
 
         if (parentItem) {
-            const variant = parentItem.sizes.find(sz => String(sz._id) === vid || sz.sku === vid || sz.barcode === vid) || parentItem.sizes[0];
+            const variant = parentItem.sizes.find(sz => String(sz._id) === vid || sz.sku === vid || sz.barcode === vid) || parentItem.sizes[0] || {};
             
             return {
                 ...item,
                 id: item._id,
-                variantId: variant._id,
+                variantId: variant._id || item.variantId,
                 itemId: parentItem._id,
                 itemCode: parentItem.itemCode,
                 itemName: parentItem.itemName,
-                size: variant.size,
+                size: variant.size || 'UNI',
                 color: variant.color || parentItem.shade || 'N/A',
                 sku: variant.sku || variant.barcode || parentItem.itemCode,
                 barcode: variant.barcode || variant.sku || parentItem.itemCode,
@@ -53,7 +56,9 @@ const populateInventoryManual = async (inventoryItems) => {
                 inTransit: item.quantityInTransit || 0,
                 reorderLevel: item.reorderLevel || 0,
                 location: item.warehouseId?.name || item.storeId?.name || 'Main Warehouse',
-                warehouseName: item.warehouseId?.name || item.storeId?.name || 'Main Warehouse'
+                warehouseName: item.warehouseId?.name || item.storeId?.name || 'Main Warehouse',
+                salePrice: toFiniteNumber(variant.salePrice || parentItem.salePrice || variant.mrp || parentItem.mrp),
+                mrp: toFiniteNumber(variant.mrp || parentItem.mrp || variant.salePrice || parentItem.salePrice)
             };
         }
         return null;

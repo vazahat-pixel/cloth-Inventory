@@ -5,7 +5,6 @@ const ErrorLog = require('../../models/errorLog.model');
 const { sendSuccess, sendError, sendNotFound } = require('../../utils/response.handler');
 
 class InventoryController {
-  
   /**
    * Fetch stock ledger for a specific item.
    */
@@ -100,7 +99,7 @@ class InventoryController {
       const { warehouseId } = req.params;
       const WarehouseInventory = require('../../models/warehouseInventory.model');
       const Item = require('../../models/item.model');
-      
+
       // 1. Fetch all stock records for the warehouse
       const stockRecords = await WarehouseInventory.find({ warehouseId }).lean();
 
@@ -112,9 +111,14 @@ class InventoryController {
       // The variantId field in WarehouseInventory effectively stores the Variant _id.
       // We need to find the parent Items that own these variant IDs.
       const variantIds = stockRecords.map(s => s.variantId);
-      
+
       // 3. Fetch full Item details for these variants
-      const items = await Item.find({ "sizes._id": { $in: variantIds } })
+      const items = await Item.find({
+        $or: [
+          { "sizes._id": { $in: variantIds } },
+          { "_id": { $in: variantIds } }
+        ]
+      })
         .populate('brand', 'name brandName')
         .populate('groupIds', 'name groupType level parentId isActive')
         .populate('hsCodeId', 'code hsnCode gstRate gstPercent')
@@ -125,21 +129,23 @@ class InventoryController {
       const mongoose = require('mongoose');
       const warehouseObjectId = new mongoose.Types.ObjectId(warehouseId);
       const StockLedger = require('../../models/stockLedger.model');
-      
+
       const ledgerBalances = await StockLedger.aggregate([
-          { $match: { locationId: warehouseObjectId, locationType: 'WAREHOUSE' } },
-          { $sort: { createdAt: -1 } },
-          { $group: {
-              _id: "$barcode",
-              balance: { $first: "$balanceAfter" }
-          }}
+        { $match: { locationId: warehouseObjectId, locationType: 'WAREHOUSE' } },
+        { $sort: { createdAt: -1 } },
+        {
+          $group: {
+            _id: "$barcode",
+            balance: { $first: "$balanceAfter" }
+          }
+        }
       ]);
 
       const ledgerMap = new Map();
       ledgerBalances.forEach(lb => {
-          if (lb && lb._id) {
-              ledgerMap.set(lb._id.toString(), lb.balance || 0);
-          }
+        if (lb && lb._id) {
+          ledgerMap.set(lb._id.toString(), lb.balance || 0);
+        }
       });
 
       // 5. Fetch Physical Fallback (WarehouseInventory)
@@ -147,35 +153,68 @@ class InventoryController {
       const physicalMap = new Map();
       const reservedMap = new Map();
       stockRecords.forEach(s => {
-          physicalMap.set(s.variantId.toString(), s.quantity || 0);
-          reservedMap.set(s.variantId.toString(), s.reservedQuantity || 0);
+        physicalMap.set(s.variantId.toString(), s.quantity || 0);
+        reservedMap.set(s.variantId.toString(), s.reservedQuantity || 0);
       });
 
-      const enrichedItems = items.map(item => {
-        const sizesWithStock = item.sizes.map(sz => {
-            const variantIdStr = sz._id.toString();
-            
-            // PRIORITY 1: Stock Ledger (Audit Trail) - tracked via SKUs/Barcodes
+      const enrichedResults = [];
+      const usedVariantIds = new Set();
+
+      items.forEach(item => {
+        let finalSizes = [];
+        const baseIdStr = item._id.toString();
+
+        // 1. Process sizes that have stock linked to them
+        if (item.sizes && item.sizes.length > 0) {
+          item.sizes.forEach(sz => {
+            const vid = sz._id.toString();
             const ledgerBalance = sz.sku ? ledgerMap.get(sz.sku) : undefined;
-            
-            // PRIORITY 2: Physical Table (Fallback)
-            const physical = ledgerBalance !== undefined ? ledgerBalance : (physicalMap.get(variantIdStr) || 0);
-            const reserved = reservedMap.get(variantIdStr) || 0;
-            const netAvailable = Math.max(0, physical - reserved);
-            
-            return {
-                ...sz,
-                physicalStock: physical,
-                reservedStock: reserved,
-                availableStock: netAvailable,
-                stock: netAvailable 
-            };
-        });
+            const physical = physicalMap.get(vid);
 
-        return { ...item, sizes: sizesWithStock };
+            if (ledgerBalance !== undefined || physical !== undefined) {
+              usedVariantIds.add(vid);
+              const stockVal = ledgerBalance !== undefined ? ledgerBalance : (physical || 0);
+              const reserved = reservedMap.get(vid) || 0;
+
+              finalSizes.push({
+                ...sz,
+                physicalStock: stockVal,
+                reservedStock: reserved,
+                availableStock: Math.max(0, stockVal - reserved),
+                stock: Math.max(0, stockVal - reserved)
+              });
+            }
+          });
+        }
+
+        // 2. Process stock linked to the base Item ID (for non-variant items)
+        const baseLedger = ledgerMap.get(item.itemCode);
+        const basePhysical = physicalMap.get(baseIdStr);
+
+        if (baseLedger !== undefined || basePhysical !== undefined) {
+          if (!usedVariantIds.has(baseIdStr)) {
+            const stockVal = baseLedger !== undefined ? baseLedger : (basePhysical || 0);
+            const reserved = reservedMap.get(baseIdStr) || 0;
+
+            finalSizes.push({
+              _id: item._id,
+              size: item.accessorySize || item.width || 'Universal',
+              color: item.composition || item.shadeNo || 'N/A',
+              sku: item.itemCode,
+              physicalStock: stockVal,
+              reservedStock: reserved,
+              availableStock: Math.max(0, stockVal - reserved),
+              stock: Math.max(0, stockVal - reserved)
+            });
+          }
+        }
+
+        if (finalSizes.length > 0) {
+          enrichedResults.push({ ...item, sizes: finalSizes });
+        }
       });
 
-      return sendSuccess(res, { items: enrichedItems }, 'Items fetched successfully');
+      return sendSuccess(res, { items: enrichedResults }, 'Items fetched successfully');
     } catch (e) {
       console.error('[WAREHOUSE-STOCK-ERROR]', e);
       return sendError(res, e.message);
@@ -190,12 +229,12 @@ class InventoryController {
     try {
       const { warehouseId, barcode } = req.params;
       const WarehouseInventory = require('../../models/warehouseInventory.model');
-      
-      const stock = await WarehouseInventory.findOne({ 
-        warehouseId, 
-        $or: [ { barcode: barcode }, { variantId: barcode } ] 
+
+      const stock = await WarehouseInventory.findOne({
+        warehouseId,
+        $or: [{ barcode: barcode }, { variantId: barcode }]
       })
-      .populate('itemId');
+        .populate('itemId');
 
       if (!stock) {
         return sendNotFound(res, 'Item not found in this warehouse stock');
@@ -204,7 +243,7 @@ class InventoryController {
       // Find the specific variant to get the price
       const item = stock.itemId;
       const variant = item.sizes.find(sz => sz.barcode === barcode || sz._id.toString() === stock.variantId || sz.sku === barcode);
-      
+
       const responseData = {
         ...stock.toObject(),
         itemName: item.itemName,

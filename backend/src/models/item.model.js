@@ -151,9 +151,13 @@ const itemSchema = new mongoose.Schema({
     type: [variantSchema],
     validate: {
       validator: function(v) {
-        return v && v.length > 0;
+        // Only require sizes for GARMENT type
+        if (this.type === 'GARMENT') {
+          return v && v.length > 0;
+        }
+        return true;
       },
-      message: 'At least one size variant is required'
+      message: 'At least one size variant is required for Garments'
     }
   },
   isActive: {
@@ -165,7 +169,7 @@ const itemSchema = new mongoose.Schema({
 });
 
 // Full-text search on code and name
-itemSchema.index({ itemName: 'text', itemCode: 'text', shade: 'text' });
+itemSchema.index({ itemName: 'text', itemCode: 'text', shadeNo: 'text' });
 
 const Item = mongoose.model('Item', itemSchema);
 

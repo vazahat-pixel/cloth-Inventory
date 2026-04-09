@@ -14,6 +14,24 @@ const mapCouponToBackend = (data) => ({
 });
 
 // Async Thunks
+export const fetchPromotionTypes = createAsyncThunk('pricing/fetchTypes', async (_, { rejectWithValue }) => {
+  try {
+    const response = await api.get('/pricing/promotion-types');
+    return response.data.types || response.data.data?.types || [];
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
+export const addPromotionType = createAsyncThunk('pricing/addType', async (data, { rejectWithValue }) => {
+  try {
+    const response = await api.post('/pricing/promotion-types', data);
+    return response.data.type || response.data.data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
 export const fetchPriceLists = createAsyncThunk('pricing/fetchLists', async (_, { rejectWithValue }) => {
   try {
     const response = await api.get('/pricing');
@@ -155,6 +173,7 @@ const initialState = {
   priceLists: [],
   schemes: [],
   coupons: [],
+  promotionTypes: [],
   eligibleOffers: [],
   loading: false,
   evaluateLoading: false,
@@ -171,6 +190,12 @@ const pricingSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
+      .addCase(fetchPromotionTypes.fulfilled, (state, action) => {
+        state.promotionTypes = action.payload || [];
+      })
+      .addCase(addPromotionType.fulfilled, (state, action) => {
+        state.promotionTypes.unshift(action.payload);
+      })
       .addCase(fetchPriceLists.fulfilled, (state, action) => {
         state.priceLists = action.payload || [];
       })

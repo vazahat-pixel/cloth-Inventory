@@ -269,7 +269,7 @@ function MasterListPage({
       <DeleteConfirmDialog
         open={Boolean(deleteCandidate)}
         title={`Delete ${singular}`}
-        content={`Are you sure you want to delete "${deleteCandidate?.[primaryField] || ''}"?`}
+        content={`Are you sure you want to delete "${(deleteCandidate && primaryField) ? deleteCandidate[primaryField] : ''}"?`}
         onCancel={cancelDeleteRecord}
         onConfirm={confirmDeleteRecord}
       />

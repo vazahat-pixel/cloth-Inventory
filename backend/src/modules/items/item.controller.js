@@ -8,6 +8,7 @@ class ItemController {
       const item = await itemService.createItem(req.body);
       return sendCreated(res, { item }, 'Item created successfully');
     } catch (error) {
+      console.error('❌ ITEM_CONTROLLER_ERROR:', error);
       return sendError(res, error.message, 400);
     }
   };

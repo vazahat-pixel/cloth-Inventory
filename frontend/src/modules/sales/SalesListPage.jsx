@@ -35,12 +35,12 @@ function SalesListPage({
   pageDescription = 'Review retail invoices, payment status, and returns.',
   showPrimaryAction = true,
   primaryActionLabel = 'New Sale',
-  primaryActionPath = '/sales/new',
+  primaryActionPath = '/sales/sale-bill/new',
   returnPathBuilder = (saleId) => `/sales/${saleId}/return`,
   emptyStateTitle = 'No sales invoices found.',
   emptyStateDescription = 'Start billing to create your first POS invoice.',
   emptyStateActionLabel = 'New Sale',
-  emptyStateActionPath = '/sales/new',
+  emptyStateActionPath = '/sales/sale-bill/new',
 }) {
   const navigate = useAppNavigate();
   const dispatch = useDispatch();

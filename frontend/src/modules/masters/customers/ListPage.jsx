@@ -20,6 +20,13 @@ function CustomersListPage() {
           <Typography sx={{ fontWeight: 700, color: '#1d4ed8', letterSpacing: 0.2 }}>{value}</Typography>
         ),
       },
+      { 
+        field: 'loyaltyPoints', 
+        headerName: 'Loyalty Total', 
+        minWidth: 125, 
+        align: 'right', 
+        render: (val) => <Typography sx={{ fontWeight: 800, color: '#059669' }}>{val || 0}</Typography> 
+      },
       { field: 'email', headerName: 'Email', minWidth: 190 },
       {
         field: 'groupId',
@@ -27,26 +34,6 @@ function CustomersListPage() {
         minWidth: 120,
         render: (value) => (value && groupById[value] ? groupById[value].name : '—'),
       },
-      {
-        field: 'saleNature',
-        headerName: 'Sale Nature',
-        minWidth: 110,
-        render: (value) => value || '—',
-      },
-      {
-        field: 'address',
-        headerName: 'Address',
-        minWidth: 210,
-        render: (value) => {
-          if (!value) return '—';
-          if (typeof value === 'object') {
-            return [value.street, value.city, value.state, value.pincode].filter(Boolean).join(', ') || '—';
-          }
-          return value;
-        },
-      },
-      { field: 'gstNumber', headerName: 'GST Number', minWidth: 160 },
-      { field: 'loyaltyPoints', headerName: 'Loyalty Points', minWidth: 120, align: 'right' },
       { field: 'creditLimit', headerName: 'Credit Limit', minWidth: 130, align: 'right' },
       {
         field: 'status',
@@ -61,9 +48,9 @@ function CustomersListPage() {
   return (
     <MasterListPage
       entityKey="customers"
-      title="Customers"
+      title="Customers & Loyalty"
       singularLabel="Customer"
-      description="Maintain retail customers with loyalty and credit profile details."
+      description="Centralized retail CRM with integrated loyalty reward tracking and credit profiles."
       primaryField="customerName"
       searchKeys={['customerName', 'mobileNumber', 'email']}
       columns={customersColumns}

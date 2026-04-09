@@ -37,6 +37,8 @@ const registerRoutes = (app) => {
     app.use('/api/pricing', require('./modules/pricing/pricing.routes'));
     app.use('/api/settings', require('./modules/settings/settings.routes'));
     app.use('/api/barcodes', require('./modules/barcodes/barcode.routes'));
+    app.use('/api/returns', require('./modules/sales/salesReturn.routes'));
+    app.use('/api/production', require('./modules/production/production.routes'));
 };
 
 module.exports = registerRoutes;

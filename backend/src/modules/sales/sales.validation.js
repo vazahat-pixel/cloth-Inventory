@@ -9,7 +9,7 @@ const createSaleValidation = [
         .isArray({ min: 1 }).withMessage('At least one product is required for sale'),
     
     body('products.*.productId')
-        .notEmpty().withMessage('Product ID is required')
+        .optional({ checkFalsy: true })
         .isMongoId().withMessage('Invalid Product ID'),
 
     body('products.*.barcode')

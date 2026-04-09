@@ -42,6 +42,8 @@ import LoyaltyRedeemDialog from './LoyaltyRedeemDialog';
 import ExchangeInvoicePrint from './ExchangeInvoicePrint';
 import StandardInvoicePrint from './StandardInvoicePrint';
 import ExchangeDialog from './ExchangeDialog';
+import { sendWhatsAppInvoice } from '../../utils/whatsapp';
+
 
 const DEFAULT_WALK_IN_NAME = 'Walk-in Customer';
 const EMPTY_ARR = [];
@@ -56,22 +58,27 @@ const toNumber = (value, fallback = 0) => {
 const calculateLine = (line) => {
   const gross = toNumber(line.quantity) * toNumber(line.rate);
   const disc = (gross * toNumber(line.discount)) / 100;
+  const taxableAmount = gross - disc;
+  
+  // Default tax rate is 5%
+  const taxRate = toNumber(line.tax || 5);
+  const taxAmount = (taxableAmount * taxRate) / 100;
+
   return {
     gross,
     discount: disc,
-    amount: gross - disc,
+    taxAmount,
+    amount: taxableAmount + taxAmount,
   };
 };
 
 const calculateTotals = (lines, billDiscount, loyaltyRedeemed, couponDiscount = 0, schemeDiscount = 0, creditNoteAmount = 0, saleType = 'retail') => {
-  // Keeping basic UX total calculation for display, but backend performs final authority check
   const totals = lines.reduce((acc, l) => {
     const lineRes = calculateLine(l);
-    const tax = ((lineRes.amount) * toNumber(l.tax)) / 100;
 
     acc.gross += lineRes.gross;
     acc.lineDiscount += lineRes.discount;
-    acc.taxAmount += tax;
+    acc.taxAmount += lineRes.taxAmount;
     acc.totalQuantity += toNumber(l.quantity);
     return acc;
   }, { gross: 0, lineDiscount: 0, taxAmount: 0, totalQuantity: 0 });
@@ -105,22 +112,22 @@ function BillingPage({
   const dispatch = useDispatch();
   const navigate = useAppNavigate();
 
-  const sales = useSelector((state) => state.sales.records || []);
-  const customers = useSelector((state) => state.masters.customers || []);
-  const salesmen = useSelector((state) => state.masters.salesmen || []);
-  const warehouses = useSelector((state) => state.masters.warehouses || []);
-  const stockRows = useSelector((state) => state.inventory.stock || []);
-  const items = useSelector((state) => state.items.records || []);
-  const schemes = useSelector((state) => state.pricing.schemes || []);
-  const coupons = useSelector((state) => state.pricing.coupons || []);
-  const priceLists = useSelector((state) => state.pricing.priceLists || []);
+  const sales = useSelector((state) => state.sales.records || EMPTY_ARR);
+  const customers = useSelector((state) => state.masters.customers || EMPTY_ARR);
+  const salesmen = useSelector((state) => state.masters.salesmen || EMPTY_ARR);
+  const warehouses = useSelector((state) => state.masters.warehouses || EMPTY_ARR);
+  const stockRows = useSelector((state) => state.inventory.stock || EMPTY_ARR);
+  const items = useSelector((state) => state.items.records || EMPTY_ARR);
+  const schemes = useSelector((state) => state.pricing.schemes || EMPTY_ARR);
+  const coupons = useSelector((state) => state.pricing.coupons || EMPTY_ARR);
+  const priceLists = useSelector((state) => state.pricing.priceLists || EMPTY_ARR);
   const loyaltyConfig = useSelector((state) => state.customerRewards?.loyaltyConfig) ?? {};
-  const vouchers = useSelector((state) => state.customerRewards?.vouchers) ?? [];
+  const vouchers = useSelector((state) => state.customerRewards?.vouchers) ?? EMPTY_ARR;
   const purchaseConfig = useSelector((state) => state.settings.purchaseVoucherConfig) ?? {};
-  const deliveryOrders = useSelector((state) => state.orders?.deliveryOrders) ?? [];
-  const creditNotes = useSelector((state) => state.customerRewards?.creditNotes) ?? [];
+  const deliveryOrders = useSelector((state) => state.orders?.deliveryOrders) ?? EMPTY_ARR;
+  const creditNotes = useSelector((state) => state.customerRewards?.creditNotes) ?? EMPTY_ARR;
   const user = useSelector((state) => state.auth.user);
-  const stores = useSelector((state) => state.masters.stores || []);
+  const stores = useSelector((state) => state.masters.stores || EMPTY_ARR);
   const { eligibleOffers, evaluateLoading } = useSelector((state) => state.pricing);
 
   const isStoreStaff = user?.role !== 'Admin';
@@ -190,6 +197,33 @@ function BillingPage({
   }, [dispatch]);
 
   // Synchronized Total Calculations (Moved up to prevent TDZ error)
+  const customerMap = useMemo(
+    () =>
+      customers.reduce((accumulator, customer) => {
+        accumulator[customer.id] = customer;
+        return accumulator;
+      }, {}),
+    [customers],
+  );
+
+  const selectedCustomer = customerId ? customerMap[customerId] : null;
+  const availableLoyalty = toNumber(selectedCustomer?.loyaltyPoints);
+
+  const availableCreditNotes = useMemo(() => {
+    if (!customerId) return EMPTY_ARR;
+    return (creditNotes || []).filter(
+      (n) =>
+        n.customerId === customerId &&
+        String(n.status || '').toLowerCase() === 'available',
+    );
+  }, [customerId, creditNotes]);
+
+  const selectedCreditNote = useMemo(
+    () => creditNotes.find((n) => n.id === creditNoteId),
+    [creditNotes, creditNoteId],
+  );
+  const creditNoteAmount = toNumber(selectedCreditNote?.amount);
+
   const calculatedGross = lines.reduce((acc, l) => acc + (toNumber(l.quantity) * toNumber(l.rate)), 0);
 
   const couponDiscountAmount = useMemo(() => {
@@ -304,32 +338,7 @@ function BillingPage({
     return active;
   }, [salesmen, isStoreStaff, storeId]);
 
-  const customerMap = useMemo(
-    () =>
-      customers.reduce((accumulator, customer) => {
-        accumulator[customer.id] = customer;
-        return accumulator;
-      }, {}),
-    [customers],
-  );
 
-  const selectedCustomer = customerId ? customerMap[customerId] : null;
-  const availableLoyalty = toNumber(selectedCustomer?.loyaltyPoints);
-
-  const availableCreditNotes = useMemo(() => {
-    if (!customerId) return [];
-    return (creditNotes || []).filter(
-      (n) =>
-        n.customerId === customerId &&
-        String(n.status || '').toLowerCase() === 'available',
-    );
-  }, [customerId, creditNotes]);
-
-  const selectedCreditNote = useMemo(
-    () => creditNotes.find((n) => n.id === creditNoteId),
-    [creditNotes, creditNoteId],
-  );
-  const creditNoteAmount = toNumber(selectedCreditNote?.amount);
 
   const variantSellingPriceMap = useMemo(() => {
     const map = {};
@@ -374,7 +383,8 @@ function BillingPage({
           sku: stock.itemCode || stock.sku || (stock.productId && typeof stock.productId === 'object' ? stock.productId.sku : ''),
           barcode: stock.barcode || (stock.productId && typeof stock.productId === 'object' ? stock.productId.barcode : ''),
           available: available > 0 ? available : 0,
-          rate,
+          rate: toNumber(stock.salePrice || (stock.productId && typeof stock.productId === 'object' ? stock.productId.salePrice : 0)),
+          mrp: toNumber(stock.mrp || (stock.productId && typeof stock.productId === 'object' ? stock.productId.mrp : 0)),
           tax: 0,
         };
         return option;
@@ -517,7 +527,8 @@ function BillingPage({
         sku: product.sku || '',
         barcode: product.barcode || '',
         available: available,
-        rate: toNumber(product.salePrice),
+        rate: toNumber(product.salePrice || product.price),
+        mrp: toNumber(product.mrp || product.salePrice),
         tax: 0, 
       });
       setBarcodeInput('');
@@ -604,13 +615,19 @@ function BillingPage({
 
   const handlePaymentConfirm = (payment) => {
     // 1. Align with backend products array: [{ productId, quantity, price, total }]
-    const preparedProducts = lines.map((line) => ({
-      productId: line.productId || line.variantId,
-      barcode: line.barcode || line.sku || '',
-      quantity: toNumber(line.quantity),
-      price: toNumber(line.rate),
-      total: toNumber(line.quantity) * toNumber(line.rate),
-    }));
+    const preparedProducts = lines.map((line) => {
+      const calcs = calculateLine(line);
+      return {
+        productId: line.productId || line.variantId,
+        barcode: line.barcode || line.sku || '',
+        quantity: toNumber(line.quantity),
+        price: toNumber(line.rate),
+        discount: toNumber(line.discount),
+        taxPercentage: toNumber(line.taxRate || 5),
+        taxAmount: calcs.taxAmount,
+        total: calcs.amount,
+      };
+    });
 
     // 2. Build backend-compliant payload
     const payload = {
@@ -1421,6 +1438,19 @@ function BillingPage({
           )}
           <Stack direction="row" spacing={2} justifyContent="flex-end" sx={{ mt: 2 }}>
             <Button variant="outlined" onClick={() => navigate(listPath)}>Close</Button>
+            <Button 
+                variant="contained" 
+                color="success" 
+                onClick={() => sendWhatsAppInvoice({
+                    customerPhone: completedSaleData?.customerMobile,
+                    customerName: completedSaleData?.customerName,
+                    amount: completedSaleData?.grandTotal,
+                    orderId: completedSaleData?.saleNumber || completedSaleData?.invoiceNumber || completedSaleData?.id,
+                    shopName: 'VAZAHAT'
+                })}
+            >
+                WhatsApp Invoice
+            </Button>
             <Button variant="contained" onClick={() => window.print()}>Print Now</Button>
           </Stack>
         </Box>
@@ -1432,6 +1462,21 @@ function BillingPage({
 
       <Dialog open={showPrint} onClose={() => setShowPrint(false)} maxWidth="md" fullWidth>
         <Box sx={{ p: 2, textAlign: 'right', bgcolor: '#f8fafc' }}>
+            <Button 
+                variant="contained" 
+                color="success"
+                size="small" 
+                onClick={() => sendWhatsAppInvoice({
+                    customerPhone: completedSaleData?.customerMobile,
+                    customerName: completedSaleData?.customerName,
+                    amount: completedSaleData?.grandTotal,
+                    orderId: completedSaleData?.saleNumber || completedSaleData?.invoiceNumber || completedSaleData?.id,
+                    shopName: 'VAZAHAT'
+                })} 
+                sx={{ mr: 1 }}
+            >
+                WhatsApp Invoice
+            </Button>
             <Button variant="contained" size="small" onClick={() => window.print()} sx={{ mr: 1 }}>Print</Button>
             <Button variant="outlined" size="small" onClick={() => setShowPrint(false)}>Close</Button>
         </Box>

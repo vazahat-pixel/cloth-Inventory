@@ -11,6 +11,8 @@ const endpointMap = {
   sizes: '/sizes',
   hsnCodes: '/setup/hsn',
   itemGroups: '/setup/groups',
+  promotionTypes: '/pricing/promotion-types',
+  salesmen: '/setup/salesmen',
 };
 
 const responseKeyMap = {
@@ -22,6 +24,8 @@ const responseKeyMap = {
   sizes: 'sizes',
   hsnCodes: 'hsns',
   itemGroups: 'groups',
+  promotionTypes: 'types',
+  salesmen: 'salesmen',
 };
 
 const singularKeyMap = {
@@ -33,6 +37,8 @@ const singularKeyMap = {
   sizes: 'size',
   hsnCodes: 'hsn',
   itemGroups: 'group',
+  promotionTypes: 'promotionType',
+  salesmen: 'salesman',
 };
 
 // Async Thunks for different master entities
@@ -300,6 +306,8 @@ const initialState = {
   sizes: [],
   hsnCodes: [],
   itemGroups: [],
+  promotionTypes: [],
+  salesmen: [],
   loading: false,
   error: null,
 };

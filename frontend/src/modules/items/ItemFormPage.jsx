@@ -37,9 +37,15 @@ const COMMON_COLORS = [
   'Turquoise', 'Teal', 'Purple', 'Lavender', 'Magenta', 'Peach', 'Coral', 'Salmon', 'Gold', 'Silver', 'Copper'
 ];
 
-const TABS = [
+const TABS_GARMENT = [
   ['basic', 'Core Information'],
   ['variants', 'Sizes & Pricing'],
+  ['media', 'Media'],
+];
+
+const TABS_MATERIAL = [
+  ['basic', 'Core Information'],
+  ['stock', 'Rate & Stock'],
   ['media', 'Media'],
 ];
 
@@ -80,9 +86,13 @@ function ItemFormPage({ mode = 'edit' }) {
   const [successMessage, setSuccessMessage] = useState('');
   const [images, setImages] = useState(Array(5).fill(null));
   const [uploadingImage, setUploadingImage] = useState(null);
+  const [materialRate, setMaterialRate] = useState({ purchaseRate: 0, saleRate: 0, openingStock: 0 });
 
   const styleCode = watch('itemCode');
-  const typeWatch = watch('type');
+  const typeWatch = watch('type');  // ← must be declared BEFORE isGarment
+
+  const isGarment = typeWatch === 'GARMENT';
+  const TABS = isGarment ? TABS_GARMENT : TABS_MATERIAL;
 
   useEffect(() => {
     dispatch(fetchMasters('brands'));
@@ -219,7 +229,8 @@ function ItemFormPage({ mode = 'edit' }) {
   });
 
   const onSubmit = async (data, statusOverride = data.status || 'Active', stay = false) => {
-    if (!variants.length) {
+    // For GARMENT: must have at least one variant
+    if (isGarment && !variants.length) {
       setErrorMessage('Please add at least one Size/Variant and Pricing.');
       setActiveTab('variants');
       return;
@@ -237,7 +248,7 @@ function ItemFormPage({ mode = 'edit' }) {
       sectionId: data.sectionId,
       categoryId: data.categoryId,
       subCategoryId: data.subCategoryId,
-      styleId: data.subSubCategoryId, // Mapping UI subSubCategoryId to styleId
+      styleId: data.subSubCategoryId,
       groupIds: [data.sectionId, data.categoryId, data.subCategoryId, data.subSubCategoryId].filter(Boolean),
       category: data.categoryId,
       uom: data.uom,
@@ -251,20 +262,27 @@ function ItemFormPage({ mode = 'edit' }) {
       defaultWarehouse: data.defaultWarehouse,
       reorderLevel: Number(data.reorderLevel || 0),
       reorderQty: Number(data.reorderQty || 0),
-      openingStock: Number(data.openingStock || 0),
-      openingStockRate: Number(data.openingStockRate || 0),
+      openingStock: isGarment ? Number(data.openingStock || 0) : Number(materialRate.openingStock || 0),
+      openingStockRate: isGarment ? Number(data.openingStockRate || 0) : Number(materialRate.purchaseRate || 0),
       stockTrackingEnabled: data.stockTrackingEnabled !== false,
-      barcodeEnabled: data.barcodeEnabled !== false,
+      barcodeEnabled: isGarment ? (data.barcodeEnabled !== false) : false, // No barcode for fabric/accessory
       status: statusOverride,
       accessorySize: data.accessorySize,
       packingType: data.packingType,
+      composition: data.composition,
+      gsm: data.gsm,
+      width: data.width,
+      shrinkage: data.shrinkage,
+      shadeNo: data.shadeNo,
+      purchaseRate: Number(materialRate.purchaseRate || 0),
+      saleRate: Number(materialRate.saleRate || 0),
       images: images.filter(Boolean).map((img) => img.preview || img),
       type: data.type || 'GARMENT',
-      sizes: variants.map((v) => ({
+      sizes: isGarment ? variants.map((v) => ({
         ...v,
         mrp: Number(v.mrp || 0),
         stock: Number(v.stock || 0)
-      }))
+      })) : [], // Fabric/Accessory don't have size variants
     };
 
     try {
@@ -476,13 +494,71 @@ function ItemFormPage({ mode = 'edit' }) {
             </Stack>
           </Box>
 
-          {/* Variants Tab */}
+          {/* Variants Tab - Only for GARMENT */}
           <Box sx={{ display: activeTab === 'variants' ? 'block' : 'none' }}>
             <VariantTable
               variants={variants} onChange={setVariants}
               styleCode={styleCode || 'ITEM'} readOnly={isViewMode}
               sizeOptions={sizes.map(s => s.sizeCode || s.name)}
             />
+          </Box>
+
+          {/* Rate & Stock Tab - Only for FABRIC / ACCESSORY */}
+          <Box sx={{ display: activeTab === 'stock' ? 'block' : 'none' }}>
+            <FormSection
+              title={typeWatch === 'FABRIC' ? 'Fabric Rate & Inventory' : 'Accessory Rate & Inventory'}
+              subtitle={typeWatch === 'FABRIC'
+                ? 'Set purchase rate and opening stock for this fabric. No size variants needed.'
+                : 'Set purchase rate and opening stock for this accessory. Barcodes are not generated for accessories.'
+              }
+            >
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12 }}>
+                  <Box sx={{ p: 2, bgcolor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 2, mb: 2 }}>
+                    <Typography variant="body2" sx={{ color: '#92400e', fontWeight: 600 }}>
+                      ℹ️ {typeWatch === 'FABRIC' ? 'Fabric' : 'Accessory'} items do not need Size/Color variants.
+                      Barcodes are only generated for Finished Garments.
+                      Stock will be tracked in Meters/Pieces as per UOM.
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid size={{ xs: 12, md: 3 }}>
+                  <TextField
+                    fullWidth size="small" type="number" label="Purchase Rate (per unit)"
+                    value={materialRate.purchaseRate}
+                    onChange={(e) => setMaterialRate(prev => ({ ...prev, purchaseRate: e.target.value }))}
+                    disabled={isViewMode}
+                    InputProps={{ startAdornment: <span style={{ marginRight: 4, color: '#64748b' }}>₹</span> }}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 3 }}>
+                  <TextField
+                    fullWidth size="small" type="number" label="Sale Rate (per unit)"
+                    value={materialRate.saleRate}
+                    onChange={(e) => setMaterialRate(prev => ({ ...prev, saleRate: e.target.value }))}
+                    disabled={isViewMode}
+                    InputProps={{ startAdornment: <span style={{ marginRight: 4, color: '#64748b' }}>₹</span> }}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 3 }}>
+                  <TextField
+                    fullWidth size="small" type="number"
+                    label={`Opening Stock (${watch('uom') || 'PCS'})`}
+                    value={materialRate.openingStock}
+                    onChange={(e) => setMaterialRate(prev => ({ ...prev, openingStock: e.target.value }))}
+                    disabled={isViewMode}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 3 }}>
+                  <TextField
+                    fullWidth size="small" label="Reorder Level"
+                    type="number"
+                    {...register('reorderLevel')}
+                    disabled={isViewMode}
+                  />
+                </Grid>
+              </Grid>
+            </FormSection>
           </Box>
 
           {/* Media Tab */}

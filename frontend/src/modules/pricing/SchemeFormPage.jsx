@@ -18,19 +18,13 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import { useForm, Controller } from 'react-hook-form';
 import { addScheme, updateScheme } from './pricingSlice';
+import { fetchMasters } from '../masters/mastersSlice';
+import { fetchItems } from '../items/itemsSlice';
 
 const toNum = (v, def = 0) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : def;
 };
-
-const SCHEME_TYPES = [
-  { value: 'PERCENTAGE', label: 'Percentage (%) Discount' },
-  { value: 'FLAT', label: 'Flat Amount (₹) Discount' },
-  { value: 'BOGO', label: 'BOGO (Buy 1 Get 1 Free)' },
-  { value: 'BUY_X_GET_Y', label: 'Buy X quantity, Get Y free' },
-  // { value: 'FREE_GIFT', label: 'Free Gift on Purchase' },
-];
 
 function SchemeFormPage() {
   const { id } = useParams();
@@ -40,8 +34,9 @@ function SchemeFormPage() {
 
   const schemes = useSelector((state) => state.pricing.schemes);
   const items = useSelector((state) => state.items.records || []);
-  const categories = useSelector((state) => state.masters.categories || []);
+  const categories = useSelector((state) => state.masters.itemGroups || []);
   const brands = useSelector((state) => state.masters.brands || []);
+  const promotionTypes = useSelector((state) => state.masters.promotionTypes || []);
 
   const existing = useMemo(
     () => (isEditMode ? schemes.find((s) => (s.id || s._id) === id) : null),
@@ -76,6 +71,13 @@ function SchemeFormPage() {
   });
 
   const schemeType = watch('type');
+
+  useEffect(() => {
+    dispatch(fetchMasters('brands'));
+    dispatch(fetchMasters('itemGroups')); // Categories
+    dispatch(fetchItems()); // Products
+    dispatch(fetchMasters('promotionTypes'));
+  }, [dispatch]);
 
   useEffect(() => {
     if (isEditMode && existing) {
@@ -168,37 +170,63 @@ function SchemeFormPage() {
                     <TextField
                       fullWidth
                       select
-                      label="Offer Type"
+                      label="Offer Type (From your Master List)"
                       {...register('type')}
                     >
-                      {SCHEME_TYPES.map(o => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
+                      {promotionTypes.length > 0 ? (
+                        promotionTypes.map(o => (
+                          <MenuItem key={o._id || o.id} value={o.baseLogic}>
+                            {o.name}
+                          </MenuItem>
+                        ))
+                      ) : (
+                        <MenuItem disabled value="">
+                          <em>Add types in "Offer Configs" first!</em>
+                        </MenuItem>
+                      )}
                     </TextField>
                   </Grid>
 
-                  {(schemeType === 'PERCENTAGE' || schemeType === 'FLAT') && (
+                  {(schemeType === 'PERCENTAGE' || schemeType === 'FLAT' || schemeType === 'FIXED_PRICE') && (
                     <Grid item xs={12} md={6}>
                       <TextField
                         fullWidth
                         type="number"
-                        label={schemeType === 'PERCENTAGE' ? 'Discount Percentage (%)' : 'Flat Discount (₹)'}
+                        label={
+                          schemeType === 'PERCENTAGE' ? 'Discount Percentage (%)' : 
+                          schemeType === 'FIXED_PRICE' ? 'Combo Price (₹ for bundle)' : 
+                          'Flat Discount (₹)'
+                        }
                         {...register('value', { required: true, min: 0 })}
                         InputProps={{
-                          startAdornment: <Typography sx={{ mr: 1, color: '#94a3b8' }}>{schemeType === 'PERCENTAGE' ? '%' : '₹'}</Typography>
+                          startAdornment: (
+                            <Typography sx={{ mr: 1, color: '#94a3b8' }}>
+                              {schemeType === 'PERCENTAGE' ? '%' : '₹'}
+                            </Typography>
+                          )
                         }}
                       />
                     </Grid>
                   )}
 
-                  {schemeType === 'BUY_X_GET_Y' && (
+                  {(schemeType === 'BUY_X_GET_Y' || schemeType === 'FIXED_PRICE') && (
                     <>
                       <Grid item xs={12} md={3}>
-                        <TextField fullWidth type="number" label="Buy Qty (X)" {...register('buyQuantity', { required: true, min: 1 })} />
+                        <TextField 
+                            fullWidth 
+                            type="number" 
+                            label={schemeType === 'FIXED_PRICE' ? 'Bundle Qty (X)' : 'Buy Qty (X)'} 
+                            {...register('buyQuantity', { required: true, min: 1 })} 
+                        />
                       </Grid>
-                      <Grid item xs={12} md={3}>
-                        <TextField fullWidth type="number" label="Get Qty (Y)" {...register('getQuantity', { required: true, min: 1 })} />
-                      </Grid>
+                      {schemeType === 'BUY_X_GET_Y' && (
+                        <Grid item xs={12} md={3}>
+                            <TextField fullWidth type="number" label="Get Qty (Y)" {...register('getQuantity', { required: true, min: 1 })} />
+                        </Grid>
+                      )}
                     </>
                   )}
+
                 </Grid>
               </Paper>
 

@@ -211,7 +211,11 @@ const normalizeItem = (item, entityType) => {
                 normalized.brand = item.productId.brand;
                 normalized.category = item.productId.category;
                 normalized.salePrice = item.productId.salePrice;
+                normalized.mrp = item.productId.mrp;
             }
+            // Preserve top-level fields if added by manual population
+            if (item.salePrice !== undefined) normalized.salePrice = item.salePrice;
+            if (item.mrp !== undefined) normalized.mrp = item.mrp;
             const sId = item.storeId?._id || item.storeId?.id || item.storeId || item.warehouseId?._id || item.warehouseId?.id || item.warehouseId;
             normalized.storeId = sId;
             normalized.warehouseId = sId;

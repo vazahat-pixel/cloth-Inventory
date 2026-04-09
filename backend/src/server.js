@@ -25,6 +25,18 @@ const startServer = async () => {
     // 1. Initialize Real-time Visibility (Socket.io)
     initSocket(server);
 
+    // Handle port already in use gracefully
+    server.on('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+            logger.error(`❌ Port ${PORT} is already in use!`);
+            logger.error(`   Run this to fix: taskkill /F /IM node.exe`);
+            logger.error(`   Then restart: npm run dev`);
+            process.exit(1);
+        } else {
+            throw err;
+        }
+    });
+
     // ── Graceful shutdown ─────────────────────────────────────────
     const shutdown = async (signal) => {
         logger.warn(`${signal} received. Shutting down gracefully...`);

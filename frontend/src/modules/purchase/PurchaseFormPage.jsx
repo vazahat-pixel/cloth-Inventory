@@ -89,7 +89,7 @@ function PurchaseFormPage() {
 
   const { control, register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm({
     defaultValues: {
-      type: 'RAW_MATERIAL', // Default to RM as per new flow
+      type: 'FABRIC', // Default to FABRIC as per new flow
       supplierId: '',
       warehouseId: '',
       invoiceNumber: '',
@@ -367,7 +367,7 @@ function PurchaseFormPage() {
               render={({ field }) => (
                 <Stack direction="row" spacing={1.5}>
                   {[
-                    { val: 'RAW_MATERIAL', label: 'Fabric / Raw Material' },
+                    { val: 'FABRIC', label: 'Fabric / Raw Material' },
                     { val: 'ACCESSORY', label: 'Accessories' },
                     { val: 'FINISHED_GOOD', label: 'Finished Goods (GRN)' }
                   ].map((cat) => (
@@ -441,7 +441,7 @@ function PurchaseFormPage() {
               <Autocomplete
                 size="small"
                 fullWidth
-                options={items.filter(i => i.type === 'RAW_MATERIAL' || !i.type)}
+                options={items.filter(i => i.type === 'FABRIC' || i.type === 'ACCESSORY' || !i.type)}
                 getOptionLabel={(o) => `${o.itemName} (${o.itemCode})`}
                 renderInput={(params) => (
                   <TextField
