@@ -75,10 +75,14 @@ const getStoreInventory = async (query, user) => {
     const warehouseFilter = {};
 
     // 1. Enforce scoping
-    if (user.role === 'store_staff') {
-        if (!user.shopId) throw new Error('User is not linked to any store.');
+    const normalizedRole = (user.role || '').toLowerCase();
+    const isStoreRole = normalizedRole.includes('staff') || normalizedRole.includes('manager') || normalizedRole.includes('accountant');
+    
+    if (isStoreRole) {
+        if (!user.shopId) throw new Error('User is not linked to any store. Please contact your administrator.');
         storeFilter.storeId = user.shopId;
-        warehouseFilter._id = null;
+        // Store users should NOT see warehouse inventory rows
+        warehouseFilter._id = { $exists: false };
     } else if (storeId) {
         storeFilter.storeId = storeId;
         warehouseFilter.warehouseId = storeId;
