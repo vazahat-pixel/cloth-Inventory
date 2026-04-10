@@ -277,7 +277,7 @@ const updateDispatch = async (id, dispatchData, userId) => {
         if (!dispatchMaster) throw new Error('Dispatch record not found');
         if (dispatchMaster.status !== 'PENDING') throw new Error('Only Draft/Pending dispatches can be updated');
 
-        const { items: newItems, products, notes, sourceId, destinationStoreId } = dispatchData;
+        const { items: newItems, products, notes, sourceId, destinationStoreId, vehicleNumber, driverName } = dispatchData;
         const finalProducts = newItems || products || [];
 
         // Resolve Entities for GST/Discount check

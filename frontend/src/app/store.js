@@ -13,6 +13,7 @@ import grnReducer from '../modules/grn/grnSlice';
 import dispatchReducer from '../modules/dispatch/dispatchSlice';
 import reportsReducer from '../modules/reports/reportsSlice';
 import productionReducer from '../modules/production/productionSlice';
+import accountsReducer from '../modules/accounts/accountsSlice';
 
 export const store = configureStore({
   reducer: {
@@ -30,5 +31,6 @@ export const store = configureStore({
     dispatch: dispatchReducer,
     reports: reportsReducer,
     production: productionReducer,
+    accounts: accountsReducer,
   },
 });

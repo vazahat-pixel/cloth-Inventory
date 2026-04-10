@@ -71,6 +71,23 @@ function DeliveryChallanForm({
     const stores = useSelector((state) => state.masters.stores || []);
     const stockRows = useSelector((state) => state.inventory.stock || []);
 
+    const sourceDoc = useMemo(() => warehouses.find(w => (w.id || w._id) === sourceId) || stores.find(s => (s.id || s._id) === sourceId), [warehouses, stores, sourceId]);
+    const destDoc = useMemo(() => stores.find(s => (s.id || s._id) === storeId), [stores, storeId]);
+
+    const isSameEntity = useMemo(() => {
+        if (!sourceDoc || !destDoc) return true;
+        const sGst = (sourceDoc.gstNumber || '').trim().toUpperCase();
+        const dGst = (destDoc.gstNumber || '').trim().toUpperCase();
+        return sGst === dGst && sGst !== '';
+    }, [sourceDoc, destDoc]);
+
+    const isInterState = useMemo(() => {
+        if (!sourceDoc || !destDoc) return false;
+        const sState = (sourceDoc.location?.state || sourceDoc.state || '').trim().toLowerCase();
+        const dState = (destDoc.location?.state || destDoc.state || '').trim().toLowerCase();
+        return sState !== dState && sState !== '' && dState !== '';
+    }, [sourceDoc, destDoc]);
+
     useEffect(() => {
         dispatch(fetchMasters('warehouses'));
         dispatch(fetchMasters('stores'));
@@ -93,6 +110,9 @@ function DeliveryChallanForm({
             if (item.sizes && Array.isArray(item.sizes)) {
                 item.sizes.forEach(sz => {
                     if (Number(sz.stock || 0) > 0) {
+                        const gstPct = Number(item.hsCodeId?.gstPercent || item.gstPercent || 0);
+                        const baseRate = Number(sz.mrp || item.salePrice || 0);
+                        
                         flattened.push({
                             variantId: sz._id,
                             itemId: item._id || item.id,
@@ -104,8 +124,8 @@ function DeliveryChallanForm({
                             size: sz.size || '-',
                             color: item.shade || sz.color || '-',
                             available: Number(sz.stock),
-                            mrp: Number(sz.mrp || item.salePrice || 0),
-                            gstPercent: Number(item.hsCodeId?.gstPercent || item.gstPercent || 0)
+                            mrp: baseRate,
+                            gstPercent: gstPct
                         });
                     }
                 });
@@ -364,18 +384,26 @@ function DeliveryChallanForm({
                                 <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
                                 <TableCell align="right" sx={{ fontWeight: 700 }}>MRP</TableCell>
                                 <TableCell align="right" sx={{ fontWeight: 700 }}>Expected Qty</TableCell>
+                                {!isSameEntity && <TableCell align="right" sx={{ fontWeight: 700 }}>GST%</TableCell>}
+                                {!isSameEntity && <TableCell align="right" sx={{ fontWeight: 700 }}>Tax</TableCell>}
                                 {isReceiveMode && <TableCell align="right" sx={{ fontWeight: 700, color: '#166534' }}>Received Qty</TableCell>}
                                 {!isReceiveMode && <TableCell align="right" sx={{ fontWeight: 700 }}>Dispatch Qty</TableCell>}
                                 {!isLocked && <TableCell align="center">Action</TableCell>}
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {lines.map((l) => (
+                            {lines.map((l) => {
+                                const taxableValue = (l.mrp || 0) * (l.quantity || 0);
+                                const taxAmount = !isSameEntity ? (taxableValue * (l.gstPercent || 0)) / 100 : 0;
+                                
+                                return (
                                 <TableRow key={l.variantId} sx={{ bgcolor: isReceiveMode && l.receivedQty != l.quantity ? '#fff1f2' : 'inherit' }}>
                                     <TableCell>{l.itemName} ({l.size}/{l.color})</TableCell>
                                     <TableCell>{l.sku}</TableCell>
                                     <TableCell align="right">₹{(l.mrp || 0).toLocaleString()}</TableCell>
                                     <TableCell align="right" sx={{ fontWeight: 700 }}>{l.quantity}</TableCell>
+                                    {!isSameEntity && <TableCell align="right">{l.gstPercent}%</TableCell>}
+                                    {!isSameEntity && <TableCell align="right">₹{taxAmount.toLocaleString()}</TableCell>}
                                     {isReceiveMode && (
                                         <TableCell align="right">
                                             <TextField 
@@ -403,10 +431,43 @@ function DeliveryChallanForm({
                                         </TableCell>
                                     )}
                                 </TableRow>
-                            ))}
+                                );
+                            })}
                         </TableBody>
                     </Table>
                 </TableContainer>
+
+                <Stack direction="row" justifyContent="flex-end" sx={{ mt: 2 }}>
+                    <Box sx={{ minWidth: 250, p: 2, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
+                        <Stack spacing={1}>
+                            <Stack direction="row" justifyContent="space-between">
+                                <Typography variant="body2">Subtotal:</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                    ₹{lines.reduce((acc, l) => acc + (l.mrp * l.quantity), 0).toLocaleString()}
+                                </Typography>
+                            </Stack>
+                            {!isSameEntity && (
+                                <Stack direction="row" justifyContent="space-between">
+                                    <Typography variant="body2">Tax ({isInterState ? 'IGST' : 'CGST+SGST'}):</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                        ₹{lines.reduce((acc, l) => acc + ((l.mrp * l.quantity * l.gstPercent) / 100), 0).toLocaleString()}
+                                    </Typography>
+                                </Stack>
+                            )}
+                            <Divider />
+                            <Stack direction="row" justifyContent="space-between">
+                                <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>Total Value:</Typography>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#1e293b' }}>
+                                    ₹{lines.reduce((acc, l) => {
+                                        const base = l.mrp * l.quantity;
+                                        const tax = !isSameEntity ? (base * l.gstPercent) / 100 : 0;
+                                        return acc + base + tax;
+                                    }, 0).toLocaleString()}
+                                </Typography>
+                            </Stack>
+                        </Stack>
+                    </Box>
+                </Stack>
 
                 <Stack direction="row" spacing={2} justifyContent="flex-end">
                     <Button variant="outlined" onClick={() => navigate(listPath)}>Cancel</Button>
@@ -417,7 +478,7 @@ function DeliveryChallanForm({
                     )}
                     {!isReceiveMode && !isLocked && (
                       <Button variant="contained" color="primary" onClick={() => handleSave()} disabled={isSubmitting}>
-                          {providedTitle}
+                          {isSameEntity ? 'Generate Delivery Challan' : 'Generate Tax Invoice'}
                       </Button>
                     )}
                 </Stack>

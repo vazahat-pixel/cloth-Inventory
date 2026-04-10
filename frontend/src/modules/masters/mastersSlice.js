@@ -37,7 +37,7 @@ const singularKeyMap = {
   sizes: 'size',
   hsnCodes: 'hsn',
   itemGroups: 'group',
-  promotionTypes: 'promotionType',
+  promotionTypes: 'type',
   salesmen: 'salesman',
 };
 

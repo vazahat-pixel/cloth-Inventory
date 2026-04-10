@@ -177,8 +177,17 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             let gstData = { cgst: 0, sgst: 0, igst: 0, totalTax: 0 };
             const gstPercentage = parentItem.gstTax || 0;
             
-            if (gstPercentage > 0) {
-                gstData = calculateGST(taxableAmount, gstPercentage, 'CGST_SGST');
+            // If tax data is already provided (e.g. from Dispatch module), use it
+            if (item.taxAmount !== undefined && item.taxAmount !== null) {
+                gstData = {
+                    cgst: toNumber(item.cgst),
+                    sgst: toNumber(item.sgst),
+                    igst: toNumber(item.igst),
+                    totalTax: toNumber(item.taxAmount)
+                };
+            } else if (gstPercentage > 0) {
+                const gstType = saleData.gstType || 'CGST_SGST';
+                gstData = calculateGST(taxableAmount, gstPercentage, gstType);
             }
 
             totalCGST += gstData.cgst;
