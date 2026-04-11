@@ -40,6 +40,7 @@ import { fetchItems } from '../items/itemsSlice';
 import { fetchPurchaseOrders } from '../purchase/purchaseSlice';
 import { fetchGrns, addGrn, approveGrn, updateGrn } from './grnSlice';
 import { fetchOutwards } from '../production/productionSlice';
+import PieceEntryDialog from './PieceEntryDialog';
 
 const defaultForm = {
   grnNumber: '',
@@ -79,6 +80,8 @@ function GRNFormPage({ mode = 'edit' }) {
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [searchText, setSearchText] = useState('');
+  const [activeItemForRolls, setActiveItemForRolls] = useState(null);
+  const [isRollDialogOpen, setIsRollDialogOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const existingGrn = useMemo(() => grns.find(g => (g._id || g.id) === id), [grns, id]);
@@ -210,6 +213,68 @@ function GRNFormPage({ mode = 'edit' }) {
     }
   }, [warehouses, id, formValues.warehouseId]);
 
+  // AUTO-POPULATE LINES FROM PO
+  useEffect(() => {
+    if (!id && formValues.purchaseOrderId) {
+      const po = purchaseOrders.find(o => (o.id || o._id) === formValues.purchaseOrderId);
+      if (po) {
+        const suppId = (typeof po.supplierId === 'object' && po.supplierId !== null)
+          ? (po.supplierId._id || po.supplierId.id)
+          : po.supplierId;
+
+        setFormValues(prev => ({
+          ...prev,
+          supplierId: suppId || '',
+          warehouseId: po.warehouseId?._id || po.warehouseId || '',
+          remarks: po.notes || '',
+        }));
+
+        setLines((po.items || []).map((item, idx) => {
+          const vId = item.variantId?._id || item.variantId;
+          const iId = item.itemId?._id || item.itemId;
+          const master = allItems.find(i => (i._id || i.id).toString() === iId.toString());
+          const variant = master?.sizes?.find(v => (v._id || v.id).toString() === vId.toString());
+
+          return {
+            id: `po-${idx}-${Date.now()}`,
+            itemId: iId,
+            variantId: vId,
+            itemName: item.itemName || 'Item',
+            itemCode: item.itemCode || '',
+            size: item.size || '',
+            color: item.color || '',
+            sku: item.sku || variant?.sku || '',
+            receivedQty: item.qty || item.quantity,
+            uom: master?.uom || 'PCS',
+            costPrice: variant?.mrp || item.costPrice || item.rate || 0,
+            taxPercent: master?.gstPercent || item.taxPercent || 0,
+            batchNumber: `B-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`
+          };
+        }));
+      }
+    }
+  }, [formValues.purchaseOrderId, purchaseOrders, id, allItems]);
+
+  // AUTO-POPULATE CONSUMPTION FROM JOB WORK
+  useEffect(() => {
+    if (!id && formValues.jobWorkId && formValues.grnType === 'GARMENT') {
+       const so = supplierOutwards.find(o => (o._id || o.id) === formValues.jobWorkId);
+       if (so && so.items) {
+          setConsumptionLines(so.items.map(item => ({
+             itemId: item.itemId?._id || item.itemId,
+             variantId: item.variantId || null,
+             itemName: item.itemId?.itemName || 'Material',
+             barcode: item.code || 'N/A',
+             availableQty: item.quantity,
+             quantity: 0,
+             wasteQuantity: 0,
+             pendingQuantity: item.quantity
+          })));
+       }
+    }
+  }, [formValues.jobWorkId, formValues.grnType, supplierOutwards, id]);
+
+
   const totals = useMemo(() => {
     return lines.reduce((acc, curr) => {
       acc.received += Number(curr.receivedQty || 0);
@@ -228,146 +293,72 @@ function GRNFormPage({ mode = 'edit' }) {
     setLines(lines.filter((_, i) => i !== idx));
   };
 
-  const handleBarcodeScan = (barcode) => {
-    if (!barcode) return;
-
-    // 1. Check if item already exists in the scan lines
-    const existingIdx = lines.findIndex(l => l.sku === barcode || l.barcode === barcode);
-    if (existingIdx !== -1) {
-      updateLine(existingIdx, 'receivedQty', Number(lines[existingIdx].receivedQty || 0) + 1);
-      return;
-    }
-
-    // 2. Search in allItems master
-    let foundItem = null;
-    let foundVariant = null;
-
-    for (const item of allItems) {
-      const variant = (item.sizes || []).find(v => v.sku === barcode || v.barcode === barcode);
-      if (variant) {
-        foundItem = item;
-        foundVariant = variant;
-        break;
-      }
-    }
-
-    if (foundItem && foundVariant) {
-      const newLine = {
-        id: `scan-${Date.now()}-${Math.random()}`,
-        itemId: foundItem._id || foundItem.id,
-        variantId: foundVariant._id || foundVariant.id,
-        itemName: foundItem.itemName,
-        itemCode: foundItem.itemCode,
-        size: foundVariant.size,
-        color: foundItem.shade || '',
-        sku: foundVariant.sku || foundVariant.barcode,
-        receivedQty: 1,
-        uom: foundItem.uom || 'PCS',
-        costPrice: foundVariant.mrp || 0, // Using costPrice field for MRP to maintain backend compatibility
-        taxPercent: foundItem?.gstPercent || 0,
-        batchNumber: `B-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`
-      };
-      setLines(prev => [newLine, ...prev]);
-    } else {
-      setErrorMessage(`Barcode NOT FOUND: ${barcode}. Please check Item Master.`);
-      setTimeout(() => setErrorMessage(''), 3000);
-    }
+  const addLineItem = (item, variant) => {
+    const newLine = {
+      id: `scan-${Date.now()}-${Math.random()}`,
+      itemId: item._id || item.id,
+      variantId: variant._id || variant.id,
+      itemName: item.itemName,
+      itemCode: item.itemCode,
+      size: variant.size,
+      color: item.shade || '',
+      sku: variant.sku || variant.barcode,
+      receivedQty: 1,
+      uom: item.uom || 'PCS',
+      costPrice: variant.mrp || 0,
+      taxPercent: item?.gstPercent || 0,
+      batchNumber: `B-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`
+    };
+    setLines(prev => [newLine, ...prev]);
   };
 
   const addItemToLines = (item) => {
     if (!item || !item.sizes?.length) return;
-
     const newLines = item.sizes.map(v => ({
       id: `temp-${Date.now()}-${Math.random()}`,
       itemId: item._id || item.id,
       variantId: v._id || v.id,
       itemName: item.itemName,
       itemCode: item.itemCode,
-      shade: item.shade,
       size: v.size,
-      sku: v.sku,
+      color: item.shade || '',
+      sku: v.sku || v.barcode,
       receivedQty: 0,
       uom: item.uom || 'PCS',
       costPrice: v.mrp || 0,
       taxPercent: item?.gstPercent || 0,
       batchNumber: `B-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`
     }));
-
     setLines([...lines, ...newLines]);
     setSelectedItem(null);
   };
 
-  useEffect(() => {
-    if (!id && formValues.purchaseOrderId) {
-      const po = purchaseOrders.find(o => (o.id || o._id) === formValues.purchaseOrderId);
-      if (po) {
-        const suppId = (typeof po.supplierId === 'object' && po.supplierId !== null)
-          ? (po.supplierId._id || po.supplierId.id)
-          : po.supplierId;
+  const handleBarcodeScan = (barcode) => {
+    const item = allItems.find(it => {
+      if (it.itemCode === barcode) return true;
+      return (it.sizes || []).some(s => s.sku === barcode || s.barcode === barcode);
+    });
 
-        setFormValues(prev => ({
-          ...prev,
-          supplierId: suppId || '',
-          warehouseId: po.warehouseId?._id || po.warehouseId || '',
-          remarks: po.notes || '',
-        }));
-
-        const poItems = po.items || [];
-        setLines(
-          poItems.map((item, idx) => {
-            const variantId = item.variantId?._id || item.variantId;
-            const itemId = item.itemId?._id || item.itemId;
-
-            // FALLBACK Logic: If SKU is missing in PO, fetch from master
-            let sku = item.sku;
-            if (!sku && itemId) {
-              const masterItem = allItems.find(i => (i._id || i.id).toString() === itemId.toString());
-              if (masterItem?.sizes) {
-                const variant = masterItem.sizes.find(v => (v._id || v.id).toString() === variantId.toString());
-                sku = variant?.sku;
-              }
-            }
-
-            return {
-              id: `line-${idx}-${Date.now()}`,
-              itemId,
-              variantId,
-              itemName: item.itemName || 'Item',
-              itemCode: item.itemCode || '',
-              size: item.size || '',
-              color: item.color || '',
-              sku: sku || item.sku || item.itemCode || '',
-              receivedQty: item.qty || item.quantity,
-              uom: masterItem?.uom || 'PCS',
-              costPrice: variant?.mrp || item.costPrice || item.price || item.rate || 0,
-              taxPercent: masterItem?.gstPercent || item.taxPercent || item.tax || 0,
-              batchNumber: `B-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`,
-            };
-          })
-        );
+    if (item) {
+      if (item.type === 'FABRIC' || item.type === 'ACCESSORY') {
+        setActiveItemForRolls(item);
+        setIsRollDialogOpen(true);
+        return;
       }
+      
+      const variant = (item.sizes || []).find(v => v.sku === barcode || v.barcode === barcode) || item.sizes?.[0];
+      if (variant) {
+        addLineItem(item, variant);
+      }
+    } else {
+      setErrorMessage(`Barcode NOT FOUND: ${barcode}. Please check Item Master.`);
+      setTimeout(() => setErrorMessage(''), 3000);
     }
-  }, [formValues.purchaseOrderId, purchaseOrders, id, allItems]);
+  };
 
-  // AUTO-POPULATE CONSUMPTION from JOB WORK
-  useEffect(() => {
-    if (!id && formValues.jobWorkId && formValues.grnType === 'GARMENT') {
-       const so = supplierOutwards.find(o => (o._id || o.id) === formValues.jobWorkId);
-       if (so && so.items) {
-          const mappedConsumption = so.items.map(item => ({
-             itemId: item.itemId?._id || item.itemId,
-             variantId: item.variantId || null,
-             itemName: item.itemId?.itemName || 'Material',
-             barcode: item.code || 'N/A',
-             availableQty: item.quantity,
-             quantity: 0, // User will enter actual used quantity
-             wasteQuantity: 0,
-             pendingQuantity: item.quantity
-          }));
-          setConsumptionLines(mappedConsumption);
-       }
-    }
-  }, [formValues.jobWorkId, formValues.grnType, supplierOutwards, id]);
+  const handleAddRolls = (rolls) => {
+    setLines(prev => [...rolls, ...prev]);
+  };
 
   const handleSave = async (isDraft = true) => {
     try {
@@ -429,7 +420,6 @@ function GRNFormPage({ mode = 'edit' }) {
 
   return (
     <Box sx={{ p: 0 }}>
-      {/* Dynamic Navigation for Single Warehouse */}
       <PageHeader
         title={isViewMode ? 'View GRN' : id ? 'Edit GRN' : 'Create GRN'}
         subtitle="Manage stock in-flow through scanning or selection."
@@ -473,7 +463,6 @@ function GRNFormPage({ mode = 'edit' }) {
         <Grid item xs={12}>
           <Paper sx={{ p: 4, borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
             <Grid container spacing={4}>
-              {/* SOURCE ROW */}
               <Grid item xs={12} md={4}>
                 <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>Link Purchase Order</Typography>
                 <TextField
@@ -524,7 +513,6 @@ function GRNFormPage({ mode = 'edit' }) {
                 </TextField>
               </Grid>
 
-              {/* LOGISTICS & INVOICE ROW */}
               {formValues.grnType === 'GARMENT' && (
                 <Grid item xs={12} md={4}>
                   <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>Job Work Reference</Typography>
@@ -569,7 +557,6 @@ function GRNFormPage({ mode = 'edit' }) {
                 />
               </Grid>
 
-              {/* STATUS ROW */}
               <Grid item xs={12} md={4}>
                 <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>GRN Number</Typography>
                 <TextField
@@ -595,6 +582,25 @@ function GRNFormPage({ mode = 'edit' }) {
                         <Typography variant="caption" sx={{ fontWeight: 900, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: 1 }}>Scanning Active</Typography>
                         <Typography variant="h6" sx={{ fontWeight: 800, color: '#1e293b', lineHeight: 1 }}>Scan Barcodes</Typography>
                       </Box>
+                      <Autocomplete
+                        sx={{ flex: 1, bgcolor: 'white' }}
+                        options={allItems}
+                        getOptionLabel={(option) => `${option.itemCode} - ${option.itemName}`}
+                        onChange={(event, newValue) => {
+                          if (newValue) {
+                            if (newValue.type === 'FABRIC' || newValue.type === 'ACCESSORY') {
+                              setActiveItemForRolls(newValue);
+                              setIsRollDialogOpen(true);
+                            } else {
+                              addItemToLines(newValue);
+                            }
+                          }
+                        }}
+                        renderInput={(params) => <TextField {...params} size="medium" label="Search Item Manually..." />}
+                      />
+                      <Box sx={{ px: 2, height: 52, display: 'flex', alignItems: 'center', borderLeft: '2px solid #e2e8f0', color: '#94a3b8' }}>
+                         <Typography variant="body2" sx={{ fontWeight: 700 }}>OR</Typography>
+                      </Box>
                       <TextField
                         fullWidth
                         autoFocus
@@ -614,7 +620,6 @@ function GRNFormPage({ mode = 'edit' }) {
                           startAdornment: <SearchIcon sx={{ color: '#3b82f6', mr: 1, fontSize: 22 }} />
                         }}
                       />
-                      <Button variant="contained" disableElevation sx={{ height: 52, px: 5, fontWeight: 800, borderRadius: 2, bgcolor: '#2563eb' }} onClick={() => { handleBarcodeScan(searchText); setSearchText(''); }}>Add Manually</Button>
                     </Stack>
                   </Box>
                 </Grid>
@@ -631,7 +636,6 @@ function GRNFormPage({ mode = 'edit' }) {
                   <TableCell sx={{ fontWeight: 700 }}>ITEM / STYLE</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>SIZE</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
-
                   <TableCell align="right" sx={{ fontWeight: 700 }}>RECEIVED</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 700 }}>MRP</TableCell>
                   {formValues.grnType !== 'GARMENT' && <TableCell align="right" sx={{ fontWeight: 700 }}>GST %</TableCell>}
@@ -654,7 +658,6 @@ function GRNFormPage({ mode = 'edit' }) {
                     <TableCell>
                       <Typography variant="caption" sx={{ fontFamily: 'monospace', color: '#64748b' }}>{line.sku}</Typography>
                     </TableCell>
-
                     <TableCell align="right">
                       <TextField
                         type="number"
@@ -706,7 +709,6 @@ function GRNFormPage({ mode = 'edit' }) {
           </TableContainer>
         </Grid>
 
-        {/* NEW CONSUMPTION SECTION */}
         {formValues.grnType === 'GARMENT' && (
           <Grid item xs={12} sx={{ mt: 2 }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 1.5, color: '#ec4899', display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -811,13 +813,6 @@ function GRNFormPage({ mode = 'edit' }) {
                     </TableCell>
                   </TableRow>
                 )}
-                {consumptionLines.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={6} align="center" sx={{ py: 3, color: '#94a3b8', fontStyle: 'italic' }}>
-                      No raw material consumption added yet. Select from supplier balance above.
-                    </TableCell>
-                  </TableRow>
-                )}
               </TableBody>
             </Table>
           </TableContainer>
@@ -837,6 +832,13 @@ function GRNFormPage({ mode = 'edit' }) {
           <Button variant="contained" color="success" onClick={() => { setConfirmOpen(false); handleSave(false); }}>Confirm & Approve</Button>
         </DialogActions>
       </Dialog>
+
+      <PieceEntryDialog 
+        open={isRollDialogOpen} 
+        onClose={() => setIsRollDialogOpen(false)} 
+        onAdd={handleAddRolls} 
+        item={activeItemForRolls}
+      />
     </Box>
   );
 }

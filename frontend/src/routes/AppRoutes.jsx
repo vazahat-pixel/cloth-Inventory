@@ -76,6 +76,8 @@ const DeliveryChallanForm = lazy(() => import('../modules/dispatch/DeliveryChall
 // Purchase
 const PurchaseListPage = lazy(() => import('../modules/purchase/PurchaseListPage'));
 const PurchaseFormPage = lazy(() => import('../modules/purchase/PurchaseFormPage'));
+const PurchaseOrderListPage = lazy(() => import('../modules/purchase/PurchaseOrderListPage'));
+const PurchaseOrderFormPage = lazy(() => import('../modules/purchase/PurchaseOrderFormPage'));
 
 // Production
 const SupplierOutwardListPage = lazy(() => import('../modules/production/SupplierOutwardListPage'));
@@ -87,6 +89,7 @@ const ProfilePage = lazy(() => import('../modules/profile/ProfilePage'));
 const DataImportExportPage = lazy(() => import('../modules/data/DataImportExportPage'));
 const DataHubSubPage = lazy(() => import('../modules/data/DataHubSubPage'));
 const SalesHubSubPage = lazy(() => import('../modules/sales/SalesHubSubPage'));
+const VoucherListPage = lazy(() => import('../modules/accounts/VoucherListPage'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
 
 // Placeholder for pages that are scaffolded but not yet built
@@ -173,6 +176,11 @@ function AppRoutes() {
             <Route path="suppliers/material-ledger" element={<MaterialLedgerPage />} />
             <Route path="masters/customers" element={<CustomersListPage />} />
             <Route path="masters/warehouses" element={<WarehousesListPage />} />
+
+            {/* Accounting */}
+            <Route path="accounts/vouchers" element={<VoucherListPage />} />
+
+            {/* Inventory */}
             <Route path="masters/stores" element={<StoresListPage />} />
             <Route path="masters/brands" element={<BrandListPage />} />
             <Route path="masters/item-groups" element={<ItemGroupsListPage />} />
@@ -242,6 +250,10 @@ function AppRoutes() {
             {/* Purchase */}
             <Route path="purchase" element={<PurchaseListPage />} />
             <Route path="purchase/new" element={<PurchaseFormPage />} />
+            <Route path="purchase/purchase-order" element={<PurchaseOrderListPage />} />
+            <Route path="purchase/purchase-order/new" element={<PurchaseOrderFormPage />} />
+            <Route path="purchase/purchase-order/edit/:id" element={<PurchaseOrderFormPage />} />
+            <Route path="purchase/purchase-voucher" element={<Navigate to="/ho/purchase" replace />} />
 
             {/* Pricing */}
             <Route path="pricing" element={<Navigate to="pricing/price-lists" replace />} />

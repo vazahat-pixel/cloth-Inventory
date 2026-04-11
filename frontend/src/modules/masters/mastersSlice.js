@@ -13,6 +13,8 @@ const endpointMap = {
   itemGroups: '/setup/groups',
   promotionTypes: '/pricing/promotion-types',
   salesmen: '/setup/salesmen',
+  banks: '/banks',
+  accounts: '/accounts',
 };
 
 const responseKeyMap = {
@@ -26,6 +28,8 @@ const responseKeyMap = {
   itemGroups: 'groups',
   promotionTypes: 'types',
   salesmen: 'salesmen',
+  banks: 'banks',
+  accounts: 'accounts',
 };
 
 const singularKeyMap = {
@@ -39,6 +43,8 @@ const singularKeyMap = {
   itemGroups: 'group',
   promotionTypes: 'type',
   salesmen: 'salesman',
+  banks: 'bank',
+  accounts: 'account',
 };
 
 // Async Thunks for different master entities

@@ -57,6 +57,7 @@ const adminSidebarItems = [
   { label: 'Sales & Billing', path: '/sales', icon: PointOfSaleIcon, matchPaths: billingMatchPaths, drilldown: true },
   { label: 'Reports & Analytics', path: '/reports', icon: AssessmentOutlinedIcon, matchPaths: reportsQueriesMatchPaths, drilldown: true },
   { label: 'Suppliers', path: '/masters/suppliers', icon: BusinessIcon, matchPaths: ['/masters/suppliers', '/suppliers/material-ledger'], drilldown: true },
+  { label: 'Accounts & Payments', path: '/ho/accounts/vouchers', icon: AccountBalanceWalletIcon },
   { label: 'Customers & Loyalty', path: '/ho/masters/customers', icon: PeopleIcon },
   { label: 'Offer Schemes', path: '/ho/pricing/schemes', icon: LoyaltyIcon },
   { label: 'Offer Configs', path: '/ho/pricing/types', icon: SettingsSuggestIcon },

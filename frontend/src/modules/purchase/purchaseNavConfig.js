@@ -1,28 +1,29 @@
+import ShoppingCartOutlinedIcon from '@mui/icons-material/ShoppingCartOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import KeyboardReturnOutlinedIcon from '@mui/icons-material/KeyboardReturnOutlined';
 import PriceChangeOutlinedIcon from '@mui/icons-material/PriceChangeOutlined';
 
-export const purchaseMatchPaths = ['/purchase', '/inventory/grn'];
+export const purchaseMatchPaths = ['/purchase', '/inventory/grn', '/purchase/purchase-order'];
 
 export const purchaseNavItems = [
   {
-    key: 'raw-material-purchase',
-    label: 'Raw Material Purchase',
-    path: '/purchase/purchase-voucher',
-    matchPaths: ['/purchase/purchase-voucher'],
-    icon: ReceiptLongOutlinedIcon,
+    key: 'purchase-order',
+    label: 'Purchase Order (Booking)',
+    path: '/purchase/purchase-order',
+    matchPaths: ['/purchase/purchase-order'],
+    icon: ShoppingCartOutlinedIcon,
   },
   {
-    key: 'accessory-purchase',
-    label: 'Accessory Purchase',
-    path: '/purchase/purchase-voucher', // Re-using same form, type logic will handle diff in Phase 2
-    matchPaths: [], 
+    key: 'raw-material-purchase',
+    label: 'Purchase Voucher (Billing)',
+    path: '/purchase/purchase-voucher',
+    matchPaths: ['/purchase/purchase-voucher', '/purchase/new'],
     icon: ReceiptLongOutlinedIcon,
   },
   {
     key: 'grn',
-    label: 'Finished Goods GRN',
+    label: 'Material Inward (GRN)',
     path: '/inventory/grn',
     matchPaths: ['/inventory/grn'],
     icon: FactCheckOutlinedIcon,

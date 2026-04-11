@@ -369,7 +369,8 @@ function PurchaseFormPage() {
                   {[
                     { val: 'FABRIC', label: 'Fabric / Raw Material' },
                     { val: 'ACCESSORY', label: 'Accessories' },
-                    { val: 'FINISHED_GOOD', label: 'Finished Goods (GRN)' }
+                    { val: 'FINISHED_GOOD', label: 'Finished Goods (GRN)' },
+                    { val: 'SERVICE', label: 'Job Work / Stitching Bill' }
                   ].map((cat) => (
                     <Button
                       key={cat.val}
@@ -395,11 +396,11 @@ function PurchaseFormPage() {
 
         {/* Step 2: Source / Linkage */}
         <Box sx={{ mb: 3 }}>
-          {typeWatch === 'FINISHED_GOOD' ? (
+          {['FINISHED_GOOD', 'SERVICE'].includes(typeWatch) ? (
               <Autocomplete
                 size="small"
                 fullWidth
-                options={approvedGrns}
+                options={approvedGrns.filter(g => typeWatch === 'SERVICE' ? g.grnType === 'GARMENT' : g.grnType !== 'GARMENT')}
                 value={grns.find(g => String(g._id || g.id) === linkedGrnId) || null}
                 getOptionLabel={(o) =>
                   typeof o === 'string' ? o :
@@ -412,6 +413,7 @@ function PurchaseFormPage() {
                       <Typography variant="caption" sx={{ color: '#64748b' }}>
                         {option.supplierId?.name || option.supplierId?.supplierName || '—'}
                         {option.invoiceNumber ? ` · Bill# ${option.invoiceNumber}` : ''}
+                        {` · Type: ${option.grnType}`}
                       </Typography>
                     </Box>
                   </Box>
@@ -419,7 +421,7 @@ function PurchaseFormPage() {
                 renderInput={(params) => (
                   <TextField
                     {...params}
-                    label="Link Approved GRN to Auto-fill"
+                    label={typeWatch === 'SERVICE' ? "Link Approved Garment GRN (Stitching Receipt)" : "Link Approved Material GRN"}
                     placeholder="Search by GRN Number or Supplier..."
                     InputProps={{
                       ...params.InputProps,
@@ -430,7 +432,7 @@ function PurchaseFormPage() {
                         </>
                       ),
                     }}
-                    sx={{ '& .MuiInputBase-root': { bgcolor: '#f0fdf4' } }}
+                    sx={{ '& .MuiInputBase-root': { bgcolor: typeWatch === 'SERVICE' ? '#f5f3ff' : '#f0fdf4' } }}
                   />
                 )}
                 onChange={(_, val) => val && populateFromGRN(val)}

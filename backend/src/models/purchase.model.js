@@ -10,7 +10,7 @@ const purchaseSchema = new mongoose.Schema(
         },
         type: {
             type: String,
-            enum: ['RAW_MATERIAL', 'ACCESSORY', 'FINISHED_GOOD'],
+            enum: ['RAW_MATERIAL', 'ACCESSORY', 'FINISHED_GOOD', 'SERVICE', 'LABOUR'],
             default: 'RAW_MATERIAL',
             index: true
         },

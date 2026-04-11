@@ -265,7 +265,7 @@ function ItemFormPage({ mode = 'edit' }) {
       openingStock: isGarment ? Number(data.openingStock || 0) : Number(materialRate.openingStock || 0),
       openingStockRate: isGarment ? Number(data.openingStockRate || 0) : Number(materialRate.purchaseRate || 0),
       stockTrackingEnabled: data.stockTrackingEnabled !== false,
-      barcodeEnabled: isGarment ? (data.barcodeEnabled !== false) : false, // No barcode for fabric/accessory
+      barcodeEnabled: data.barcodeEnabled !== false, // Enable for all types to support Scan-to-In
       status: statusOverride,
       accessorySize: data.accessorySize,
       packingType: data.packingType,
@@ -282,7 +282,15 @@ function ItemFormPage({ mode = 'edit' }) {
         ...v,
         mrp: Number(v.mrp || 0),
         stock: Number(v.stock || 0)
-      })) : [], // Fabric/Accessory don't have size variants
+      })) : [{
+        id: createVariantId(),
+        size: 'Standard',
+        color: data.shadeNo || 'N/A',
+        sku: data.barcode || data.itemCode,
+        mrp: Number(materialRate.saleRate || 0),
+        stock: Number(materialRate.openingStock || 0),
+        status: 'Active'
+      }],
     };
 
     try {
@@ -516,9 +524,9 @@ function ItemFormPage({ mode = 'edit' }) {
                 <Grid size={{ xs: 12 }}>
                   <Box sx={{ p: 2, bgcolor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 2, mb: 2 }}>
                     <Typography variant="body2" sx={{ color: '#92400e', fontWeight: 600 }}>
-                      ℹ️ {typeWatch === 'FABRIC' ? 'Fabric' : 'Accessory'} items do not need Size/Color variants.
-                      Barcodes are only generated for Finished Garments.
+                      ℹ️ {typeWatch === 'FABRIC' ? 'Fabric' : 'Accessory'} items can have barcodes for easy scanning.
                       Stock will be tracked in Meters/Pieces as per UOM.
+                      Set a barcode below if you want to scan this item into the warehouse.
                     </Typography>
                   </Box>
                 </Grid>
@@ -538,6 +546,22 @@ function ItemFormPage({ mode = 'edit' }) {
                     onChange={(e) => setMaterialRate(prev => ({ ...prev, saleRate: e.target.value }))}
                     disabled={isViewMode}
                     InputProps={{ startAdornment: <span style={{ marginRight: 4, color: '#64748b' }}>₹</span> }}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Controller
+                    name="barcode"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        fullWidth size="small"
+                        label="Master Barcode / SKU Scan Code"
+                        placeholder="Scan or type the barcode you will use in Warehouse"
+                        disabled={isViewMode}
+                        helperText="Scan this code in GRN to quickly add quantity."
+                      />
+                    )}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, md: 3 }}>

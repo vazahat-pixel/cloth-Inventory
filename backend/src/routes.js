@@ -13,6 +13,7 @@ const registerRoutes = (app) => {
     app.use('/api/auth', authRoutes);
     app.use('/api/media', require('./modules/media/media.routes'));
     app.use('/api/groups', protect, groupRoutes);
+    app.use('/api/accounts', protect, require('./modules/accounts/account.routes'));
     app.use('/api/import', protect, requireAdmin, importRoutes);
     app.use('/api/setup', protect, setupRoutes);
     app.use('/api/sizes', protect, require('./modules/sizes/size.routes.js'));
@@ -39,6 +40,7 @@ const registerRoutes = (app) => {
     app.use('/api/barcodes', require('./modules/barcodes/barcode.routes'));
     app.use('/api/returns', require('./modules/sales/salesReturn.routes'));
     app.use('/api/production', require('./modules/production/production.routes'));
+    app.use('/api/accounts/vouchers', require('./modules/accountingVouchers/accountingVoucher.routes'));
 };
 
 module.exports = registerRoutes;

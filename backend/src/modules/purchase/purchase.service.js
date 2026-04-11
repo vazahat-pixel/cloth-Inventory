@@ -217,7 +217,14 @@ const postVoucher = async (purchaseId, userId) => {
         });
 
         // ERP Financial Integration: Create Journal Entries
-        const inventoryAccount = await Account.findOne({ name: 'Stock in Hand' }).session(session);
+        let debitAccountName = 'Stock in Hand';
+        if (['SERVICE', 'LABOUR'].includes(purchase.type)) {
+            debitAccountName = 'Direct Expenses'; // Or 'Stitching Charges'
+        }
+
+        const inventoryAccount = await Account.findOne({ name: debitAccountName }).session(session) ||
+                                 await Account.findOne({ type: 'EXPENSE' }).session(session); // Fallback to first expense account
+
         const payableAccount = await Account.findOne({ _id: purchase.supplierId }).session(session) || 
                                await Account.findOne({ name: 'Accounts Payable' }).session(session);
 
@@ -229,7 +236,7 @@ const postVoucher = async (purchaseId, userId) => {
                     accountId: inventoryAccount._id,
                     debit: purchase.subTotal,
                     credit: 0,
-                    narration: `Purchase Bill ${purchase.invoiceNumber || purchase.purchaseNumber} recorded`,
+                    narration: `${purchase.type} Bill ${purchase.invoiceNumber || purchase.purchaseNumber} recorded`,
                     createdBy: userId
                 },
                 {

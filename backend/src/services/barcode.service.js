@@ -1,36 +1,52 @@
 const crypto = require('crypto');
 const BatchBarcode = require('../models/batchBarcode.model');
 
-const generateUniqueBarcode = async () => {
-    let barcode = '';
-    let exists = true;
-    while (exists) {
-        barcode = crypto.randomBytes(4).toString('hex').toUpperCase(); // Example: A1B2C3D4
-        const check = await BatchBarcode.findOne({ barcode });
-        if (!check) exists = false;
+const generateUniqueBarcode = async (prefix = '') => {
+  let barcode = '';
+  let exists = true;
+  while (exists) {
+    if (prefix) {
+      const random = crypto.randomBytes(2).toString('hex').toUpperCase();
+      barcode = `${prefix}-${random}`;
+    } else {
+      barcode = crypto.randomBytes(4).toString('hex').toUpperCase();
     }
-    return barcode;
+    const check = await BatchBarcode.findOne({ barcode });
+    if (!check) exists = false;
+  }
+  return barcode;
+};
+
+const generateRollBarcodes = async (count, styleCode) => {
+  const codes = [];
+  const prefix = styleCode ? styleCode.toUpperCase() : 'ROLL';
+  for (let i = 0; i < count; i++) {
+    const code = await generateUniqueBarcode(prefix);
+    codes.push(code);
+  }
+  return codes;
 };
 
 const createBarcodesForGrn = async (grn, userId, session) => {
-    const barcodes = [];
-    for (const item of grn.products) {
-        // Generate a barcode for each line item (SKU + Batch)
-        const code = await generateUniqueBarcode();
-        const batchBarcode = new BatchBarcode({
-            barcode: code,
-            itemId: item.productId,
-            variantId: item.productId, // assuming productId is the variant for now
-            batchNo: item.batchNo,
-            grnId: grn._id
-        });
-        await batchBarcode.save({ session });
-        barcodes.push(batchBarcode);
-    }
-    return barcodes;
+  const barcodes = [];
+  const products = grn.products || grn.items || [];
+  for (const item of products) {
+    const code = item.sku || (await generateUniqueBarcode());
+    const batchBarcode = new BatchBarcode({
+      barcode: code,
+      itemId: item.productId || item.itemId,
+      variantId: item.variantId || item.productId || item.itemId,
+      batchNo: item.batchNo || 'DEFAULT',
+      grnId: grn._id,
+    });
+    await batchBarcode.save({ session });
+    barcodes.push(batchBarcode);
+  }
+  return barcodes;
 };
 
 module.exports = {
-    generateUniqueBarcode,
-    createBarcodesForGrn
+  generateUniqueBarcode,
+  generateRollBarcodes,
+  createBarcodesForGrn,
 };
