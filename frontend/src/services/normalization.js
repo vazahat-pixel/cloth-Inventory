@@ -229,12 +229,12 @@ const normalizeItem = (item, entityType) => {
                 normalized.warehouseName = item.warehouseId.name;
             }
 
-            normalized.quantity = item.quantityAvailable ?? item.quantity ?? 0;
+            normalized.quantity = item.quantityAvailable ?? item.quantity ?? item.available ?? 0;
             normalized.reserved = item.reservedQuantity ?? item.quantityReserved ?? 0;
             normalized.reservedQuantity = normalized.reserved;
             normalized.quantityReserved = normalized.reserved;
-            normalized.available = item.quantityAvailable ?? Math.max(Number(item.quantity ?? 0) - Number(normalized.reserved), 0);
-            normalized.inTransit = item.quantityInTransit ?? 0;
+            normalized.available = item.quantityAvailable ?? item.available ?? Math.max(Number(item.quantity ?? 0) - Number(normalized.reserved), 0);
+            normalized.inTransit = item.quantityInTransit ?? item.inTransit ?? 0;
             normalized.status = normalized.available <= 10 ? 'LOW_STOCK' : 'OK';
             break;
 

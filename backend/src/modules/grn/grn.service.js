@@ -131,20 +131,29 @@ const createGRN = async (grnData, userId) => {
 
         for (const item of items) {
             const itemId = item.itemId || item.productId;
-            const variantId = item.variantId;
+            let variantId = item.variantId;
             let sku = item.sku;
 
-            // FAIL-SAFE: Recover SKU + itemName + uom from Item Master if missing
-            let masterItem = null;
-            if (!sku && itemId) {
-                masterItem = await Item.findById(itemId).session(session);
-                if (masterItem?.sizes) {
-                    const variant = masterItem.sizes.find(v => (v._id || v.id).toString() === variantId?.toString());
-                    sku = variant?.sku;
+            // 1. FAIL-SAFE: Recover SKU + itemName + uom from Item Master if missing
+            let masterItem = await Item.findById(itemId).session(session);
+            if (!masterItem) throw new Error(`Item ${itemId} not found in master`);
+
+            // 2. Handle missing variantId for non-garment items
+            if (!variantId || variantId === 'undefined') {
+                // If garment, we need a variant. If not, we use the itemId as variantId
+                if (masterItem.type === 'GARMENT') {
+                    throw new Error(`Variant ID is required for Garment item: ${masterItem.itemName}`);
                 }
-                if (!sku) sku = masterItem?.sku || masterItem?.itemCode;
-            } else if (itemId) {
-                masterItem = await Item.findById(itemId).session(session);
+                variantId = itemId.toString(); // Use itemId as surrogate variantId
+            }
+
+            // 3. Handle missing SKU
+            if (!sku || sku === 'N/A' || sku === 'undefined') {
+                if (masterItem.sizes && variantId) {
+                    const variant = masterItem.sizes.find(v => (v._id || v.id).toString() === variantId.toString());
+                    sku = variant?.sku || variant?.barcode;
+                }
+                if (!sku) sku = masterItem.sku || masterItem.itemCode || 'DIRECT';
             }
 
             // Tax logic: Only compute for FABRIC and ACCESSORY

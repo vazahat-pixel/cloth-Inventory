@@ -87,12 +87,9 @@ function GRNFormPage({ mode = 'edit' }) {
   const existingGrn = useMemo(() => grns.find(g => (g._id || g.id) === id), [grns, id]);
 
   const filteredPurchaseOrders = useMemo(() => {
-    // For new GRNs, show only APPROVED or PARTIALLY_RECEIVED orders
     let list = (purchaseOrders || []).filter(po =>
       ['APPROVED', 'PARTIALLY_RECEIVED'].includes(po.status?.toUpperCase())
     );
-
-    // If edit mode, ensure the currently linked PO is in the list even if COMPLETED
     if (existingGrn?.purchaseOrderId) {
       const currentPoId = (existingGrn.purchaseOrderId?._id || existingGrn.purchaseOrderId).toString();
       const currentPo = purchaseOrders.find(o => (o._id || o.id).toString() === currentPoId);
@@ -118,7 +115,7 @@ function GRNFormPage({ mode = 'edit' }) {
       const enrichedItems = res.data.items || [];
       const flatOptions = [];
       enrichedItems.forEach(item => {
-        if (item.type !== 'FABRIC') return; // Only show Fabric type as per requirement
+        if (item.type !== 'FABRIC') return;
         Object.values(item.sizes || []).forEach(sz => {
           if (sz.availableStock > 0 || sz.stock > 0) {
              const qty = sz.availableStock > 0 ? sz.availableStock : sz.stock;
@@ -169,13 +166,9 @@ function GRNFormPage({ mode = 'edit' }) {
         status: existingGrn.status || 'DRAFT',
       });
       setLines((existingGrn.items || []).map((item, idx) => {
-        // Find the full item details from our local store (allItems)
         const masterItem = allItems.find(i => (i._id || i.id).toString() === (item.itemId?._id || item.itemId || "").toString()) || {};
-
-        // Find the original ordered quantity from the linked PO
         const linkedPO = purchaseOrders.find(o => (o._id || o.id).toString() === (existingGrn.purchaseOrderId?._id || existingGrn.purchaseOrderId || "").toString());
         const poItem = linkedPO ? (linkedPO.items || []).find(pi => (pi.variantId || "").toString() === (item.variantId || "").toString()) : null;
-
         return {
           ...item,
           id: item._id || `saved-${idx}`,
@@ -213,7 +206,6 @@ function GRNFormPage({ mode = 'edit' }) {
     }
   }, [warehouses, id, formValues.warehouseId]);
 
-  // AUTO-POPULATE LINES FROM PO
   useEffect(() => {
     if (!id && formValues.purchaseOrderId) {
       const po = purchaseOrders.find(o => (o.id || o._id) === formValues.purchaseOrderId);
@@ -221,20 +213,17 @@ function GRNFormPage({ mode = 'edit' }) {
         const suppId = (typeof po.supplierId === 'object' && po.supplierId !== null)
           ? (po.supplierId._id || po.supplierId.id)
           : po.supplierId;
-
         setFormValues(prev => ({
           ...prev,
           supplierId: suppId || '',
           warehouseId: po.warehouseId?._id || po.warehouseId || '',
           remarks: po.notes || '',
         }));
-
         setLines((po.items || []).map((item, idx) => {
           const vId = item.variantId?._id || item.variantId;
           const iId = item.itemId?._id || item.itemId;
           const master = allItems.find(i => (i._id || i.id).toString() === iId.toString());
           const variant = master?.sizes?.find(v => (v._id || v.id).toString() === vId.toString());
-
           return {
             id: `po-${idx}-${Date.now()}`,
             itemId: iId,
@@ -255,7 +244,6 @@ function GRNFormPage({ mode = 'edit' }) {
     }
   }, [formValues.purchaseOrderId, purchaseOrders, id, allItems]);
 
-  // AUTO-POPULATE CONSUMPTION FROM JOB WORK
   useEffect(() => {
     if (!id && formValues.jobWorkId && formValues.grnType === 'GARMENT') {
        const so = supplierOutwards.find(o => (o._id || o.id) === formValues.jobWorkId);
@@ -273,7 +261,6 @@ function GRNFormPage({ mode = 'edit' }) {
        }
     }
   }, [formValues.jobWorkId, formValues.grnType, supplierOutwards, id]);
-
 
   const totals = useMemo(() => {
     return lines.reduce((acc, curr) => {
@@ -338,14 +325,12 @@ function GRNFormPage({ mode = 'edit' }) {
       if (it.itemCode === barcode) return true;
       return (it.sizes || []).some(s => s.sku === barcode || s.barcode === barcode);
     });
-
     if (item) {
       if (item.type === 'FABRIC' || item.type === 'ACCESSORY') {
         setActiveItemForRolls(item);
         setIsRollDialogOpen(true);
         return;
       }
-      
       const variant = (item.sizes || []).find(v => v.sku === barcode || v.barcode === barcode) || item.sizes?.[0];
       if (variant) {
         addLineItem(item, variant);
@@ -367,9 +352,9 @@ function GRNFormPage({ mode = 'edit' }) {
         ...formValues,
         items: lines
           .map((l) => ({
-            itemId: l.itemId,
-            variantId: l.variantId,
-            sku: l.sku,
+            itemId: l.itemId || l._id || l.id,
+            variantId: l.variantId || l.itemId || l._id || l.id,
+            sku: l.sku || l.itemCode || 'N/A',
             receivedQty: Number(l.receivedQty || 0),
             costPrice: Number(l.costPrice || 0),
             taxPercent: Number(l.taxPercent || 0),
@@ -390,23 +375,19 @@ function GRNFormPage({ mode = 'edit' }) {
         totalValue: totals.totalValue,
         totalQty: totals.received
       };
-
       if (!payload.items.length) {
         setErrorMessage('Register at least one received item quantity');
         return;
       }
-
       let result;
       if (id) {
         result = await dispatch(updateGrn({ id, updateData: payload })).unwrap();
       } else {
         result = await dispatch(addGrn(payload)).unwrap();
       }
-
       if (!isDraft) {
         await dispatch(approveGrn(result._id || result.id)).unwrap();
       }
-
       setSuccessMessage(isDraft ? 'GRN saved as draft.' : 'GRN approved successfully.');
       setTimeout(() => navigate('/ho/inventory/grn'), 1500);
     } catch (err) {
@@ -415,7 +396,6 @@ function GRNFormPage({ mode = 'edit' }) {
   };
 
   const isLocked = isViewMode || (id && existingGrn?.status === 'APPROVED');
-
   if (grnLoading && id) return <Box sx={{ p: 4, textAlign: 'center' }}><CircularProgress /></Box>;
 
   return (
@@ -512,7 +492,6 @@ function GRNFormPage({ mode = 'edit' }) {
                   ))}
                 </TextField>
               </Grid>
-
               {formValues.grnType === 'GARMENT' && (
                 <Grid item xs={12} md={4}>
                   <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>Job Work Reference</Typography>
@@ -556,80 +535,46 @@ function GRNFormPage({ mode = 'edit' }) {
                   disabled={isLocked}
                 />
               </Grid>
-
-              <Grid item xs={12} md={4}>
-                <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>GRN Number</Typography>
-                <TextField
-                  fullWidth
-                  size="small"
-                  value={formValues.grnNumber || 'AUTOGENERATE'}
-                  disabled
-                  sx={{ bgcolor: '#f8fafc' }}
-                />
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Typography variant="caption" sx={{ fontWeight: 800, color: '#166534', mb: 1, display: 'block', textTransform: 'uppercase' }}>Total Units Received</Typography>
-                <Box sx={{ px: 2, height: 40, bgcolor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 1.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                  <Typography variant="body1" sx={{ color: '#15803d', fontWeight: 900 }}>{totals.received} Items</Typography>
-                </Box>
-              </Grid>
-
-              {!isLocked && (
-                <Grid item xs={12}>
-                  <Box sx={{ mt: 1, p: 2, bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderLeft: '4px solid #3b82f6', borderRadius: 2 }}>
-                    <Stack direction="row" spacing={3} alignItems="center">
-                      <Box>
-                        <Typography variant="caption" sx={{ fontWeight: 900, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: 1 }}>Scanning Active</Typography>
-                        <Typography variant="h6" sx={{ fontWeight: 800, color: '#1e293b', lineHeight: 1 }}>Scan Barcodes</Typography>
-                      </Box>
-                      <Autocomplete
-                        sx={{ flex: 1, bgcolor: 'white' }}
-                        options={allItems}
-                        getOptionLabel={(option) => `${option.itemCode} - ${option.itemName}`}
-                        onChange={(event, newValue) => {
-                          if (newValue) {
-                            if (newValue.type === 'FABRIC' || newValue.type === 'ACCESSORY') {
-                              setActiveItemForRolls(newValue);
-                              setIsRollDialogOpen(true);
-                            } else {
-                              addItemToLines(newValue);
-                            }
-                          }
-                        }}
-                        renderInput={(params) => <TextField {...params} size="medium" label="Search Item Manually..." />}
-                      />
-                      <Box sx={{ px: 2, height: 52, display: 'flex', alignItems: 'center', borderLeft: '2px solid #e2e8f0', color: '#94a3b8' }}>
-                         <Typography variant="body2" sx={{ fontWeight: 700 }}>OR</Typography>
-                      </Box>
-                      <TextField
-                        fullWidth
-                        autoFocus
-                        placeholder="Scan tags one by one to add items to this GRN..."
-                        size="medium"
-                        value={searchText}
-                        onChange={(e) => setSearchText(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && searchText.trim()) {
-                            e.preventDefault();
-                            handleBarcodeScan(searchText.trim());
-                            setSearchText('');
-                          }
-                        }}
-                        sx={{ bgcolor: 'white' }}
-                        InputProps={{
-                          startAdornment: <SearchIcon sx={{ color: '#3b82f6', mr: 1, fontSize: 22 }} />
-                        }}
-                      />
-                    </Stack>
-                  </Box>
-                </Grid>
-              )}
             </Grid>
           </Paper>
         </Grid>
 
         <Grid item xs={12}>
-          <TableContainer component={Paper}>
+          {!isLocked && (
+            <Box sx={{ mb: 3, p: 2, bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderLeft: '4px solid #3b82f6', borderRadius: 2 }}>
+              <Stack direction="row" spacing={3} alignItems="center">
+                <Box>
+                  <Typography variant="caption" sx={{ fontWeight: 900, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: 1 }}>Scanning Active</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 800, color: '#1e293b', lineHeight: 1 }}>Scan Barcodes</Typography>
+                </Box>
+                <TextField
+                  fullWidth
+                  autoFocus
+                  placeholder="Scan finished items one by one..."
+                  size="medium"
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && searchText.trim()) {
+                      e.preventDefault();
+                      handleBarcodeScan(searchText.trim());
+                      setSearchText('');
+                    }
+                  }}
+                  sx={{ bgcolor: 'white' }}
+                  InputProps={{
+                    startAdornment: <SearchIcon sx={{ color: '#3b82f6', mr: 1, fontSize: 22 }} />
+                  }}
+                />
+              </Stack>
+            </Box>
+          )}
+
+          <Typography variant="h6" sx={{ fontWeight: 800, mb: 1, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box component="span" sx={{ width: 12, height: 12, bgcolor: '#3b82f6', borderRadius: '50%' }} />
+            STEP 1: ADD FINISHED GARMENTS RECEIVED (SHIRTS/PANTS)
+          </Typography>
+          <TableContainer component={Paper} sx={{ mb: 4, border: '1px solid #e2e8f0' }}>
             <Table size="small">
               <TableHead sx={{ bgcolor: '#f8fafc' }}>
                 <TableRow>
@@ -638,8 +583,6 @@ function GRNFormPage({ mode = 'edit' }) {
                   <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 700 }}>RECEIVED</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 700 }}>MRP</TableCell>
-                  {formValues.grnType !== 'GARMENT' && <TableCell align="right" sx={{ fontWeight: 700 }}>GST %</TableCell>}
-                  <TableCell sx={{ fontWeight: 700 }}>BATCH #</TableCell>
                   {!isLocked && <TableCell align="center" sx={{ fontWeight: 700 }}>ACTION</TableCell>}
                 </TableRow>
               </TableHead>
@@ -648,197 +591,84 @@ function GRNFormPage({ mode = 'edit' }) {
                   <TableRow key={line.id || idx} hover>
                     <TableCell>
                       <Stack>
-                        <Typography variant="body2" sx={{ fontWeight: 700, color: '#0f172a' }}>{line.itemCode}</Typography>
-                        <Typography variant="caption" sx={{ color: '#64748b' }}>{line.itemName}</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{line.itemCode}</Typography>
+                        <Typography variant="caption">{line.itemName}</Typography>
                       </Stack>
                     </TableCell>
-                    <TableCell>
-                      <Chip label={line.size} size="small" sx={{ fontWeight: 700, bgcolor: '#f1f5f9' }} />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="caption" sx={{ fontFamily: 'monospace', color: '#64748b' }}>{line.sku}</Typography>
-                    </TableCell>
+                    <TableCell><Chip label={line.size} size="small" /></TableCell>
+                    <TableCell><Typography variant="caption">{line.sku}</Typography></TableCell>
                     <TableCell align="right">
-                      <TextField
-                        type="number"
-                        size="small"
-                        value={line.receivedQty}
-                        onChange={e => updateLine(idx, 'receivedQty', e.target.value)}
-                        disabled={isLocked}
-                        sx={{ width: 100 }}
-                        onFocus={(e) => e.target.select()}
-                        InputProps={{
-                          endAdornment: <Typography variant="caption" sx={{ color: '#94a3b8', ml: 0.5 }}>{line.uom || 'PCS'}</Typography>
-                        }}
-                      />
+                      <TextField type="number" size="small" value={line.receivedQty} onChange={e => updateLine(idx, 'receivedQty', e.target.value)} sx={{ width: 80 }} />
                     </TableCell>
-                    <TableCell align="right">
-                      <TextField
-                        type="number"
-                        size="small"
-                        value={line.costPrice}
-                        onChange={e => updateLine(idx, 'costPrice', e.target.value)}
-                        disabled={isLocked}
-                        sx={{ width: 90 }}
-                      />
-                    </TableCell>
-                    {formValues.grnType !== 'GARMENT' && (
-                      <TableCell align="right">
-                        <TextField
-                          type="number"
-                          size="small"
-                          value={line.taxPercent}
-                          onChange={e => updateLine(idx, 'taxPercent', e.target.value)}
-                          disabled={isLocked}
-                          sx={{ width: 70 }}
-                        />
-                      </TableCell>
-                    )}
-                    <TableCell>
-                      <TextField size="small" value={line.batchNumber} onChange={e => updateLine(idx, 'batchNumber', e.target.value)} disabled={isLocked} sx={{ width: 120 }} />
-                    </TableCell>
+                    <TableCell align="right">₹{line.costPrice}</TableCell>
                     {!isLocked && (
                       <TableCell align="center">
-                        <IconButton color="error" size="small" onClick={() => removeLine(idx)}><DeleteOutlineIcon fontSize="small" /></IconButton>
+                        <IconButton color="error" onClick={() => removeLine(idx)}><DeleteOutlineIcon /></IconButton>
                       </TableCell>
                     )}
                   </TableRow>
                 ))}
+                {!lines.length && <TableRow><TableCell colSpan={6} align="center" sx={{ py: 3 }}>No items added. Please scan garments.</TableCell></TableRow>}
               </TableBody>
             </Table>
           </TableContainer>
-        </Grid>
 
-        {formValues.grnType === 'GARMENT' && (
-          <Grid item xs={12} sx={{ mt: 2 }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 1.5, color: '#ec4899', display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Box component="span" sx={{ width: 12, height: 12, bgcolor: '#ec4899', borderRadius: '50%' }} />
-            RAW MATERIAL CONSUMPTION / FABRIC SETTLEMENT
-          </Typography>
-          <TableContainer component={Paper} sx={{ borderRadius: 2, border: '1px solid #fce7f3' }}>
-            <Table size="small">
-              <TableHead sx={{ bgcolor: '#fff1f2' }}>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 700 }}>MATERIAL / FABRIC</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>AVAILABLE</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700 }}>USED QTY</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700 }}>WASTAGE</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700 }}>PENDING</TableCell>
-                  {!isLocked && <TableCell align="center" sx={{ fontWeight: 700 }}>ACTION</TableCell>}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {consumptionLines.map((line, idx) => (
-                  <TableRow key={idx} hover>
-                    <TableCell>
-                      <Stack>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{line.itemName}</Typography>
-                        <Typography variant="caption" sx={{ color: '#ec4899' }}>{line.barcode}</Typography>
-                      </Stack>
-                    </TableCell>
-                    <TableCell>
-                      <Chip label={`${line.availableQty || 0} Unit`} size="small" variant="outlined" sx={{ fontWeight: 700 }} />
-                    </TableCell>
-                    <TableCell align="right">
-                      <TextField
-                        type="number"
-                        size="small"
-                        value={line.quantity}
-                        onChange={e => {
-                          const newLines = [...consumptionLines];
-                          newLines[idx].quantity = e.target.value;
-                          setConsumptionLines(newLines);
-                        }}
-                        disabled={isLocked}
-                        sx={{ width: 85 }}
-                      />
-                    </TableCell>
-                    <TableCell align="right">
-                      <TextField
-                        type="number"
-                        size="small"
-                        value={line.wasteQuantity}
-                        onChange={e => {
-                          const newLines = [...consumptionLines];
-                          newLines[idx].wasteQuantity = e.target.value;
-                          setConsumptionLines(newLines);
-                        }}
-                        disabled={isLocked}
-                        sx={{ width: 85 }}
-                      />
-                    </TableCell>
-                    <TableCell align="right">
-                      <TextField
-                        type="number"
-                        size="small"
-                        value={line.pendingQuantity}
-                        onChange={e => {
-                          const newLines = [...consumptionLines];
-                          newLines[idx].pendingQuantity = e.target.value;
-                          setConsumptionLines(newLines);
-                        }}
-                        disabled={isLocked}
-                        sx={{ width: 85 }}
-                      />
-                    </TableCell>
-                    {!isLocked && (
-                      <TableCell align="center">
-                        <IconButton color="error" size="small" onClick={() => setConsumptionLines(consumptionLines.filter((_, i) => i !== idx))}><DeleteOutlineIcon fontSize="small" /></IconButton>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-                {!isLocked && (
-                  <TableRow>
-                    <TableCell colSpan={6} sx={{ p: 1.5, bgcolor: '#fff5f7' }}>
-                      <Autocomplete
-                        options={warehouseStock}
-                        getOptionLabel={(o) => o.label}
-                        onChange={(_, newVal) => {
-                          if (newVal) {
-                            setConsumptionLines([...consumptionLines, {
-                              itemId: newVal.itemId,
-                              variantId: newVal.variantId,
-                              itemName: newVal.itemName,
-                              barcode: newVal.barcode,
-                              availableQty: newVal.quantity,
-                              quantity: 0,
-                              wasteQuantity: 0,
-                              pendingQuantity: newVal.quantity
-                            }]);
-                          }
-                        }}
-                        renderInput={(params) => <TextField {...params} label="Select Fabric from Warehouse Stock..." size="small" variant="standard" placeholder="Search available warehouse fabrics..." />}
-                      />
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+          {formValues.grnType === 'GARMENT' && (
+            <Box sx={{ mt: 4 }}>
+              <Typography variant="h6" sx={{ fontWeight: 800, mb: 1, color: '#ec4899', display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box component="span" sx={{ width: 12, height: 12, bgcolor: '#ec4899', borderRadius: '50%' }} />
+                STEP 2: SETTLE MATERIAL CONSUMPTION (SETTLE FABRIC ACCOUNT)
+              </Typography>
+              <TableContainer component={Paper} sx={{ borderRadius: 2, border: '1px solid #fce7f3' }}>
+                <Table size="small">
+                  <TableHead sx={{ bgcolor: '#fff1f2' }}>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 700 }}>MATERIAL / FABRIC</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>AVAILABLE</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>USED QTY</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>WASTAGE</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>PENDING</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {consumptionLines.map((line, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell>
+                          <Typography variant="body2" sx={{ fontWeight: 700 }}>{line.itemName}</Typography>
+                          <Typography variant="caption" color="secondary">{line.barcode}</Typography>
+                        </TableCell>
+                        <TableCell>{line.availableQty} Unit</TableCell>
+                        <TableCell align="right">
+                          <TextField type="number" size="small" value={line.quantity} onChange={e => {
+                            const nl = [...consumptionLines]; nl[idx].quantity = e.target.value; setConsumptionLines(nl);
+                          }} sx={{ width: 80 }} />
+                        </TableCell>
+                        <TableCell align="right">
+                          <TextField type="number" size="small" value={line.wasteQuantity} onChange={e => {
+                            const nl = [...consumptionLines]; nl[idx].wasteQuantity = e.target.value; setConsumptionLines(nl);
+                          }} sx={{ width: 80 }} />
+                        </TableCell>
+                        <TableCell align="right">{line.availableQty - line.quantity - line.wasteQuantity}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>
+          )}
         </Grid>
-        )}
       </Grid>
 
       <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
-        <DialogTitle sx={{ fontWeight: 700 }}>Approve & Post GRN?</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" sx={{ color: '#64748b' }}>
-            Are you sure you want to approve this GRN? This will update warehouse stock and finalize the receipt.
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ p: 2, bgcolor: '#f8fafc' }}>
+        <DialogTitle>Approve & Post GRN?</DialogTitle>
+        <DialogContent><Typography variant="body2">Confirm receipt of garments and consumption of fabric.</Typography></DialogContent>
+        <DialogActions>
           <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
-          <Button variant="contained" color="success" onClick={() => { setConfirmOpen(false); handleSave(false); }}>Confirm & Approve</Button>
+          <Button variant="contained" color="success" onClick={() => { setConfirmOpen(false); handleSave(false); }}>Approve</Button>
         </DialogActions>
       </Dialog>
 
-      <PieceEntryDialog 
-        open={isRollDialogOpen} 
-        onClose={() => setIsRollDialogOpen(false)} 
-        onAdd={handleAddRolls} 
-        item={activeItemForRolls}
-      />
+      <PieceEntryDialog open={isRollDialogOpen} onClose={() => setIsRollDialogOpen(false)} onAdd={handleAddRolls} item={activeItemForRolls} />
     </Box>
   );
 }

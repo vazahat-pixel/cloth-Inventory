@@ -145,7 +145,7 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
 
                 if (isWarehouse) {
                     const WarehouseInventory = require('../../models/warehouseInventory.model');
-                    const warehouseInv = await WarehouseInventory.findOne({ warehouseId: storeId, barcode }).populate('itemId').session(session);
+                    const warehouseInv = await WarehouseInventory.findOne({ barcode, warehouseId: storeId }).populate('itemId').session(session);
 
                     if (warehouseInv) {
                         // Create a "MOCK" inventory object to satisfy the existing logic
@@ -303,12 +303,12 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             await creditNote.save({ session });
         }
 
-        const finalGrandTotal = Math.max(0, calculatedSubTotal + totalTax - discount - loyaltyRedemptionAmount - creditNoteAppliedAmount - totalReturnValue);
-        const exchangeAdjustment = totalReturnValue;
+        const finalGrandTotal = Number(Math.max(0, (calculatedSubTotal || 0) + (totalTax || 0) - (discount || 0) - (loyaltyRedemptionAmount || 0) - (creditNoteAppliedAmount || 0) - (totalReturnValue || 0)).toFixed(2)) || 0;
+        const exchangeAdjustment = totalReturnValue || 0;
 
         // 3. Create Sale Record
         const amountPaid = Number(saleData.amountPaid || 0);
-        const dueAmount = Number((finalGrandTotal - amountPaid).toFixed(2));
+        const dueAmount = Number((finalGrandTotal - amountPaid).toFixed(2)) || 0;
 
         // 5. Save Sale Record
         const sale = new Sale({

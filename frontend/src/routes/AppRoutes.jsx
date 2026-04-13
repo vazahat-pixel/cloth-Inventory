@@ -66,6 +66,15 @@ const OrderReportPage = lazy(() => import('../modules/reports/OrderReportPage'))
 const HoMasterDashboard = lazy(() => import('../modules/reports/HoMasterDashboard'));
 const InTransitMonitorPage = lazy(() => import('../modules/reports/InTransitMonitorPage'));
 
+// Missing Report Pages
+const LedgerReportPage = lazy(() => import('../modules/reports/LedgerReportPage'));
+const BankBookPage = lazy(() => import('../modules/reports/BankBookPage'));
+const CustomerReportPage = lazy(() => import('../modules/reports/CustomerReportPage'));
+const VendorReportPage = lazy(() => import('../modules/reports/VendorReportPage'));
+const MovementReportPage = lazy(() => import('../modules/reports/MovementReportPage'));
+const AgeAnalysisPage = lazy(() => import('../modules/reports/AgeAnalysisPage'));
+const YieldAnalysisPage = lazy(() => import('../modules/reports/YieldAnalysisPage'));
+
 // Sales
 const SalesBillListPage = lazy(() => import('../modules/sales/SalesListPage'));
 const SalesBillFormPage = lazy(() => import('../modules/sales/BillingPage'));
@@ -297,23 +306,40 @@ function AppRoutes() {
             <Route path="reports" element={<ReportsQueriesLayout />}>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<ReportsDashboard />} />
+              
+              {/* Core Financial Reports */}
               <Route path="sales" element={<SalesReportPage />} />
               <Route path="purchase" element={<PurchaseReportPage />} />
               <Route path="stock" element={<StockReportPage />} />
-              <Route path="profit" element={<ProfitReportPage />} />
+              <Route path="ledger" element={<LedgerReportPage />} />
+              <Route path="bank-book" element={<BankBookPage />} />
               <Route path="collection" element={<CollectionReportPage />} />
+              
+              {/* Analysis & Audit */}
+              <Route path="profit" element={<ProfitReportPage />} />
               <Route path="consolidated" element={<ConsolidatedStockPage />} />
               <Route path="closure-history" element={<StoreClosureAuditPage />} />
               <Route path="closure" element={<DayEndClosurePage />} />
+              <Route path="movement" element={<MovementReportPage />} />
+              <Route path="age-analysis" element={<AgeAnalysisPage />} />
+              <Route path="production/yield" element={<YieldAnalysisPage />} />
+              <Route path="gst/summary" element={<GstSummaryReportPage />} />
+              
+              {/* Dynamic & Other Reports */}
               <Route path="sale-challan-reports" element={<DynamicReportPage config={CHALLAN_REPORT_CONFIG} />} />
               <Route path="scheme-reports" element={<DynamicReportPage config={SCHEME_REPORT_CONFIG} />} />
               <Route path="agent-wise-reports" element={<DynamicReportPage config={AGENT_WISE_REPORT_CONFIG} />} />
               <Route path="order-reports" element={<OrderReportPage />} />
               <Route path="item-reports" element={<DynamicReportPage config={STOCK_AGING_CONFIG} />} />
-              <Route path="stock-reports" element={<StockReportPage />} />
-              <Route path="financial-analysis" element={<GstSummaryReportPage />} />
-              <Route path="sale-registers" element={<SalesReportPage />} />
+              <Route path="customers" element={<CustomerReportPage />} />
+              <Route path="vendors" element={<VendorReportPage />} />
               <Route path="in-transit" element={<InTransitMonitorPage />} />
+
+              {/* Duplicate/Alias Routes for consistency */}
+              <Route path="stock-reports" element={<StockReportPage />} />
+              <Route path="sale-registers" element={<SalesReportPage />} />
+              <Route path="financial-analysis" element={<GstSummaryReportPage />} />
+              <Route path="purchase-reports" element={<PurchaseReportPage />} />
             </Route>
 
             {/* Settings */}

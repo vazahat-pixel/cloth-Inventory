@@ -117,8 +117,9 @@ function StockReportPage() {
   const stockRows = useMemo(() => {
     return stock.map((s) => {
       const prices = variantPriceMap[String(s.productId || s.variantId || '')] || {};
-      const closingStock = toNum(s.quantity);
-      const value = closingStock * (prices.cost || prices.selling || 0);
+      const closingStock = toNum(s.available ?? s.quantity ?? 0);
+      const unitPrice = prices.cost || prices.selling || toNum(s.salePrice || s.mrp || 0);
+      const value = closingStock * unitPrice;
       const locationId = s.storeId || s.warehouseId || s.id;
       const mov = movementBuckets[String(locationId)] || {
         purchaseIn: 0,

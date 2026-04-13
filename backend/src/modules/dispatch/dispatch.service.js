@@ -198,9 +198,11 @@ const createDispatch = async (dispatchData, userId) => {
                         cgst: ei.cgst, sgst: ei.sgst, igst: ei.igst
                     })),
                     type: 'INTERNAL_SALE',
-                    subTotal: totalSubTotal,
-                    totalTax: totalTaxAmount,
-                    grandTotal: totalSubTotal + totalTaxAmount,
+                    subTotal: Number(totalSubTotal || 0),
+                    totalTax: Number(totalTaxAmount || 0),
+                    grandTotal: Number((totalSubTotal + totalTaxAmount) || 0),
+                    amountPaid: 0,
+                    dueAmount: Number((totalSubTotal + totalTaxAmount) || 0),
                     paymentMode: 'CREDIT',
                     notes: rest.notes || `Internal Sale Transfer: ${source.name} -> ${destination.name}`
                 }, userId, session);

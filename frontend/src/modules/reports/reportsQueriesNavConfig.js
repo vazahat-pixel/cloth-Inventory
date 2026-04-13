@@ -12,6 +12,13 @@ import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined';
 import GavelOutlinedIcon from '@mui/icons-material/GavelOutlined';
 import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
+import InventoryIcon from '@mui/icons-material/Inventory';
+import PaymentsIcon from '@mui/icons-material/Payments';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TimelineIcon from '@mui/icons-material/Timeline';
+import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
+import PrecisionManufacturingIcon from '@mui/icons-material/PrecisionManufacturing';
+import BusinessIcon from '@mui/icons-material/Business';
 
 export const reportsQueriesMatchPaths = ['/reports'];
 
@@ -23,47 +30,46 @@ export const reportsQueriesNavItems = [
     icon: DashboardOutlinedIcon,
   },
   {
-    key: 'financial-reports',
-    label: 'Financial Reports',
-    path: '/reports/financial-reports',
-    matchPaths: ['/reports/financial-reports'],
-    icon: AccountBalanceOutlinedIcon,
-  },
-  {
-    key: 'balance-sheet',
-    label: 'Balance Sheet',
-    path: '/reports/balance-sheet',
-    icon: BalanceOutlinedIcon,
-  },
-  {
-    key: 'financial-analysis',
-    label: 'Financial Analysis',
-    path: '/reports/financial-analysis',
-    icon: TrendingUpOutlinedIcon,
-  },
-  {
-    key: 'sale-registers',
-    label: 'Sale Registers',
-    path: '/reports/sale-registers',
-    icon: ReceiptLongOutlinedIcon,
-  },
-  {
-    key: 'sale-challan-reports',
-    label: 'Sale Challan Reports',
-    path: '/reports/sale-challan-reports',
-    icon: LocalShippingOutlinedIcon,
-  },
-  {
-    key: 'scheme-reports',
-    label: 'Scheme Reports',
-    path: '/reports/scheme-reports',
+    key: 'sales-reports',
+    label: 'Sales Reports',
+    path: '/reports/sales',
     icon: SellOutlinedIcon,
   },
   {
-    key: 'customer-item-sale-analysis',
-    label: 'Customer + Item Sale Analysis',
-    path: '/reports/customer-item-sale-analysis',
-    icon: PeopleAltOutlinedIcon,
+    key: 'purchase-reports',
+    label: 'Purchase Reports',
+    path: '/reports/purchase',
+    icon: ShoppingCartOutlinedIcon,
+  },
+  {
+    key: 'stock-reports',
+    label: 'Stock Reports',
+    path: '/reports/stock',
+    icon: InventoryIcon,
+  },
+  {
+    key: 'ledger',
+    label: 'Ledger',
+    path: '/reports/ledger',
+    icon: ReceiptLongOutlinedIcon,
+  },
+  {
+    key: 'bank-book',
+    label: 'Bank Book',
+    path: '/reports/bank-book',
+    icon: AccountBalanceOutlinedIcon,
+  },
+  {
+    key: 'collection-report',
+    label: 'Collection Report',
+    path: '/reports/collection',
+    icon: PaymentsIcon,
+  },
+  {
+    key: 'profit-analysis',
+    label: 'Profit Analysis',
+    path: '/reports/profit',
+    icon: TrendingUpIcon,
   },
   {
     key: 'order-reports',
@@ -72,33 +78,63 @@ export const reportsQueriesNavItems = [
     icon: AssignmentOutlinedIcon,
   },
   {
+    key: 'sale-challan-reports',
+    label: 'Sale Challan Reports',
+    path: '/reports/sale-challan-reports',
+    icon: LocalShippingOutlinedIcon,
+  },
+  {
     key: 'agent-wise-reports',
     label: 'Agent Wise Reports',
     path: '/reports/agent-wise-reports',
     icon: SupportAgentOutlinedIcon,
   },
   {
-    key: 'purchase-reports',
-    label: 'Purchase Reports',
-    path: '/reports/purchase-reports',
-    icon: ShoppingCartOutlinedIcon,
+    key: 'scheme-reports',
+    label: 'Scheme Reports',
+    path: '/reports/scheme-reports',
+    icon: SellOutlinedIcon,
   },
   {
-    key: 'item-reports',
-    label: 'Item Reports',
+    key: 'customer-reports',
+    label: 'Customer Reports',
+    path: '/reports/customers',
+    icon: PeopleAltOutlinedIcon,
+  },
+  {
+    key: 'vendor-reports',
+    label: 'Vendor Reports',
+    path: '/reports/vendors',
+    icon: BusinessIcon,
+  },
+  {
+    key: 'item-master-registry',
+    label: 'Item Registry',
     path: '/reports/item-reports',
     icon: Inventory2OutlinedIcon,
   },
   {
-    key: 'stock-reports',
-    label: 'Stock Reports',
-    path: '/reports/stock-reports',
-    icon: WarehouseOutlinedIcon,
+    key: 'movement-history',
+    label: 'Stock Movement',
+    path: '/reports/movement',
+    icon: TimelineIcon,
   },
   {
-    key: 'excise-reports',
-    label: 'Excise Reports',
-    path: '/reports/excise-reports',
+    key: 'age-analysis',
+    label: 'Age Analysis',
+    path: '/reports/age-analysis',
+    icon: HourglassEmptyIcon,
+  },
+  {
+    key: 'production-yield',
+    label: 'Production Yield',
+    path: '/reports/production/yield',
+    icon: PrecisionManufacturingIcon,
+  },
+  {
+    key: 'gst-summary',
+    label: 'GST Summary',
+    path: '/reports/gst/summary',
     icon: GavelOutlinedIcon,
   },
 ];

@@ -69,6 +69,32 @@ function SupplierOutwardFormPage() {
         setLines(prev => prev.filter(l => l.id !== id));
     };
 
+    const handleBarcodeScan = (barcode) => {
+        if (!barcode) return;
+        
+        // Find item in master by code or in any variant SKU
+        const item = items.find(it => 
+            it.itemCode === barcode || (it.sizes || []).some(s => s.sku === barcode || s.barcode === barcode)
+        );
+
+        if (item) {
+            const variant = (item.sizes || []).find(v => v.sku === barcode || v.barcode === barcode);
+            
+            const newLine = {
+                id: Math.random().toString(36).substr(2, 9),
+                itemId: item._id || item.id,
+                itemName: item.itemName,
+                itemCode: item.itemCode,
+                uom: item.uom || 'PCS',
+                quantity: 1,
+                code: barcode // Preserve the scanned barcode
+            };
+            setLines(prev => [newLine, ...prev]);
+        } else {
+            alert(`Barcode ${barcode} not found in system.`);
+        }
+    };
+
     const onSubmit = async (data) => {
         if (!lines.length) return alert('Please add at least one material line.');
         
@@ -188,12 +214,26 @@ function SupplierOutwardFormPage() {
                 <Grid item xs={12} md={8}>
                     <Paper elevation={0} sx={{ p: 3, border: '1px solid #e2e8f0', borderRadius: 3 }}>
                         <Box sx={{ mb: 3 }}>
+                            <TextField
+                                fullWidth
+                                label="Scan Fabric Roll / Accessory Barcode"
+                                placeholder="Scan here..."
+                                autoFocus
+                                size="medium"
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        handleBarcodeScan(e.target.value);
+                                        e.target.value = '';
+                                    }
+                                }}
+                                sx={{ mb: 2, bgcolor: '#eff6ff', borderRadius: 2 }}
+                            />
                             <Autocomplete
                                 options={items.filter(i => i.type === 'FABRIC' || i.type === 'ACCESSORY' || !i.type)}
                                 getOptionLabel={(o) => `${o.itemName} (${o.itemCode})`}
                                 renderInput={(params) => (
-                                    <TextField {...params} label="Search Raw Material / Fabric" placeholder="Type name or SKU..." size="small" />
-                                )}
+                                    <TextField {...params} label="Alternative: Search Raw Material Manually" placeholder="Type name..." size="small" />
+                                ) || null}
                                 onChange={(_, val) => handleAddItem(val)}
                             />
                         </Box>

@@ -2,10 +2,12 @@ import { Link } from 'react-router-dom';
 import useRoleBasePath from '../../hooks/useRoleBasePath';
 import {
   Box,
+  Button,
   Card,
   CardActionArea,
   CardContent,
   Grid,
+  Paper,
   Stack,
   Typography,
 } from '@mui/material';
@@ -153,134 +155,120 @@ function ReportsDashboard() {
     const matchesDesc = card.description.toLowerCase().includes(query);
     const matchesAliases = card.aliases?.some(a => a.toLowerCase().includes(query));
     
-    // Add Hindi aliases support
-    const isDaily = query === 'daily' || query === 'har din' || query === 'rozana';
-    if (isDaily && card.title.match(/Sale|Purchase|Stock/i)) return true;
-
     return matchesTitle || matchesDesc || matchesAliases;
   });
 
   return (
-    <Box>
-      <Stack spacing={2} sx={{ mb: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 2, flexWrap: 'wrap' }}>
-          <Box>
-            <Typography variant="h5" sx={{ fontWeight: 800, color: '#0f172a', mb: 0.5 }}>
-              Reports & Analytics / रिपोट्स
+    <Box sx={{ maxWidth: 1200, mx: 'auto', py: 4 }}>
+      <Stack spacing={4}>
+        {/* Header Section */}
+        <Box sx={{ textAlign: 'center', mb: 2 }}>
+            <Typography variant="h4" sx={{ fontWeight: 900, color: '#0f172a', mb: 1, letterSpacing: '-0.02em' }}>
+              Reports & Analytics
             </Typography>
-            <Typography variant="body2" sx={{ color: '#64748b', fontWeight: 500 }}>
-              Access {userRole === 'admin' ? 'complete business' : 'store-specific'} insights. Search for "Daily Sale", "Stock", etc.
+            <Typography variant="body1" sx={{ color: '#64748b', mb: 4, fontWeight: 500 }}>
+              {userRole === 'admin' 
+                ? 'Access comprehensive business insights and financial intelligence.' 
+                : 'Access store-specific inventory and sales performance reports.'}
             </Typography>
-          </Box>
-          
-          <TextField
-            size="small"
-            placeholder="Search Report... (e.g. Daily Sale)"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            sx={{ minWidth: 300 }}
-            InputProps={{
-              startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment>,
-              sx: { borderRadius: 2, bgcolor: '#ffffff' }
-            }}
-          />
+            
+            <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                <TextField
+                    size="medium"
+                    placeholder="Quick Search Report (e.g. Sales, Ledger, Stock)..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    sx={{ width: '100%', maxWidth: 600 }}
+                    InputProps={{
+                        startAdornment: <InputAdornment position="start"><SearchIcon sx={{ color: '#94a3b8' }} /></InputAdornment>,
+                        sx: { 
+                            borderRadius: 4, 
+                            bgcolor: '#ffffff',
+                            height: 56,
+                            fontSize: '1.1rem',
+                            boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
+                            '& fieldset': { borderColor: '#e2e8f0' },
+                            '&:hover fieldset': { borderColor: '#3b82f6' }
+                        }
+                    }}
+                />
+            </Box>
         </Box>
-      </Stack>
 
-      {!search && (
-          <Box sx={{ mb: 4 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#64748b', mb: 2, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Quick Daily Reports / आज की रिपोर्ट
-              </Typography>
-              <Grid container spacing={2}>
-                  {DAILY_REPORTS.map((card) => {
-                      const Icon = card.icon;
-                      return (
-                          <Grid item xs={12} sm={4} key={card.title}>
-                              <Card elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3, '&:hover': { borderColor: '#10b981', bgcolor: '#f0fdf4' } }}>
-                                  <CardActionArea component={Link} to={`${basePath}${card.path}`} sx={{ p: 2 }}>
-                                      <Stack direction="row" spacing={2} alignItems="center">
-                                          <Box sx={{ p: 1, borderRadius: 2, bgcolor: '#ecfdf5' }}>
-                                              <Icon sx={{ color: '#059669', fontSize: 24 }} />
-                                          </Box>
-                                          <Box>
-                                              <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>{card.title}</Typography>
-                                              <Typography variant="caption" sx={{ color: '#64748b' }}>{card.description}</Typography>
-                                          </Box>
-                                      </Stack>
-                                  </CardActionArea>
-                              </Card>
-                          </Grid>
-                      );
-                  })}
-              </Grid>
-          </Box>
-      )}
-
-      <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#64748b', mb: 2, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          {search ? `Search Results (${filteredCards.length})` : 'All Reports / सभी रिपोर्ट'}
-      </Typography>
-
-      <Grid container spacing={2}>
-        {filteredCards.map((card) => {
-          const Icon = card.icon;
-          return (
-            <Grid item xs={12} sm={6} md={4} key={card.path}>
-              <Card
-                elevation={0}
-                sx={{
-                  border: '1px solid #e2e8f0',
-                  borderRadius: 3,
-                  transition: 'all 0.2s',
-                  '&:hover': {
-                    borderColor: '#3b82f6',
-                    boxShadow: '0 4px 12px rgba(59, 130, 246, 0.1)',
-                  },
-                }}
-              >
-                <CardActionArea
-                  component={Link}
-                  to={`${basePath}${card.path}`}
-                  sx={{ p: 2, height: '100%' }}
-                >
-                  <Stack direction="row" spacing={2} alignItems="flex-start">
-                    <Box
-                      sx={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: 2.5,
-                        bgcolor: '#f1f5f9',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <Icon sx={{ color: '#475569', fontSize: 28 }} />
-                    </Box>
-                    <Box sx={{ flex: 1 }}>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#0f172a', mb: 0.25 }}>
-                        {card.title}
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: '#64748b', fontSize: '0.8rem', lineHeight: 1.4 }}>
-                        {card.description}
-                      </Typography>
-                    </Box>
-                  </Stack>
-                </CardActionArea>
-              </Card>
-            </Grid>
-          );
-        })}
-        {filteredCards.length === 0 && (
-            <Grid item xs={12}>
-                <Box sx={{ py: 8, textAlign: 'center' }}>
-                    <Typography variant="body1" sx={{ color: '#94a3b8', fontStyle: 'italic' }}>
-                        No reports found for "{search}". Try searching for Sale, Stock or Purchase.
-                    </Typography>
-                </Box>
-            </Grid>
+        {/* Search Results or Welcome Content */}
+        {search ? (
+            <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#64748b', mb: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Search Results ({filteredCards.length})
+                </Typography>
+                <Grid container spacing={2}>
+                    {filteredCards.map((card) => {
+                        const Icon = card.icon;
+                        return (
+                            <Grid item xs={12} sm={6} md={4} key={card.path}>
+                                <Card
+                                    elevation={0}
+                                    sx={{
+                                        border: '1px solid #e2e8f0',
+                                        borderRadius: 4,
+                                        transition: 'all 0.2s',
+                                        '&:hover': {
+                                            borderColor: '#3b82f6',
+                                            transform: 'translateY(-2px)',
+                                            boxShadow: '0 10px 15px -3px rgba(59, 130, 246, 0.1)',
+                                        },
+                                    }}
+                                >
+                                    <CardActionArea component={Link} to={`${basePath}${card.path}`} sx={{ p: 2.5 }}>
+                                        <Stack direction="row" spacing={2} alignItems="center">
+                                            <Box sx={{ p: 1.5, borderRadius: 3, bgcolor: '#eff6ff' }}>
+                                                <Icon sx={{ color: '#2563eb', fontSize: 24 }} />
+                                            </Box>
+                                            <Box>
+                                                <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#1e293b' }}>{card.title}</Typography>
+                                                <Typography variant="caption" sx={{ color: '#64748b' }}>{card.description}</Typography>
+                                            </Box>
+                                        </Stack>
+                                    </CardActionArea>
+                                </Card>
+                            </Grid>
+                        );
+                    })}
+                </Grid>
+                {filteredCards.length === 0 && (
+                     <Box sx={{ py: 10, textAlign: 'center' }}>
+                        <Typography variant="h6" sx={{ color: '#94a3b8' }}>No reports found matching your search</Typography>
+                     </Box>
+                )}
+            </Box>
+        ) : (
+            <Box sx={{ mt: 2 }}>
+                <Grid container spacing={4}>
+                    <Grid item xs={12} md={6}>
+                        <Paper elevation={0} sx={{ p: 4, borderRadius: 5, border: '1px solid #e2e8f0', bgcolor: '#f8fafc', height: '100%' }}>
+                            <Typography variant="h6" sx={{ fontWeight: 800, mb: 2 }}>Primary Reports</Typography>
+                            <Stack spacing={1.5}>
+                                <Button component={Link} to={`${basePath}/reports/sales`} variant="text" startIcon={<PointOfSaleIcon />} sx={{ justifyContent: 'flex-start', color: '#334155' }}>Daily Sales Registry</Button>
+                                <Button component={Link} to={`${basePath}/reports/stock`} variant="text" startIcon={<InventoryIcon />} sx={{ justifyContent: 'flex-start', color: '#334155' }}>Current Stock Report</Button>
+                                <Button component={Link} to={`${basePath}/reports/collection`} variant="text" startIcon={<PaymentsIcon />} sx={{ justifyContent: 'flex-start', color: '#334155' }}>Collection Analysis</Button>
+                                <Button component={Link} to={`${basePath}/reports/ledger`} variant="text" startIcon={<ReceiptLongIcon />} sx={{ justifyContent: 'flex-start', color: '#334155' }}>General Ledger</Button>
+                            </Stack>
+                        </Paper>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                        <Box sx={{ p: 4, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                            <Typography variant="h5" sx={{ fontWeight: 800, mb: 2, color: '#1e293b' }}>
+                                Use the sidebar to explore.
+                            </Typography>
+                            <Typography variant="body1" sx={{ color: '#64748b', lineHeight: 1.6 }}>
+                                All reports are now organized neatly in the left navigation menu. You can quickly jump to Sale registers, Stock analysis, or Financial statements directly from there.
+                            </Typography>
+                        </Box>
+                    </Grid>
+                </Grid>
+            </Box>
         )}
-      </Grid>
+      </Stack>
     </Box>
   );
 }

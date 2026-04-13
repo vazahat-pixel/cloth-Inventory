@@ -54,9 +54,11 @@ const PieceEntryDialog = ({ open, onClose, onAdd, item }) => {
     
     onAdd(validPieces.map(p => ({
       ...item,
+      itemId: item._id || item.id,
+      variantId: item._id || item.id, // For fabrics, itemId acts as variantId
       receivedQty: Number(p.length),
       sku: p.barcode || `${prefix}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`,
-      batchNumber: p.barcode, // Use barcode as batch/piece identifier
+      batchNumber: p.barcode, 
       itemName: `${item.itemName} (Roll)`
     })));
     

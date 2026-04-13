@@ -12,32 +12,59 @@ const toFiniteNumber = (val) => {
 const populateInventoryManual = async (inventoryItems) => {
     if (!inventoryItems || inventoryItems.length === 0) return [];
 
-    const itemIds = inventoryItems.map(item => item.itemId).filter(Boolean);
+    const itemIds = inventoryItems.map(item => {
+        try {
+            return item.itemId ? new mongoose.Types.ObjectId(String(item.itemId)) : null;
+        } catch (e) {
+            return null;
+        }
+    }).filter(Boolean);
+    
     const variantIds = inventoryItems.map(item => String(item.variantId || '')).filter(Boolean);
+
+    console.log(`[DEBUG-POPULATE] Inputs - ItemIds: ${itemIds.length}, VariantIds: ${variantIds.length}`);
 
     const items = await Item.find({ 
         $or: [
             { _id: { $in: itemIds } },
-            { "sizes._id": { $in: variantIds } },
+            { "sizes._id": { $in: variantIds.filter(v => v.length === 24) } },
             { "sizes.sku": { $in: variantIds } },
             { "sizes.barcode": { $in: variantIds } }
         ]
-    })
-        .populate('brand', 'name brandName')
-        .populate('groupIds', 'name groupType groupName')
-        .lean();
+    }).lean();
+
+    console.log(`[DEBUG-POPULATE] DB Results - Found ${items.length} items`);
 
     return inventoryItems.map(item => {
         const vid = String(item.variantId || '');
         const parentId = String(item.itemId || '');
+        const barcode = String(item.barcode || '');
         
         const parentItem = items.find(it => 
             String(it._id) === parentId || 
-            it.sizes.some(sz => String(sz._id) === vid || sz.sku === vid || sz.barcode === vid)
+            (it.sizes && it.sizes.some(sz => 
+                String(sz._id) === vid || 
+                String(sz.sku) === vid || 
+                String(sz.barcode) === vid ||
+                String(sz.sku) === barcode ||
+                String(sz.barcode) === barcode
+            ))
         );
 
+        const type = parentItem?.type || 'GARMENT';
+        
+        if (!parentItem) {
+            console.warn(`[DEBUG-POPULATE] ORPHAN FOUND: Barcode ${barcode}, ItemID ${parentId}, VarID ${vid}`);
+        }
+
         if (parentItem) {
-            const variant = parentItem.sizes.find(sz => String(sz._id) === vid || sz.sku === vid || sz.barcode === vid) || parentItem.sizes[0] || {};
+            const variant = parentItem.sizes.find(sz => 
+                String(sz._id) === vid || 
+                sz.sku === vid || 
+                sz.barcode === vid ||
+                sz.sku === barcode ||
+                sz.barcode === barcode
+            ) || parentItem.sizes[0] || {};
             
             return {
                 ...item,
@@ -46,6 +73,7 @@ const populateInventoryManual = async (inventoryItems) => {
                 itemId: parentItem._id,
                 itemCode: parentItem.itemCode,
                 itemName: parentItem.itemName,
+                type: parentItem.type || 'GARMENT',
                 size: variant.size || 'UNI',
                 color: variant.color || parentItem.shade || 'N/A',
                 sku: variant.sku || variant.barcode || parentItem.itemCode,
@@ -61,8 +89,22 @@ const populateInventoryManual = async (inventoryItems) => {
                 mrp: toFiniteNumber(variant.mrp || parentItem.mrp || variant.salePrice || parentItem.salePrice)
             };
         }
-        return null;
-    }).filter(Boolean);
+        
+        // Fallback for orphans so they don't disappear
+        return {
+            ...item,
+            id: item._id,
+            itemCode: barcode || 'ORPHAN',
+            itemName: 'Unknown Item (' + barcode + ')',
+            type: 'GARMENT', 
+            size: '-',
+            color: '-',
+            warehouseName: item.warehouseId?.name || item.storeId?.name || 'N/A',
+            available: item.quantityAvailable ?? item.quantity,
+            inTransit: item.quantityInTransit || 0,
+            status: 'ORPHAN'
+        };
+    });
 };
 
 /**
@@ -81,11 +123,13 @@ const getStoreInventory = async (query, user) => {
     if (isStoreRole) {
         if (!user.shopId) throw new Error('User is not linked to any store. Please contact your administrator.');
         storeFilter.storeId = user.shopId;
-        // Store users should NOT see warehouse inventory rows
-        warehouseFilter._id = { $exists: false };
-    } else if (storeId) {
-        storeFilter.storeId = storeId;
-        warehouseFilter.warehouseId = storeId;
+        warehouseFilter._id = { $exists: false }; // Hide warehouse for store staff
+    } else {
+        // Admin or non-store role: show all or filter by ID
+        if (storeId) {
+            storeFilter.storeId = storeId;
+            warehouseFilter.warehouseId = storeId;
+        }
     }
 
     if (lowStock === 'true') {

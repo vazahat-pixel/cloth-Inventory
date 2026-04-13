@@ -48,6 +48,7 @@ const normalizeStockRows = (rows = []) =>
       inTransit: Number(row.inTransit || 0),
       reorderLevel: Number(row.reorderLevel || 0),
       status: row.status || 'OK',
+      type: row.type || 'GARMENT',
     };
   });
 
@@ -67,6 +68,9 @@ const toExportRows = (rows = []) =>
 function StockOverviewPage() {
   const dispatch = useDispatch();
   const navigate = useAppNavigate();
+  const authUser = useSelector((state) => state.auth?.user);
+  const isStoreStaff = authUser?.role === 'store_staff' || authUser?.role === 'Staff' || authUser?.role === 'Manager';
+  const shopId = authUser?.shopId;
   const backendRows = useSelector((state) => state.inventory.stock || []);
   const sizes = useSelector((state) => state.masters.sizes || []);
   const warehouses = useSelector((state) => state.masters.warehouses || []);
@@ -75,6 +79,7 @@ function StockOverviewPage() {
   const [warehouseFilter, setWarehouseFilter] = useState('all');
   const [itemFilter, setItemFilter] = useState('all');
   const [sizeFilter, setSizeFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
   const [stockFilter, setStockFilter] = useState('all');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -89,8 +94,9 @@ function StockOverviewPage() {
   const getSizeLabel = (value) => resolveSizeLabel(value, sizeLabelLookup);
 
   const rows = useMemo(() => {
-    return normalizeStockRows(backendRows);
-  }, [backendRows]);
+    const normalized = normalizeStockRows(backendRows);
+    return isStoreStaff ? normalized.filter((r) => r.type === 'GARMENT') : normalized;
+  }, [backendRows, isStoreStaff]);
 
   const itemOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.itemCode).filter(Boolean))), [rows]);
   const sizeOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.size).filter(Boolean))), [rows]);
@@ -110,15 +116,16 @@ function StockOverviewPage() {
       const matchesWarehouse = warehouseFilter === 'all' ? true : row.warehouse === warehouseFilter;
       const matchesItem = itemFilter === 'all' ? true : row.itemCode === itemFilter;
       const matchesSize = sizeFilter === 'all' ? true : row.size === sizeFilter;
+      const matchesType = typeFilter === 'all' ? true : row.type === typeFilter;
       const matchesStock =
         stockFilter === 'low'
           ? row.availableStock <= row.reorderLevel
           : stockFilter === 'out'
             ? row.availableStock <= 0
             : true;
-      return matchesSearch && matchesWarehouse && matchesItem && matchesSize && matchesStock;
+      return matchesSearch && matchesWarehouse && matchesItem && matchesSize && matchesType && matchesStock;
     });
-  }, [itemFilter, rows, searchText, sizeFilter, stockFilter, warehouseFilter]);
+  }, [itemFilter, rows, searchText, sizeFilter, stockFilter, warehouseFilter, typeFilter]);
 
   const paginatedRows = useMemo(
     () => filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
@@ -136,9 +143,6 @@ function StockOverviewPage() {
   );
 
   const [pendingShipments, setPendingShipments] = useState(0);
-  const authUser = useSelector((state) => state.auth?.user);
-  const isStoreStaff = authUser?.role === 'store_staff';
-  const shopId = authUser?.shopId;
 
   useEffect(() => {
     const checkPendingShipments = async () => {
@@ -275,6 +279,16 @@ function StockOverviewPage() {
             </MenuItem>
           ))}
         </TextField>
+        <TextField size="small" select label="Item Type" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} sx={{ minWidth: 140 }}>
+          <MenuItem value="all">All Types</MenuItem>
+          <MenuItem value="GARMENT">Finished Garments</MenuItem>
+          {!isStoreStaff && (
+            <>
+              <MenuItem value="FABRIC">Fabric (Thaan)</MenuItem>
+              <MenuItem value="ACCESSORY">Accessories</MenuItem>
+            </>
+          )}
+        </TextField>
         <TextField size="small" select label="Stock State" value={stockFilter} onChange={(event) => setStockFilter(event.target.value)} sx={{ minWidth: 160 }}>
           <MenuItem value="all">All Rows</MenuItem>
           <MenuItem value="low">Low stock only</MenuItem>
@@ -289,6 +303,7 @@ function StockOverviewPage() {
               <TableRow>
                 <TableCell sx={{ fontWeight: 700 }}>Item Code</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Item Name</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Type</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Size</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Color</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Location</TableCell>
@@ -304,6 +319,21 @@ function StockOverviewPage() {
                 <TableRow key={row.id} hover>
                   <TableCell sx={{ fontWeight: 700 }}>{row.itemCode}</TableCell>
                   <TableCell>{row.itemName}</TableCell>
+                  <TableCell>
+                    <Box 
+                      sx={{ 
+                        fontSize: '0.65rem', 
+                        fontWeight: 800, 
+                        px: 1, py: 0.25, 
+                        borderRadius: 1, 
+                        display: 'inline-block',
+                        bgcolor: row.type === 'GARMENT' ? '#e0f2fe' : row.type === 'FABRIC' ? '#fef3c7' : '#f3f4f6',
+                        color: row.type === 'GARMENT' ? '#0369a1' : row.type === 'FABRIC' ? '#92400e' : '#374151'
+                      }}
+                    >
+                      {row.type}
+                    </Box>
+                  </TableCell>
                   <TableCell>{getSizeLabel(row.size) || '--'}</TableCell>
                   <TableCell>{row.color || '--'}</TableCell>
                   <TableCell>{row.warehouse}</TableCell>

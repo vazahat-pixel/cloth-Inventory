@@ -11,6 +11,7 @@ const endpointMap = {
   sizes: '/sizes',
   hsnCodes: '/setup/hsn',
   itemGroups: '/setup/groups',
+  categories: '/setup/groups',
   promotionTypes: '/pricing/promotion-types',
   salesmen: '/setup/salesmen',
   banks: '/banks',
@@ -26,6 +27,7 @@ const responseKeyMap = {
   sizes: 'sizes',
   hsnCodes: 'hsns',
   itemGroups: 'groups',
+  categories: 'groups',
   promotionTypes: 'types',
   salesmen: 'salesmen',
   banks: 'banks',
@@ -41,6 +43,7 @@ const singularKeyMap = {
   sizes: 'size',
   hsnCodes: 'hsn',
   itemGroups: 'group',
+  categories: 'group',
   promotionTypes: 'type',
   salesmen: 'salesman',
   banks: 'bank',
@@ -62,6 +65,7 @@ export const fetchMasters = createAsyncThunk('masters/fetchAll', async (entityKe
       warehouses: 'warehouse',
       stores: 'store',
       itemGroups: 'group',
+      categories: 'category',
     };
     const entityType = entityTypeMapping[entityKey] || entityKey.slice(0, -1);
     return { entityKey, data: normalizeResponse(raw, entityType) };
@@ -175,6 +179,7 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
       warehouses: 'warehouse',
       stores: 'store',
       itemGroups: 'group',
+      categories: 'category',
     };
     const entityType = entityTypeMapping[entityKey] || entityKey.slice(0, -1);
     return { entityKey, data: normalizeResponse(raw, entityType) };
@@ -284,6 +289,7 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
       warehouses: 'warehouse',
       stores: 'store',
       itemGroups: 'group',
+      categories: 'category',
     };
     const entityType = entityTypeMapping[entityKey] || entityKey.slice(0, -1);
     return { entityKey, data: normalizeResponse(raw, entityType) };
@@ -312,6 +318,7 @@ const initialState = {
   sizes: [],
   hsnCodes: [],
   itemGroups: [],
+  categories: [],
   promotionTypes: [],
   salesmen: [],
   loading: false,
