@@ -128,13 +128,81 @@ const theme = createTheme({
     MuiSelect: {
       styleOverrides: {
         select: {
-          display: 'block',
-          whiteSpace: 'normal',
-          overflow: 'visible',
-          textOverflow: 'clip',
-          overflowWrap: 'anywhere',
-          lineHeight: 1.35,
-          minHeight: '1.35em',
+          paddingTop: '8px !important',
+          paddingBottom: '8px !important',
+          minHeight: '1.4375em', // Default MUI height for alignment
+          display: 'flex',
+          alignItems: 'center',
+        },
+      },
+    },
+    MuiAutocomplete: {
+      styleOverrides: {
+        listbox: {
+          '& .MuiAutocomplete-option': {
+            padding: '10px 16px',
+            fontSize: '14px',
+            fontWeight: 500,
+            color: '#1E293B',
+          },
+        },
+        inputRoot: {
+          '&.MuiInputBase-sizeSmall': {
+            paddingTop: '2px',
+            paddingBottom: '2px',
+          },
+        },
+      },
+    },
+    MuiMenuItem: {
+      styleOverrides: {
+        root: {
+          minHeight: 40,
+          fontSize: '14px',
+          fontWeight: 500,
+          padding: '10px 16px',
+          color: '#1E293B',
+          '&:hover': {
+            backgroundColor: '#F1F5F9',
+          },
+          '&.Mui-selected': {
+            backgroundColor: '#EFF6FF',
+            color: '#2563EB',
+            fontWeight: 600,
+            '&:hover': {
+              backgroundColor: '#DBEAFE',
+            },
+          },
+        },
+      },
+    },
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+          '&.MuiInputBase-sizeSmall': {
+            minHeight: 40,
+          },
+        },
+        input: {
+          padding: '10px 14px',
+          '&.MuiInputBase-inputSizeSmall': {
+            padding: '10px 14px',
+          },
+        },
+      },
+    },
+    MuiInputLabel: {
+      styleOverrides: {
+        root: {
+          fontSize: '14px',
+          fontWeight: 500,
+          '&.MuiInputLabel-sizeSmall': {
+            transform: 'translate(14px, 10px) scale(1)',
+          },
+          '&.MuiInputLabel-shrink': {
+            transform: 'translate(14px, -6px) scale(0.75)',
+          },
         },
       },
     },
