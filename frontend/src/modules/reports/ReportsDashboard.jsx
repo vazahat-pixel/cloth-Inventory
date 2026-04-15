@@ -42,6 +42,13 @@ const ALL_REPORT_CARDS = [
     description: 'Track purchase bills, costs, and supplier transactions.',
     path: '/reports/purchase',
     icon: ShoppingCartIcon,
+    roles: ['admin']
+  },
+  {
+    title: 'Daily Inward',
+    description: 'Track daily stock receipts and GRNs.',
+    path: '/reports/inward',
+    icon: ShoppingCartIcon,
     roles: ['admin', 'store_staff']
   },
   {

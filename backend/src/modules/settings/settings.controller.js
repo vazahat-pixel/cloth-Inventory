@@ -19,6 +19,20 @@ const updateCompanyProfile = async (req, res, next) => {
     }
 };
 
+const getInvoicingConfig = async (req, res, next) => {
+    try {
+        const config = await settingsService.getInvoicingConfig();
+        return sendSuccess(res, { config }, 'Invoicing configuration retrieved');
+    } catch (err) { next(err); }
+};
+
+const updateInvoicingConfig = async (req, res, next) => {
+    try {
+        const config = await settingsService.updateInvoicingConfig(req.body, req.user._id);
+        return sendSuccess(res, { config }, 'Invoicing configuration updated');
+    } catch (err) { next(err); }
+};
+
 // ROLES
 const getRoles = async (req, res, next) => {
     try {
@@ -118,6 +132,8 @@ const updatePrintTemplate = async (req, res, next) => {
 module.exports = {
     getCompanyProfile,
     updateCompanyProfile,
+    getInvoicingConfig,
+    updateInvoicingConfig,
     getRoles,
     addRole,
     updateRole,

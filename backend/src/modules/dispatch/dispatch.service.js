@@ -99,7 +99,7 @@ const createDispatch = async (dispatchData, userId) => {
 
         const sourceGst = (source.gstNumber || '').trim().toUpperCase();
         const destGst = (destination.gstNumber || '').trim().toUpperCase();
-        const isSameEntity = sourceGst === destGst;
+        const isSameEntity = sourceGst !== '' && sourceGst === destGst;
         const transferDiscountPct = destination.transferDiscountPct || 0;
 
         // 2. Prepare Detailed Items (Using Item Master Sizes)
@@ -124,12 +124,13 @@ const createDispatch = async (dispatchData, userId) => {
             const variant = itemDoc.sizes.id(variantId);
             if (!variant) throw new Error(`Variant not found in Item Master: ${variantId}`);
 
-            const baseRate = p.mrp || p.rate || variant.mrp || itemDoc.salePrice || 0;
-            const discountedRate = Number((baseRate * (1 - transferDiscountPct / 100)).toFixed(2));
+            const baseRate = Number(p.mrp || p.baseRate || p.rate || variant.mrp || itemDoc.salePrice || 0);
+            const discountPct = Number(p.discountPercent ?? transferDiscountPct ?? 0);
+            const discountedRate = Number((p.rate ?? (baseRate * (1 - discountPct / 100))).toFixed(2));
             const lineSubTotal = discountedRate * p.quantity;
 
             let taxData = { cgst: 0, sgst: 0, igst: 0, totalTax: 0 };
-            const gstPct = itemDoc.gstPercent || itemDoc.hsCodeId?.gstPercent || 0;
+            const gstPct = Number(p.gstPercent ?? p.taxPercentage ?? itemDoc.gstPercent ?? itemDoc.hsCodeId?.gstPercent ?? 0);
 
             if (!isSameEntity && !isDraft) {
                 if (gstPct > 0) {
@@ -147,6 +148,7 @@ const createDispatch = async (dispatchData, userId) => {
                 barcode,
                 rate: discountedRate,
                 mrp: baseRate,
+                discountPercent: discountPct,
                 taxPercentage: isDraft || isSameEntity ? 0 : gstPct,
                 taxAmount: taxData.totalTax,
                 total: lineSubTotal + taxData.totalTax,
@@ -277,7 +279,7 @@ const updateDispatch = async (id, dispatchData, userId) => {
     return await withTransaction(async (session) => {
         const dispatchMaster = await Dispatch.findById(id).session(session);
         if (!dispatchMaster) throw new Error('Dispatch record not found');
-        if (dispatchMaster.status !== 'PENDING') throw new Error('Only Draft/Pending dispatches can be updated');
+        if (!['PENDING', 'PACKED'].includes(dispatchMaster.status)) throw new Error('Only pending or packed challans can be updated');
 
         const { items: newItems, products, notes, sourceId, destinationStoreId, vehicleNumber, driverName } = dispatchData;
         const finalProducts = newItems || products || [];
@@ -291,7 +293,7 @@ const updateDispatch = async (id, dispatchData, userId) => {
 
         const sourceGst = (source.gstNumber || '').trim().toUpperCase();
         const destGst = (destination.gstNumber || '').trim().toUpperCase();
-        const isSameEntity = sourceGst === destGst;
+        const isSameEntity = sourceGst !== '' && sourceGst === destGst;
         const transferDiscountPct = destination.transferDiscountPct || 0;
 
         // Prepare new items with Prices
@@ -310,14 +312,15 @@ const updateDispatch = async (id, dispatchData, userId) => {
             if (!itemDoc) throw new Error(`Item master record not found during update for variant ID: ${variantId}`);
             const variant = itemDoc.sizes.id(variantId);
 
-            const baseRate = p.mrp || p.rate || variant.mrp || itemDoc.salePrice || 0;
-            const discountedRate = Number((baseRate * (1 - transferDiscountPct / 100)).toFixed(2));
+            const baseRate = Number(p.mrp || p.baseRate || p.rate || variant.mrp || itemDoc.salePrice || 0);
+            const discountPct = Number(p.discountPercent ?? transferDiscountPct ?? 0);
+            const discountedRate = Number((p.rate ?? (baseRate * (1 - discountPct / 100))).toFixed(2));
             const qty = (p.quantity || p.qty || 0);
             const lineSubTotal = discountedRate * qty;
 
             let taxData = { cgst: 0, sgst: 0, igst: 0, totalTax: 0 };
             if (!isSameEntity) {
-                const gstPct = itemDoc.gstPercent || itemDoc.hsCodeId?.gstPercent || 0;
+                const gstPct = Number(p.gstPercent ?? p.taxPercentage ?? itemDoc.gstPercent ?? itemDoc.hsCodeId?.gstPercent ?? 0);
                 if (gstPct > 0) {
                     const isIntraState = (source.location?.state || '').toLowerCase() === (destination.location?.state || '').toLowerCase();
                     taxData = calculateGST(lineSubTotal, gstPct, isIntraState ? 'CGST_SGST' : 'IGST');
@@ -333,7 +336,8 @@ const updateDispatch = async (id, dispatchData, userId) => {
                 barcode,
                 rate: discountedRate,
                 mrp: baseRate,
-                taxPercentage: isSameEntity ? 0 : (itemDoc.gstPercent || itemDoc.hsCodeId?.gstPercent || 0),
+                discountPercent: discountPct,
+                taxPercentage: isSameEntity ? 0 : Number(p.gstPercent ?? p.taxPercentage ?? itemDoc.gstPercent ?? itemDoc.hsCodeId?.gstPercent ?? 0),
                 taxAmount: taxData.totalTax,
                 total: lineSubTotal + taxData.totalTax,
                 cgst: taxData.cgst, sgst: taxData.sgst, igst: taxData.igst,
@@ -402,7 +406,11 @@ const updateDispatch = async (id, dispatchData, userId) => {
             barcode: ei.barcode,
             qty: ei.qty,
             rate: ei.rate,
-            tax: ei.qty > 0 ? (ei.taxAmount / ei.qty) : 0
+            mrp: ei.mrp,
+            discountPercent: ei.discountPercent || 0,
+            taxPercentage: ei.taxPercentage || 0,
+            tax: ei.qty > 0 ? (ei.taxAmount / ei.qty) : 0,
+            total: ei.total || 0
         }));
         dispatchMaster.notes = notes || dispatchMaster.notes;
         await dispatchMaster.save({ session });
@@ -415,11 +423,137 @@ const updateDispatch = async (id, dispatchData, userId) => {
    CONFIRM DISPATCH (PENDING → DISPATCHED)
    Deducts warehouse stock, adds in-transit to store
 ───────────────────────────────────────────── */
+const packDispatch = async (id, userId) => {
+    return await withTransaction(async (session) => {
+        const dispatch = await Dispatch.findById(id).session(session);
+        if (!dispatch) throw new Error('Dispatch record not found');
+        if (dispatch.status !== 'PENDING') throw new Error(`Only Sale Challan drafts can be packed. Current status: ${dispatch.status}`);
+
+        dispatch.status = 'PACKED';
+        await dispatch.save({ session });
+
+        return dispatch;
+    });
+};
+
 const confirmDispatch = async (id, userId) => {
     return await withTransaction(async (session) => {
         const dispatch = await Dispatch.findById(id).session(session);
         if (!dispatch) throw new Error('Dispatch record not found');
-        if (dispatch.status !== 'PENDING') throw new Error(`Cannot confirm dispatch with status: ${dispatch.status}`);
+        if (dispatch.status !== 'PACKED') throw new Error(`Only packed challans can be dispatched. Current status: ${dispatch.status}`);
+
+        const source = await Warehouse.findById(dispatch.sourceWarehouseId).session(session)
+            || await Store.findById(dispatch.sourceWarehouseId).session(session);
+        const destination = await Store.findById(dispatch.destinationStoreId).session(session);
+
+        if (!source) throw new Error('Source warehouse/store not found');
+        if (!destination) throw new Error('Destination store not found');
+
+        const sourceGst = (source.gstNumber || '').trim().toUpperCase();
+        const destGst = (destination.gstNumber || '').trim().toUpperCase();
+        const isSameEntity = sourceGst !== '' && sourceGst === destGst;
+
+        if (!dispatch.referenceId || !dispatch.referenceType) {
+            const detailedItems = [];
+            let totalSubTotal = 0;
+            let totalTaxAmount = 0;
+            let totalCGST = 0;
+            let totalSGST = 0;
+            let totalIGST = 0;
+            const { calculateGST } = require('../../services/gst.service');
+
+            for (const item of dispatch.items) {
+                const itemDoc = await Item.findById(item.itemId).populate('hsCodeId').session(session);
+                if (!itemDoc) throw new Error(`Item not found: ${item.itemId}`);
+
+                const variant = itemDoc.sizes.id(item.variantId);
+                if (!variant) throw new Error(`Variant not found in item master: ${item.variantId}`);
+
+                const qty = Number(item.qty || 0);
+                const rate = Number(item.rate || variant.mrp || itemDoc.mrp || 0);
+                const baseMrp = Number(item.mrp || variant.mrp || rate);
+                const lineSubTotal = rate * qty;
+                const gstPct = Number(item.taxPercentage ?? itemDoc.gstPercent ?? itemDoc.hsCodeId?.gstPercent ?? 0);
+
+                let taxData = { cgst: 0, sgst: 0, igst: 0, totalTax: 0 };
+                if (!isSameEntity && gstPct > 0) {
+                    const isIntraState = (source.location?.state || source.state || '').toLowerCase() === (destination.location?.state || destination.state || '').toLowerCase();
+                    taxData = calculateGST(lineSubTotal, gstPct, isIntraState ? 'CGST_SGST' : 'IGST');
+                }
+
+                detailedItems.push({
+                    itemId: itemDoc._id,
+                    variantId: variant._id,
+                    barcode: item.barcode || variant.sku || variant.barcode || itemDoc.itemCode,
+                    qty,
+                    rate,
+                    mrp: baseMrp,
+                    discountPercent: Number(item.discountPercent || 0),
+                    taxPercentage: isSameEntity ? 0 : gstPct,
+                    taxAmount: taxData.totalTax,
+                    total: lineSubTotal + taxData.totalTax,
+                    cgst: taxData.cgst,
+                    sgst: taxData.sgst,
+                    igst: taxData.igst,
+                    sku: item.barcode || variant.sku || variant.barcode || itemDoc.itemCode
+                });
+
+                totalSubTotal += lineSubTotal;
+                totalTaxAmount += taxData.totalTax;
+                totalCGST += taxData.cgst;
+                totalSGST += taxData.sgst;
+                totalIGST += taxData.igst;
+            }
+
+            if (isSameEntity) {
+                const challan = await challanService.createChallan({
+                    destinationStoreId: dispatch.destinationStoreId,
+                    sourceId: dispatch.sourceWarehouseId,
+                    items: detailedItems.map((ei) => ({
+                        itemId: ei.itemId,
+                        variantId: ei.variantId,
+                        barcode: ei.barcode,
+                        quantity: ei.qty,
+                        rate: ei.rate
+                    })),
+                    type: 'WAREHOUSE_TO_STORE',
+                    totalValue: totalSubTotal,
+                    notes: dispatch.notes || `Stock Transfer to ${destination.name}`
+                }, userId, session);
+
+                dispatch.referenceId = challan._id;
+                dispatch.referenceType = 'DeliveryChallan';
+            } else {
+                const sale = await salesService.createSale({
+                    storeId: dispatch.sourceWarehouseId,
+                    destinationStoreId: dispatch.destinationStoreId,
+                    products: detailedItems.map((ei) => ({
+                        barcode: ei.sku,
+                        productId: ei.variantId,
+                        quantity: ei.qty,
+                        rate: ei.rate,
+                        mrp: ei.mrp,
+                        taxAmount: ei.taxAmount,
+                        taxPercentage: ei.taxPercentage,
+                        total: ei.total,
+                        cgst: ei.cgst,
+                        sgst: ei.sgst,
+                        igst: ei.igst
+                    })),
+                    type: 'INTERNAL_SALE',
+                    subTotal: Number(totalSubTotal || 0),
+                    totalTax: Number(totalTaxAmount || 0),
+                    grandTotal: Number((totalSubTotal + totalTaxAmount) || 0),
+                    amountPaid: 0,
+                    dueAmount: Number((totalSubTotal + totalTaxAmount) || 0),
+                    paymentMode: 'CREDIT',
+                    notes: dispatch.notes || `Internal Sale Transfer: ${source.name} -> ${destination.name}`
+                }, userId, session);
+
+                dispatch.referenceId = sale._id;
+                dispatch.referenceType = 'Sale';
+            }
+        }
 
         // Process each item: deduct from warehouse, add to store in-transit
         for (const item of dispatch.items) {
@@ -499,7 +633,7 @@ const cancelDispatch = async (id, userId) => {
     return await withTransaction(async (session) => {
         const dispatch = await Dispatch.findById(id).session(session);
         if (!dispatch) throw new Error('Dispatch record not found');
-        if (dispatch.status !== 'PENDING') throw new Error(`Only PENDING (Draft) dispatches can be cancelled. Current status: ${dispatch.status}`);
+        if (!['PENDING', 'PACKED'].includes(dispatch.status)) throw new Error(`Only pending or packed dispatches can be cancelled. Current status: ${dispatch.status}`);
 
         dispatch.status = 'CANCELLED';
         await dispatch.save({ session });
@@ -570,6 +704,25 @@ const receiveDispatch = async (id, userId, receivedItems = []) => {
         const dispatch = await Dispatch.findById(id).session(session);
         if (!dispatch) throw new Error('Dispatch not found');
         if (dispatch.status !== 'DISPATCHED') throw new Error('Only dispatched items can be received');
+
+        // STRICT VALIDATION FOR QUANTITY MISMATCH
+        if (receivedItems && receivedItems.length > 0) {
+            for (const item of dispatch.items) {
+                const verified = receivedItems.find(ri => String(ri.variantId) === String(item.variantId));
+                const receivedQty = verified ? Number(verified.receivedQty || 0) : 0;
+                
+                if (receivedQty !== Number(item.qty)) {
+                    throw new Error(`Quantity Mismatch: Item (${item.barcode || 'N/A'}) was dispatched with quantity ${item.qty}, but store entered ${receivedQty}. You must receive exact dispatched quantity.`);
+                }
+            }
+            
+            for (const ri of receivedItems) {
+                const isDispatched = dispatch.items.find(item => String(item.variantId) === String(ri.variantId));
+                if (!isDispatched && Number(ri.receivedQty) > 0) {
+                    throw new Error(`Mismatch Alert: Attempting to receive an item that was not dispatched.`);
+                }
+            }
+        }
 
         const itemsToProcess = dispatch.items || [];
         const Item = require('../../models/item.model');
@@ -658,6 +811,7 @@ const receiveDispatch = async (id, userId, receivedItems = []) => {
 module.exports = {
     createDispatch,
     updateDispatch,
+    packDispatch,
     confirmDispatch,
     cancelDispatch,
     getDispatches,

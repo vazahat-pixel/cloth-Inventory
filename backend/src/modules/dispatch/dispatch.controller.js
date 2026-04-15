@@ -57,6 +57,15 @@ const confirm = async (req, res, next) => {
     }
 };
 
+const pack = async (req, res, next) => {
+    try {
+        const dispatch = await dispatchService.packDispatch(req.params.id, req.user._id);
+        return sendSuccess(res, { dispatch }, 'Challan marked as packed');
+    } catch (error) {
+        next(error);
+    }
+};
+
 const cancel = async (req, res, next) => {
     try {
         const dispatch = await dispatchService.cancelDispatch(req.params.id, req.user._id);
@@ -72,6 +81,7 @@ module.exports = {
     receive,
     get,
     getById,
+    pack,
     confirm,
     cancel
 };

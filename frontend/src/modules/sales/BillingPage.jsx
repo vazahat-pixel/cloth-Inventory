@@ -1156,6 +1156,7 @@ function BillingPage({
                               value={line.rate}
                               onChange={(event) => updateLineField(line.id, 'rate', event.target.value)}
                               sx={{ width: 110 }}
+                              disabled={isStoreStaff}
                             />
                           </TableCell>
                           <TableCell align="right">
@@ -1167,6 +1168,7 @@ function BillingPage({
                                 updateLineField(line.id, 'discount', event.target.value)
                               }
                               sx={{ width: 90 }}
+                              disabled={isStoreStaff}
                             />
                           </TableCell>
                           <TableCell align="right" sx={{ fontWeight: 700 }}>
@@ -1263,6 +1265,7 @@ function BillingPage({
                 type="number"
                 value={billDiscount}
                 onChange={(event) => setBillDiscount(event.target.value)}
+                disabled={isStoreStaff}
               />
 
               {totals.schemeDiscount > 0 && (

@@ -4,6 +4,7 @@ const Brand = require('../../models/brand.model');
 const HSNCode = require('../../models/hsnCode.model');
 const Counter = require('../../models/counter.model');
 const WarehouseInventory = require('../../models/warehouseInventory.model');
+const Size = require('../../models/size.model');
 const FormulaEngine = require('../../utils/formula.engine');
 const { generateUniqueBarcode: generateBarcode } = require('../../services/barcode.service');
 
@@ -30,8 +31,6 @@ const normalizeGroupIds = (groupIds = []) =>
     .filter(Boolean))];
 
 const ensureGroupsExist = async (groupIds) => {
-  // Only enforce groups for GARMENT items. 
-  // Fabric/Accessories can be created as loose items if needed.
   if (!groupIds || !groupIds.length) {
     return; 
   }
@@ -44,12 +43,35 @@ const ensureGroupsExist = async (groupIds) => {
   }
 };
 
-const ensureSizeSKUs = async (sizes = []) => {
+const ensureSizeSKUs = async (sizes = [], brandId = null) => {
+  if (!sizes.length) return;
+
+  if (brandId) {
+    const brand = await Brand.findById(brandId);
+    if (brand) {
+      const prefix = (brand.shortName || brand.name.slice(0, 2)).toUpperCase();
+      const counterKey = `barcode_seq_${prefix}`;
+      
+      const counter = await Counter.findOneAndUpdate(
+        { name: counterKey },
+        { $inc: { seq: sizes.length } },
+        { upsert: true, new: true }
+      );
+      
+      const startSeq = counter.seq - sizes.length + 1;
+      
+      sizes.forEach((entry, index) => {
+        if (!entry.sku) {
+          const num = String(startSeq + index).padStart(4, '0');
+          entry.sku = `${prefix}-${num}`;
+        }
+      });
+      return;
+    }
+  }
+
   for (const entry of sizes) {
     if (!entry.sku) {
-      // Generate an SKU per size variant only when the user did not provide one.
-      // We use the same service for now as it generates a unique code.
-      // eslint-disable-next-line no-await-in-loop
       entry.sku = await generateBarcode();
     }
   }
@@ -70,8 +92,7 @@ class ItemService {
     if (data.itemCode) data.itemCode = String(data.itemCode).trim().toUpperCase();
     if (data.type) data.type = data.type.trim().toUpperCase();
     
-    // Ensure all descriptors are top-level and normalized
-    const descriptors = ['fabric', 'pattern', 'fit', 'gender', 'occasion', 'uom', 'description', 
+    const descriptors = ['fabric', 'color', 'pattern', 'fit', 'gender', 'occasion', 'uom', 'description', 
                        'composition', 'gsm', 'width', 'shrinkage', 'shadeNo', 'accessorySize', 'packingType'];
     descriptors.forEach(field => {
       if (data[field]) {
@@ -80,33 +101,27 @@ class ItemService {
       }
     });
 
-    // Handle Entity IDs (Hierarchy & Defaults)
     const entityIdFields = ['sectionId', 'categoryId', 'subCategoryId', 'styleId', 'brand', 'hsCodeId', 'defaultWarehouse'];
     entityIdFields.forEach(field => {
       data[field] = normalizeId(data[field]);
     });
 
-    // Fallback for older frontend versions that might send specific keys
     if (data.section) data.sectionId = normalizeId(data.sectionId || data.section);
     if (data.category) data.categoryId = normalizeId(data.categoryId || data.category);
-    if (data.subCategory) data.subCategoryId = normalizeId(data.subCategoryId || data.subCategory);
+    if (data.subCategory) data.subCategoryId = normalizeId(data.subCategory || data.subCategory);
     if (data.styleType) data.styleId = normalizeId(data.styleId || data.styleType);
 
-    // Sync groupIds for tag-based searches
     data.groupIds = [data.sectionId, data.categoryId, data.subCategoryId, data.styleId].filter(Boolean);
 
-    // Handle Images Array
     data.images = Array.isArray(data.images) 
       ? data.images.filter(img => typeof img === 'string' && img.length > 0) 
       : [];
 
-    // Ensure Inventory Metrics are Numbers
     data.reorderLevel = Number(data.reorderLevel || 0);
     data.reorderQty = Number(data.reorderQty || 0);
     data.openingStock = Number(data.openingStock || 0);
     data.openingStockRate = Number(data.openingStockRate || 0);
 
-    // Normalize Sizes (Variants)
     if (data.sizes && Array.isArray(data.sizes)) {
       data.sizes = data.sizes.map(s => ({
         ...s,
@@ -117,7 +132,6 @@ class ItemService {
       }));
     }
 
-    // Robust mapping for incoming fields (Frontend compatibility)
     if (data.purchaseRate && !data.purchasePrice) data.purchasePrice = Number(data.purchaseRate);
     if (data.saleRate && !data.mrp) data.mrp = Number(data.saleRate);
     if (data.hsnCodeId && !data.hsCodeId) data.hsCodeId = data.hsnCodeId;
@@ -141,7 +155,6 @@ class ItemService {
     const counterName = `itemCode_${normalizedType}`;
     const prefix = normalizedType === 'GARMENT' ? 'ST' : normalizedType === 'FABRIC' ? 'FB' : 'ACC';
     
-    // Auto-generate or Sync Counter if frontend provides an itemCode
     if (!itemCode) {
       const counter = await Counter.findOneAndUpdate(
         { name: counterName },
@@ -150,7 +163,6 @@ class ItemService {
       );
       itemCode = `${prefix}-${String(counter.seq).padStart(4, '0')}`;
     } else if (itemCode.startsWith(`${prefix}-`)) {
-      // Sync the counter if frontend provides a code like FB-0003
       const numStr = itemCode.split('-')[1];
       const num = parseInt(numStr, 10);
       if (!isNaN(num)) {
@@ -168,14 +180,12 @@ class ItemService {
     const groupIds = normalizeGroupIds(data.groupIds);
     await ensureGroupsExist(groupIds);
 
-    // Only GARMENT (Finished Good) items require size/color variants.
-    // FABRIC and ACCESSORY items are tracked by quantity only (MTR, PCS, DOZ etc.)
     const itemType = (data.type || 'GARMENT').toUpperCase();
     if (itemType === 'GARMENT' && (!Array.isArray(data.sizes) || !data.sizes.length)) {
       throw new Error('Finished Garment item must have at least one size variant');
     }
 
-    await ensureSizeSKUs(data.sizes);
+    await ensureSizeSKUs(data.sizes, data.brand);
 
     const item = new Item({
       ...data,
@@ -199,43 +209,7 @@ class ItemService {
       throw error;
     }
 
-    // Auto-initialize Inventory in warehouse (use defaultWarehouse or auto-detect first active one)
-    const Warehouse = require('../../models/warehouse.model');
-    let warehouseId = item.defaultWarehouse;
-    if (!warehouseId) {
-      const primaryWarehouse = await Warehouse.findOne({ isActive: true, isDeleted: { $ne: true } }).sort({ createdAt: 1 });
-      if (primaryWarehouse) warehouseId = primaryWarehouse._id;
-    }
-
-    if (warehouseId && item.sizes && item.sizes.length > 0) {
-      const inventoryOps = item.sizes
-        .filter(variant => variant.stock > 0 && (variant.sku || variant.barcode))
-        .map(variant => ({
-          updateOne: {
-            filter: { warehouseId, barcode: variant.sku || variant.barcode },
-            update: {
-              $set: {
-                itemId: item._id,
-                variantId: variant._id,
-                quantity: variant.stock,
-                reorderLevel: Number(variant.reorderLevel || 0),
-                lastUpdated: new Date()
-              }
-            },
-            upsert: true
-          }
-        }));
-
-      if (inventoryOps.length > 0) {
-        await WarehouseInventory.bulkWrite(inventoryOps);
-      }
-
-      // Save the resolved warehouse back on item if it was auto-detected
-      if (!item.defaultWarehouse) {
-        await Item.findByIdAndUpdate(item._id, { defaultWarehouse: warehouseId });
-      }
-    }
-
+    // Auto-initialize inventory logic REMOVED to enforce GRN process as requested.
     return populateItem(item._id);
   }
 
@@ -245,10 +219,9 @@ class ItemService {
 
     await this.normalizeItemData(data);
 
-    // Update fields dynamically if they are provided in normalized data
     const fieldsToUpdate = [
       'itemName', 'itemCode', 'brand', 'description', 'hsCodeId', 'gstTax',
-      'fabric', 'pattern', 'fit', 'gender', 'uom', 'images', 'groupIds', 'sizes',
+      'fabric', 'color', 'pattern', 'fit', 'gender', 'uom', 'images', 'groupIds', 'sizes',
       'sectionId', 'categoryId', 'subCategoryId', 'styleId', 'type',
       'reorderLevel', 'reorderQty', 'openingStock', 'openingStockRate', 
       'stockTrackingEnabled', 'barcodeEnabled', 'isActive', 'customFields',
@@ -268,7 +241,6 @@ class ItemService {
       }
     });
 
-    // Special check for duplicate itemCode
     if (data.itemCode && data.itemCode !== item.itemCode) {
       const existing = await Item.findOne({ itemCode: data.itemCode, _id: { $ne: id } });
       if (existing) throw new Error(`Style Code ${data.itemCode} is already used.`);
@@ -279,58 +251,19 @@ class ItemService {
     }
 
     if (item.sizes) {
-      await ensureSizeSKUs(item.sizes);
+      await ensureSizeSKUs(item.sizes, item.brand);
     }
 
     await item.save();
 
-    // Auto-initialize/Update Inventory (use defaultWarehouse or auto-detect first active one)
-    const Warehouse = require('../../models/warehouse.model');
-    let warehouseId = item.defaultWarehouse;
-    if (!warehouseId) {
-      const primaryWarehouse = await Warehouse.findOne({ isActive: true, isDeleted: { $ne: true } }).sort({ createdAt: 1 });
-      if (primaryWarehouse) warehouseId = primaryWarehouse._id;
-    }
-
-    if (warehouseId && item.sizes && item.sizes.length > 0) {
-      const inventoryOps = item.sizes
-        .filter(variant => variant.stock > 0 && (variant.sku || variant.barcode))
-        .map(variant => ({
-          updateOne: {
-            filter: { warehouseId, barcode: variant.sku || variant.barcode },
-            update: {
-              $set: {
-                itemId: item._id,
-                variantId: variant._id,
-                quantity: variant.stock,
-                reorderLevel: Number(variant.reorderLevel || 0),
-                lastUpdated: new Date()
-              }
-            },
-            upsert: true
-          }
-        }));
-
-      if (inventoryOps.length > 0) {
-        const WarehouseInventory = require('../../models/warehouseInventory.model');
-        await WarehouseInventory.bulkWrite(inventoryOps);
-      }
-
-      if (!item.defaultWarehouse) {
-        item.defaultWarehouse = warehouseId;
-        await item.save();
-      }
-    }
-
+    // Auto-initialize inventory logic REMOVED to enforce GRN process as requested.
     return populateItem(item._id);
   }
 
   async getAllItems(query = {}, user = null) {
     const filter = { ...query };
 
-    // Apply role-based scoping for production safety
     if (user && user.role === 'store_staff') {
-      // Stores should only see finished goods (Garments & Accessories) that are active
       filter.type = { $in: ['GARMENT', 'ACCESSORY'] };
       filter.isActive = true;
     }
@@ -361,7 +294,6 @@ class ItemService {
     if (!barcode) throw new Error('Barcode is required');
     const upperBarcode = barcode.toUpperCase();
     
-    // Search by itemCode OR variant SKU
     const item = await Item.findOne({
       $or: [
         { itemCode: upperBarcode },
@@ -373,10 +305,32 @@ class ItemService {
 
     if (!item) return null;
 
-    // Find the specific variant if it was a variant scan
     const variant = item.sizes.find(s => s.sku === barcode) || item.sizes[0];
     
     return { item, variant };
+  }
+
+  async generateSequentialBarcodes(brandId, count) {
+    if (!brandId) throw new Error('Brand ID is required for sequential barcodes');
+    const brand = await Brand.findById(brandId);
+    if (!brand) throw new Error('Brand not found');
+
+    const prefix = (brand.shortName || brand.name.slice(0, 2)).toUpperCase();
+    const counterKey = `barcode_seq_${prefix}`;
+
+    const counter = await Counter.findOneAndUpdate(
+      { name: counterKey },
+      { $inc: { seq: count } },
+      { upsert: true, new: true }
+    );
+
+    const startSeq = counter.seq - count + 1;
+    const barcodes = [];
+    for (let i = 0; i < count; i++) {
+      const num = String(startSeq + i).padStart(4, '0');
+      barcodes.push(`${prefix}-${num}`);
+    }
+    return barcodes;
   }
 
   async deleteItem(id) {

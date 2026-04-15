@@ -41,7 +41,7 @@ function PurchaseReportPage() {
 
   const [filters, setFilters] = useState({});
   const [searchText, setSearchText] = useState('');
-  const [viewMode, setViewMode] = useState('summary'); // 'summary' | 'detail' | 'sizeWise'
+  const [viewMode, setViewMode] = useState('summary'); // 'summary' | 'detail' | 'sizeWise' | 'supplierWise'
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
@@ -134,6 +134,28 @@ function PurchaseReportPage() {
     [sizeWiseRows, page, rowsPerPage],
   );
 
+  const supplierWiseRows = useMemo(() => {
+    const bySupplier = {};
+    filteredRows.forEach((p) => {
+      const sup = supplierMap[p.supplierId] || p.supplierId || 'Unknown Supplier';
+      if (!bySupplier[sup]) bySupplier[sup] = { supplier: sup, quantity: 0, bills: 0, gross: 0, discount: 0, tax: 0, net: 0 };
+      
+      const t = p.totals || {};
+      bySupplier[sup].bills += 1;
+      bySupplier[sup].quantity += toNum(t.totalQuantity);
+      bySupplier[sup].gross += toNum(t.grossAmount);
+      bySupplier[sup].discount += toNum(t.totalDiscount);
+      bySupplier[sup].tax += toNum(t.totalTax);
+      bySupplier[sup].net += toNum(t.netAmount);
+    });
+    return Object.values(bySupplier).sort((a, b) => b.net - a.net);
+  }, [filteredRows, supplierMap]);
+
+  const paginatedSupplierWise = useMemo(
+    () => supplierWiseRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [supplierWiseRows, page, rowsPerPage]
+  );
+
   const exportSummaryRows = useMemo(
     () =>
       filteredRows.map((row) => {
@@ -220,6 +242,9 @@ function PurchaseReportPage() {
             <Button variant={viewMode === 'sizeWise' ? 'contained' : 'outlined'} onClick={() => { setViewMode('sizeWise'); setPage(0); }}>
               By Size
             </Button>
+            <Button variant={viewMode === 'supplierWise' ? 'contained' : 'outlined'} onClick={() => { setViewMode('supplierWise'); setPage(0); }}>
+              By Supplier
+            </Button>
           </ButtonGroup>
         </Stack>
       </Stack>
@@ -245,6 +270,13 @@ function PurchaseReportPage() {
               headerKeys={['size', 'quantity', 'amount']}
               rows={sizeWiseRows.map((r) => ({ size: r.size, quantity: r.quantity, amount: r.amount.toFixed(2) }))}
               filename="purchase-size-wise.csv"
+            />
+          ) : viewMode === 'supplierWise' ? (
+            <ReportExportButton
+              headers={['Supplier', 'Bills Count', 'Quantity', 'Tax', 'Net Amount']}
+              headerKeys={['supplier', 'bills', 'quantity', 'tax', 'net']}
+              rows={supplierWiseRows.map((r) => ({ supplier: r.supplier, bills: r.bills, quantity: r.quantity, tax: r.tax.toFixed(2), net: r.net.toFixed(2) }))}
+              filename="purchase-supplier-wise.csv"
             />
           ) : viewMode === 'summary' ? (
             <ReportExportButton
@@ -279,6 +311,29 @@ function PurchaseReportPage() {
                       <TableCell sx={{ fontWeight: 600 }}>{row.size}</TableCell>
                       <TableCell align="right">{row.quantity}</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700 }}>₹{row.amount.toFixed(2)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </>
+            ) : viewMode === 'supplierWise' ? (
+              <>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 700 }}>Supplier</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="center">Bills Count</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">Total Quantity</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">Total Tax</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">Net Amount</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {paginatedSupplierWise.map((row) => (
+                    <TableRow key={row.supplier} hover>
+                      <TableCell sx={{ fontWeight: 600 }}>{row.supplier}</TableCell>
+                      <TableCell align="center">{row.bills}</TableCell>
+                      <TableCell align="right">{row.quantity}</TableCell>
+                      <TableCell align="right">₹{row.tax.toFixed(2)}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700, color: '#10b981' }}>₹{row.net.toFixed(2)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -355,7 +410,7 @@ function PurchaseReportPage() {
         </TableContainer>
         <TablePagination
           component="div"
-          count={viewMode === 'summary' ? filteredRows.length : viewMode === 'sizeWise' ? sizeWiseRows.length : detailRows.length}
+          count={viewMode === 'summary' ? filteredRows.length : viewMode === 'sizeWise' ? sizeWiseRows.length : viewMode === 'supplierWise' ? supplierWiseRows.length : detailRows.length}
           page={page}
           onPageChange={(_, p) => setPage(p)}
           rowsPerPage={rowsPerPage}

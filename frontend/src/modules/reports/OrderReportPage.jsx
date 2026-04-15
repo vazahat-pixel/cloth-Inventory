@@ -18,6 +18,7 @@ import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
 import axios from 'axios';
 import { useSelector } from 'react-redux';
+import { getFriendlyErrorMessage } from '../../utils/errorMessageHelper';
 
 function OrderReportPage() {
   const [data, setData] = useState(null);
@@ -35,12 +36,15 @@ function OrderReportPage() {
     setError(null);
     try {
       const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/reports/orders`, {
-        params: filters,
+        params: {
+            startDate: filters.dateFrom,
+            endDate: filters.dateTo
+        },
         headers: { Authorization: `Bearer ${token}` }
       });
-      setData(response.data.data);
+      setData(response.data.report);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to fetch Order report.');
+      setError(getFriendlyErrorMessage(err, 'Order report load karne mein dikkat hui.'));
     } finally {
       setLoading(false);
     }

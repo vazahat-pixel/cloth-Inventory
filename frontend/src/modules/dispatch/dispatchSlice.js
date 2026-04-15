@@ -51,6 +51,7 @@ export const updateChallanStatus = createAsyncThunk(
         try {
             let endpoint = '';
             if (status === 'RECEIVED') endpoint = `/dispatch/${id}/receive`;
+            else if (status === 'PACKED') endpoint = `/dispatch/${id}/pack`;
             else if (status === 'DISPATCHED') endpoint = `/dispatch/${id}/confirm`;
             else if (status === 'CANCELLED') endpoint = `/dispatch/${id}/cancel-draft`;
             else throw new Error(`Unsupported status update: ${status}`);

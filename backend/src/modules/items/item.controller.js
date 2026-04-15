@@ -21,6 +21,16 @@ class ItemController {
     } catch (e) { return sendError(res, e.message); }
   }
 
+  getNextBarcodes = async (req, res) => {
+    try {
+      const { brandId, count } = req.query;
+      const barcodes = await itemService.generateSequentialBarcodes(brandId, parseInt(count, 10) || 1);
+      return sendSuccess(res, { barcodes }, 'Barcodes generated successfully');
+    } catch (e) {
+      return sendError(res, e.message);
+    }
+  }
+
   getAllItems = async (req, res) => {
     try {
       const items = await itemService.getAllItems(req.query, req.user);

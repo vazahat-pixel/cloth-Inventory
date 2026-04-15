@@ -19,6 +19,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import TaskAltOutlinedIcon from '@mui/icons-material/TaskAltOutlined';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
+import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import { useForm, Controller } from 'react-hook-form';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import PageHeader from '../../components/erp/PageHeader';
@@ -52,6 +53,7 @@ const TABS_MATERIAL = [
 const defaultValues = {
   type: 'GARMENT', itemCode: '', itemName: '', brand: '', hsCodeId: '', gstSlabId: '', uom: 'PCS', skuPrefix: '', description: '', status: 'Active',
   fabric: '', pattern: '', fit: '', gender: '', notes: '',
+  color: '',
   sectionId: '', categoryId: '', subCategoryId: '', subSubCategoryId: '',
   defaultWarehouse: '', reorderLevel: 0, reorderQty: 0, openingStock: 0, openingStockRate: 0,
   stockTrackingEnabled: true, barcodeEnabled: true,
@@ -143,6 +145,7 @@ function ItemFormPage({ mode = 'edit' }) {
         description: existingItem.description || '',
         status: existingItem.status || 'Active',
         fabric: existingItem.fabric || '',
+        color: existingItem.color || '',
         pattern: existingItem.pattern || '',
         fit: existingItem.fit || '',
         gender: existingItem.gender || '',
@@ -169,7 +172,7 @@ function ItemFormPage({ mode = 'edit' }) {
       const mappedVariants = (existingItem.sizes || []).map(s => ({
         id: s._id || s.id || createVariantId(),
         size: s.size,
-        color: s.color || existingItem.shade || '',
+        color: s.color || existingItem.color || existingItem.shade || '',
         sku: s.sku || s.barcode || '',
         mrp: Number(s.mrp || 0),
         stock: Number(s.stock || 0),
@@ -228,7 +231,7 @@ function ItemFormPage({ mode = 'edit' }) {
     return next;
   });
 
-  const onSubmit = async (data, statusOverride = data.status || 'Active', stay = false) => {
+  const onSubmit = async (data, statusOverride = data.status || 'Active', submitMode = 'list') => {
     // For GARMENT: must have at least one variant
     if (isGarment && !variants.length) {
       setErrorMessage('Please add at least one Size/Variant and Pricing.');
@@ -255,6 +258,7 @@ function ItemFormPage({ mode = 'edit' }) {
       hsCodeId: data.hsCodeId,
       gstTax: data.gstSlabId,
       fabric: data.fabric,
+      color: data.color,
       pattern: data.pattern,
       fit: data.fit,
       gender: data.gender,
@@ -285,7 +289,7 @@ function ItemFormPage({ mode = 'edit' }) {
       })) : [{
         id: createVariantId(),
         size: 'Standard',
-        color: data.shadeNo || 'N/A',
+        color: data.color || data.shadeNo || 'N/A',
         sku: data.barcode || data.itemCode,
         mrp: Number(materialRate.saleRate || 0),
         stock: Number(materialRate.openingStock || 0),
@@ -294,17 +298,27 @@ function ItemFormPage({ mode = 'edit' }) {
     };
 
     try {
+      let savedItem;
       if (isEditMode) {
-        await dispatch(updateItem({ id, item: payload })).unwrap();
+        savedItem = await dispatch(updateItem({ id, item: payload })).unwrap();
       } else {
-        await dispatch(addItem(payload)).unwrap();
+        savedItem = await dispatch(addItem(payload)).unwrap();
       }
 
-      if (stay) {
+      if (submitMode === 'stay') {
         setSuccessMessage(`Item saved successfully.`);
         setTimeout(() => setSuccessMessage(''), 3000);
         return;
       }
+
+      if (submitMode === 'print') {
+        const savedId = savedItem?._id || savedItem?.id || id;
+        if (savedId) {
+          navigate(`/setup/barcode-print?itemId=${savedId}&autoPrint=1`);
+          return;
+        }
+      }
+
       navigate('/items');
     } catch (err) {
       setErrorMessage(err.message || 'Failed to save item.');
@@ -334,7 +348,8 @@ function ItemFormPage({ mode = 'edit' }) {
         breadcrumbs={[{ label: 'Items', path: '/items' }, { label: 'Item Details', active: true }]}
         actions={[
           <Button key="back" variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate('/items')}>Back</Button>,
-          !isViewMode && <Button key="draft" variant="outlined" startIcon={<SaveOutlinedIcon />} onClick={handleSubmit((values) => onSubmit(values, 'Draft', true))}>Save Draft</Button>,
+          !isViewMode && <Button key="draft" variant="outlined" startIcon={<SaveOutlinedIcon />} onClick={handleSubmit((values) => onSubmit(values, 'Draft', 'stay'))}>Save Draft</Button>,
+          !isViewMode && <Button key="print" variant="outlined" startIcon={<PrintOutlinedIcon />} onClick={handleSubmit((values) => onSubmit(values, isEditMode ? existingItem.status : 'Active', 'print'))}>Save & Print Barcodes</Button>,
           !isViewMode && <Button key="save" variant="contained" color="primary" startIcon={<TaskAltOutlinedIcon />} onClick={handleSubmit((values) => onSubmit(values, isEditMode ? existingItem.status : 'Active'))}>Save Item</Button>,
         ].filter(Boolean)}
       />
@@ -486,9 +501,13 @@ function ItemFormPage({ mode = 'edit' }) {
                   {typeWatch !== 'FABRIC' && (
                     <>
                       <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Fabric / Material" {...register('fabric')} disabled={isViewMode} /></Grid>
+                      <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Primary Color" {...register('color')} disabled={isViewMode} placeholder="e.g. Navy Blue" /></Grid>
                       <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Pattern" {...register('pattern')} disabled={isViewMode} /></Grid>
                       <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Fit" {...register('fit')} disabled={isViewMode} /></Grid>
                     </>
+                  )}
+                  {typeWatch === 'FABRIC' && (
+                    <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Color" {...register('color')} disabled={isViewMode} placeholder="e.g. Sky Blue" /></Grid>
                   )}
                   {typeWatch === 'ACCESSORY' && (
                     <>
@@ -508,6 +527,8 @@ function ItemFormPage({ mode = 'edit' }) {
               variants={variants} onChange={setVariants}
               styleCode={styleCode || 'ITEM'} readOnly={isViewMode}
               sizeOptions={sizes.map(s => s.sizeCode || s.name)}
+              brandId={watch('brand')}
+              fullSizes={sizes}
             />
           </Box>
 

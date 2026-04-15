@@ -57,6 +57,7 @@ const SaleStatus = {
 
 const DispatchStatus = {
     PENDING: 'PENDING',
+    PACKED: 'PACKED',
     DISPATCHED: 'DISPATCHED',
     RECEIVED: 'RECEIVED',
     CANCELLED: 'CANCELLED',

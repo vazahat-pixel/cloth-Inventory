@@ -11,6 +11,10 @@ router.route('/company')
     .get(settingsController.getCompanyProfile)
     .patch(requireAdmin, settingsController.updateCompanyProfile);
 
+router.route('/invoicing')
+    .get(settingsController.getInvoicingConfig)
+    .patch(requireAdmin, settingsController.updateInvoicingConfig);
+
 router.route('/roles')
     .get(settingsController.getRoles)
     .post(requireAdmin, settingsController.addRole);

@@ -29,6 +29,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import { Controller, useForm } from 'react-hook-form';
 import { buildSizeLabelLookup, resolveSizeLabel } from '../../common/sizeDisplay';
+import api from '../../services/api';
 
 const INITIAL_COLORS = ['Black', 'Blue', 'Red', 'White', 'Green', 'Grey', 'Navy', 'Yellow', 'Pink', 'Cream', 'Olive', 'Multi'];
 
@@ -59,7 +60,7 @@ const createVariantPayload = (overrides = {}) => ({
   ...overrides,
 });
 
-function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOptions = [] }) {
+function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOptions = [], brandId = null, fullSizes = [] }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingVariant, setEditingVariant] = useState(null);
   const [autoGenerateSku, setAutoGenerateSku] = useState(true);
@@ -239,7 +240,7 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
     }
   };
 
-  const handleGenerateVariants = () => {
+  const handleGenerateVariants = async () => {
     if (!selectedSizes.length || !selectedColors.length) {
       setGeneratorFeedback({
         severity: 'warning',
@@ -248,30 +249,29 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
       return;
     }
 
+    // 1. Sort Sizes based on Master Sequence
+    const sortedSelectedSizes = [...selectedSizes].sort((a, b) => {
+      const seqA = fullSizes.find(s => s.code === a || s.sizeCode === a || s.value === a)?.sequence || 999;
+      const seqB = fullSizes.find(s => s.code === b || s.sizeCode === b || s.value === b)?.sequence || 999;
+      return seqA - seqB;
+    });
+
+    const combinations = [];
+    sortedSelectedSizes.forEach((size) => {
+      selectedColors.forEach((color) => {
+        combinations.push({ size, color });
+      });
+    });
+
     const existingKeys = new Set(
       variants.map((variant) => `${variant.size}|${variant.color}`.trim().toLowerCase()),
     );
 
-    const generatedVariants = [];
+    const newCombinations = combinations.filter(
+      (c) => !existingKeys.has(`${c.size}|${c.color}`.toLowerCase())
+    );
 
-    selectedSizes.forEach((size) => {
-      selectedColors.forEach((color) => {
-        const key = `${size}|${color}`.toLowerCase();
-        if (existingKeys.has(key)) {
-          return;
-        }
-
-        generatedVariants.push(
-          createVariantPayload({
-            size,
-            color,
-            sku: generateSku(styleCode, size, color),
-          }),
-        );
-      });
-    });
-
-    if (!generatedVariants.length) {
+    if (!newCombinations.length) {
       setGeneratorFeedback({
         severity: 'info',
         text: 'All selected combinations already exist in the variant list.',
@@ -279,10 +279,31 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
       return;
     }
 
+    let sequentialBarcodes = [];
+    if (brandId) {
+      try {
+        const response = await api.get('/items/next-barcodes', {
+          params: { brandId, count: newCombinations.length }
+        });
+        sequentialBarcodes = response.data.barcodes || [];
+      } catch (err) {
+        console.error('Failed to fetch sequential barcodes:', err);
+      }
+    }
+
+    const generatedVariants = newCombinations.map((combo, index) => {
+      const barcode = sequentialBarcodes[index] || generateSku(styleCode, combo.size, combo.color);
+      return createVariantPayload({
+        size: combo.size,
+        color: combo.color,
+        sku: barcode,
+      });
+    });
+
     onChange([...variants, ...generatedVariants]);
     setGeneratorFeedback({
       severity: 'success',
-      text: `Generated ${generatedVariants.length} new variants.`,
+      text: `Generated ${generatedVariants.length} new variants with ${brandId ? 'brand-sequential barcodes' : 'auto-SKUs'}.`,
     });
   };
 

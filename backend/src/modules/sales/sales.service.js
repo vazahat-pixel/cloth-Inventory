@@ -644,7 +644,14 @@ const getAllSales = async (query, user) => {
             .limit(parseInt(limit))
             .populate('storeId', 'name')
             .populate('cashierId', 'name')
-            .populate('items.itemId', 'itemName itemCode shade gstTax sizes'),
+            .populate({
+                path: 'items.itemId',
+                select: 'itemName itemCode shade gstTax sizes categoryId hsCodeId',
+                populate: [
+                    { path: 'categoryId', select: 'name' },
+                    { path: 'hsCodeId', select: 'code gstPercent' }
+                ]
+            }),
         Sale.countDocuments(filter)
     ]);
 
@@ -656,7 +663,14 @@ const getSaleById = async (id, user = null) => {
         .populate('storeId')
         .populate('cashierId', 'name')
         .populate('customerId', 'customerName mobileNumber loyaltyPoints')
-        .populate('items.itemId', 'itemName itemCode shade gstTax sizes');
+        .populate({
+            path: 'items.itemId',
+            select: 'itemName itemCode shade gstTax sizes categoryId hsCodeId',
+            populate: [
+                { path: 'categoryId', select: 'name' },
+                { path: 'hsCodeId', select: 'code gstPercent' }
+            ]
+        });
     
     if (!sale) throw new Error('Sale not found');
 

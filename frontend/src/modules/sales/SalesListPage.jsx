@@ -27,6 +27,10 @@ import SearchIcon from '@mui/icons-material/Search';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import KeyboardReturnOutlinedIcon from '@mui/icons-material/KeyboardReturnOutlined';
 import SalesDetailDialog from './SalesDetailDialog';
+import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
+import BillPrintDialog from '../../components/BillPrintDialog';
+import StandardInvoicePrint from './StandardInvoicePrint';
+import ExchangeInvoicePrint from './ExchangeInvoicePrint';
 
 const PAYMENT_STATUS_OPTIONS = ['Paid', 'Partial'];
 
@@ -54,6 +58,7 @@ function SalesListPage({
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selectedSale, setSelectedSale] = useState(null);
+  const [printTarget, setPrintTarget] = useState(null);
 
   useEffect(() => {
     dispatch(fetchSales());
@@ -254,6 +259,9 @@ function SalesListPage({
                             <IconButton size="small" color="info" onClick={() => setSelectedSale(row)}>
                               <VisibilityOutlinedIcon fontSize="small" />
                             </IconButton>
+                            <IconButton size="small" color="primary" onClick={() => setPrintTarget(row)}>
+                              <PrintOutlinedIcon fontSize="small" />
+                            </IconButton>
                             <IconButton
                               size="small"
                               color="warning"
@@ -316,6 +324,16 @@ function SalesListPage({
         }
         warehouseName={selectedSale ? warehouseMap[selectedSale.warehouseId] : ''}
       />
+
+      <BillPrintDialog open={Boolean(printTarget)} onClose={() => setPrintTarget(null)}>
+        {printTarget && (
+          printTarget.saleType === 'exchange' ? (
+            <ExchangeInvoicePrint sale={printTarget} />
+          ) : (
+            <StandardInvoicePrint sale={printTarget} />
+          )
+        )}
+      </BillPrintDialog>
     </>
   );
 }

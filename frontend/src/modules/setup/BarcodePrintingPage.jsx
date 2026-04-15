@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useSearchParams } from 'react-router-dom';
 import { 
@@ -135,6 +135,15 @@ const VerticalTag = ({ label, mfgLine1, mfgLine2, type, design }) => {
 function BarcodePrintingPage() {
   const [searchParams] = useSearchParams();
   const rawGrnId = searchParams.get('grnId');
+  const shouldAutoPrint = searchParams.get('autoPrint') === '1';
+  const preselectedItemId = searchParams.get('itemId');
+  const preselectedItemIds = useMemo(
+    () => (searchParams.get('itemIds') || '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean),
+    [searchParams],
+  );
   
   const dispatch = useDispatch();
   const grns = useSelector((state) => state.grn?.records) || [];
@@ -147,7 +156,10 @@ function BarcodePrintingPage() {
   const [importing, setImporting] = useState(false);
   const [importResults, setImportResults] = useState([]);
   const [batchLines, setBatchLines] = useState([]);
+  const [selectedStyles, setSelectedStyles] = useState([]);
+  const [globalBatchQty, setGlobalBatchQty] = useState(1);
   const allItems = useSelector((state) => state.items.records) || [];
+  const autoPrintTriggeredRef = useRef(false);
 
   const [type, setType] = useState('FORMAL SOLID');
   const [design, setDesign] = useState('COLLAR');
@@ -159,6 +171,52 @@ function BarcodePrintingPage() {
     import('../items/itemsSlice').then(m => dispatch(m.fetchItems()));
   }, [dispatch]);
 
+  const buildBatchLinesFromItems = (items) => {
+    const lines = [];
+    items.forEach((item) => {
+      const variants = item.sizes || item.variants || [];
+      if (!variants.length) {
+        return;
+      }
+
+      variants.forEach((variant) => {
+        lines.push({
+          itemId: item._id || item.id,
+          variantId: variant._id || variant.id,
+          itemCode: item.itemCode,
+          itemName: item.itemName,
+          size: variant.size || 'N/A',
+          sku: variant.sku || variant.barcode || item.itemCode,
+          printQty: 1,
+          mrp: variant.mrp || variant.salePrice || item.salePrice || item.mrp || 0,
+          color: variant.color || item.shadeNo || item.color || item.shade || 'N/A',
+          category: (item.groupIds || []).find(g => g.groupType === 'Category')?.name || (item.categoryId?.name || item.categoryId?.groupName) || 'GARMENT',
+          article: item.itemCode
+        });
+      });
+    });
+
+    return lines;
+  };
+
+  const buildLabelsFromBatchLines = (lines) => {
+    const labels = [];
+    lines.forEach((line) => {
+      const qty = Math.max(0, Number(line.printQty) || 0);
+      for (let i = 0; i < qty; i++) {
+        labels.push({
+          barcode: line.sku,
+          article: line.article,
+          size: line.size,
+          mrp: line.mrp,
+          color: line.color,
+          category: line.category
+        });
+      }
+    });
+    return labels;
+  };
+
   const fetchGrnLabels = async (idOfGrn) => {
     setImporting(true);
     try {
@@ -166,19 +224,29 @@ function BarcodePrintingPage() {
       const extractedLabels = res.data?.data?.labels || res.data?.labels || [];
       setImportResults(extractedLabels);
       if (extractedLabels.length === 0) alert('No valid received items found in this GRN to print.');
+      return extractedLabels;
     } catch (err) {
       alert('Failed to load stickers from GRN: ' + (err.response?.data?.message || err.message));
+      return [];
     } finally {
       setImporting(false);
     }
   };
 
   useEffect(() => {
-    if (rawGrnId) {
-      setActiveTab(1); 
-      fetchGrnLabels(rawGrnId);
-    }
-  }, [rawGrnId]);
+    if (!rawGrnId) return;
+
+    const loadGrnLabels = async () => {
+      setActiveTab(1);
+      const labels = await fetchGrnLabels(rawGrnId);
+      if (shouldAutoPrint && labels.length && !autoPrintTriggeredRef.current) {
+        autoPrintTriggeredRef.current = true;
+        setTimeout(() => printBatch(labels), 250);
+      }
+    };
+
+    loadGrnLabels();
+  }, [rawGrnId, shouldAutoPrint]);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -216,6 +284,26 @@ function BarcodePrintingPage() {
     };
     fetchProducts();
   }, []);
+
+  useEffect(() => {
+    const preselectedIds = [...new Set([preselectedItemId, ...preselectedItemIds].filter(Boolean))];
+    if (!preselectedIds.length || !allItems.length) return;
+
+    const matchedItems = allItems.filter((item) => preselectedIds.includes(String(item._id || item.id)));
+    if (!matchedItems.length) return;
+
+    setActiveTab(1);
+    setSelectedStyles(matchedItems);
+    setBatchLines(buildBatchLinesFromItems(matchedItems));
+
+    if (shouldAutoPrint && !autoPrintTriggeredRef.current) {
+      const labels = buildLabelsFromBatchLines(buildBatchLinesFromItems(matchedItems));
+      if (labels.length) {
+        autoPrintTriggeredRef.current = true;
+        setTimeout(() => printBatch(labels), 250);
+      }
+    }
+  }, [allItems, preselectedItemId, preselectedItemIds, shouldAutoPrint]);
 
   const handleExcelUpload = async (event) => {
     const file = event.target.files?.[0];
@@ -335,6 +423,16 @@ function BarcodePrintingPage() {
     };
   }, [selectedProduct]);
 
+  const totalBatchLabels = useMemo(
+    () => batchLines.reduce((acc, line) => acc + (Number(line.printQty) || 0), 0),
+    [batchLines],
+  );
+
+  const updateAllBatchQuantities = (qty) => {
+    const normalizedQty = Math.max(0, Number(qty) || 0);
+    setBatchLines((prev) => prev.map((line) => ({ ...line, printQty: normalizedQty })));
+  };
+
   return (
     <Box sx={{ p: 4, bgcolor: '#f8fafc', minHeight: '100vh' }}>
       <Typography variant="h4" sx={{ fontWeight: 800, mb: 1 }}>Approved Labelling System</Typography>
@@ -414,34 +512,27 @@ function BarcodePrintingPage() {
                 <Grid container spacing={4} alignItems="center">
                   <Grid item xs={12} md={9}>
                     <Autocomplete
+                      multiple
                       options={allItems}
                       getOptionLabel={(o) => `${o.itemCode} - ${o.itemName}`}
-                      onChange={(_, v) => {
-                        if (v) {
-                          const vars = (v.sizes || v.variants || []).map(s => ({
-                            variantId: s._id || s.id,
-                            size: s.size,
-                            sku: s.sku || s.barcode || v.itemCode,
-                            printQty: 0,
-                            mrp: s.mrp || s.salePrice || v.salePrice || 0,
-                            color: s.color || v.shadeNo || v.color || v.shade || 'N/A',
-                            category: (v.groupIds || []).find(g => g.groupType === 'Category')?.name || 'GARMENT',
-                            article: v.itemCode
-                          }));
-                          setBatchLines(vars);
+                      value={selectedStyles}
+                      onChange={(_, value) => {
+                        setSelectedStyles(value);
+                        if (value?.length) {
+                          setBatchLines(buildBatchLinesFromItems(value));
                         } else {
                           setBatchLines([]);
                         }
                       }}
                       sx={{ width: '100%', minWidth: { md: 500 } }}
-                      renderInput={(params) => <TextField {...params} label="Select Finished Good Style" size="medium" placeholder="Search for a style..." />}
+                      renderInput={(params) => <TextField {...params} label="Select Finished Good Styles" size="medium" placeholder="Search and select one or more styles..." />}
                       ListboxProps={{
                         sx: { maxHeight: 400, boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', '& .MuiAutocomplete-option': { px: 2, py: 1.5, borderBottom: '1px solid #f1f5f9' } }
                       }}
                     />
                   </Grid>
                   <Grid item xs={12} md={3}>
-                    <Stack direction="row" spacing={2}>
+                    <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap' }}>
                       <Button variant="outlined" component="label" startIcon={<UploadIcon />} sx={{ py: 1.2, px: 3, borderRadius: 2 }}>
                         Upload Excel
                         <input type="file" hidden onChange={handleExcelUpload} />
@@ -449,70 +540,89 @@ function BarcodePrintingPage() {
                       <Button variant="contained" color="success" disabled={!importResults.length} onClick={() => printBatch(importResults)} sx={{ py: 1.2, px: 3, borderRadius: 2 }}>
                         Print ({importResults.length})
                       </Button>
+                      {rawGrnId && importResults.length > 0 && (
+                        <Button variant="outlined" color="primary" onClick={() => printBatch(importResults)} sx={{ py: 1.2, px: 3, borderRadius: 2 }}>
+                          Direct GRN Print
+                        </Button>
+                      )}
                     </Stack>
                   </Grid>
                 </Grid>
               </Box>
 
               {batchLines.length > 0 && (
-                <TableContainer component={Paper} variant="outlined">
-                  <Table size="small">
-                    <TableHead sx={{ bgcolor: '#eff6ff' }}>
-                      <TableRow>
-                        <TableCell sx={{ fontWeight: 700 }}>SIZE</TableCell>
-                        <TableCell sx={{ fontWeight: 700 }}>BARCODE / SKU</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 700 }}>PRINT QUANTITY</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 700 }}>MRP</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {batchLines.map((line, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell sx={{ fontWeight: 700 }}>{line.size}</TableCell>
-                          <TableCell>{line.sku}</TableCell>
-                          <TableCell align="right">
-                            <TextField 
-                              type="number" 
-                              size="medium" 
-                              value={line.printQty} 
-                              onChange={(e) => {
-                                const next = [...batchLines];
-                                next[idx].printQty = Number(e.target.value);
-                                setBatchLines(next);
-                              }}
-                              sx={{ width: 140 }}
-                            />
-                          </TableCell>
-                          <TableCell align="right">{line.mrp}</TableCell>
+                <>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <Typography variant="body2" sx={{ color: '#475569', fontWeight: 600 }}>
+                      Yahan se aap GRN ke bina bhi naye items ke barcodes ek sath print kar sakte hain. Ye sirf print flow hai, inventory me koi entry nahi jayegi.
+                    </Typography>
+                    <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }}>
+                      <TextField
+                        type="number"
+                        size="small"
+                        label="Set Qty For All"
+                        value={globalBatchQty}
+                        onChange={(e) => setGlobalBatchQty(Number(e.target.value))}
+                        sx={{ width: 140 }}
+                      />
+                      <Button variant="outlined" onClick={() => updateAllBatchQuantities(globalBatchQty)}>
+                        Apply All
+                      </Button>
+                      <Button variant="outlined" color="inherit" onClick={() => updateAllBatchQuantities(0)}>
+                        Clear All
+                      </Button>
+                    </Stack>
+                  </Box>
+
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table size="small">
+                      <TableHead sx={{ bgcolor: '#eff6ff' }}>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 700 }}>STYLE</TableCell>
+                          <TableCell sx={{ fontWeight: 700 }}>SIZE</TableCell>
+                          <TableCell sx={{ fontWeight: 700 }}>BARCODE / SKU</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 700 }}>PRINT QUANTITY</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 700 }}>MRP</TableCell>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                      </TableHead>
+                      <TableBody>
+                        {batchLines.map((line, idx) => (
+                          <TableRow key={`${line.itemId || 'item'}-${line.variantId || idx}`}>
+                            <TableCell sx={{ fontWeight: 700 }}>{line.article}</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>{line.size}</TableCell>
+                            <TableCell>{line.sku}</TableCell>
+                            <TableCell align="right">
+                              <TextField 
+                                type="number" 
+                                size="medium" 
+                                value={line.printQty} 
+                                onChange={(e) => {
+                                  const next = [...batchLines];
+                                  next[idx].printQty = Number(e.target.value);
+                                  setBatchLines(next);
+                                }}
+                                sx={{ width: 140 }}
+                              />
+                            </TableCell>
+                            <TableCell align="right">{line.mrp}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </>
               )}
 
               {batchLines.length > 0 && (
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
                    <Button variant="contained" 
                     onClick={() => {
-                      const labelsToPrint = [];
-                      batchLines.forEach(l => {
-                        for (let i = 0; i < l.printQty; i++) {
-                          labelsToPrint.push({
-                            barcode: l.sku,
-                            article: l.article,
-                            size: l.size,
-                            mrp: l.mrp,
-                            color: l.color,
-                            category: l.category
-                          });
-                        }
-                      });
+                      const labelsToPrint = buildLabelsFromBatchLines(batchLines);
                       if (!labelsToPrint.length) alert('Please enter print quantities first.');
                       else printBatch(labelsToPrint);
                     }}
                    >
-                     GENERATE BATCH TAGS ({batchLines.reduce((acc, l) => acc + (l.printQty || 0), 0)})
+                     GENERATE BATCH TAGS ({totalBatchLabels})
                    </Button>
                 </Box>
               )}

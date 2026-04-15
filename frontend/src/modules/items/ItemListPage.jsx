@@ -50,11 +50,18 @@ function ItemListPage() {
     const mainGroup = section || category || (item.groupIds?.find(g => g.groupType === 'Section' || g.groupType === 'Category')?.name) || '--';
     const subGroup = subCategory || (item.groupIds?.find(g => g.groupType === 'Sub Category')?.name) || '--';
 
+    const variantColors = [...new Set((item.sizes || []).map((size) => size.color).filter(Boolean))];
     return {
       id: item.id || item._id,
       itemCode: item.itemCode || item.code || '',
       itemName: item.itemName || item.name || '',
       brand: item.brand && typeof item.brand === 'object' ? (item.brand.brandName || item.brand.name || 'UNSPECIFIED') : (item.brand ? String(item.brand) : 'UNSPECIFIED'),
+      color: item.color || item.shadeNo || variantColors.join(', ') || '--',
+      fabric: item.fabric || '--',
+      pattern: item.pattern || '--',
+      fit: item.fit || '--',
+      gender: item.gender || '--',
+      type: item.type || '--',
       mainGroup,
       subGroup,
       hsnCode: item.hsCodeId?.code || item.hsCodeId?.hsnCode || '--',
@@ -110,7 +117,7 @@ function ItemListPage() {
                       <Box><Typography sx={{ fontWeight: 800, color: '#0f172a', fontSize: '1.05rem' }}>{row.itemName}</Typography><Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600 }}>{row.itemCode}</Typography></Box>
                       <StatusBadge value={row.status} />
                     </Stack>
-                    <Typography variant="body2" sx={{ color: '#475569', fontWeight: 500 }}>{row.brand} • {row.mainGroup || 'Unassigned'}</Typography>
+                    <Typography variant="body2" sx={{ color: '#475569', fontWeight: 500 }}>{row.brand} • {row.mainGroup || 'Unassigned'} • {row.color || 'No Color'}</Typography>
                     <Box sx={{ p: 1, bgcolor: '#f8fafc', borderRadius: 1.5, display: 'flex', gap: 2 }}>
                        <Typography variant="caption" sx={{ color: '#64748b' }}>GST <b>{row.gstRate}</b></Typography>
                        <Typography variant="caption" sx={{ color: '#64748b' }}>Variants <b>{row.variantCount}</b></Typography>
@@ -131,7 +138,7 @@ function ItemListPage() {
           <TableContainer>
             <Table size="small">
               <TableHead sx={{ bgcolor: '#f8fafc' }}><TableRow>
-                <TableCell sx={{ fontWeight: 700 }}>Code</TableCell><TableCell sx={{ fontWeight: 700 }}>Name</TableCell><TableCell sx={{ fontWeight: 700 }}>Brand</TableCell><TableCell sx={{ fontWeight: 700 }}>Section</TableCell><TableCell sx={{ fontWeight: 700 }}>GST</TableCell><TableCell sx={{ fontWeight: 700 }}>Variants</TableCell><TableCell sx={{ fontWeight: 700 }}>Status</TableCell><TableCell sx={{ fontWeight: 700 }} align="right">Actions</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Code</TableCell><TableCell sx={{ fontWeight: 700 }}>Name</TableCell><TableCell sx={{ fontWeight: 700 }}>Brand</TableCell><TableCell sx={{ fontWeight: 700 }}>Color</TableCell><TableCell sx={{ fontWeight: 700 }}>Section</TableCell><TableCell sx={{ fontWeight: 700 }}>GST</TableCell><TableCell sx={{ fontWeight: 700 }}>Variants</TableCell><TableCell sx={{ fontWeight: 700 }}>Status</TableCell><TableCell sx={{ fontWeight: 700 }} align="right">Actions</TableCell>
               </TableRow></TableHead>
               <TableBody>
                 {paginatedRows.map((row) => (
@@ -139,6 +146,7 @@ function ItemListPage() {
                     <TableCell sx={{ fontWeight: 800, color: '#6366f1' }}>{row.itemCode}</TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>{row.itemName}</TableCell>
                     <TableCell>{row.brand}</TableCell>
+                    <TableCell>{row.color}</TableCell>
                     <TableCell>{row.mainGroup}</TableCell>
                     <TableCell>{row.gstRate}</TableCell>
                     <TableCell><b>{row.variantCount}</b></TableCell>

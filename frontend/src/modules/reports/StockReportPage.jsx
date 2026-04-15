@@ -33,6 +33,7 @@ function StockReportPage() {
   const items = useSelector((state) => state.items?.records || []);
   const brands = useSelector((state) => state.masters?.brands || []);
   const itemGroups = useSelector((state) => state.masters?.itemGroups || []);
+  const stores = useSelector((state) => state.masters?.stores || []);
   const movements = useSelector((state) => state.inventory?.movements || []);
   const auth = useSelector((state) => state.auth || {});
   const currentUser = auth.user || {};
@@ -45,7 +46,7 @@ function StockReportPage() {
 
   const [filters, setFilters] = useState({});
   const [searchText, setSearchText] = useState('');
-  const [viewMode, setViewMode] = useState('detail'); // 'detail' | 'groupWise'
+  const [viewMode, setViewMode] = useState('detail'); // 'detail' | 'groupWise' | 'locationWise'
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
@@ -59,10 +60,12 @@ function StockReportPage() {
     return map;
   }, [items]);
 
-  const warehouseMap = useMemo(
-    () => warehouses.reduce((acc, w) => ({ ...acc, [w.id]: w.name }), {}),
-    [warehouses],
-  );
+  const locationMap = useMemo(() => {
+    const map = {};
+    warehouses.forEach((w) => { map[w.id] = w.name; });
+    stores.forEach((s) => { map[s.id] = s.name; });
+    return map;
+  }, [warehouses, stores]);
 
   const movementBuckets = useMemo(() => {
     const buckets = {};
@@ -141,7 +144,8 @@ function StockReportPage() {
       const openingStock = Math.max(0, closingStock - movementNet);
       return {
         ...s,
-        warehouseName: warehouseMap[s.warehouseId] || warehouseMap[s.storeId],
+        warehouseName: locationMap[s.warehouseId] || locationMap[s.storeId] || 'Unknown Location',
+        locationType: s.storeId ? 'Store' : 'Warehouse',
         openingStock,
         added,
         removed,
@@ -153,7 +157,7 @@ function StockReportPage() {
         isLowStock: closingStock <= LOW_STOCK_THRESHOLD,
       };
     });
-  }, [stock, variantPriceMap, warehouseMap, movementBuckets]);
+  }, [stock, variantPriceMap, locationMap, movementBuckets]);
 
   const filteredRows = useMemo(() => {
     const query = searchText.trim().toLowerCase();
@@ -161,7 +165,7 @@ function StockReportPage() {
     const selectedGroup = itemGroups.find((g) => g.id === filters.categoryId);
     return stockRows.filter((row) => {
       const matchesWarehouse =
-        !filters.warehouseId || filters.warehouseId === 'all' || row.warehouseId === filters.warehouseId;
+        !filters.warehouseId || filters.warehouseId === 'all' || row.warehouseId === filters.warehouseId || row.storeId === filters.warehouseId;
       const matchesBrand =
         !filters.brandId ||
         filters.brandId === 'all' ||
@@ -225,6 +229,28 @@ function StockReportPage() {
     [groupWiseRows],
   );
 
+  const locationWiseRows = useMemo(() => {
+    const byLoc = {};
+    filteredRows.forEach((r) => {
+      const loc = r.warehouseName || 'Unknown Location';
+      if (!byLoc[loc]) byLoc[loc] = { location: loc, type: r.locationType, quantity: 0, value: 0, variants: 0 };
+      byLoc[loc].quantity += r.closingStock;
+      byLoc[loc].value += r.value;
+      byLoc[loc].variants += 1;
+    });
+    return Object.values(byLoc).sort((a, b) => b.value - a.value);
+  }, [filteredRows]);
+
+  const paginatedLocationWise = useMemo(
+    () => locationWiseRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [locationWiseRows, page, rowsPerPage],
+  );
+
+  const exportLocationWiseRows = useMemo(
+    () => locationWiseRows.map((r) => ({ 'Location': r.location, 'Type': r.type, Variants: r.variants, Quantity: r.quantity, Value: r.value.toFixed(2) })),
+    [locationWiseRows],
+  );
+
   return (
     <Box>
       <Stack spacing={2} sx={{ mb: 2 }}>
@@ -251,6 +277,9 @@ function StockReportPage() {
           </Button>
           <Button variant={viewMode === 'groupWise' ? 'contained' : 'outlined'} onClick={() => { setViewMode('groupWise'); setPage(0); }}>
             By Group
+          </Button>
+          <Button variant={viewMode === 'locationWise' ? 'contained' : 'outlined'} onClick={() => { setViewMode('locationWise'); setPage(0); }}>
+            By Store/Warehouse
           </Button>
         </ButtonGroup>
 
@@ -297,6 +326,13 @@ function StockReportPage() {
               rows={exportGroupWiseRows}
               filename="group-wise-stock.csv"
             />
+          ) : viewMode === 'locationWise' ? (
+            <ReportExportButton
+              headers={['Location', 'Type', 'Variants', 'Quantity', 'Value']}
+              headerKeys={['Location', 'Type', 'Variants', 'Quantity', 'Value']}
+              rows={exportLocationWiseRows}
+              filename="location-wise-stock.csv"
+            />
           ) : (
             <ReportExportButton
               headers={['Item Name', 'Variant', 'SKU', 'Warehouse', 'Opening', 'Added', 'Removed', 'Transfer', 'Adjustment', 'Damaged', 'Closing', 'Value']}
@@ -335,6 +371,29 @@ function StockReportPage() {
                   {paginatedGroupWise.map((row) => (
                     <TableRow key={row.group} hover>
                       <TableCell sx={{ fontWeight: 600 }}>{row.group}</TableCell>
+                      <TableCell align="right">{row.variants}</TableCell>
+                      <TableCell align="right">{row.quantity}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>₹{row.value.toFixed(2)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </>
+            ) : viewMode === 'locationWise' ? (
+              <>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 700 }}>Location (Store/Warehouse)</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Type</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">Variants</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">Quantity</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">Value</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {paginatedLocationWise.map((row) => (
+                    <TableRow key={row.location} hover>
+                      <TableCell sx={{ fontWeight: 600 }}>{row.location}</TableCell>
+                      <TableCell>{row.type}</TableCell>
                       <TableCell align="right">{row.variants}</TableCell>
                       <TableCell align="right">{row.quantity}</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700 }}>₹{row.value.toFixed(2)}</TableCell>
@@ -393,7 +452,7 @@ function StockReportPage() {
         </TableContainer>
         <TablePagination
           component="div"
-          count={viewMode === 'groupWise' ? groupWiseRows.length : filteredRows.length}
+          count={viewMode === 'groupWise' ? groupWiseRows.length : viewMode === 'locationWise' ? locationWiseRows.length : filteredRows.length}
           page={page}
           onPageChange={(_, p) => setPage(p)}
           rowsPerPage={rowsPerPage}

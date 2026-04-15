@@ -19,7 +19,7 @@ const getDailySalesReport = async (date, storeId) => {
     end.setHours(23, 59, 59, 999);
 
     const match = { saleDate: { $gte: start, $lte: end }, isDeleted: false };
-    if (storeId) match.storeId = new require('mongoose').Types.ObjectId(storeId);
+    if (storeId) match.storeId = new (require('mongoose').Types.ObjectId)(storeId);
 
     return await Sale.aggregate([
         { $match: match },
@@ -41,7 +41,7 @@ const getMonthlySalesReport = async (month, year, storeId) => {
     const end = new Date(year, month, 0, 23, 59, 59, 999);
 
     const match = { saleDate: { $gte: start, $lte: end }, isDeleted: false };
-    if (storeId) match.storeId = new require('mongoose').Types.ObjectId(storeId);
+    if (storeId) match.storeId = new (require('mongoose').Types.ObjectId)(storeId);
 
     return await Sale.aggregate([
         { $match: match },
@@ -106,7 +106,7 @@ const getProductWiseSales = async (startDate, endDate, storeId) => {
         if (startDate) query.saleDate.$gte = new Date(startDate);
         if (endDate) query.saleDate.$lte = new Date(endDate);
     }
-    if (storeId) query.storeId = new require('mongoose').Types.ObjectId(storeId);
+    if (storeId) query.storeId = new (require('mongoose').Types.ObjectId)(storeId);
 
     return await Sale.aggregate([
         { $match: query },
@@ -271,7 +271,7 @@ const getInventoryExport = async (storeId) => {
  */
 const getReturnSummary = async (storeId) => {
     const match = { isDeleted: false };
-    if (storeId) match.storeId = new require('mongoose').Types.ObjectId(storeId);
+    if (storeId) match.storeId = new (require('mongoose').Types.ObjectId)(storeId);
     
     return await Return.aggregate([
         { $match: match },
@@ -426,7 +426,6 @@ const getBalanceSheet = async (asOfDate) => {
     const filterDate = asOfDate ? new Date(asOfDate) : new Date();
 
     // 1. Get Profit & Loss up to this date to calculate retained earnings if needed
-    // In this simplified ERP, we'll just sum all INCOME/EXPENSE as part of equity or net profit
     const pl = await getProfitAndLoss(null, filterDate);
 
     const match = { date: { $lte: filterDate } };
@@ -520,7 +519,6 @@ const getAuditLogs = async (query = {}) => {
         .limit(100);
 };
 
-
 /**
  * Purchase Register Report
  */
@@ -528,7 +526,7 @@ const getPurchaseRegister = async (supplierId, startDate, endDate, storeId) => {
     const query = { status: 'COMPLETED' };
 
     if (supplierId) query.supplierId = supplierId;
-    if (storeId) query.storeId = storeId; // Assuming Purchase model has storeId if relevant, else ignore
+    if (storeId) query.storeId = storeId; 
 
     if (startDate || endDate) {
         query.invoiceDate = {};
@@ -562,7 +560,7 @@ const getGstSummary = async (startDate, endDate, storeId) => {
     const purchaseQuery = { status: 'COMPLETED' };
 
     if (storeId) {
-        const oid = new require('mongoose').Types.ObjectId(storeId);
+        const oid = new (require('mongoose').Types.ObjectId)(storeId);
         saleQuery.storeId = oid;
         purchaseQuery.storeId = oid;
     }
@@ -627,8 +625,118 @@ const getGstSummary = async (startDate, endDate, storeId) => {
 };
 
 /**
+ * Detailed GST Report (GSTR-1 Ready)
+ */
+const getDetailedGstReport = async (startDate, endDate, storeId) => {
+    const match = { isDeleted: false, status: 'COMPLETED' };
+    if (storeId) match.storeId = new (require('mongoose').Types.ObjectId)(storeId);
+    
+    if (startDate || endDate) {
+        match.saleDate = {};
+        if (startDate) match.saleDate.$gte = new Date(startDate);
+        if (endDate) {
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+            match.saleDate.$lte = end;
+        }
+    }
+
+    const sales = await Sale.find(match)
+        .populate({
+            path: 'items.itemId',
+            populate: { path: 'hsCodeId' }
+        })
+        .populate('storeId', 'name gstin location')
+        .sort({ saleDate: -1 });
+
+    const hsnSummary = {};
+    const rateSummary = {};
+    const b2bInvoices = [];
+    const b2cInvoices = [];
+    const itemWiseDetails = [];
+
+    sales.forEach(sale => {
+        const isB2B = !!(sale.customerGst && sale.customerGst.length >= 15);
+        const invSummary = {
+            invoice: sale.invoiceNumber || sale.saleNumber,
+            date: sale.saleDate,
+            customer: sale.customerName,
+            gstin: sale.customerGst || 'Unregistered',
+            taxable: sale.subTotal,
+            igst: sale.taxBreakup?.igst || 0,
+            cgst: sale.taxBreakup?.cgst || 0,
+            sgst: sale.taxBreakup?.sgst || 0,
+            totalTax: sale.totalTax,
+            grandTotal: sale.grandTotal
+        };
+
+        if (isB2B) b2bInvoices.push(invSummary);
+        else b2cInvoices.push(invSummary);
+
+        sale.items.forEach(item => {
+            const hsn = item.itemId?.hsCodeId?.code || 'N/A';
+            const rate = item.taxPercentage || 0;
+            const taxable = item.rate * item.quantity;
+            const tax = item.taxAmount || 0;
+
+            // Item-wise tracking
+            itemWiseDetails.push({
+                invoice: invSummary.invoice,
+                date: invSummary.date,
+                itemName: item.itemId?.itemName || 'Unknown',
+                hsn,
+                quantity: item.quantity,
+                taxable: taxable,
+                gstRate: rate,
+                taxAmount: tax,
+                customer: invSummary.customer
+            });
+
+            // HSN Summary
+            if (!hsnSummary[hsn]) {
+                hsnSummary[hsn] = { hsn, taxable: 0, igst: 0, cgst: 0, sgst: 0, totalTax: 0, qty: 0 };
+            }
+            hsnSummary[hsn].taxable += taxable;
+            hsnSummary[hsn].qty += item.quantity;
+            hsnSummary[hsn].totalTax += tax;
+            if (invSummary.igst > 0) hsnSummary[hsn].igst += tax;
+            else {
+                hsnSummary[hsn].cgst += tax / 2;
+                hsnSummary[hsn].sgst += tax / 2;
+            }
+
+            // Rate Summary
+            const rateKey = `${rate}%`;
+            if (!rateSummary[rateKey]) {
+                rateSummary[rateKey] = { rate: rateKey, taxable: 0, igst: 0, cgst: 0, sgst: 0, totalTax: 0 };
+            }
+            rateSummary[rateKey].taxable += taxable;
+            rateSummary[rateKey].totalTax += tax;
+            if (invSummary.igst > 0) rateSummary[rateKey].igst += tax;
+            else {
+                rateSummary[rateKey].cgst += tax / 2;
+                rateSummary[rateKey].sgst += tax / 2;
+            }
+        });
+    });
+
+    return {
+        summary: {
+            totalB2B: b2bInvoices.length,
+            totalB2C: b2cInvoices.length,
+            totalTaxable: Object.values(rateSummary).reduce((a, b) => a + b.taxable, 0),
+            totalTax: Object.values(rateSummary).reduce((a, b) => a + b.totalTax, 0)
+        },
+        b2b: b2bInvoices,
+        b2c: b2cInvoices,
+        hsnSummary: Object.values(hsnSummary),
+        rateSummary: Object.values(rateSummary),
+        itemWise: itemWiseDetails
+    };
+};
+
+/**
  * IN-TRANSIT STOCK MONITOR
- * Fetches all dispatches that are dispatched but not yet received.
  */
 const getInTransitReport = async () => {
     const Dispatch = require('../../models/dispatch.model');
@@ -652,7 +760,7 @@ const getInTransitReport = async () => {
 };
 
 /**
- * Consolidated Sales Report (Total by Date + Item-wise)
+ * Consolidated Sales Report
  */
 const getSalesReport = async (startDate, endDate, storeId) => {
     const match = { isDeleted: false };
@@ -709,7 +817,7 @@ const getSalesReport = async (startDate, endDate, storeId) => {
 };
 
 /**
- * Consolidated Stock Report (Current Stock + Low Stock Alerts)
+ * Consolidated Stock Report
  */
 const getStockReport = async () => {
     const storeStock = await StoreInventory.aggregate([
@@ -771,7 +879,7 @@ const getStockReport = async () => {
 };
 
 /**
- * Movement Report (History from StockMovement)
+ * Movement Report
  */
 const getMovementReport = async (startDate, endDate, variantId) => {
     const match = {};
@@ -828,7 +936,6 @@ const getMovementReport = async (startDate, endDate, variantId) => {
 
 /**
  * STOCK AGING REPORT
- * Tracks how long inventory has been sitting in stock.
  */
 const getStockAgingReport = async () => {
     return await Product.aggregate([
@@ -868,8 +975,7 @@ const getStockAgingReport = async () => {
 };
 
 /**
- * PROFIT REPORT (Sales - Purchase Cost)
- * Calculates realized margin on sold items.
+ * PROFIT REPORT
  */
 const getProfitReport = async (startDate, endDate) => {
     const match = { isDeleted: false };
@@ -881,11 +987,11 @@ const getProfitReport = async (startDate, endDate) => {
 
     return await Sale.aggregate([
         { $match: match },
-        { $unwind: "$products" },
+        { $unwind: "$items" },
         {
             $lookup: {
                 from: "items",
-                localField: "products.productId",
+                localField: "items.itemId",
                 foreignField: "_id",
                 as: "productData"
             }
@@ -893,18 +999,23 @@ const getProfitReport = async (startDate, endDate) => {
         { $unwind: "$productData" },
         {
             $group: {
-                _id: "$products.productId",
-                name: { $first: "$productData.name" },
-                sku: { $first: "$productData.sku" },
-                qtySold: { $sum: "$products.quantity" },
-                revenue: { $sum: "$products.total" },
-                totalCost: { $sum: { $multiply: ["$products.quantity", "$productData.costPrice"] } }
+                _id: { 
+                    productId: "$items.itemId", 
+                    variantId: "$items.variantId" 
+                },
+                itemName: { $first: "$productData.itemName" },
+                itemCode: { $first: "$productData.itemCode" },
+                variantName: { $first: "$items.variantId" }, // Or map from productData.sizes
+                qtySold: { $sum: "$items.quantity" },
+                revenue: { $sum: "$items.total" },
+                totalCost: { $sum: { $multiply: ["$items.quantity", { $ifNull: ["$productData.purchasePrice", 0] }] } }
             }
         },
         {
             $project: {
-                name: 1,
-                sku: 1,
+                name: "$itemName",
+                sku: "$itemCode",
+                variant: "$variantName",
                 qtySold: 1,
                 revenue: 1,
                 totalCost: 1,
@@ -924,7 +1035,6 @@ const getProfitReport = async (startDate, endDate) => {
 
 /**
  * SALE CHALLAN REPORT
- * Summarizes delivery challans and their statuses.
  */
 const getSaleChallanReport = async (startDate, endDate, storeId) => {
     const DeliveryChallan = require('../../models/deliveryChallan.model');
@@ -951,7 +1061,6 @@ const getSaleChallanReport = async (startDate, endDate, storeId) => {
 
 /**
  * SCHEME REPORT
- * Shows active schemes.
  */
 const getSchemeReport = async (startDate, endDate) => {
     const Scheme = require('../../models/scheme.model');
@@ -960,7 +1069,6 @@ const getSchemeReport = async (startDate, endDate) => {
 
 /**
  * ORDER REPORT
- * Combined view of Sale and Purchase Orders.
  */
 const getOrderReport = async (startDate, endDate) => {
     const SaleOrder = require('../../models/saleOrder.model');
@@ -988,7 +1096,6 @@ const getOrderReport = async (startDate, endDate) => {
 
 /**
  * AGENT WISE REPORT
- * Sales performance by Handled By (Cashier/Agent).
  */
 const getAgentWiseReport = async (startDate, endDate) => {
     const match = { isDeleted: false };
@@ -1053,5 +1160,6 @@ module.exports = {
     getSchemeReport,
     getOrderReport,
     getAgentWiseReport,
-    getInTransitReport
+    getInTransitReport,
+    getDetailedGstReport
 };

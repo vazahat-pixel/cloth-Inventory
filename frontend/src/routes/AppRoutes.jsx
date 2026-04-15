@@ -61,6 +61,7 @@ const DayEndClosurePage = lazy(() => import('../modules/reports/DayEndClosurePag
 const ReportsQueriesLayout = lazy(() => import('../modules/reports/ReportsQueriesLayout'));
 const DynamicReportPage = lazy(() => import('../modules/reports/DynamicReportPage'));
 const GstSummaryReportPage = lazy(() => import('../modules/reports/GstSummaryReportPage'));
+const Gstr1DetailedReportPage = lazy(() => import('../modules/reports/Gstr1DetailedReportPage'));
 const StoreClosureAuditPage = lazy(() => import('../modules/reports/StoreClosureAuditPage'));
 const OrderReportPage = lazy(() => import('../modules/reports/OrderReportPage'));
 const HoMasterDashboard = lazy(() => import('../modules/reports/HoMasterDashboard'));
@@ -72,6 +73,7 @@ const BankBookPage = lazy(() => import('../modules/reports/BankBookPage'));
 const CustomerReportPage = lazy(() => import('../modules/reports/CustomerReportPage'));
 const VendorReportPage = lazy(() => import('../modules/reports/VendorReportPage'));
 const MovementReportPage = lazy(() => import('../modules/reports/MovementReportPage'));
+const DailyInwardReportPage = lazy(() => import('../modules/reports/DailyInwardReportPage'));
 const AgeAnalysisPage = lazy(() => import('../modules/reports/AgeAnalysisPage'));
 const YieldAnalysisPage = lazy(() => import('../modules/reports/YieldAnalysisPage'));
 
@@ -79,8 +81,9 @@ const YieldAnalysisPage = lazy(() => import('../modules/reports/YieldAnalysisPag
 const SalesBillListPage = lazy(() => import('../modules/sales/SalesListPage'));
 const SalesBillFormPage = lazy(() => import('../modules/sales/BillingPage'));
 const SalesReturnPage = lazy(() => import('../modules/sales/SalesReturnPage'));
-const DeliveryChallanPage = lazy(() => import('../modules/dispatch/DeliveryChallanPage'));
-const DeliveryChallanForm = lazy(() => import('../modules/dispatch/DeliveryChallanForm'));
+import DeliveryChallanPage from '../modules/dispatch/DeliveryChallanPage';
+import DeliveryChallanForm from '../modules/dispatch/DeliveryChallanForm';
+import DispatchQueuePage from '../modules/dispatch/DispatchQueuePage';
 
 // Purchase
 const PurchaseListPage = lazy(() => import('../modules/purchase/PurchaseListPage'));
@@ -248,11 +251,16 @@ function AppRoutes() {
             <Route path="sales/sale-challan/new" element={<PlaceholderPage title="New Sale Challan" />} />
             <Route path="sales/sale-challan/:id" element={<PlaceholderPage title="Sale Challan Detail" />} />
             <Route path="sales/sale-challan/:id/edit" element={<PlaceholderPage title="Edit Sale Challan" />} />
-            <Route path="orders/delivery-challan" element={<DeliveryChallanPage />} />
-            <Route path="orders/delivery-challan/new" element={<DeliveryChallanForm />} />
-            <Route path="orders/delivery-challan/:id" element={<DeliveryChallanForm mode="view" />} />
-            <Route path="orders/delivery-challan/:id/edit" element={<DeliveryChallanForm mode="edit" />} />
-            <Route path="orders/delivery-challan/:id/receive" element={<DeliveryChallanForm mode="receive" />} />
+             <Route path="orders">
+               <Route index element={<Navigate to="delivery-challan" replace />} />
+               <Route path="delivery-challan" element={<DeliveryChallanPage />} />
+               <Route path="dispatch-queue" element={<DispatchQueuePage />} />
+               <Route path="delivery-challan/new" element={<DeliveryChallanForm />} />
+               <Route path="delivery-challan/:id" element={<DeliveryChallanForm mode="view" />} />
+               <Route path="delivery-challan/:id/edit" element={<DeliveryChallanForm mode="edit" />} />
+               <Route path="delivery-challan/:id/receive" element={<DeliveryChallanForm mode="receive" />} />
+               <Route path="delivery-challan/:id/billing" element={<DeliveryChallanForm mode="billing" />} />
+             </Route>
             <Route path="sale-challan" element={<Navigate to="sales/sale-challan" replace />} />
             <Route path="sale-challans" element={<Navigate to="sales/sale-challan" replace />} />
 
@@ -321,9 +329,11 @@ function AppRoutes() {
               <Route path="closure-history" element={<StoreClosureAuditPage />} />
               <Route path="closure" element={<DayEndClosurePage />} />
               <Route path="movement" element={<MovementReportPage />} />
+              <Route path="inward" element={<DailyInwardReportPage />} />
               <Route path="age-analysis" element={<AgeAnalysisPage />} />
               <Route path="production/yield" element={<YieldAnalysisPage />} />
               <Route path="gst/summary" element={<GstSummaryReportPage />} />
+              <Route path="gstr1" element={<Gstr1DetailedReportPage />} />
               
               {/* Dynamic & Other Reports */}
               <Route path="sale-challan-reports" element={<DynamicReportPage config={CHALLAN_REPORT_CONFIG} />} />
@@ -364,7 +374,7 @@ function AppRoutes() {
           <Route path="sales/sales-return/:id" element={<SalesReturnPage listPath="/store/sales/sale-bill" />} />
           <Route path="reports" element={<ReportsDashboard />} />
           <Route path="reports/sales" element={<SalesReportPage />} />
-          <Route path="reports/purchase" element={<PurchaseReportPage />} />
+          <Route path="reports/inward" element={<DailyInwardReportPage />} />
           <Route path="reports/stock" element={<StockReportPage />} />
           <Route path="reports/collection" element={<CollectionReportPage />} />
           <Route path="reports/closure" element={<DayEndClosurePage />} />

@@ -114,6 +114,12 @@ export const reportsQueriesNavItems = [
     icon: Inventory2OutlinedIcon,
   },
   {
+    key: 'daily-inward',
+    label: 'Daily Inward',
+    path: '/reports/inward',
+    icon: LocalShippingOutlinedIcon,
+  },
+  {
     key: 'movement-history',
     label: 'Stock Movement',
     path: '/reports/movement',
@@ -136,6 +142,12 @@ export const reportsQueriesNavItems = [
     label: 'GST Summary',
     path: '/reports/gst/summary',
     icon: GavelOutlinedIcon,
+  },
+  {
+    key: 'gstr1-report',
+    label: 'GSTR-1 (Detailed)',
+    path: '/reports/gstr1',
+    icon: ReceiptLongOutlinedIcon,
   },
 ];
 
@@ -280,7 +292,8 @@ export const reportsQueriesPlaceholderContent = {
       'Extend later with brand-wise, group-wise, and item movement reports.',
     ],
     actions: [
-      { label: 'Open Movement Report', path: '/reports/movement', variant: 'contained' },
+      { label: 'Open Daily Inward', path: '/reports/inward', variant: 'contained' },
+      { label: 'Open Movement Report', path: '/reports/movement', variant: 'outlined' },
       { label: 'Open Age Analysis', path: '/reports/age-analysis', variant: 'outlined' },
     ],
   },

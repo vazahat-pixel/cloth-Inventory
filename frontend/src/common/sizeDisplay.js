@@ -10,8 +10,8 @@ export const buildSizeLabelLookup = (sizes = []) => {
     const label = normalizeSizeKey(entry?.sizeLabel || entry?.label || entry?.name || code);
 
     if (code) {
-      lookup.set(code, label);
-      lookup.set(code.toUpperCase(), label);
+      lookup.set(code, code); // Always show the exact code (e.g. 'M' instead of 'Medium')
+      lookup.set(code.toUpperCase(), code);
     }
 
     if (label) {

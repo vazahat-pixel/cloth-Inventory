@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Button } from '@mui/material';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined';
+import TableViewOutlinedIcon from '@mui/icons-material/TableViewOutlined';
+import { exportRowsToWorkbook } from '../../utils/exportHelpers';
 
 /**
  * Build CSV string from headers and rows.
@@ -72,6 +74,23 @@ function ReportExportButton({
     onDownload?.();
   };
 
+  const handleExcelDownload = () => {
+    const keys = headerKeys && headerKeys.length ? headerKeys : headers;
+    const columns = headers.map((header, index) => ({
+      key: keys[index],
+      label: header,
+    }));
+
+    const excelFilename = (filename || 'report.csv').replace(/\.csv$/i, '.xlsx');
+    exportRowsToWorkbook({
+      rows,
+      columns,
+      filename: excelFilename,
+      sheetName: 'Report',
+    });
+    onDownload?.();
+  };
+
   if (!headers.length || !rows.length) {
     return null;
   }
@@ -92,8 +111,17 @@ function ReportExportButton({
         variant="outlined"
         startIcon={<FileDownloadOutlinedIcon fontSize="small" />}
         onClick={handleDownload}
+        sx={{ mr: 1 }}
       >
         Download CSV
+      </Button>
+      <Button
+        size="small"
+        variant="outlined"
+        startIcon={<TableViewOutlinedIcon fontSize="small" />}
+        onClick={handleExcelDownload}
+      >
+        Download Excel
       </Button>
     </>
   );

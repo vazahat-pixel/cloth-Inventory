@@ -79,6 +79,7 @@ const itemSchema = new mongoose.Schema({
     index: true
   },
   fabric: { type: String, trim: true },
+  color: { type: String, trim: true },
   pattern: { type: String, trim: true },
   fit: { type: String, trim: true },
   gender: { type: String, trim: true },

@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const DailyClosure = require('../../models/dailyClosure.model');
 const Sale = require('../../models/sale.model');
 const { sendSuccess, sendError } = require('../../utils/response.handler');
@@ -26,7 +27,7 @@ const getClosurePreview = async (req, res, next) => {
         const salesStats = await Sale.aggregate([
             {
                 $match: {
-                    storeId: new require('mongoose').Types.ObjectId(storeId),
+                    storeId: new mongoose.Types.ObjectId(storeId),
                     saleDate: { $gte: targetDate, $lt: nextDay },
                     status: 'COMPLETED'
                 }

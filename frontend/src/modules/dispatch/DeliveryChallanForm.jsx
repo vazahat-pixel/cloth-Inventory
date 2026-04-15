@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams } from 'react-router-dom';
 import api from '../../services/api';
-import { updateChallan } from './dispatchSlice';
+import { updateChallan, updateChallanStatus } from './dispatchSlice';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import {
     Autocomplete,
@@ -31,6 +31,10 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import { addChallan } from './dispatchSlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchWarehouseStock } from '../inventory/inventorySlice';
+import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
+import BillPrintDialog from '../../components/BillPrintDialog';
+import StandardInvoicePrint from '../sales/StandardInvoicePrint';
+import SaleChallanPrint from '../sales/SaleChallanPrint';
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
 
@@ -38,7 +42,7 @@ function DeliveryChallanForm({
     listPath = '/orders/delivery-challan',
     pageTitle: providedTitle = 'New Delivery Challan',
     saveLabel = 'Save Challan',
-    mode = 'edit' // edit, view, receive
+    mode = 'edit' // edit, view, receive, billing
 }) {
     const dispatch = useDispatch();
     const navigate = useAppNavigate();
@@ -53,15 +57,21 @@ function DeliveryChallanForm({
     const [status, setStatus] = useState('PENDING');
     const [challanNumber, setChallanNumber] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showPrint, setShowPrint] = useState(false);
+    const [challanRawData, setChallanRawData] = useState(null);
 
     const isReceiveMode = mode === 'receive';
+    const isBillingMode = mode === 'billing';
     const isViewMode = mode === 'view';
     const isLocked = (status === 'DISPATCHED' || status === 'RECEIVED') && (!isReceiveMode);
+    const isPacked = status === 'PACKED';
 
     const getFormTitle = () => {
         if (isReceiveMode) return 'Stock Receipt Audit (Verified)';
         if (status === 'RECEIVED') return 'Sale Bill (Received)';
         if (status === 'DISPATCHED') return 'Sale Bill (Finalized & Locked)';
+        if (isBillingMode) return 'Billing Review Before Dispatch';
+        if (status === 'PACKED') return 'Packed Challan (Ready For Billing)';
         return 'Sale Challan (Edit Draft)';
     };
     
@@ -124,7 +134,9 @@ function DeliveryChallanForm({
                             size: sz.size || '-',
                             color: item.shade || sz.color || '-',
                             available: Number(sz.stock),
+                            rate: baseRate,
                             mrp: baseRate,
+                            discountPercent: 0,
                             gstPercent: gstPct
                         });
                     }
@@ -190,7 +202,9 @@ function DeliveryChallanForm({
                     color: item.color || item.variantId?.color || '-',
                     available: item.quantity,
                     quantity: 1,
+                    rate: item.rate || item.mrp || 0,
                     mrp: item.rate || item.mrp || 0,
+                    discountPercent: 0,
                     gstPercent: Number(item.gstPercent || item.itemId?.hsCodeId?.gstPercent || 0)
                 };
                 setLines(prev => [...prev, newLine]);
@@ -205,6 +219,25 @@ function DeliveryChallanForm({
         setLines(prev => prev.map(l => {
             if (l.variantId !== variantId) return l;
             return { ...l, quantity: Math.max(1, Math.min(Number(val), l.available)) };
+        }));
+    };
+
+    const updateLineField = (variantId, field, val) => {
+        setLines(prev => prev.map((line) => {
+            if (line.variantId !== variantId) return line;
+            const numericValue = Math.max(0, Number(val) || 0);
+
+            if (field === 'discountPercent') {
+                const cappedDiscount = Math.min(numericValue, 100);
+                const baseMrp = Number(line.mrp || line.rate || 0);
+                return {
+                    ...line,
+                    discountPercent: cappedDiscount,
+                    rate: Number((baseMrp * (1 - cappedDiscount / 100)).toFixed(2)),
+                };
+            }
+
+            return { ...line, [field]: numericValue };
         }));
     };
 
@@ -238,7 +271,9 @@ function DeliveryChallanForm({
                                 available: Number(item.qty + 100),
                                 quantity: Number(item.qty),
                                 receivedQty: mode === 'receive' ? 0 : Number(item.qty),
+                                rate: Number(item.rate || item.mrp || 0),
                                 mrp: Number(item.mrp || item.rate || 0),
+                                discountPercent: Number(item.discountPercent || 0),
                                 gstPercent: Number(item.taxPercentage || 0)
                             };
                         });
@@ -246,12 +281,13 @@ function DeliveryChallanForm({
                     }
                     setStatus(data.status || 'PENDING');
                     setChallanNumber(data.dispatchNumber || '');
+                    setChallanRawData(data);
                 }
             });
         }
     }, [id]);
 
-    const handleSave = async (targetStatus = 'SENT') => {
+    const handleSave = async (targetStatus = 'PENDING') => {
         setError('');
         if (!sourceId || !storeId || !lines.length) { setError("Incomplete data"); return; }
         setIsSubmitting(true);
@@ -279,7 +315,10 @@ function DeliveryChallanForm({
                     variantId: l.variantId,
                     barcode: l.barcode,
                     quantity: l.quantity,
-                    rate: l.mrp
+                    rate: Number(l.rate || l.mrp || 0),
+                    mrp: Number(l.mrp || l.rate || 0),
+                    discountPercent: Number(l.discountPercent || 0),
+                    gstPercent: Number(l.gstPercent || 0)
                 })),
                 status: targetStatus,
                 type: 'WAREHOUSE_TO_STORE'
@@ -291,6 +330,40 @@ function DeliveryChallanForm({
             navigate(listPath);
         } catch (err) {
             setError(err.message || "Failed to process");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleBillingDispatch = async () => {
+        setError('');
+        setIsSubmitting(true);
+
+        try {
+            await dispatch(updateChallan({
+                id,
+                data: {
+                    dcDate: date,
+                    sourceId,
+                    destinationStoreId: storeId,
+                    items: lines.map((l) => ({
+                        itemId: l.itemId,
+                        variantId: l.variantId,
+                        barcode: l.barcode,
+                        quantity: l.quantity,
+                        rate: Number(l.rate || l.mrp || 0),
+                        mrp: Number(l.mrp || l.rate || 0),
+                        discountPercent: Number(l.discountPercent || 0),
+                        gstPercent: Number(l.gstPercent || 0)
+                    }))
+                }
+            })).unwrap();
+
+            await dispatch(updateChallanStatus({ id, status: 'DISPATCHED' })).unwrap();
+            alert('Billing reviewed, final document generated, and dispatch completed.');
+            navigate(listPath);
+        } catch (err) {
+            setError(err.message || 'Failed to complete billing dispatch');
         } finally {
             setIsSubmitting(false);
         }
@@ -310,7 +383,19 @@ function DeliveryChallanForm({
                 )}
             </Stack>
 
+            {isPacked && !isReceiveMode && (
+                <Box sx={{ mb: 3, px: 1.5, py: 0.75, borderRadius: 1.5, display: 'inline-flex', fontSize: '0.75rem', fontWeight: 800, bgcolor: '#f3e8ff', color: '#6b21a8', border: '1px solid #d8b4fe' }}>
+                    READY FOR BILLING
+                </Box>
+            )}
+
             <Stack spacing={4}>
+                {isPacked && !isReceiveMode && (
+                    <Box sx={{ p: 2, bgcolor: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: 2 }}>
+                        <Typography sx={{ fontWeight: 900, color: '#6b21a8' }}>Packing completed</Typography>
+                        <Typography variant="caption">Ab ye challan packed stage me hai. Final tax invoice ya transfer bill banane ke baad hi dispatch hoga.</Typography>
+                    </Box>
+                )}
                 <Stack direction="row" spacing={2} sx={{ opacity: isReceiveMode || isLocked ? 0.6 : 1, pointerEvents: isReceiveMode || isLocked ? 'none' : 'auto' }}>
                     <TextField 
                         type="date" 
@@ -382,10 +467,13 @@ function DeliveryChallanForm({
                             <TableRow>
                                 <TableCell sx={{ fontWeight: 700 }}>Garment Variant</TableCell>
                                 <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 700 }}>MRP</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 700 }}>{isBillingMode ? 'Base MRP' : 'MRP'}</TableCell>
+                                {isBillingMode && <TableCell align="right" sx={{ fontWeight: 700 }}>Discount %</TableCell>}
+                                {isBillingMode && <TableCell align="right" sx={{ fontWeight: 700 }}>Bill Rate</TableCell>}
                                 <TableCell align="right" sx={{ fontWeight: 700 }}>Expected Qty</TableCell>
                                 {!isSameEntity && <TableCell align="right" sx={{ fontWeight: 700 }}>GST%</TableCell>}
                                 {!isSameEntity && <TableCell align="right" sx={{ fontWeight: 700 }}>Tax</TableCell>}
+                                {isBillingMode && <TableCell align="right" sx={{ fontWeight: 700 }}>Line Total</TableCell>}
                                 {isReceiveMode && <TableCell align="right" sx={{ fontWeight: 700, color: '#166534' }}>Received Qty</TableCell>}
                                 {!isReceiveMode && <TableCell align="right" sx={{ fontWeight: 700 }}>Dispatch Qty</TableCell>}
                                 {!isLocked && <TableCell align="center">Action</TableCell>}
@@ -393,17 +481,52 @@ function DeliveryChallanForm({
                         </TableHead>
                         <TableBody>
                             {lines.map((l) => {
-                                const taxableValue = (l.mrp || 0) * (l.quantity || 0);
+                                const baseRate = Number(l.mrp || 0);
+                                const billRate = Number(l.rate || l.mrp || 0);
+                                const taxableValue = billRate * (l.quantity || 0);
                                 const taxAmount = !isSameEntity ? (taxableValue * (l.gstPercent || 0)) / 100 : 0;
+                                const lineTotal = taxableValue + taxAmount;
                                 
                                 return (
                                 <TableRow key={l.variantId} sx={{ bgcolor: isReceiveMode && l.receivedQty != l.quantity ? '#fff1f2' : 'inherit' }}>
                                     <TableCell>{l.itemName} ({l.size}/{l.color})</TableCell>
                                     <TableCell>{l.sku}</TableCell>
-                                    <TableCell align="right">₹{(l.mrp || 0).toLocaleString()}</TableCell>
+                                    <TableCell align="right">₹{baseRate.toLocaleString()}</TableCell>
+                                    {isBillingMode && (
+                                        <TableCell align="right">
+                                            <TextField 
+                                                size="small" type="number" value={l.discountPercent || 0}
+                                                onChange={(e) => updateLineField(l.variantId, 'discountPercent', e.target.value)}
+                                                inputProps={{ style: { textAlign: 'right', width: 70 } }}
+                                                disabled={isLocked}
+                                            />
+                                        </TableCell>
+                                    )}
+                                    {isBillingMode && (
+                                        <TableCell align="right">
+                                            <TextField 
+                                                size="small" type="number" value={l.rate || 0}
+                                                onChange={(e) => updateLineField(l.variantId, 'rate', e.target.value)}
+                                                inputProps={{ style: { textAlign: 'right', width: 80 } }}
+                                                disabled={isLocked}
+                                            />
+                                        </TableCell>
+                                    )}
                                     <TableCell align="right" sx={{ fontWeight: 700 }}>{l.quantity}</TableCell>
-                                    {!isSameEntity && <TableCell align="right">{l.gstPercent}%</TableCell>}
-                                    {!isSameEntity && <TableCell align="right">₹{taxAmount.toLocaleString()}</TableCell>}
+                                    {!isSameEntity && (
+                                        <TableCell align="right">
+                                            {isBillingMode ? (
+                                                <TextField 
+                                                    size="small" type="number" value={l.gstPercent || 0}
+                                                    onChange={(e) => updateLineField(l.variantId, 'gstPercent', e.target.value)}
+                                                    inputProps={{ style: { textAlign: 'right', width: 70 } }}
+                                                    disabled={isLocked}
+                                                />
+                                            ) : `${l.gstPercent}%`}
+                                        </TableCell>
+                                    )}
+                                    {!isSameEntity && <TableCell align="right">₹{taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>}
+                                    {isBillingMode && <TableCell align="right" sx={{ fontWeight: 700 }}>₹{lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>}
                                     {isReceiveMode && (
                                         <TableCell align="right">
                                             <TextField 
@@ -441,16 +564,28 @@ function DeliveryChallanForm({
                     <Box sx={{ minWidth: 250, p: 2, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
                         <Stack spacing={1}>
                             <Stack direction="row" justifyContent="space-between">
-                                <Typography variant="body2">Subtotal:</Typography>
+                                <Typography variant="body2">Total MRP:</Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                                    ₹{lines.reduce((acc, l) => acc + (l.mrp * l.quantity), 0).toLocaleString()}
+                                    ₹{lines.reduce((acc, l) => acc + (Number(l.mrp || 0) * l.quantity), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </Typography>
+                            </Stack>
+                            <Stack direction="row" justifyContent="space-between">
+                                <Typography variant="body2" color="success.main">Total Discount:</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 700, color: 'success.main' }}>
+                                    - ₹{lines.reduce((acc, l) => acc + ((Number(l.mrp || 0) - Number(l.rate || l.mrp || 0)) * l.quantity), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </Typography>
+                            </Stack>
+                            <Stack direction="row" justifyContent="space-between">
+                                <Typography variant="body2">Subtotal / Taxable:</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                    ₹{lines.reduce((acc, l) => acc + ((Number(l.rate || l.mrp || 0)) * l.quantity), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </Typography>
                             </Stack>
                             {!isSameEntity && (
                                 <Stack direction="row" justifyContent="space-between">
                                     <Typography variant="body2">Tax ({isInterState ? 'IGST' : 'CGST+SGST'}):</Typography>
                                     <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                                        ₹{lines.reduce((acc, l) => acc + ((l.mrp * l.quantity * l.gstPercent) / 100), 0).toLocaleString()}
+                                        ₹{lines.reduce((acc, l) => acc + (((Number(l.rate || l.mrp || 0)) * l.quantity * l.gstPercent) / 100), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </Typography>
                                 </Stack>
                             )}
@@ -459,10 +594,10 @@ function DeliveryChallanForm({
                                 <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>Total Value:</Typography>
                                 <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#1e293b' }}>
                                     ₹{lines.reduce((acc, l) => {
-                                        const base = l.mrp * l.quantity;
+                                        const base = Number(l.rate || l.mrp || 0) * l.quantity;
                                         const tax = !isSameEntity ? (base * l.gstPercent) / 100 : 0;
                                         return acc + base + tax;
-                                    }, 0).toLocaleString()}
+                                    }, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </Typography>
                             </Stack>
                         </Stack>
@@ -476,13 +611,43 @@ function DeliveryChallanForm({
                             Confirm Verified Stock-In
                         </Button>
                     )}
-                    {!isReceiveMode && !isLocked && (
+                    {isBillingMode && !isLocked && (
+                      <>
+                        <Button variant="outlined" color="primary" onClick={() => handleSave()} disabled={isSubmitting}>
+                            Save Billing Review
+                        </Button>
+                        <Button variant="contained" color="primary" onClick={handleBillingDispatch} disabled={isSubmitting}>
+                            Generate Bill & Dispatch
+                        </Button>
+                      </>
+                    )}
+                    {!isReceiveMode && !isBillingMode && !isLocked && (
                       <Button variant="contained" color="primary" onClick={() => handleSave()} disabled={isSubmitting}>
-                          {isSameEntity ? 'Generate Delivery Challan' : 'Generate Tax Invoice'}
+                          {id ? 'Update Sale Challan' : 'Save Sale Challan'}
                       </Button>
+                    )}
+                    {(isLocked || isPacked) && (
+                        <Button 
+                            variant="outlined" 
+                            color="info" 
+                            startIcon={<PrintOutlinedIcon />} 
+                            onClick={() => setShowPrint(true)}
+                        >
+                            Print Document
+                        </Button>
                     )}
                 </Stack>
             </Stack>
+            <BillPrintDialog open={showPrint} onClose={() => setShowPrint(false)}>
+                {status === 'DISPATCHED' || status === 'RECEIVED' ? (
+                    <StandardInvoicePrint 
+                        sale={{ ...challanRawData, items: lines }} 
+                        isTransfer={isSameEntity} 
+                    />
+                ) : (
+                    <SaleChallanPrint challan={{ ...challanRawData, items: lines }} />
+                )}
+            </BillPrintDialog>
         </Paper>
     );
 }

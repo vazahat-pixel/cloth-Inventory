@@ -7,8 +7,11 @@ import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import useRoleBasePath from '../../../hooks/useRoleBasePath';
 
+import ReceiptIcon from '@mui/icons-material/Receipt';
+
 const allActions = [
   { label: 'New Sale', path: '/sales/new', icon: AddShoppingCartIcon, color: 'primary' },
+  { label: 'Billing & Dispatch Queue', path: '/orders/dispatch-queue', icon: ReceiptIcon, color: 'warning' },
   { label: 'New Purchase', path: '/purchase/new', icon: LocalShippingIcon, color: 'success' },
   { label: 'Stock Overview', path: '/inventory/stock-overview', icon: Inventory2Icon, color: 'info' },
   { label: 'Reports', path: '/reports', icon: AssessmentIcon, color: 'secondary' },

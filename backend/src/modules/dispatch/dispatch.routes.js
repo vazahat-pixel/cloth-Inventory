@@ -12,6 +12,9 @@ router.get('/', dispatchController.get);
 router.get('/:id', dispatchController.getById);
 router.put('/:id', dispatchController.update);
 
+// Mark as PACKED (from DRAFT / Sale Challan)
+router.post('/:id/pack', dispatchController.pack);
+
 // Mark as DISPATCHED (from DRAFT)
 router.post('/:id/confirm', dispatchController.confirm);
 
