@@ -186,7 +186,8 @@ const getInventoryExport = async (req, res, next) => {
 
 const getSalesReport = async (req, res, next) => {
     try {
-        const { startDate, endDate, storeId } = req.query;
+        const { startDate, endDate } = req.query;
+        const storeId = req.user.role === 'store_staff' ? req.user.shopId : req.query.storeId;
         const report = await reportService.getSalesReport(startDate, endDate, storeId);
         return sendSuccess(res, { report }, 'Sales report retrieved');
     } catch (err) {

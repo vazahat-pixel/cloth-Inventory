@@ -905,11 +905,27 @@ const getMovementReport = async (startDate, endDate, variantId, storeId) => {
             $lookup: {
                 from: "items",
                 localField: "variantId",
-                foreignField: "_id",
-                as: "product"
+                foreignField: "sizes._id",
+                as: "itemDoc"
             }
         },
-        { $unwind: "$product" },
+        { $unwind: { path: "$itemDoc", preserveNullAndEmptyArrays: true } },
+        {
+            $addFields: {
+                matchedVariant: {
+                    $filter: {
+                        input: "$itemDoc.sizes",
+                        as: "sz",
+                        cond: { $eq: ["$$sz._id", "$variantId"] }
+                    }
+                }
+            }
+        },
+        {
+            $addFields: {
+                variantInfo: { $arrayElemAt: ["$matchedVariant", 0] }
+            }
+        },
         {
             $lookup: {
                 from: "users",
@@ -938,12 +954,12 @@ const getMovementReport = async (startDate, endDate, variantId, storeId) => {
         {
             $project: {
                 date: "$createdAt",
-                itemName: "$product.itemName",
-                productName: "$product.itemName",
-                sku: "$product.itemCode",
-                styleCode: "$product.itemCode",
-                size: { $ifNull: ["$product.accessorySize", "-"] },
-                color: { $ifNull: ["$product.shadeNo", "-"] },
+                itemName: { $ifNull: ["$itemDoc.itemName", "Unknown Item"] },
+                productName: { $ifNull: ["$itemDoc.itemName", "Unknown Item"] },
+                sku: { $ifNull: ["$variantInfo.sku", "$itemDoc.itemCode", "-"] },
+                styleCode: { $ifNull: ["$itemDoc.itemCode", "-"] },
+                size: { $ifNull: ["$variantInfo.size", "$itemDoc.accessorySize", "-"] },
+                color: { $ifNull: ["$variantInfo.color", "$itemDoc.shadeNo", "-"] },
                 qty: { $abs: "$qty" },
                 quantityChange: "$qty",
                 type: { $cond: [{ $gt: ["$qty", 0] }, "IN", "OUT"] },

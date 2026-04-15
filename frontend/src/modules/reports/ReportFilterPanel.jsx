@@ -46,10 +46,29 @@ function ReportFilterPanel({
   const availableLocations = useMemo(() => {
     const combined = [...warehouses, ...stores];
     if (isStoreStaff && user?.shopId) {
-      return combined.filter(l => l.id === user.shopId);
+      return combined.filter((l) => l.id === user.shopId || l._id === user.shopId);
     }
     return combined;
   }, [warehouses, stores, isStoreStaff, user?.shopId]);
+
+  const filteredItemGroups = useMemo(() => {
+    if (!isStoreStaff) return itemGroups;
+    // Categories that are Head Office / Production specific and should be hidden from Stores
+    const hoOnlyCategories = [
+      'RAW MATERIALS',
+      'FABRICS',
+      'TRIMS / ACCESSORIES',
+      'PACKING MATERIALS',
+      'PACKING MATERIAL',
+      'YARN',
+      'TRIMS',
+      'ACCESSORIES' // If generic accessories is also considered HO raw materials
+    ];
+    return itemGroups.filter((g) => {
+      const name = (g.groupName || g.name || '').toUpperCase();
+      return !hoOnlyCategories.includes(name);
+    });
+  }, [itemGroups, isStoreStaff]);
 
   useEffect(() => {
     if (showWarehouse) dispatch(fetchMasters('warehouses'));
@@ -176,9 +195,9 @@ function ReportFilterPanel({
             onChange={(e) => update('categoryId', e.target.value)}
           >
             <MenuItem value="all">All</MenuItem>
-            {itemGroups.map((g) => (
-              <MenuItem key={g.id} value={g.id}>
-                {g.groupName}
+            {filteredItemGroups.map((g) => (
+              <MenuItem key={g.id || g._id} value={g.id || g._id}>
+                {g.groupName || g.name}
               </MenuItem>
             ))}
           </TextField>
