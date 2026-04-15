@@ -22,6 +22,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { fetchChallans, updateChallanStatus } from './dispatchSlice';
 import BillPrintDialog from '../../components/BillPrintDialog';
 import SaleChallanPrint from '../sales/SaleChallanPrint';
+import StandardInvoicePrint from '../sales/StandardInvoicePrint';
 
 function DispatchQueuePage() {
     const navigate = useAppNavigate();
@@ -34,9 +35,9 @@ function DispatchQueuePage() {
         dispatch(fetchChallans());
     }, [dispatch]);
 
-    // Filter for Pending and Packed challans
+    // Keep challans visible after dispatch so invoice stays downloadable
     const queueChallans = challans.filter(row => 
-        ['PENDING', 'PACKED'].includes(row.status || 'PENDING')
+        ['PENDING', 'PACKED', 'DISPATCHED'].includes(row.status || 'PENDING')
     ).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     const renderStatusChip = (status) => {
@@ -45,7 +46,27 @@ function DispatchQueuePage() {
         let label = value;
         if (value === 'PENDING') { color = 'info'; label = 'READY TO PACK'; }
         if (value === 'PACKED') { color = 'secondary'; label = 'PACKED / READY FOR BILLING'; }
+        if (value === 'DISPATCHED') { color = 'warning'; label = 'DISPATCHED / IN TRANSIT'; }
         return <Chip label={label} color={color} size="small" sx={{ fontWeight: 700, fontSize: '0.7rem' }} />;
+    };
+
+    const handleReviewDispatch = async (id, status) => {
+        try {
+            if (status === 'PENDING') {
+                await dispatch(updateChallanStatus({ id, status: 'PACKED' })).unwrap();
+                navigate(`/orders/delivery-challan/${id}/billing`);
+                return;
+            }
+            if (status === 'PACKED') {
+                navigate(`/orders/delivery-challan/${id}/billing`);
+                return;
+            }
+            // DISPATCHED: allow quick access to finalized document/invoice view
+            navigate(`/orders/delivery-challan/${id}`);
+        } catch (err) {
+            // Surface backend validation in a simple way for operators.
+            alert(err?.message || 'Unable to continue review/dispatch flow.');
+        }
     };
 
     return (
@@ -131,9 +152,10 @@ function DispatchQueuePage() {
                                                         size="small"
                                                         startIcon={<PlayArrowIcon fontSize="small" />}
                                                         sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: 'none', boxShadow: '0 4px 12px rgba(37, 99, 235, 0.2)' }}
-                                                        onClick={() => navigate(`/orders/delivery-challan/${id}/billing`)}
+                                                        onClick={() => handleReviewDispatch(id, status)}
+                                                        disabled={loading}
                                                     >
-                                                        Review & Dispatch
+                                                        {status === 'DISPATCHED' ? 'View Invoice' : 'Review & Dispatch'}
                                                     </Button>
                                                 </Stack>
                                             </TableCell>
@@ -162,7 +184,14 @@ function DispatchQueuePage() {
 
             <BillPrintDialog open={Boolean(printTarget)} onClose={() => setPrintTarget(null)}>
                 {printTarget && (
-                    <SaleChallanPrint challan={printTarget} />
+                    printTarget.status === 'DISPATCHED' || printTarget.status === 'RECEIVED' ? (
+                        <StandardInvoicePrint
+                            sale={printTarget}
+                            isTransfer={(printTarget.sourceWarehouseId?.gstNumber || '').trim().toUpperCase() === (printTarget.destinationStoreId?.gstNumber || '').trim().toUpperCase()}
+                        />
+                    ) : (
+                        <SaleChallanPrint challan={printTarget} />
+                    )
                 )}
             </BillPrintDialog>
         </Box>

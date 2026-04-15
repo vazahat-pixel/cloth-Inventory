@@ -10,6 +10,7 @@ import SalesChart from "./components/SalesChart";
 import LowStockAlert from "./components/LowStockAlert";
 import RecentSalesTable from "./components/RecentSalesTable";
 import QuickActions from "./components/QuickActions";
+import { useAppNavigate } from "../../hooks/useAppNavigate";
 
 function formatCurrency(value) {
   const amount = Number(value);
@@ -66,6 +67,7 @@ function getRecordTimestamp(value) {
 }
 
 function DashboardHome() {
+  const navigate = useAppNavigate();
   const sales = useSelector((state) => state.sales?.records ?? []);
   const purchase = useSelector((state) => state.purchase?.records ?? []);
   const stock = useSelector((state) => state.inventory?.stock ?? []);
@@ -288,6 +290,7 @@ function DashboardHome() {
             subtitle={salesSubtitle}
             icon={TrendingUpIcon}
             color="primary"
+            onClick={() => navigate('/reports/sales')}
           />
         </Grid>
         <Grid item xs={12} sm={6} lg={3}>
@@ -297,6 +300,7 @@ function DashboardHome() {
             subtitle={purchaseSubtitle}
             icon={LocalShippingIcon}
             color="success"
+            onClick={() => navigate('/reports/purchase')}
           />
         </Grid>
         <Grid item xs={12} sm={6} lg={3}>
@@ -306,6 +310,7 @@ function DashboardHome() {
             subtitle="Active SKU variants"
             icon={Inventory2Icon}
             color="info"
+            onClick={() => navigate('/reports/stock')}
           />
         </Grid>
         <Grid item xs={12} sm={6} lg={3}>
@@ -315,6 +320,7 @@ function DashboardHome() {
             subtitle={`At threshold (<= ${lowStockThreshold})`}
             icon={ShoppingCartIcon}
             color="warning"
+            onClick={() => navigate('/inventory/stock-overview')}
           />
         </Grid>
 

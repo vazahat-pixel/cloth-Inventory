@@ -9,6 +9,7 @@ router.use(protect);
 
 router.get('/next-code', itemController.getNextCode);
 router.get('/next-barcodes', itemController.getNextBarcodes);
+router.get('/peek-barcodes', itemController.peekBarcodes);
 router.route('/')
     .get(itemController.getAllItems)
     .post(requireAdmin, itemController.createItem);

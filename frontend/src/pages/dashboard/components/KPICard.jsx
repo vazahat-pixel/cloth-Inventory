@@ -1,6 +1,6 @@
 import { Box, Card, CardContent, Typography } from '@mui/material';
 
-function KPICard({ title, value, subtitle, icon: Icon, color = 'primary' }) {
+function KPICard({ title, value, subtitle, icon: Icon, color = 'primary', onClick }) {
   const colorMap = {
     primary: { main: '#6366f1', bg: '#f5f7ff' },
     success: { main: '#10b981', bg: '#f1fdf4' },
@@ -20,11 +20,13 @@ function KPICard({ title, value, subtitle, icon: Icon, color = 'primary' }) {
         background: '#fff',
         border: '1px solid #f1f5f9',
         transition: 'all 0.3s ease',
-        '&:hover': {
+        cursor: onClick ? 'pointer' : 'default',
+        '&:hover': onClick ? {
           transform: 'translateY(-4px)',
           boxShadow: '0 20px 40px -15px rgba(0,0,0,0.08)',
-        }
+        } : {}
       }}
+      onClick={onClick}
     >
       <Box sx={{ bgcolor: style.main, height: 6 }} />
       <CardContent sx={{ p: 4, '&:last-child': { pb: 4 } }}>

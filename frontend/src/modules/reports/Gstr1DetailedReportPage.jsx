@@ -21,7 +21,6 @@ import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
 import axios from 'axios';
 import { useSelector } from 'react-redux';
-import { getFriendlyErrorMessage } from '../../utils/errorMessageHelper';
 
 function Gstr1DetailedReportPage() {
   const [data, setData] = useState(null);
@@ -29,8 +28,8 @@ function Gstr1DetailedReportPage() {
   const [error, setError] = useState(null);
   const [tab, setTab] = useState(0);
   const [filters, setFilters] = useState({
-    dateFrom: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
-    dateTo: new Date().toISOString().split('T')[0],
+    startDate: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
+    endDate: new Date().toISOString().split('T')[0],
   });
 
   const token = useSelector((state) => state.auth.token);
@@ -40,15 +39,12 @@ function Gstr1DetailedReportPage() {
     setError(null);
     try {
       const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/reports/detailed-gst`, {
-        params: {
-            startDate: filters.dateFrom,
-            endDate: filters.dateTo
-        },
+        params: filters,
         headers: { Authorization: `Bearer ${token}` }
       });
-      setData(response.data.report);
+      setData(response.data.data.report);
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, 'GST data load karne mein dikkat hui.'));
+      setError(err.response?.data?.message || 'Failed to fetch GST data.');
     } finally {
       setLoading(false);
     }

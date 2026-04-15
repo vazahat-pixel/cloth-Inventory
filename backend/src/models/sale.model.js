@@ -69,6 +69,10 @@ const saleSchema = new mongoose.Schema(
             type: String,
             trim: true
         },
+        customerAddress: {
+            type: String,
+            trim: true
+        },
         type: {
             type: String,
             enum: ['RETAIL', 'EXCHANGE', 'INTERNAL_SALE'],

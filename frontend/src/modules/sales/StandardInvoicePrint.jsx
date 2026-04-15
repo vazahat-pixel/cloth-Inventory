@@ -34,20 +34,39 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
     );
 
     const store = sale.storeId || sale.warehouseId || {};
+    const sourceWarehouse = sale.sourceWarehouseId || store || {};
+    const destinationStore = sale.destinationStoreId || {};
     const company = config?.company || {};
     const invoicing = config?.invoicing || {};
     
     const rawItems = sale.items || sale.products || [];
-    
-    // Grouping Logic by Category
-    const groupedItems = rawItems.reduce((acc, item) => {
-        const categoryName = item.itemId?.categoryId?.name || 'OTHERS';
-        if (!acc[categoryName]) acc[categoryName] = [];
-        acc[categoryName].push(item);
-        return acc;
-    }, {});
+    const normalizedItems = rawItems.map((item) => {
+        const qty = Number(item.quantity ?? item.qty ?? 0);
+        const rate = Number(item.rate ?? item.price ?? 0);
+        const mrp = Number(item.mrp ?? rate);
+        const discountPercent = Number(item.discountPercent ?? item.discount ?? 0);
+        const taxable = rate * qty;
+        const taxPercentage = Number(item.taxPercentage ?? item.gstPercent ?? 0);
+        const taxAmount = Number(item.taxAmount ?? (taxable * taxPercentage / 100));
+        const lineTotal = Number(item.total ?? (taxable + taxAmount));
+        return {
+            ...item,
+            quantity: qty,
+            rate,
+            mrp,
+            discountPercent,
+            taxable,
+            taxPercentage,
+            taxAmount,
+            lineTotal,
+            itemName: item.itemName || item.variantId?.itemName || item.itemId?.itemName || item.name || 'Item',
+            sku: item.sku || item.variantId?.sku || item.barcode || '-',
+            size: item.size || item.variantId?.size || '-',
+            color: item.color || item.variantId?.color || '-'
+        };
+    });
 
-    const hsnSummaryMap = rawItems.reduce((acc, item) => {
+    const hsnSummaryMap = normalizedItems.reduce((acc, item) => {
         const hsn = item.itemId?.hsCodeId?.code || 'N/A';
         const gst = item.taxPercentage || 0;
         const key = `${hsn}-${gst}`;
@@ -56,22 +75,44 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
             acc[key] = { hsn, gst, qty: 0, taxable: 0, tax: 0 };
         }
         acc[key].qty += item.quantity;
-        acc[key].taxable += (item.rate * item.quantity);
+        acc[key].taxable += item.taxable;
         acc[key].tax += (item.taxAmount || 0);
         return acc;
     }, {});
 
+    const sourceLocation = sourceWarehouse.location || {};
+    const destinationLocation = destinationStore.location || {};
+    const sourceAddress = [
+        sourceLocation.address,
+        sourceLocation.city,
+        sourceLocation.state,
+        sourceLocation.pincode
+    ].filter(Boolean).join(', ');
+    const destinationAddress = [
+        destinationLocation.address,
+        destinationLocation.city,
+        destinationLocation.state,
+        destinationLocation.pincode
+    ].filter(Boolean).join(', ');
+    const sourceGstin = (sourceWarehouse.gstNumber || sourceWarehouse.gstin || company.gstin || '').toUpperCase();
+    const destinationGstin = (destinationStore.gstNumber || destinationStore.gstin || '').toUpperCase();
+    const sourceStateCode = sourceGstin?.slice(0, 2) || '--';
+    const destinationStateCode = destinationGstin?.slice(0, 2) || '--';
+
     // State determination
     const storeState = (company.address?.state || store.location?.state || 'HARYANA').trim().toUpperCase();
-    const customerState = (sale.customerState || 'DELHI').trim().toUpperCase();
+    const destinationState = sale.destinationStoreId?.location?.state || sale.destinationStoreId?.state || '';
+    const customerState = (sale.customerState || destinationState || storeState).trim().toUpperCase();
     const isInterState = customerState !== storeState;
 
-    const subTotal = Number(sale.subTotal || rawItems.reduce((acc, i) => acc + (i.rate * i.quantity), 0));
-    const tax = Number(sale.totalTax ?? sale.tax ?? rawItems.reduce((acc, i) => acc + (i.taxAmount || 0), 0));
+    const subTotal = Number(sale.subTotal || normalizedItems.reduce((acc, i) => acc + i.taxable, 0));
+    const tax = Number(sale.totalTax ?? sale.tax ?? normalizedItems.reduce((acc, i) => acc + (i.taxAmount || 0), 0));
     const discount = Number(sale.discount || 0);
     const grandTotal = Number(sale.grandTotal || (subTotal + tax - discount));
     
-    const displayTitle = providedTitle || (isTransfer ? 'STOCK TRANSFER NOTE' : (isInterState ? 'TAX INVOICE (INTER-STATE)' : 'TAX INVOICE'));
+    const isB2B = Boolean(destinationGstin || sale.customerGst || sale.consigneeGst);
+    
+    const displayTitle = providedTitle || (isTransfer ? 'STOCK TRANSFER NOTE' : (isB2B ? (isInterState ? 'TAX INVOICE (INTER-STATE)' : 'TAX INVOICE') : 'SALE INVOICE'));
 
     const tableHeaderStyle = { 
         bgcolor: '#f8fafc', 
@@ -134,13 +175,13 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
             {/* Invoice Meta info */}
             <Grid container sx={{ mb: 1, border: '1.5px solid #000' }}>
                 <Grid item xs={6} sx={{ p: 1, borderRight: '1.5px solid #000' }}>
-                    <Typography sx={{ fontSize: '11px' }}><strong>INVOICE NO.:</strong> {invoicing.invoicePrefix}{sale.invoiceNumber || sale.saleNumber || '26-27/DAP-1'}</Typography>
+                    <Typography sx={{ fontSize: '11px' }}><strong>INVOICE NO.:</strong> {invoicing.invoicePrefix}{sale.invoiceNumber || sale.saleNumber || sale.dispatchNumber || '26-27/DAP-1'}</Typography>
                 </Grid>
                 <Grid item xs={6} sx={{ p: 1 }}>
                     <Typography sx={{ fontSize: '11px' }}><strong>INVOICE DATE:</strong> {new Date(sale.saleDate || sale.createdAt).toLocaleDateString('en-IN')}</Typography>
                 </Grid>
                 <Grid item xs={6} sx={{ p: 1, borderRight: '1.5px solid #000', borderTop: '1.5px solid #000' }}>
-                    <Typography sx={{ fontSize: '11px' }}><strong>ORDER / PO NO.:</strong> {sale.orderNo || '-'}</Typography>
+                    <Typography sx={{ fontSize: '11px' }}><strong>ORDER / PO NO.:</strong> {sale.dispatchNumber || sale.orderNo || '-'}</Typography>
                 </Grid>
                 <Grid item xs={6} sx={{ p: 1, borderTop: '1.5px solid #000' }}>
                     <Typography sx={{ fontSize: '11px' }}><strong>TRANSPORT:</strong> {sale.transportName || 'BY ROAD'}</Typography>
@@ -151,96 +192,77 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
             <Grid container sx={{ border: '1.5px solid #000', mb: 1 }}>
                 <Grid item xs={6} sx={{ p: 1, borderRight: '1.5px solid #000' }}>
                     <Typography variant="caption" sx={{ fontWeight: 900, display: 'block', borderBottom: '1px solid #000', mb: 0.5, fontSize: '10px' }}>
-                        Details Of Receiver (Billed to)
+                        Dispatch From (Warehouse / HO)
                     </Typography>
                     <Box sx={{ minHeight: 90 }}>
-                        <Typography sx={{ fontSize: '11px', fontWeight: 900 }}>{sale.customerName || 'N/A'}</Typography>
-                        <Typography sx={{ fontSize: '10px' }}>{sale.customerAddress || 'N/A'}</Typography>
+                        <Typography sx={{ fontSize: '11px', fontWeight: 900 }}>{sourceWarehouse.name || sourceWarehouse.warehouseName || company.legalName || 'Head Office'}</Typography>
+                        <Typography sx={{ fontSize: '10px' }}>{sourceAddress || company.address?.address || 'N/A'}</Typography>
                         <Stack sx={{ mt: 1 }}>
-                            <Typography sx={{ fontSize: '10px' }}><strong>Phone No.:</strong> {sale.customerMobile || '-'}</Typography>
-                            <Typography sx={{ fontSize: '10px' }}><strong>GSTIN No.:</strong> {sale.customerGst || 'N/A'}</Typography>
-                            <Typography sx={{ fontSize: '10px' }}><strong>State:</strong> {customerState} <strong>Code:</strong> 07</Typography>
+                            <Typography sx={{ fontSize: '10px' }}><strong>Phone No.:</strong> {sourceWarehouse.phone || company.phone || '-'}</Typography>
+                            <Typography sx={{ fontSize: '10px' }}><strong>GSTIN No.:</strong> {sourceGstin || 'N/A'}</Typography>
+                            <Typography sx={{ fontSize: '10px' }}><strong>State:</strong> {(sourceLocation.state || company.address?.state || 'N/A').toUpperCase()} <strong>Code:</strong> {sourceStateCode}</Typography>
                         </Stack>
                     </Box>
                 </Grid>
                 <Grid item xs={6} sx={{ p: 1 }}>
                     <Typography variant="caption" sx={{ fontWeight: 900, display: 'block', borderBottom: '1px solid #000', mb: 0.5, fontSize: '10px' }}>
-                        Details of Consignee (Shipped to)
+                        Consignee (Destination Store)
                     </Typography>
                     <Box sx={{ minHeight: 90 }}>
-                        <Typography sx={{ fontSize: '11px', fontWeight: 900 }}>{sale.consigneeName || sale.customerName || 'N/A'}</Typography>
-                        <Typography sx={{ fontSize: '10px' }}>{sale.consigneeAddress || sale.customerAddress || 'N/A'}</Typography>
+                        <Typography sx={{ fontSize: '11px', fontWeight: 900 }}>{destinationStore.name || destinationStore.storeName || sale.customerName || 'N/A'}</Typography>
+                        <Typography sx={{ fontSize: '10px' }}>{destinationAddress || sale.consigneeAddress || sale.customerAddress || 'N/A'}</Typography>
                         <Stack sx={{ mt: 1 }}>
-                            <Typography sx={{ fontSize: '10px' }}><strong>E-mail:</strong> {sale.consigneeEmail || '-'}</Typography>
-                            <Typography sx={{ fontSize: '10px' }}><strong>GSTIN No.:</strong> {sale.consigneeGst || sale.customerGst || 'N/A'}</Typography>
-                            <Typography sx={{ fontSize: '10px' }}><strong>State:</strong> {sale.consigneeState || customerState}</Typography>
+                            <Typography sx={{ fontSize: '10px' }}><strong>E-mail:</strong> {destinationStore.email || sale.consigneeEmail || '-'}</Typography>
+                            <Typography sx={{ fontSize: '10px' }}><strong>GSTIN No.:</strong> {destinationGstin || sale.consigneeGst || sale.customerGst || 'N/A'}</Typography>
+                            <Typography sx={{ fontSize: '10px' }}><strong>State:</strong> {(destinationLocation.state || sale.consigneeState || customerState || 'N/A').toUpperCase()} <strong>Code:</strong> {destinationStateCode}</Typography>
                         </Stack>
                     </Box>
                 </Grid>
             </Grid>
 
-            {/* Dynamic Items Table */}
-            {Object.entries(groupedItems).map(([category, items], catIndex) => {
-                const catTotals = items.reduce((acc, i) => {
-                    acc.qty += i.quantity;
-                    acc.gross += (i.rate * i.quantity);
-                    acc.net += (i.total || i.amount);
-                    acc.disc += (i.discountAmount || 0);
-                    return acc;
-                }, { qty: 0, gross: 0, net: 0, disc: 0 });
-
-                return (
-                    <Box key={category} sx={{ mb: 1 }}>
-                        <TableContainer component={Box} sx={{ border: '1px solid #000' }}>
-                            <Table size="small" sx={{ borderCollapse: 'collapse' }}>
-                                <TableHead sx={tableHeaderStyle}>
-                                    <TableRow>
-                                        <TableCell width="30">S.N</TableCell>
-                                        <TableCell>CATEGORY</TableCell>
-                                        <TableCell>HSN</TableCell>
-                                        <TableCell align="center">QTY</TableCell>
-                                        <TableCell align="right">RATE</TableCell>
-                                        <TableCell align="right">GROSS AM</TableCell>
-                                        <TableCell align="center">DISC</TableCell>
-                                        <TableCell align="center">GST%</TableCell>
-                                        <TableCell align="right">NET AM</TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {items.map((item, index) => (
-                                        <TableRow key={index} sx={{ '& .MuiTableCell-root': tableCellStyle }}>
-                                            <TableCell align="center">{index + 1}</TableCell>
-                                            <TableCell sx={{ fontSize: '9px' }}>{category}</TableCell>
-                                            <TableCell>{item.itemId?.hsCodeId?.code || 'N/A'}</TableCell>
-                                            <TableCell align="center">{item.quantity}</TableCell>
-                                            <TableCell align="right">{Number(item.rate).toFixed(2)}</TableCell>
-                                            <TableCell align="right">{Number(item.rate * item.quantity).toFixed(2)}</TableCell>
-                                            <TableCell align="center">{Number(item.discountAmount || 0).toFixed(2)}</TableCell>
-                                            <TableCell align="center">{item.taxPercentage}%</TableCell>
-                                            <TableCell align="right">{Number(item.total || item.amount).toFixed(2)}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                    <TableRow sx={{ '& .MuiTableCell-root': { ...tableCellStyle, bgcolor: '#f1f5f9', fontWeight: 900, py: 0.25 } }}>
-                                        <TableCell colSpan={3} align="right">SUBTOTAL ({category}):</TableCell>
-                                        <TableCell align="center">{catTotals.qty}</TableCell>
-                                        <TableCell align="right" />
-                                        <TableCell align="right">{catTotals.gross.toFixed(2)}</TableCell>
-                                        <TableCell align="center">{catTotals.disc.toFixed(2)}</TableCell>
-                                        <TableCell align="center" />
-                                        <TableCell align="right">{catTotals.net.toFixed(2)}</TableCell>
-                                    </TableRow>
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
-                    </Box>
-                );
-            })}
+            {/* Professional Line-item Table */}
+            <TableContainer component={Box} sx={{ border: '1px solid #000', mb: 1 }}>
+                <Table size="small" sx={{ borderCollapse: 'collapse' }}>
+                    <TableHead sx={tableHeaderStyle}>
+                        <TableRow>
+                            <TableCell width="30">S.N</TableCell>
+                            <TableCell>Item</TableCell>
+                            <TableCell>SKU / Size</TableCell>
+                            <TableCell align="center">Qty</TableCell>
+                            <TableCell align="right">MRP</TableCell>
+                            <TableCell align="right">Disc %</TableCell>
+                            <TableCell align="right">Rate</TableCell>
+                            <TableCell align="right">Taxable</TableCell>
+                            <TableCell align="center">GST%</TableCell>
+                            <TableCell align="right">Tax</TableCell>
+                            <TableCell align="right">Line Total</TableCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {normalizedItems.map((item, index) => (
+                            <TableRow key={index} sx={{ '& .MuiTableCell-root': tableCellStyle }}>
+                                <TableCell align="center">{index + 1}</TableCell>
+                                <TableCell sx={{ fontSize: '9px' }}>{item.itemName}</TableCell>
+                                <TableCell sx={{ fontSize: '9px' }}>{item.sku} / {item.size}</TableCell>
+                                <TableCell align="center">{item.quantity}</TableCell>
+                                <TableCell align="right">{item.mrp.toFixed(2)}</TableCell>
+                                <TableCell align="right">{item.discountPercent.toFixed(2)}</TableCell>
+                                <TableCell align="right">{item.rate.toFixed(2)}</TableCell>
+                                <TableCell align="right">{item.taxable.toFixed(2)}</TableCell>
+                                <TableCell align="center">{item.taxPercentage}%</TableCell>
+                                <TableCell align="right">{item.taxAmount.toFixed(2)}</TableCell>
+                                <TableCell align="right">{item.lineTotal.toFixed(2)}</TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </TableContainer>
 
             {/* Calculations & Summary */}
             <Box sx={{ mt: 1, border: '1.5px solid #000' }}>
                 <Grid container>
                     <Grid item xs={7.5} sx={{ p: 1, borderRight: '1.5px solid #000' }}>
-                        <Typography sx={{ fontSize: '10px', fontWeight: 900 }}>TOTAL QTY: {rawItems.reduce((acc, i) => acc + i.quantity, 0)} Nos.</Typography>
+                        <Typography sx={{ fontSize: '10px', fontWeight: 900 }}>TOTAL QTY: {normalizedItems.reduce((acc, i) => acc + i.quantity, 0)} Nos.</Typography>
                         <Box sx={{ mt: 1.5 }}>
                             <Typography sx={{ fontSize: '9px', fontWeight: 800 }}>Amount Chargeable (in words):</Typography>
                             <Typography sx={{ fontSize: '11px', fontWeight: 950, textTransform: 'uppercase' }}>

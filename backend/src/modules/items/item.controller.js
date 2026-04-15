@@ -31,6 +31,16 @@ class ItemController {
     }
   }
 
+  peekBarcodes = async (req, res) => {
+    try {
+      const { brandId, count } = req.query;
+      const barcodes = await itemService.peekSequentialBarcodes(brandId, parseInt(count, 10) || 1);
+      return sendSuccess(res, { barcodes }, 'Barcodes preview fetched successfully');
+    } catch (e) {
+      return sendError(res, e.message);
+    }
+  }
+
   getAllItems = async (req, res) => {
     try {
       const items = await itemService.getAllItems(req.query, req.user);

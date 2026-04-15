@@ -94,6 +94,7 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             customerId,
             customerName,
             customerMobile,
+            customerAddress,
             redeemPoints,
             creditNoteId,
             type = 'RETAIL',
@@ -114,9 +115,14 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
                 customer = new Customer({
                     name: customerName.trim(),
                     phone: trimmedMobile,
+                    address: customerAddress || undefined,
                     isActive: true,
                     createdBy: cashierId
                 });
+                await customer.save({ session });
+            } else if (customer && customerAddress && !customer.address) {
+                // If customer exists but has no address, update it
+                customer.address = customerAddress;
                 await customer.save({ session });
             }
         }
@@ -319,6 +325,7 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             customerId: saleData.customerId,
             customerName: saleData.customerName,
             customerMobile: saleData.customerMobile,
+            customerAddress: saleData.customerAddress,
             type: saleData.type || 'RETAIL',
             parentSaleId,
             items: products.map(p => ({

@@ -31,7 +31,6 @@ import { useAppNavigate } from '../../hooks/useAppNavigate';
 import stockOverviewExportColumns from '../../config/exportColumns/stockOverview';
 import { fetchStockOverview } from './inventorySlice';
 import { fetchMasters } from '../masters/mastersSlice';
-import api from '../../services/api';
 
 const normalizeStockRows = (rows = []) =>
   rows.map((row, index) => {
@@ -142,26 +141,6 @@ function StockOverviewPage() {
     [filteredRows],
   );
 
-  const [pendingShipments, setPendingShipments] = useState(0);
-
-  useEffect(() => {
-    const checkPendingShipments = async () => {
-      if (!shopId) return;
-      try {
-        const res = await api.get('/dispatch', { 
-          params: { destinationId: shopId, status: 'DISPATCHED' } 
-        });
-        setPendingShipments(res.data?.dispatches?.length || 0);
-      } catch (err) {
-        console.error('Failed to fetch pending shipments', err);
-      }
-    };
-
-    if (isStoreStaff) {
-      checkPendingShipments();
-    }
-  }, [shopId, isStoreStaff]);
-
   const exportRows = useMemo(() => toExportRows(filteredRows), [filteredRows]);
 
   return (
@@ -195,27 +174,6 @@ function StockOverviewPage() {
           </Typography>
           <Button variant="contained" color="error" size="small" onClick={() => navigate('/logout')}>
             Logout Now
-          </Button>
-        </Paper>
-      )}
-
-      {pendingShipments > 0 && (
-        <Paper 
-          sx={{ 
-            p: 2, mb: 2, 
-            bgcolor: '#eff6ff', 
-            border: '1px solid #3b82f6', 
-            borderRadius: 2,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between'
-          }}
-        >
-          <Typography sx={{ color: '#1e40af', fontWeight: 700 }}>
-            📦 You have {pendingShipments} pending inbound shipments from Head Office.
-          </Typography>
-          <Button variant="contained" color="primary" size="small" onClick={() => navigate('/store/receipt')}>
-            Go to Receive Stock
           </Button>
         </Paper>
       )}

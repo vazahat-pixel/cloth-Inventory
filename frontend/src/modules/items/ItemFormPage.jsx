@@ -71,12 +71,10 @@ function ItemFormPage({ mode = 'edit' }) {
   const items = useSelector((state) => state.items.records);
   const masters = useSelector((state) => state.masters || {});
 
-  const brands = masters.brands || [];
-  const itemGroups = masters.itemGroups || [];
-  const warehouses = masters.warehouses || [];
-  const hsnCodes = masters.hsnCodes || [];
+  const brands = useMemo(() => masters.brands || [], [masters.brands]);
+  const itemGroups = useMemo(() => masters.itemGroups || [], [masters.itemGroups]);
+  const hsnCodes = useMemo(() => masters.hsnCodes || [], [masters.hsnCodes]);
   const sizes = masters.sizes || [];
-  const suppliers = masters.suppliers || [];
 
   const { register, handleSubmit, reset, watch, setValue, control, formState: { errors } } = useForm({
     defaultValues,
@@ -190,7 +188,7 @@ function ItemFormPage({ mode = 'edit' }) {
       return;
     }
     reset(defaultValues); setVariants([]); setImages(Array(5).fill(null));
-  }, [existingItem, isEditMode, reset, brands.length, itemGroups.length, hsnCodes.length]);
+  }, [existingItem, isEditMode, reset, brands, itemGroups, hsnCodes]);
 
   useEffect(() => {
     const selected = hsnCodes.find((item) => String(item.id || item._id || '') === String(watch('hsCodeId') || ''));
@@ -284,6 +282,7 @@ function ItemFormPage({ mode = 'edit' }) {
       type: data.type || 'GARMENT',
       sizes: isGarment ? variants.map((v) => ({
         ...v,
+        sku: v.barcodePrefix ? '' : v.sku,
         mrp: Number(v.mrp || 0),
         stock: Number(v.stock || 0)
       })) : [{
@@ -528,7 +527,6 @@ function ItemFormPage({ mode = 'edit' }) {
               styleCode={styleCode || 'ITEM'} readOnly={isViewMode}
               sizeOptions={sizes.map(s => s.sizeCode || s.name)}
               brandId={watch('brand')}
-              fullSizes={sizes}
             />
           </Box>
 

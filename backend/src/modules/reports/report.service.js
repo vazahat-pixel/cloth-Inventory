@@ -481,9 +481,6 @@ const getBalanceSheet = async (asOfDate) => {
     return balanceSheet;
 };
 
-/**
- * Stock History Report
- */
 const getStockHistory = async (query = {}) => {
     const { itemId, type, storeId } = query;
     const filter = {};
@@ -881,14 +878,26 @@ const getStockReport = async () => {
 /**
  * Movement Report
  */
-const getMovementReport = async (startDate, endDate, variantId) => {
+const getMovementReport = async (startDate, endDate, variantId, storeId) => {
     const match = {};
     if (startDate || endDate) {
         match.createdAt = {};
         if (startDate) match.createdAt.$gte = new Date(startDate);
-        if (endDate) match.createdAt.$lte = new Date(endDate);
+        if (endDate) {
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+            match.createdAt.$lte = end;
+        }
     }
     if (variantId) match.variantId = new (require('mongoose').Types.ObjectId)(variantId);
+    
+    if (storeId) {
+        const oid = new (require('mongoose').Types.ObjectId)(storeId);
+        match.$or = [
+            { fromLocation: oid },
+            { toLocation: oid }
+        ];
+    }
 
     return await require('../../models/stockMovement.model').aggregate([
         { $match: match },
@@ -911,6 +920,22 @@ const getMovementReport = async (startDate, endDate, variantId) => {
         },
         { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
         {
+            $lookup: {
+                from: "stores",
+                localField: "toLocation",
+                foreignField: "_id",
+                as: "toLoc"
+            }
+        },
+        {
+            $lookup: {
+                from: "warehouses",
+                localField: "toLocation",
+                foreignField: "_id",
+                as: "toWh"
+            }
+        },
+        {
             $project: {
                 date: "$createdAt",
                 itemName: "$product.itemName",
@@ -919,11 +944,19 @@ const getMovementReport = async (startDate, endDate, variantId) => {
                 styleCode: "$product.itemCode",
                 size: { $ifNull: ["$product.accessorySize", "-"] },
                 color: { $ifNull: ["$product.shadeNo", "-"] },
-                qty: 1,
+                qty: { $abs: "$qty" },
                 quantityChange: "$qty",
-                type: 1,
+                type: { $cond: [{ $gt: ["$qty", 0] }, "IN", "OUT"] },
+                sourceType: "$type",
                 fromLocation: 1,
                 toLocation: 1,
+                locationName: { 
+                    $ifNull: [
+                        { $arrayElemAt: ["$toLoc.name", 0] },
+                        { $arrayElemAt: ["$toWh.name", 0] },
+                        "Main Inventory"
+                    ]
+                },
                 warehouseId: { $ifNull: ["$fromLocation", "$toLocation"] },
                 reference: "$referenceType",
                 performedBy: "$user.name",

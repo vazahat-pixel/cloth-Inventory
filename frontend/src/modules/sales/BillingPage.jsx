@@ -150,6 +150,7 @@ function BillingPage({
   const [salesmanId, setSalesmanId] = useState('');
   const [mobileInput, setMobileInput] = useState('');
   const [customerName, setCustomerName] = useState('');
+  const [customerAddress, setCustomerAddress] = useState('');
   const [customerId, setCustomerId] = useState('');
   const [billDiscount, setBillDiscount] = useState('');
   const [loyaltyRedeemed, setLoyaltyRedeemed] = useState('');
@@ -402,10 +403,12 @@ function BillingPage({
       if (matched) {
         setCustomerId(matched.id);
         setCustomerName(matched.customerName || '');
+        setCustomerAddress(matched.address || '');
         setLoyaltyRedeemed('');
       } else {
         setCustomerId('');
         setCustomerName('');
+        setCustomerAddress('');
       }
     }
   };
@@ -635,6 +638,7 @@ function BillingPage({
       customerId: selectedCustomer?.id || null,
       customerName: selectedCustomer?.name || selectedCustomer?.customerName || customerName,
       customerMobile: selectedCustomer?.mobileNumber || mobileInput,
+      customerAddress: selectedCustomer?.address || customerAddress,
       products: preparedProducts,
       subTotal: totals.grossAmount,
       discount: toNumber(billDiscount) + toNumber(couponDiscountAmount) + toNumber(schemeDiscountAmount),
@@ -941,6 +945,18 @@ function BillingPage({
 
               <Grid item xs={12} md={6}>
                 <TextField
+                   fullWidth
+                   size="small"
+                   label="Customer Address"
+                   value={customerAddress}
+                   autoComplete="off"
+                   onChange={(e) => setCustomerAddress(e.target.value)}
+                   disabled={Boolean(customerId)}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
                   select
                   fullWidth
                   size="small"
@@ -953,9 +969,11 @@ function BillingPage({
                     if (selected) {
                         setMobileInput(selected.mobileNumber || '');
                         setCustomerName(selected.customerName || '');
+                        setCustomerAddress(selected.address || '');
                     } else {
                         setMobileInput('');
                         setCustomerName('');
+                        setCustomerAddress('');
                     }
                     setLoyaltyRedeemed('');
                     setCreditNoteId('');
@@ -981,6 +999,7 @@ function BillingPage({
                     setCustomerId('');
                     setMobileInput('');
                     setCustomerName('');
+                    setCustomerAddress('');
                     setLoyaltyRedeemed('');
                     setCreditNoteId('');
                   }}

@@ -40,54 +40,41 @@ function DailyInwardReportPage() {
     if (filters.dateFrom) params.startDate = filters.dateFrom;
     if (filters.dateTo) params.endDate = filters.dateTo;
     
+    // Add store filter if selected (Admin view)
+    if (filters.warehouseId && filters.warehouseId !== 'all') {
+      params.storeId = filters.warehouseId;
+    }
+
     // Default to today if no dates provided to prevent massive load
     if (!filters.dateFrom && !filters.dateTo) {
-        params.startDate = today;
-        params.endDate = today;
+      params.startDate = today;
+      params.endDate = today;
     }
 
     dispatch(fetchMovements(params));
-  }, [dispatch, filters.dateFrom, filters.dateTo, today]);
+  }, [dispatch, filters.dateFrom, filters.dateTo, filters.warehouseId, today]);
 
-  const itemMap = useMemo(() => {
-    const map = {};
-    items.forEach((item) => {
-      item.variants?.forEach((v) => {
-        map[v.id] = {
-           itemName: item.name,
-           size: v.size,
-           color: v.color,
-           sku: v.sku,
-           barcode: v.barcode
-        };
-      });
-    });
-    return map;
-  }, [items]);
-
+  // Transform movements for table
   const inwardRows = useMemo(() => {
-    // Filter only INWARD movements
-    const inMovements = movements.filter(m => m.type === 'IN');
+    // Filter only INWARD movements - Backend now returns type: 'IN'/'OUT' based on qty
+    const inMovements = movements.filter((m) => m.type === 'IN');
     const query = searchText.trim().toLowerCase();
 
-    return inMovements.map(m => {
-       const vDetails = m.product || itemMap[m.variantId] || {};
-       return {
-           id: m._id || m.id,
-           date: new Date(m.createdAt).toLocaleDateString(),
-           itemName: vDetails.name || vDetails.itemName || 'Unknown Item',
-           sku: vDetails.sku || '-',
-           sizeColor: vDetails.size ? `${vDetails.size}/${vDetails.color}` : '-',
-           location: m.toLocation?.name || m.fromLocation?.name || 'Stock In',
-           quantity: toNum(m.quantity),
-           reference: m.reference || '-',
-           reason: m.reason || 'General Inward'
-       };
-    }).filter(row => {
+    return inMovements.map((m) => ({
+      id: m._id || m.id,
+      date: new Date(m.createdAt || m.date).toLocaleDateString(),
+      itemName: m.itemName || 'Unknown Item',
+      sku: m.sku || '-',
+      sizeColor: `${m.size || '-'} / ${m.color || '-'}`,
+      location: m.locationName || (m.toLocation?.name) || 'Main Inventory',
+      quantity: toNum(m.quantity || m.qty),
+      reference: m.reference || '-',
+      reason: m.sourceType || m.reason || 'Inward',
+    })).filter(row => {
        if (!query) return true;
        return row.itemName.toLowerCase().includes(query) || row.sku.toLowerCase().includes(query) || row.reference.toLowerCase().includes(query);
     });
-  }, [movements, searchText, itemMap]);
+  }, [movements, searchText]);
 
   const paginatedRows = useMemo(
     () => inwardRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
@@ -129,7 +116,12 @@ function DailyInwardReportPage() {
           </Typography>
         </Box>
 
-        <ReportFilterPanel filters={filters} onFiltersChange={setFilters} showDateRange />
+        <ReportFilterPanel 
+            filters={filters} 
+            onFiltersChange={setFilters} 
+            showDateRange 
+            showWarehouse
+        />
 
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center" flexWrap="wrap">
           <TextField

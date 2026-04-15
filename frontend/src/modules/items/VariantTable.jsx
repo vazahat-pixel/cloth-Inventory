@@ -47,6 +47,73 @@ const sanitizeSkuPart = (value, fallback) => {
 const generateSku = (styleCode, size, color) =>
   `${sanitizeSkuPart(styleCode, 'STYLE')}-${sanitizeSkuPart(size, 'SIZE')}-${sanitizeSkuPart(color, 'COLOR')}`;
 
+const generateSequentialPreviewSku = (prefix, sequence) =>
+  `${sanitizeSkuPart(prefix, 'BR')}-${String(sequence).padStart(4, '0')}`;
+
+const normalizeSizeCode = (value) =>
+  String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, ' ');
+
+const STANDARD_SIZE_ORDER = [
+  'S',
+  'M',
+  'L',
+  'XL',
+  'XXL',
+  'XXXL',
+  '4XL',
+  '5XL',
+  '6XL',
+  '7XL',
+  '8XL',
+  '9XL',
+  '10XL',
+  'XXXS',
+  'XXS',
+  'XS',
+];
+
+const normalizeStandardSize = (size) => {
+  const normalized = normalizeSizeCode(size).replace(/\s/g, '');
+  if (normalized === '2XL') return 'XXL';
+  if (normalized === '3XL') return 'XXXL';
+  if (normalized === 'ONESIZE' || normalized === 'ONESIZEFITSALL') return 'FREE';
+  if (normalized === 'FREESIZE') return 'FREE';
+  if (normalized === 'UNIVERSAL') return 'UNI';
+  return normalized;
+};
+
+const getHeuristicSizeRank = (size) => {
+  const normalized = normalizeStandardSize(size);
+
+  // Put common "free/universal" near the end (before unknowns)
+  if (['FREE', 'FS', 'UNI', 'OS', 'ONE', 'UNSIZED'].includes(normalized)) return 9000;
+
+  // Numeric sizes (e.g. 28, 30, 44) after apparel sizes
+  if (/^\d+$/.test(normalized)) return 10000 + Number(normalized);
+
+  // Waist-style (e.g. W28, 28W)
+  const waistMatch = normalized.match(/^(?:W)?(\d+)(?:W)?$/);
+  if (waistMatch) return 11000 + Number(waistMatch[1]);
+
+  const standardIndex = STANDARD_SIZE_ORDER.indexOf(normalized);
+  if (standardIndex !== -1) return standardIndex;
+
+  // Other measurement-like sizes (e.g. MTR, CMS) after numeric
+  if (['MTR', 'METER', 'METRE', 'CM', 'CMS', 'INCH', 'INCHES', 'MM'].includes(normalized)) return 20000;
+
+  return 30000;
+};
+
+const getSequentialSkuNumber = (sku) => {
+  const normalized = String(sku || '').trim().toUpperCase();
+  const match = normalized.match(/-(\d+)$/);
+  if (!match) return null;
+  return Number(match[1]);
+};
+
 const createVariantPayload = (overrides = {}) => ({
   id: createVariantId(),
   size: '',
@@ -60,7 +127,7 @@ const createVariantPayload = (overrides = {}) => ({
   ...overrides,
 });
 
-function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOptions = [], brandId = null, fullSizes = [] }) {
+function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOptions = [], brandId = null }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingVariant, setEditingVariant] = useState(null);
   const [autoGenerateSku, setAutoGenerateSku] = useState(true);
@@ -97,8 +164,6 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
     control,
     handleSubmit,
     reset,
-    watch,
-    setValue,
     formState: { errors },
   } = useForm({
     defaultValues: createVariantPayload({
@@ -106,8 +171,33 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
     }),
   });
 
-  const selectedSize = watch('size');
-  const selectedColor = watch('color');
+  const compareSizes = useMemo(() => {
+    return (a, b) => {
+      const sizeA = normalizeSizeCode(a);
+      const sizeB = normalizeSizeCode(b);
+
+      const rankA = getHeuristicSizeRank(sizeA);
+      const rankB = getHeuristicSizeRank(sizeB);
+      if (rankA !== rankB) return rankA - rankB;
+
+      return sizeA.localeCompare(sizeB);
+    };
+  }, []);
+
+  const compareVariants = useMemo(() => {
+    return (a, b) => {
+      const bySize = compareSizes(a.size, b.size);
+      if (bySize) return bySize;
+      const byColor = String(a.color || '').localeCompare(String(b.color || ''), undefined, { sensitivity: 'base' });
+      if (byColor) return byColor;
+      const bySku = String(a.sku || '').localeCompare(String(b.sku || ''), undefined, { sensitivity: 'base' });
+      if (bySku) return bySku;
+      return String(a.id || '').localeCompare(String(b.id || ''));
+    };
+  }, [compareSizes]);
+
+  const applySortedVariants = (nextVariants) => [...nextVariants].sort(compareVariants);
+
   const normalizedSizeOptions = useMemo(
     () =>
       sizeOptions
@@ -135,15 +225,16 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
 
   const getSizeLabel = (value) => resolveSizeLabel(value, sizeLabelLookup);
 
-  useEffect(() => {
-    if (!autoGenerateSku) {
-      return;
+  const peekBarcodes = async (count) => {
+    if (!brandId) return [];
+    try {
+      const response = await api.get('/items/peek-barcodes', { params: { brandId, count } });
+      return response.data?.barcodes || [];
+    } catch (err) {
+      console.error('Failed to peek barcodes:', err);
+      return [];
     }
-
-    setValue('sku', generateSku(styleCode, selectedSize, selectedColor), {
-      shouldValidate: true,
-    });
-  }, [autoGenerateSku, selectedColor, selectedSize, setValue, styleCode]);
+  };
 
   const totalStock = useMemo(
     () => variants.reduce((sum, variant) => sum + Number(variant.stock || 0), 0),
@@ -155,15 +246,20 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
     setEditingVariant(null);
   };
 
-  const openAddDialog = () => {
+  const openAddDialog = async () => {
     if (readOnly) {
       return;
     }
     setEditingVariant(null);
     setAutoGenerateSku(true);
+    const [peek] = await peekBarcodes(1);
+    const nextSequence = variants.reduce((maxSequence, variant) => {
+      const sequence = getSequentialSkuNumber(variant.sku);
+      return sequence && sequence > maxSequence ? sequence : maxSequence;
+    }, 0) + 1;
     reset(
       createVariantPayload({
-        sku: generateSku(styleCode, '', ''),
+        sku: peek || generateSequentialPreviewSku(styleCode, nextSequence),
         barcodePrefix: sanitizeSkuPart(styleCode, 'BAR'),
       }),
     );
@@ -194,6 +290,7 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
       id: editingVariant?.id || createVariantId(),
       mrp: Number(formValues.mrp),
       stock: Number(formValues.stock),
+      barcodePrefix: autoGenerateSku ? sanitizeSkuPart(styleCode, 'BAR') : '',
     });
 
     if (editingVariant) {
@@ -249,12 +346,8 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
       return;
     }
 
-    // 1. Sort Sizes based on Master Sequence
-    const sortedSelectedSizes = [...selectedSizes].sort((a, b) => {
-      const seqA = fullSizes.find(s => s.code === a || s.sizeCode === a || s.value === a)?.sequence || 999;
-      const seqB = fullSizes.find(s => s.code === b || s.sizeCode === b || s.value === b)?.sequence || 999;
-      return seqA - seqB;
-    });
+    // 1. Sort sizes in a human-friendly order (S -> M -> L -> XL ...), using master sequence when configured.
+    const sortedSelectedSizes = [...selectedSizes].sort(compareSizes);
 
     const combinations = [];
     sortedSelectedSizes.forEach((size) => {
@@ -272,38 +365,33 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
     );
 
     if (!newCombinations.length) {
+      onChange(applySortedVariants(variants));
       setGeneratorFeedback({
         severity: 'info',
-        text: 'All selected combinations already exist in the variant list.',
+        text: 'All selected combinations already exist. Variants reordered by size.',
       });
       return;
     }
 
-    let sequentialBarcodes = [];
-    if (brandId) {
-      try {
-        const response = await api.get('/items/next-barcodes', {
-          params: { brandId, count: newCombinations.length }
-        });
-        sequentialBarcodes = response.data.barcodes || [];
-      } catch (err) {
-        console.error('Failed to fetch sequential barcodes:', err);
-      }
-    }
-
+    const peekList = await peekBarcodes(newCombinations.length);
+    const currentAutoVariantCount = variants.reduce((maxSequence, variant) => {
+      const sequence = getSequentialSkuNumber(variant.sku);
+      return sequence && sequence > maxSequence ? sequence : maxSequence;
+    }, 0);
     const generatedVariants = newCombinations.map((combo, index) => {
-      const barcode = sequentialBarcodes[index] || generateSku(styleCode, combo.size, combo.color);
+      const sequence = currentAutoVariantCount + index + 1;
       return createVariantPayload({
         size: combo.size,
         color: combo.color,
-        sku: barcode,
+        sku: peekList[index] || generateSequentialPreviewSku(styleCode, sequence),
+        barcodePrefix: sanitizeSkuPart(styleCode, 'BAR'),
       });
     });
 
-    onChange([...variants, ...generatedVariants]);
+    onChange(applySortedVariants([...variants, ...generatedVariants]));
     setGeneratorFeedback({
       severity: 'success',
-      text: `Generated ${generatedVariants.length} new variants with ${brandId ? 'brand-sequential barcodes' : 'auto-SKUs'}.`,
+      text: `Generated ${generatedVariants.length} new variants with local preview SKUs.`,
     });
   };
 
@@ -470,7 +558,7 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
                 </TableRow>
               </TableHead>
               <TableBody>
-                {variants.map((variant) => (
+                {[...variants].sort(compareVariants).map((variant) => (
                   <TableRow key={variant.id} hover>
                     <TableCell>{getSizeLabel(variant.size)}</TableCell>
                     <TableCell>{variant.color}</TableCell>

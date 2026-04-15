@@ -206,7 +206,8 @@ const getStockReport = async (req, res, next) => {
 const getMovementReport = async (req, res, next) => {
     try {
         const { startDate, endDate, variantId } = req.query;
-        const report = await reportService.getMovementReport(startDate, endDate, variantId);
+        const storeId = req.user.role === 'store_staff' ? req.user.shopId : req.query.storeId;
+        const report = await reportService.getMovementReport(startDate, endDate, variantId, storeId);
         return sendSuccess(res, { report, movements: report }, 'Movement report retrieved');
     } catch (err) {
         next(err);

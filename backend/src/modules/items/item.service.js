@@ -25,6 +25,78 @@ const normalizeId = (value) => {
   return String(value);
 };
 
+const sanitizePrefix = (value) =>
+  String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+
+const getBrandPrefix = (brand) => {
+  const shortName = sanitizePrefix(brand?.shortName);
+  if (shortName) return shortName;
+
+  const name = String(brand?.name || '').trim();
+  if (!name) return 'BR';
+
+  const words = name.split(/\s+/).filter(Boolean);
+  if (words.length >= 2) {
+    const acronym = sanitizePrefix(`${words[0][0] || ''}${words[1][0] || ''}`);
+    return acronym || sanitizePrefix(name).slice(0, 2) || 'BR';
+  }
+
+  const two = sanitizePrefix(name).slice(0, 2);
+  return two || 'BR';
+};
+
+const normalizeSizeCode = (value) =>
+  String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, ' ');
+
+const STANDARD_SIZE_ORDER = [
+  'S',
+  'M',
+  'L',
+  'XL',
+  'XXL',
+  'XXXL',
+  '4XL',
+  '5XL',
+  '6XL',
+  '7XL',
+  '8XL',
+  '9XL',
+  '10XL',
+  'XXXS',
+  'XXS',
+  'XS',
+];
+
+const getSizeRank = (size) => {
+  const normalized = normalizeSizeCode(size).replace(/\s/g, '');
+
+  if (['FREE', 'FS', 'UNI', 'OS', 'ONE', 'UNSIZED'].includes(normalized)) return 9000;
+  if (/^\d+$/.test(normalized)) return 10000 + Number(normalized);
+
+  const waistMatch = normalized.match(/^(?:W)?(\d+)(?:W)?$/);
+  if (waistMatch) return 11000 + Number(waistMatch[1]);
+
+  const standardIndex = STANDARD_SIZE_ORDER.indexOf(normalized);
+  if (standardIndex !== -1) return standardIndex;
+
+  if (['MTR', 'METER', 'METRE', 'CM', 'CMS', 'INCH', 'INCHES', 'MM'].includes(normalized)) return 20000;
+
+  return 30000;
+};
+
+const compareSizeValues = (a, b) => {
+  const rankA = getSizeRank(a);
+  const rankB = getSizeRank(b);
+  if (rankA !== rankB) return rankA - rankB;
+  return normalizeSizeCode(a).localeCompare(normalizeSizeCode(b));
+};
+
 const normalizeGroupIds = (groupIds = []) =>
   [...new Set((Array.isArray(groupIds) ? groupIds : [groupIds])
     .map((groupId) => normalizeId(groupId))
@@ -46,31 +118,37 @@ const ensureGroupsExist = async (groupIds) => {
 const ensureSizeSKUs = async (sizes = [], brandId = null) => {
   if (!sizes.length) return;
 
+  const sortedSizes = [...sizes].sort((left, right) => compareSizeValues(left.size, right.size));
+
   if (brandId) {
     const brand = await Brand.findById(brandId);
     if (brand) {
-      const prefix = (brand.shortName || brand.name.slice(0, 2)).toUpperCase();
+      const prefix = getBrandPrefix(brand);
+      const missingCount = sortedSizes.filter((entry) => !entry.sku).length;
+      if (!missingCount) return;
       const counterKey = `barcode_seq_${prefix}`;
       
       const counter = await Counter.findOneAndUpdate(
         { name: counterKey },
-        { $inc: { seq: sizes.length } },
+        { $inc: { seq: missingCount } },
         { upsert: true, new: true }
       );
       
-      const startSeq = counter.seq - sizes.length + 1;
+      const startSeq = counter.seq - missingCount + 1;
       
-      sizes.forEach((entry, index) => {
+      let sequenceOffset = 0;
+      sortedSizes.forEach((entry) => {
         if (!entry.sku) {
-          const num = String(startSeq + index).padStart(4, '0');
+          const num = String(startSeq + sequenceOffset).padStart(4, '0');
           entry.sku = `${prefix}-${num}`;
+          sequenceOffset += 1;
         }
       });
       return;
     }
   }
 
-  for (const entry of sizes) {
+  for (const entry of sortedSizes) {
     if (!entry.sku) {
       entry.sku = await generateBarcode();
     }
@@ -315,7 +393,7 @@ class ItemService {
     const brand = await Brand.findById(brandId);
     if (!brand) throw new Error('Brand not found');
 
-    const prefix = (brand.shortName || brand.name.slice(0, 2)).toUpperCase();
+    const prefix = getBrandPrefix(brand);
     const counterKey = `barcode_seq_${prefix}`;
 
     const counter = await Counter.findOneAndUpdate(
@@ -325,6 +403,24 @@ class ItemService {
     );
 
     const startSeq = counter.seq - count + 1;
+    const barcodes = [];
+    for (let i = 0; i < count; i++) {
+      const num = String(startSeq + i).padStart(4, '0');
+      barcodes.push(`${prefix}-${num}`);
+    }
+    return barcodes;
+  }
+
+  async peekSequentialBarcodes(brandId, count) {
+    if (!brandId) throw new Error('Brand ID is required for sequential barcodes');
+    const brand = await Brand.findById(brandId);
+    if (!brand) throw new Error('Brand not found');
+
+    const prefix = getBrandPrefix(brand);
+    const counterKey = `barcode_seq_${prefix}`;
+    const counter = await Counter.findOne({ name: counterKey });
+    const startSeq = (counter?.seq || 0) + 1;
+
     const barcodes = [];
     for (let i = 0; i < count; i++) {
       const num = String(startSeq + i).padStart(4, '0');

@@ -71,7 +71,7 @@ const SaleChallanPrint = ({ challan }) => {
                         <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1 }}>To (Consignee):</Typography>
                         <Typography variant="subtitle1" sx={{ color: '#0f172a', fontWeight: 700, mt: 0.5 }}>{challan.customerName || challan.destinationStoreId?.name || 'Walk-in Customer'}</Typography>
                         <Typography variant="body2" sx={{ color: '#4b5563', mt: 0.5 }}>
-                            {challan.shippingAddress || 'Self Pickup / Counter Dispatch'}
+                            {challan.shippingAddress || challan.customerAddress || 'Self Pickup / Counter Dispatch'}
                         </Typography>
                         {challan.customerMobile && <Typography variant="body2" sx={{ color: '#4b5563' }}>Mob: {challan.customerMobile}</Typography>}
                     </Box>

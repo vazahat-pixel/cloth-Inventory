@@ -97,6 +97,12 @@ function DeliveryChallanForm({
         const dState = (destDoc.location?.state || destDoc.state || '').trim().toLowerCase();
         return sState !== dState && sState !== '' && dState !== '';
     }, [sourceDoc, destDoc]);
+    const sourceGst = (sourceDoc?.gstNumber || '').trim().toUpperCase();
+    const destinationGst = (destDoc?.gstNumber || '').trim().toUpperCase();
+    const hasBothGst = Boolean(sourceGst && destinationGst);
+    const billingDocTypeLabel = !hasBothGst
+        ? 'Unknown (GSTIN missing)'
+        : (isSameEntity ? 'Transfer Bill / Stock Transfer Note' : 'Tax Invoice');
 
     useEffect(() => {
         dispatch(fetchMasters('warehouses'));
@@ -260,14 +266,24 @@ function DeliveryChallanForm({
                     if (data.items && Array.isArray(data.items)) {
                         const prefilledLines = data.items.map(item => {
                             const v = item.variantId || {};
+                            const itemDoc = (item.itemId && typeof item.itemId === 'object') ? item.itemId : {};
+                            const variantDoc = Array.isArray(itemDoc.sizes)
+                                ? itemDoc.sizes.find((sz) =>
+                                    String(sz?._id || '') === String(v._id || item.variantId || '') ||
+                                    String(sz?.barcode || '').toLowerCase() === String(item.barcode || '').toLowerCase() ||
+                                    String(sz?.sku || '').toLowerCase() === String(item.barcode || '').toLowerCase()
+                                )
+                                : null;
+                            const derivedSku = v.sku || v.barcode || variantDoc?.sku || variantDoc?.barcode || item.barcode || itemDoc.itemCode || '-';
+                            const derivedBarcode = v.barcode || v.sku || variantDoc?.barcode || variantDoc?.sku || item.barcode || '-';
                             return {
-                                variantId: v._id || item.variantId,
-                                itemId: v.itemId || item.itemId,
-                                itemName: v.itemName || v.name || 'Unknown Item',
-                                sku: v.sku || v.barcode || '-',
-                                barcode: v.barcode || v.sku || '-',
-                                size: v.size || '-',
-                                color: v.color || '-',
+                                variantId: v._id || variantDoc?._id || item.variantId,
+                                itemId: v.itemId || itemDoc._id || item.itemId,
+                                itemName: v.itemName || v.name || itemDoc.itemName || itemDoc.name || 'Unknown Item',
+                                sku: derivedSku,
+                                barcode: derivedBarcode,
+                                size: v.size || variantDoc?.size || '-',
+                                color: v.color || variantDoc?.color || itemDoc.shade || '-',
                                 available: Number(item.qty + 100),
                                 quantity: Number(item.qty),
                                 receivedQty: mode === 'receive' ? 0 : Number(item.qty),
@@ -337,6 +353,10 @@ function DeliveryChallanForm({
 
     const handleBillingDispatch = async () => {
         setError('');
+        if (!sourceId || !storeId || !lines.length) {
+            setError('Dispatch karne se pehle items add/verify karna zaroori hai.');
+            return;
+        }
         setIsSubmitting(true);
 
         try {
@@ -359,11 +379,20 @@ function DeliveryChallanForm({
                 }
             })).unwrap();
 
+            // Ensure backend status precondition before confirm dispatch.
+            if (status === 'PENDING') {
+                await dispatch(updateChallanStatus({ id, status: 'PACKED' })).unwrap();
+            }
+
             await dispatch(updateChallanStatus({ id, status: 'DISPATCHED' })).unwrap();
             alert('Billing reviewed, final document generated, and dispatch completed.');
             navigate(listPath);
         } catch (err) {
-            setError(err.message || 'Failed to complete billing dispatch');
+            const rawError = err?.message || '';
+            const friendlyError = rawError.includes('Only packed challans can be dispatched')
+                ? 'Dispatch se pehle challan ko PACKED karna zaroori hai. Please retry billing dispatch.'
+                : rawError || 'Failed to complete billing dispatch';
+            setError(friendlyError);
         } finally {
             setIsSubmitting(false);
         }
@@ -394,6 +423,16 @@ function DeliveryChallanForm({
                     <Box sx={{ p: 2, bgcolor: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: 2 }}>
                         <Typography sx={{ fontWeight: 900, color: '#6b21a8' }}>Packing completed</Typography>
                         <Typography variant="caption">Ab ye challan packed stage me hai. Final tax invoice ya transfer bill banane ke baad hi dispatch hoga.</Typography>
+                    </Box>
+                )}
+                {!isReceiveMode && (
+                    <Box sx={{ p: 1.5, bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 1.5 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 800, color: '#0f172a' }}>
+                            Dispatch Document Type: {billingDocTypeLabel}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: '#64748b' }}>
+                            Source GSTIN: {sourceGst || 'N/A'} | Destination GSTIN: {destinationGst || 'N/A'}
+                        </Typography>
                     </Box>
                 )}
                 <Stack direction="row" spacing={2} sx={{ opacity: isReceiveMode || isLocked ? 0.6 : 1, pointerEvents: isReceiveMode || isLocked ? 'none' : 'auto' }}>
@@ -471,6 +510,7 @@ function DeliveryChallanForm({
                                 {isBillingMode && <TableCell align="right" sx={{ fontWeight: 700 }}>Discount %</TableCell>}
                                 {isBillingMode && <TableCell align="right" sx={{ fontWeight: 700 }}>Bill Rate</TableCell>}
                                 <TableCell align="right" sx={{ fontWeight: 700 }}>Expected Qty</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 700 }}>Taxable Value</TableCell>
                                 {!isSameEntity && <TableCell align="right" sx={{ fontWeight: 700 }}>GST%</TableCell>}
                                 {!isSameEntity && <TableCell align="right" sx={{ fontWeight: 700 }}>Tax</TableCell>}
                                 {isBillingMode && <TableCell align="right" sx={{ fontWeight: 700 }}>Line Total</TableCell>}
@@ -513,6 +553,7 @@ function DeliveryChallanForm({
                                         </TableCell>
                                     )}
                                     <TableCell align="right" sx={{ fontWeight: 700 }}>{l.quantity}</TableCell>
+                                    <TableCell align="right">₹{taxableValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                                     {!isSameEntity && (
                                         <TableCell align="right">
                                             {isBillingMode ? (
@@ -639,10 +680,11 @@ function DeliveryChallanForm({
                 </Stack>
             </Stack>
             <BillPrintDialog open={showPrint} onClose={() => setShowPrint(false)}>
-                {status === 'DISPATCHED' || status === 'RECEIVED' ? (
+                {status === 'DISPATCHED' || status === 'RECEIVED' || isBillingMode ? (
                     <StandardInvoicePrint 
                         sale={{ ...challanRawData, items: lines }} 
                         isTransfer={isSameEntity} 
+                        title={isSameEntity ? 'STOCK TRANSFER NOTE' : 'TAX INVOICE'}
                     />
                 ) : (
                     <SaleChallanPrint challan={{ ...challanRawData, items: lines }} />
