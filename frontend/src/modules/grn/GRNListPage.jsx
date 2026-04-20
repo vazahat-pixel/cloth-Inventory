@@ -24,11 +24,17 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import PrintIcon from '@mui/icons-material/Print';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import api from '../../services/api';
+import { useNotification } from '../../context/NotificationProvider';
+import { useLoading } from '../../context/LoadingProvider';
+import { useConfirm } from '../../context/ConfirmProvider';
 
 const GRNListPage = () => {
   const navigate = useNavigate();
   const [grns, setGrns] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { showNotification } = useNotification();
+  const { showLoading, hideLoading } = useLoading();
+  const { showConfirm } = useConfirm();
 
   useEffect(() => {
     fetchGrns();
@@ -51,16 +57,25 @@ const GRNListPage = () => {
   };
 
   const handleApprove = async (id) => {
-    if (!window.confirm('Are you sure you want to approve this GRN and post stock to inventory?')) return;
-    setLoading(true);
+    const confirmed = await showConfirm({
+      title: 'Approve GRN',
+      message: 'Are you sure you want to approve this GRN and post stock to inventory? This action is permanent.',
+      confirmText: 'Approve & Post',
+      severity: 'warning'
+    });
+    
+    if (!confirmed) return;
+
+    showLoading('Approving and posting stock to inventory...');
     try {
       await api.patch(`/grn/${id}/approve`);
+      showNotification('GRN approved and stock posted successfully!', 'success');
       fetchGrns();
     } catch (err) {
       console.error('Approve failed', err);
-      alert(err.response?.data?.message || 'Failed to approve');
+      showNotification(err.response?.data?.message || 'Failed to approve GRN', 'error');
     } finally {
-      setLoading(false);
+      hideLoading();
     }
   };
 

@@ -43,6 +43,8 @@ import ExchangeInvoicePrint from './ExchangeInvoicePrint';
 import StandardInvoicePrint from './StandardInvoicePrint';
 import ExchangeDialog from './ExchangeDialog';
 import { sendWhatsAppInvoice } from '../../utils/whatsapp';
+import { useNotification } from '../../context/NotificationProvider';
+import { useLoading } from '../../context/LoadingProvider';
 
 
 const DEFAULT_WALK_IN_NAME = 'Walk-in Customer';
@@ -55,10 +57,10 @@ const toNumber = (value, fallback = 0) => {
   return Number.isFinite(numeric) ? numeric : fallback;
 };
 
-const calculateLine = (line) => {
+const calculateLine = (line, promoDiscount = 0) => {
   const gross = toNumber(line.quantity) * toNumber(line.rate);
-  const disc = (gross * toNumber(line.discount)) / 100;
-  const taxableAmount = gross - disc;
+  const manualDisc = (gross * toNumber(line.discount)) / 100;
+  const taxableAmount = Math.max(0, gross - manualDisc - toNumber(promoDiscount));
   
   // Default tax rate is 5%
   const taxRate = toNumber(line.tax || 5);
@@ -66,15 +68,17 @@ const calculateLine = (line) => {
 
   return {
     gross,
-    discount: disc,
+    discount: manualDisc + toNumber(promoDiscount),
     taxAmount,
     amount: taxableAmount + taxAmount,
   };
 };
 
-const calculateTotals = (lines, billDiscount, loyaltyRedeemed, couponDiscount = 0, schemeDiscount = 0, creditNoteAmount = 0, saleType = 'retail') => {
+const calculateTotals = (lines, billDiscount, loyaltyRedeemed, couponDiscount = 0, schemeDiscount = 0, creditNoteAmount = 0, saleType = 'retail', promoItems = []) => {
   const totals = lines.reduce((acc, l) => {
-    const lineRes = calculateLine(l);
+    // Find promo discount for this specific line
+    const promo = promoItems?.find(pi => pi.variantId === l.productId);
+    const lineRes = calculateLine(l, promo?.promoDiscount || 0);
 
     acc.gross += lineRes.gross;
     acc.lineDiscount += lineRes.discount;
@@ -83,6 +87,7 @@ const calculateTotals = (lines, billDiscount, loyaltyRedeemed, couponDiscount = 
     return acc;
   }, { gross: 0, lineDiscount: 0, taxAmount: 0, totalQuantity: 0 });
 
+  const totalPromo = promoItems?.reduce((acc, pi) => acc + (pi.promoDiscount || 0), 0) || 0;
   const net = totals.gross - totals.lineDiscount - toNumber(billDiscount) - toNumber(couponDiscount) - toNumber(schemeDiscount) + totals.taxAmount - toNumber(loyaltyRedeemed) - toNumber(creditNoteAmount);
 
   return {
@@ -94,6 +99,7 @@ const calculateTotals = (lines, billDiscount, loyaltyRedeemed, couponDiscount = 
     schemeDiscount,
     loyaltyRedeemed,
     creditNoteAmount,
+    promoDiscount: totalPromo,
     netPayable: saleType === 'exchange' ? net : (net > 0 ? net : 0),
   };
 };
@@ -128,7 +134,7 @@ function BillingPage({
   const creditNotes = useSelector((state) => state.customerRewards?.creditNotes) ?? EMPTY_ARR;
   const user = useSelector((state) => state.auth.user);
   const stores = useSelector((state) => state.masters.stores || EMPTY_ARR);
-  const { eligibleOffers, evaluateLoading } = useSelector((state) => state.pricing);
+  const { eligibleOffers, evaluateLoading, totalPromoDiscount, promoItems } = useSelector((state) => state.pricing);
 
   const isStoreStaff = user?.role !== 'Admin';
 
@@ -156,6 +162,8 @@ function BillingPage({
   const [loyaltyRedeemed, setLoyaltyRedeemed] = useState('');
   const [barcodeInput, setBarcodeInput] = useState('');
   const [selectedOption, setSelectedOption] = useState(null);
+
+  const [activeTab, setActiveTab] = useState(0);
   const [lines, setLines] = useState([]);
   const [errorMessage, setErrorMessage] = useState('');
   const [paymentOpen, setPaymentOpen] = useState(false);
@@ -168,7 +176,9 @@ function BillingPage({
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [saleType, setSaleType] = useState('retail');
   const [completedSaleData, setCompletedSaleData] = useState(null);
-  const [showPrint, setShowPrint] = useState(false);
+  const autoPrintTriggeredRef = useRef(false);
+  const { showNotification } = useNotification();
+  const { showLoading, hideLoading } = useLoading();
   const [selectedScheme, setSelectedScheme] = useState(null);
   const [exchangeOpen, setExchangeOpen] = useState(false);
   const [exchangeItems, setExchangeItems] = useState([]);
@@ -257,7 +267,8 @@ function BillingPage({
         couponDiscountAmount,
         schemeDiscountAmount,
         creditNoteAmount,
-        saleType
+        saleType,
+        promoItems
       );
       return {
         ...basic,
@@ -265,7 +276,7 @@ function BillingPage({
         netPayable: Math.max(0, basic.netPayable - returnTotalCredit),
       };
     },
-    [billDiscount, lines, loyaltyRedeemed, couponDiscountAmount, schemeDiscountAmount, creditNoteAmount, saleType, returnTotalCredit],
+    [billDiscount, lines, loyaltyRedeemed, couponDiscountAmount, schemeDiscountAmount, creditNoteAmount, saleType, returnTotalCredit, promoItems],
   );
 
   // Real-time Offer Evaluation
@@ -387,6 +398,8 @@ function BillingPage({
           rate: toNumber(stock.salePrice || (stock.productId && typeof stock.productId === 'object' ? stock.productId.salePrice : 0)),
           mrp: toNumber(stock.mrp || (stock.productId && typeof stock.productId === 'object' ? stock.productId.mrp : 0)),
           tax: 0,
+          category: stock.productId?.categoryId || stock.category,
+          brand: stock.productId?.brand || stock.brand,
         };
         return option;
       })
@@ -478,8 +491,11 @@ function BillingPage({
           quantity: 1,
           rate: option.rate,
           discount: 0,
-          tax: option.tax,
+          tax: option.tax || 0,
+          mrp: option.mrp,
           available: option.available,
+          category: option.category,
+          brand: option.brand,
         },
       ];
     });
@@ -533,6 +549,8 @@ function BillingPage({
         rate: toNumber(product.salePrice || product.price),
         mrp: toNumber(product.mrp || product.salePrice),
         tax: 0, 
+        category: product.category,
+        brand: product.brand
       });
       setBarcodeInput('');
     } catch (err) {
@@ -619,13 +637,15 @@ function BillingPage({
   const handlePaymentConfirm = (payment) => {
     // 1. Align with backend products array: [{ productId, quantity, price, total }]
     const preparedProducts = lines.map((line) => {
-      const calcs = calculateLine(line);
+      const promo = promoItems?.find(pi => pi.variantId === line.productId);
+      const calcs = calculateLine(line, promo?.promoDiscount || 0);
       return {
         productId: line.productId || line.variantId,
         barcode: line.barcode || line.sku || '',
         quantity: toNumber(line.quantity),
         price: toNumber(line.rate),
         discount: toNumber(line.discount),
+        promoDiscount: promo?.promoDiscount || 0,
         taxPercentage: toNumber(line.taxRate || 5),
         taxAmount: calcs.taxAmount,
         total: calcs.amount,
@@ -641,7 +661,7 @@ function BillingPage({
       customerAddress: selectedCustomer?.address || customerAddress,
       products: preparedProducts,
       subTotal: totals.grossAmount,
-      discount: toNumber(billDiscount) + toNumber(couponDiscountAmount) + toNumber(schemeDiscountAmount),
+      discount: toNumber(billDiscount) + toNumber(couponDiscountAmount) + toNumber(schemeDiscountAmount) + toNumber(totalPromoDiscount),
       tax: totals.taxAmount,
       grandTotal: totals.netPayable,
       amountPaid: payment.amountPaid,
@@ -662,14 +682,20 @@ function BillingPage({
       } : null,
     };
 
+    showLoading('Finalizing transaction and generating invoice...');
     dispatch(addSale(payload))
       .unwrap()
       .then((res) => {
         setCompletedSaleData(res);
         setShowPrint(true);
+        showNotification('Sale completed successfully!', 'success');
       })
       .catch((err) => {
         setErrorMessage(err || 'Failed to save sale');
+        showNotification(err || 'Failed to save sale', 'error');
+      })
+      .finally(() => {
+        hideLoading();
       });
 
     setPaymentOpen(false);
@@ -1143,64 +1169,69 @@ function BillingPage({
                   </TableHead>
                   <TableBody>
                     {lines.map((line) => {
-                      const lineTotals = calculateLine(line);
-                      return (
-                        <TableRow key={line.id}>
-                          <TableCell>
-                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                              {line.itemName}
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: '#64748B' }}>
-                              Avl: {line.available}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>{`${line.size}/${line.color}`}</TableCell>
-                          <TableCell>{line.sku}</TableCell>
-                          <TableCell align="right">
-                            <TextField
-                              size="small"
-                              type="number"
-                              value={line.quantity}
-                              onChange={(event) =>
-                                updateLineField(line.id, 'quantity', event.target.value)
-                              }
-                              inputProps={{ min: saleType === 'exchange' ? -999 : 1, max: line.available }}
-                              sx={{ width: 90 }}
-                            />
-                          </TableCell>
-                          <TableCell align="right">
-                            <TextField
-                              size="small"
-                              type="number"
-                              value={line.rate}
-                              onChange={(event) => updateLineField(line.id, 'rate', event.target.value)}
-                              sx={{ width: 110 }}
-                              disabled={isStoreStaff}
-                            />
-                          </TableCell>
-                          <TableCell align="right">
-                            <TextField
-                              size="small"
-                              type="number"
-                              value={line.discount}
-                              onChange={(event) =>
-                                updateLineField(line.id, 'discount', event.target.value)
-                              }
-                              sx={{ width: 90 }}
-                              disabled={isStoreStaff}
-                            />
-                          </TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 700 }}>
-                            {lineTotals.amount.toFixed(2)}
-                          </TableCell>
-                          <TableCell>
-                            <IconButton color="error" size="small" onClick={() => removeLine(line.id)}>
-                              <DeleteOutlineIcon fontSize="small" />
-                            </IconButton>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                        const promo = promoItems?.find(pi => pi.variantId === line.productId);
+                        const lineRes = calculateLine(line, promo?.promoDiscount || 0);
+
+                        return (
+                          <TableRow key={line.id}>
+                            <TableCell>
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                {line.itemName}
+                              </Typography>
+                              <Stack direction="row" spacing={1} alignItems="center">
+                                <Typography variant="caption" color="textSecondary">
+                                  {line.sku} | {line.size}/{line.color}
+                                </Typography>
+                                {promo?.promoDiscount > 0 && (
+                                  <Chip 
+                                    label="OFFER APPLIED" 
+                                    size="small" 
+                                    color="success" 
+                                    sx={{ height: 16, fontSize: '0.65rem', fontWeight: 800 }} 
+                                  />
+                                )}
+                              </Stack>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Box>
+                                <Typography variant="body2">₹{toNumber(line.rate).toFixed(2)}</Typography>
+                                {promo?.promoDiscount > 0 && (
+                                  <Typography variant="caption" sx={{ color: '#10b981', fontWeight: 700 }}>
+                                    Promo: -₹{(promo.promoDiscount / line.quantity).toFixed(2)}
+                                  </Typography>
+                                )}
+                              </Box>
+                            </TableCell>
+                            <TableCell align="center">
+                              <TextField
+                                type="number"
+                                size="small"
+                                value={line.quantity}
+                                onChange={(event) => updateLineField(line.id, 'quantity', event.target.value)}
+                                sx={{ width: 70 }}
+                              />
+                            </TableCell>
+                            <TableCell align="center">
+                              <TextField
+                                type="number"
+                                size="small"
+                                value={line.discount}
+                                onChange={(event) => updateLineField(line.id, 'discount', event.target.value)}
+                                sx={{ width: 90 }}
+                                disabled={isStoreStaff}
+                              />
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700 }}>
+                              {lineRes.amount.toFixed(2)}
+                            </TableCell>
+                            <TableCell>
+                              <IconButton color="error" size="small" onClick={() => removeLine(line.id)}>
+                                <DeleteOutlineIcon fontSize="small" />
+                              </IconButton>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                   </TableBody>
                 </Table>
               </TableContainer>
@@ -1271,6 +1302,9 @@ function BillingPage({
               <SummaryRow label="Total Items" value={totals.totalItems} />
               <SummaryRow label="Total Quantity" value={totals.totalQuantity} />
               <SummaryRow label="Gross Amount" value={totals.grossAmount.toFixed(2)} />
+              {totals.promoDiscount > 0 && (
+                <SummaryRow label="Promotion Offer" value={`-${totals.promoDiscount.toFixed(2)}`} color="#10b981" />
+              )}
               <SummaryRow label="Line Discount" value={totals.lineDiscount.toFixed(2)} />
               <SummaryRow label="Tax Amount" value={totals.taxAmount.toFixed(2)} />
               {totals.returnTotalCredit > 0 && (

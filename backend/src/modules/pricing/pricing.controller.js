@@ -1,17 +1,15 @@
 const pricingService = require('./pricing.service');
+const promotionService = require('./promotion.service');
 const { sendSuccess, sendError, sendCreated } = require('../../utils/response.handler');
 
 class PricingController {
     /**
-     * EVALUATE OFFERS ELIGIBILITY
+     * Evaluate Promotions for Cart
      */
     evaluateOffers = async (req, res) => {
         try {
-            const { items, totalAmount, storeId } = req.body;
-            if (!items || !items.length) {
-                return sendError(res, 'Items are required for offer evaluation', 400);
-            }
-            const result = await pricingService.evaluateAllOffers({ items, totalAmount, storeId });
+            const { items } = req.body;
+            const result = await promotionService.evaluate(items);
             return sendSuccess(res, result, 'Offers evaluated successfully');
         } catch (error) {
             return sendError(res, error.message, 400);

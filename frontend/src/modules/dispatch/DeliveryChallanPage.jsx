@@ -23,6 +23,8 @@ import { fetchChallans, updateChallanStatus } from './dispatchSlice';
 import BillPrintDialog from '../../components/BillPrintDialog';
 import StandardInvoicePrint from '../sales/StandardInvoicePrint';
 import SaleChallanPrint from '../sales/SaleChallanPrint';
+import { useNotification } from '../../context/NotificationProvider';
+import { useLoading } from '../../context/LoadingProvider';
 
 function DeliveryChallanPage({
     pageTitle = 'Delivery Challans',
@@ -34,6 +36,8 @@ function DeliveryChallanPage({
     const dispatch = useDispatch();
     const { records: challans = [], loading, error } = useSelector((state) => state.dispatch);
     const { user } = useSelector((state) => state.auth);
+    const { showNotification } = useNotification();
+    const { showLoading, hideLoading } = useLoading();
 
     const normalizedRole = String(user?.role || '').toLowerCase();
     const isStoreUser = normalizedRole.includes('staff') || normalizedRole.includes('manager') || normalizedRole.includes('accountant');
@@ -44,10 +48,30 @@ function DeliveryChallanPage({
         dispatch(fetchChallans());
     }, [dispatch]);
 
-    const handleMarkReceived = (row) => {
+    const handleMarkReceived = async (row) => {
         const id = row.id || row._id;
         if (!id) return;
-        dispatch(updateChallanStatus({ id, status: 'RECEIVED' }));
+        showLoading('Processing receipt...');
+        try {
+            await dispatch(updateChallanStatus({ id, status: 'RECEIVED' })).unwrap();
+            showNotification('Stock received and updated successfully!', 'success');
+        } catch (err) {
+            showNotification(err?.message || 'Failed to update receipt status.', 'error');
+        } finally {
+            hideLoading();
+        }
+    };
+
+    const handleMarkPacked = async (id) => {
+        showLoading('Updating status...');
+        try {
+            await dispatch(updateChallanStatus({ id, status: 'PACKED' })).unwrap();
+            showNotification('Challan marked as packed.', 'success');
+        } catch (err) {
+            showNotification(err?.message || 'Failed to update status.', 'error');
+        } finally {
+            hideLoading();
+        }
     };
 
     const renderStatusChip = (status) => {
@@ -167,7 +191,7 @@ function DeliveryChallanPage({
                                                             size="small"
                                                             sx={{ fontWeight: 700, borderRadius: 1.5 }}
                                                             disabled={loading}
-                                                            onClick={() => dispatch(updateChallanStatus({ id: row.id || row._id, status: 'PACKED' }))}
+                                                            onClick={() => handleMarkPacked(row.id || row._id)}
                                                         >
                                                             Mark Packed
                                                         </Button>

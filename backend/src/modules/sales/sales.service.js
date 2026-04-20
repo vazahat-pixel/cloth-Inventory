@@ -74,7 +74,9 @@ const getProductForSale = async (barcode, storeId) => {
         color: variant.color || parentItem.shade,
         salePrice: toNumber(variant.salePrice || parentItem.salePrice || variant.mrp || parentItem.mrp),
         mrp: toNumber(variant.mrp || parentItem.mrp || variant.salePrice || parentItem.salePrice),
-        available: availableQty
+        available: availableQty,
+        category: parentItem.categoryId,
+        brand: parentItem.brand
     };
 };
 

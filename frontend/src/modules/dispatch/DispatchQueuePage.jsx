@@ -23,11 +23,15 @@ import { fetchChallans, updateChallanStatus } from './dispatchSlice';
 import BillPrintDialog from '../../components/BillPrintDialog';
 import SaleChallanPrint from '../sales/SaleChallanPrint';
 import StandardInvoicePrint from '../sales/StandardInvoicePrint';
+import { useNotification } from '../../context/NotificationProvider';
+import { useLoading } from '../../context/LoadingProvider';
 
 function DispatchQueuePage() {
     const navigate = useAppNavigate();
     const dispatch = useDispatch();
     const { records: challans = [], loading, error } = useSelector((state) => state.dispatch);
+    const { showNotification } = useNotification();
+    const { showLoading, hideLoading } = useLoading();
     
     const [printTarget, setPrintTarget] = useState(null);
 
@@ -51,21 +55,38 @@ function DispatchQueuePage() {
     };
 
     const handleReviewDispatch = async (id, status) => {
+        showLoading('Loading dispatch details...');
         try {
             if (status === 'PENDING') {
                 await dispatch(updateChallanStatus({ id, status: 'PACKED' })).unwrap();
+                hideLoading();
                 navigate(`/orders/delivery-challan/${id}/billing`);
                 return;
             }
             if (status === 'PACKED') {
+                hideLoading();
                 navigate(`/orders/delivery-challan/${id}/billing`);
                 return;
             }
             // DISPATCHED: allow quick access to finalized document/invoice view
+            hideLoading();
             navigate(`/orders/delivery-challan/${id}`);
         } catch (err) {
+            hideLoading();
             // Surface backend validation in a simple way for operators.
-            alert(err?.message || 'Unable to continue review/dispatch flow.');
+            showNotification(err?.message || 'Unable to continue review/dispatch flow.', 'error');
+        }
+    };
+
+    const handleMarkPacked = async (id) => {
+        showLoading('Marking as packed...');
+        try {
+            await dispatch(updateChallanStatus({ id, status: 'PACKED' })).unwrap();
+            showNotification('Challan marked as packed successfully.', 'success');
+        } catch (err) {
+            showNotification(err?.message || 'Failed to update status.', 'error');
+        } finally {
+            hideLoading();
         }
     };
 
@@ -140,7 +161,7 @@ function DispatchQueuePage() {
                                                             color="secondary"
                                                             size="small"
                                                             sx={{ fontWeight: 700, borderRadius: 1.5, textTransform: 'none' }}
-                                                            onClick={() => dispatch(updateChallanStatus({ id, status: 'PACKED' }))}
+                                                            onClick={() => handleMarkPacked(id)}
                                                         >
                                                             Mark Packed
                                                         </Button>

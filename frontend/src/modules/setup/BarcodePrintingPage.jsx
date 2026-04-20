@@ -24,10 +24,15 @@ import {
   PrintOutlined as PrintIcon,
   FileUploadOutlined as UploadIcon,
   DescriptionOutlined as ExcelIcon,
+  HistoryOutlined as HistoryIcon,
+  DeleteOutline as DeleteIcon,
 } from '@mui/icons-material';
 import { fetchGrns } from '../grn/grnSlice';
 import api from '../../services/api';
 import JsBarcode from 'jsbarcode';
+import { useNotification } from '../../context/NotificationProvider';
+import { useLoading } from '../../context/LoadingProvider';
+import { useConfirm } from '../../context/ConfirmProvider';
 
 function generateBarcodeDataUrl(text) {
   if (!text) return '';
@@ -160,11 +165,78 @@ function BarcodePrintingPage() {
   const [globalBatchQty, setGlobalBatchQty] = useState(1);
   const allItems = useSelector((state) => state.items.records) || [];
   const autoPrintTriggeredRef = useRef(false);
+  const { showNotification } = useNotification();
+  const { showLoading, hideLoading } = useLoading();
+  const { showConfirm } = useConfirm();
 
   const [type, setType] = useState('FORMAL SOLID');
   const [design, setDesign] = useState('COLLAR');
   const [mfgLine1, setMfgLine1] = useState('Plot No 418, Sector-53, Phase 3');
   const [mfgLine2, setMfgLine2] = useState('Kundli, Sonipat (Haryana)');
+  
+  // History State
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  const fetchHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await api.get('/barcodes');
+      setHistory(res.data?.data?.barcodes || []);
+    } catch (err) {
+      console.error('Failed to fetch history', err);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const deleteSingleRecord = async (id) => {
+    const confirmed = await showConfirm({
+      title: 'Delete History Record',
+      message: 'Are you sure you want to delete this record?',
+      confirmText: 'Delete',
+      severity: 'error'
+    });
+    if (!confirmed) return;
+    
+    showLoading('Deleting record...');
+    try {
+      await api.delete(`/barcodes/${id}`);
+      showNotification('Record deleted successfully', 'success');
+      fetchHistory();
+    } catch (err) {
+      showNotification('Delete failed', 'error');
+    } finally {
+      hideLoading();
+    }
+  };
+
+  const deleteAllRecords = async () => {
+    const confirmed = await showConfirm({
+      title: 'Clear All History',
+      message: 'WARNING: THIS WILL DELETE ALL GENERATED BARCODE RECORDS. Are you sure you want to proceed?',
+      confirmText: 'Clear All',
+      severity: 'error'
+    });
+    if (!confirmed) return;
+
+    showLoading('Clearing history...');
+    try {
+      await api.delete('/barcodes');
+      showNotification('All records deleted successfully', 'success');
+      fetchHistory();
+    } catch (err) {
+      showNotification('Delete all failed', 'error');
+    } finally {
+      hideLoading();
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 2) {
+      fetchHistory();
+    }
+  }, [activeTab]);
   
   useEffect(() => {
     dispatch(fetchGrns());
@@ -219,17 +291,21 @@ function BarcodePrintingPage() {
 
   const fetchGrnLabels = async (idOfGrn) => {
     setImporting(true);
+    showLoading('Loading stickers from GRN...');
     try {
       const res = await api.get(`/barcodes/grn/${idOfGrn}`);
       const extractedLabels = res.data?.data?.labels || res.data?.labels || [];
       setImportResults(extractedLabels);
-      if (extractedLabels.length === 0) alert('No valid received items found in this GRN to print.');
+      if (extractedLabels.length === 0) {
+        showNotification('No valid received items found in this GRN to print.', 'warning');
+      }
       return extractedLabels;
     } catch (err) {
-      alert('Failed to load stickers from GRN: ' + (err.response?.data?.message || err.message));
+      showNotification('Failed to load stickers from GRN: ' + (err.response?.data?.message || err.message), 'error');
       return [];
     } finally {
       setImporting(false);
+      hideLoading();
     }
   };
 
@@ -304,26 +380,6 @@ function BarcodePrintingPage() {
       }
     }
   }, [allItems, preselectedItemId, preselectedItemIds, shouldAutoPrint]);
-
-  const handleExcelUpload = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setImporting(true);
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-      const res = await api.post('/barcodes/import-excel', formData);
-      setImportResults(res.data?.data?.labels || []);
-    } catch (error) {
-      alert('Import failed');
-    } finally {
-      setImporting(false);
-    }
-  };
-
-  const printBatch = (labels) => {
-    if (!labels.length) return;
-    const printWindow = window.open('', '_blank');
     const styles = `
       <style>
         @page { size: 50mm 135mm; margin: 0; }
@@ -442,6 +498,7 @@ function BarcodePrintingPage() {
         <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} sx={{ borderBottom: '1px solid #e2e8f0', px: 2 }}>
           <Tab icon={<PrintIcon />} label="Single Print" sx={{ py: 2, fontWeight: 700 }} />
           <Tab icon={<ExcelIcon />} label="Bulk / GRN Labels" sx={{ py: 2, fontWeight: 700 }} />
+          <Tab icon={<HistoryIcon />} label="Generation History" sx={{ py: 2, fontWeight: 700 }} />
         </Tabs>
 
         <Box sx={{ p: 4 }}>
@@ -618,12 +675,82 @@ function BarcodePrintingPage() {
                    <Button variant="contained" 
                     onClick={() => {
                       const labelsToPrint = buildLabelsFromBatchLines(batchLines);
-                      if (!labelsToPrint.length) alert('Please enter print quantities first.');
+                      if (!labelsToPrint.length) showNotification('Please enter print quantities first.', 'warning');
                       else printBatch(labelsToPrint);
                     }}
                    >
                      GENERATE BATCH TAGS ({totalBatchLabels})
                    </Button>
+                </Box>
+              )}
+            </Stack>
+          )}
+
+          {activeTab === 2 && (
+            <Stack spacing={3}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box>
+                  <Typography variant="h6" sx={{ fontWeight: 800 }}>Generation History</Typography>
+                  <Typography variant="body2" color="textSecondary">Trace records of generated barcodes and their associated GRNs.</Typography>
+                </Box>
+                <Button 
+                  variant="outlined" 
+                  color="error" 
+                  startIcon={<DeleteIcon />} 
+                  onClick={deleteAllRecords}
+                  disabled={history.length === 0}
+                >
+                  Clear All History
+                </Button>
+              </Box>
+
+              {historyLoading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+                  <CircularProgress />
+                </Box>
+              ) : history.length > 0 ? (
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead sx={{ bgcolor: '#f1f5f9' }}>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 700 }}>GENERATED DATE</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>BARCODE</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>STYLE / ITEM</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>BATCH NO</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 700 }}>ACTIONS</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {history.map((row) => (
+                        <TableRow key={row._id} hover>
+                          <TableCell sx={{ fontSize: '0.85rem' }}>
+                            {new Date(row.createdAt).toLocaleString()}
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 800, color: '#1e293b' }}>
+                            {row.barcode}
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.itemId?.itemCode}</Typography>
+                            <Typography variant="caption" color="textSecondary">{row.itemId?.itemName}</Typography>
+                          </TableCell>
+                          <TableCell>{row.batchNo}</TableCell>
+                          <TableCell align="right">
+                            <Button 
+                              size="small" 
+                              color="error" 
+                              onClick={() => deleteSingleRecord(row._id)}
+                            >
+                              Delete
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              ) : (
+                <Box sx={{ py: 10, textAlign: 'center', border: '1px dashed #cbd5e1', borderRadius: 4 }}>
+                   <Typography variant="body1" color="textSecondary">No history found. Generate barcodes via GRN or Bulk print to see records here.</Typography>
                 </Box>
               )}
             </Stack>

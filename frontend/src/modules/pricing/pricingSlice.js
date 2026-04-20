@@ -175,6 +175,8 @@ const initialState = {
   coupons: [],
   promotionTypes: [],
   eligibleOffers: [],
+  totalPromoDiscount: 0,
+  promoItems: [],
   loading: false,
   evaluateLoading: false,
   error: null,
@@ -253,10 +255,13 @@ const pricingSlice = createSlice({
       })
       .addCase(evaluateOffers.fulfilled, (state, action) => {
         state.evaluateLoading = false;
-        state.eligibleOffers = action.payload?.eligibleSchemes || [];
+        state.eligibleOffers = action.payload?.appliedOffers || [];
+        state.totalPromoDiscount = action.payload?.totalDiscount || 0;
+        state.promoItems = action.payload?.items || [];
       })
       .addCase(evaluateOffers.rejected, (state) => {
         state.evaluateLoading = false;
+        state.totalPromoDiscount = 0;
       })
       .addCase(deleteScheme.fulfilled, (state, action) => {
         state.schemes = state.schemes.filter((s) => s.id !== action.payload && s._id !== action.payload);

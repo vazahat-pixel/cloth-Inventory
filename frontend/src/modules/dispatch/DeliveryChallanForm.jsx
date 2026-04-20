@@ -35,6 +35,9 @@ import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import BillPrintDialog from '../../components/BillPrintDialog';
 import StandardInvoicePrint from '../sales/StandardInvoicePrint';
 import SaleChallanPrint from '../sales/SaleChallanPrint';
+import { useNotification } from '../../context/NotificationProvider';
+import { useLoading } from '../../context/LoadingProvider';
+import { useConfirm } from '../../context/ConfirmProvider';
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
 
@@ -44,9 +47,10 @@ function DeliveryChallanForm({
     saveLabel = 'Save Challan',
     mode = 'edit' // edit, view, receive, billing
 }) {
-    const dispatch = useDispatch();
-    const navigate = useAppNavigate();
     const { id } = useParams();
+    const { showNotification } = useNotification();
+    const { showLoading, hideLoading } = useLoading();
+    const { showConfirm } = useConfirm();
 
     const [date, setDate] = useState(getTodayDate());
     const [sourceId, setSourceId] = useState('');
@@ -316,8 +320,9 @@ function DeliveryChallanForm({
                         receivedQty: l.receivedQty
                     }))
                 };
+                showLoading('Updating inventory stock...');
                 await api.post(`/dispatch/${id}/receive`, payload);
-                alert("Stock successfully audited and added to inventory!");
+                showNotification("Stock successfully audited and added to inventory!", "success");
                 navigate(listPath);
                 return;
             }
@@ -340,13 +345,15 @@ function DeliveryChallanForm({
                 type: 'WAREHOUSE_TO_STORE'
             };
 
+            showLoading(id ? 'Updating challan...' : 'Saving new challan...');
             const action = id ? updateChallan({ id, data: payload }) : addChallan(payload);
             await dispatch(action).unwrap();
-            alert("Success!");
+            showNotification(id ? "Challan updated successfully!" : "Challan saved successfully!", "success");
             navigate(listPath);
         } catch (err) {
             setError(err.message || "Failed to process");
         } finally {
+            hideLoading();
             setIsSubmitting(false);
         }
     };
@@ -384,8 +391,9 @@ function DeliveryChallanForm({
                 await dispatch(updateChallanStatus({ id, status: 'PACKED' })).unwrap();
             }
 
+            showLoading('Generating final invoice and completing dispatch...');
             await dispatch(updateChallanStatus({ id, status: 'DISPATCHED' })).unwrap();
-            alert('Billing reviewed, final document generated, and dispatch completed.');
+            showNotification('Billing reviewed and dispatch completed.', 'success');
             navigate(listPath);
         } catch (err) {
             const rawError = err?.message || '';
@@ -394,6 +402,7 @@ function DeliveryChallanForm({
                 : rawError || 'Failed to complete billing dispatch';
             setError(friendlyError);
         } finally {
+            hideLoading();
             setIsSubmitting(false);
         }
     };
@@ -453,10 +462,16 @@ function DeliveryChallanForm({
                         getOptionLabel={(w) => w.name || w.warehouseName || ''}
                         value={warehouses.find(w => (w.id || w._id) === sourceId) || null}
                         disabled={isReceiveMode || isLocked}
-                        onChange={(_, newValue) => {
+                        onChange={async (_, newValue) => {
                             const newId = newValue ? (newValue.id || newValue._id) : '';
                             if (lines.length > 0 && newId !== sourceId) {
-                                if (window.confirm("Changing source warehouse will clear current items. Continue?")) {
+                                const confirmed = await showConfirm({
+                                    title: 'Change Source Warehouse?',
+                                    message: 'Changing source warehouse will clear all current items from the list. Do you want to continue?',
+                                    confirmText: 'Clear & Change',
+                                    severity: 'warning'
+                                });
+                                if (confirmed) {
                                     setLines([]);
                                     setSourceId(newId);
                                 }

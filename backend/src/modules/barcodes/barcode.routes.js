@@ -9,7 +9,9 @@ router.use(protect); // Secure all routes
 // Get barcode labels from a GRN Document
 router.get('/grn/:id', requireAdmin, barcodeController.getGrnBarcodes);
 
-// Extensible placeholders for future features
-// router.post('/import-excel', requireAdmin, upload.single('file'), barcodeController.importExcelBarcodes);
+// Batch History & Maintenance
+router.get('/', requireAdmin, barcodeController.listBatchBarcodes);
+router.delete('/', requireAdmin, barcodeController.deleteAllBatchBarcodes);
+router.delete('/:id', requireAdmin, barcodeController.deleteBatchBarcode);
 
 module.exports = router;

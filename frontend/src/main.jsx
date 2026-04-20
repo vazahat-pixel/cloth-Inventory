@@ -7,6 +7,9 @@ import App from './App';
 import theme from './theme';
 import { store } from './app/store';
 import ErrorBoundary from './components/ErrorBoundary';
+import { NotificationProvider } from './context/NotificationProvider';
+import { LoadingProvider } from './context/LoadingProvider';
+import { ConfirmProvider } from './context/ConfirmProvider';
 import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -15,8 +18,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <Provider store={store}>
         <BrowserRouter>
           <ThemeProvider theme={theme}>
-            <CssBaseline />
-            <App />
+            <NotificationProvider>
+              <LoadingProvider>
+                <ConfirmProvider>
+                  <CssBaseline />
+                  <App />
+                </ConfirmProvider>
+              </LoadingProvider>
+            </NotificationProvider>
           </ThemeProvider>
         </BrowserRouter>
       </Provider>
