@@ -1,6 +1,10 @@
 export const purchaseOrderStorageKey = 'purchase-orders';
 export const purchaseOrderStatuses = ['DRAFT', 'PENDING', 'APPROVED', 'PARTIALLY_RECEIVED', 'COMPLETED', 'CANCELLED'];
 
+export const buildFallbackSuppliers = () => [];
+export const buildFallbackVariantOptions = () => [];
+export const fallbackPurchaseOrders = [];
+
 export const formatCurrency = (value) =>
   new Intl.NumberFormat('en-IN', {
     style: 'currency',
