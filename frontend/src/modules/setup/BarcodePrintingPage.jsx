@@ -380,6 +380,10 @@ function BarcodePrintingPage() {
       }
     }
   }, [allItems, preselectedItemId, preselectedItemIds, shouldAutoPrint]);
+
+  const printBatch = (labels) => {
+    if (!labels.length) return;
+    const printWindow = window.open('', '_blank');
     const styles = `
       <style>
         @page { size: 50mm 135mm; margin: 0; }

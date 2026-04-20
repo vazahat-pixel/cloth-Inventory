@@ -321,6 +321,7 @@ const initialState = {
   categories: [],
   promotionTypes: [],
   salesmen: [],
+  accounts: [],
   loading: false,
   error: null,
 };

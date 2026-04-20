@@ -41,7 +41,9 @@ import PaymentDialog from './PaymentDialog';
 import LoyaltyRedeemDialog from './LoyaltyRedeemDialog';
 import ExchangeInvoicePrint from './ExchangeInvoicePrint';
 import StandardInvoicePrint from './StandardInvoicePrint';
+import ThermalInvoicePrint from './ThermalInvoicePrint';
 import ExchangeDialog from './ExchangeDialog';
+import { ToggleButton, ToggleButtonGroup } from '@mui/material';
 import { sendWhatsAppInvoice } from '../../utils/whatsapp';
 import { useNotification } from '../../context/NotificationProvider';
 import { useLoading } from '../../context/LoadingProvider';
@@ -176,6 +178,8 @@ function BillingPage({
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [saleType, setSaleType] = useState('retail');
   const [completedSaleData, setCompletedSaleData] = useState(null);
+  const [showPrint, setShowPrint] = useState(false);
+  const [printFormat, setPrintFormat] = useState('thermal'); // Default to thermal for POS
   const autoPrintTriggeredRef = useRef(false);
   const { showNotification } = useNotification();
   const { showLoading, hideLoading } = useLoading();
@@ -1484,60 +1488,59 @@ function BillingPage({
         onRedeem={(pts) => setLoyaltyRedeemed(String(pts))}
       />
 
-      <Dialog open={showPrint} onClose={() => navigate(listPath)} maxWidth="md" fullWidth>
-        <Box sx={{ p: 2 }}>
-          <Typography variant="h6" sx={{ mb: 2 }}>Sale Completed Successfully!</Typography>
-          {completedSaleData?.saleType === 'exchange' ? (
-            <ExchangeInvoicePrint sale={completedSaleData} />
-          ) : (
-            <StandardInvoicePrint sale={completedSaleData} />
-          )}
-          <Stack direction="row" spacing={2} justifyContent="flex-end" sx={{ mt: 2 }}>
-            <Button variant="outlined" onClick={() => navigate(listPath)}>Close</Button>
-            <Button 
-                variant="contained" 
-                color="success" 
-                onClick={() => sendWhatsAppInvoice({
-                    customerPhone: completedSaleData?.customerMobile,
-                    customerName: completedSaleData?.customerName,
-                    amount: completedSaleData?.grandTotal,
-                    orderId: completedSaleData?.saleNumber || completedSaleData?.invoiceNumber || completedSaleData?.id,
-                    shopName: 'VAZAHAT'
-                })}
-            >
-                WhatsApp Invoice
-            </Button>
-            <Button variant="contained" onClick={() => window.print()}>Print Now</Button>
-          </Stack>
-        </Box>
-      </Dialog>
-      <ExchangeDialog
-        open={exchangeOpen}
-        loyaltyConfig={loyaltyConfig}
-      />
-
       <Dialog open={showPrint} onClose={() => setShowPrint(false)} maxWidth="md" fullWidth>
-        <Box sx={{ p: 2, textAlign: 'right', bgcolor: '#f8fafc' }}>
-            <Button 
-                variant="contained" 
-                color="success"
-                size="small" 
-                onClick={() => sendWhatsAppInvoice({
-                    customerPhone: completedSaleData?.customerMobile,
-                    customerName: completedSaleData?.customerName,
-                    amount: completedSaleData?.grandTotal,
-                    orderId: completedSaleData?.saleNumber || completedSaleData?.invoiceNumber || completedSaleData?.id,
-                    shopName: 'VAZAHAT'
-                })} 
-                sx={{ mr: 1 }}
-            >
-                WhatsApp Invoice
-            </Button>
-            <Button variant="contained" size="small" onClick={() => window.print()} sx={{ mr: 1 }}>Print</Button>
-            <Button variant="outlined" size="small" onClick={() => setShowPrint(false)}>Close</Button>
+        <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+            <Box>
+                <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>Invoice Generated Successfully!</Typography>
+                <Typography variant="caption" color="textSecondary">Select format and print for the customer.</Typography>
+            </Box>
+            <Stack direction="row" spacing={1} alignItems="center">
+                <ToggleButtonGroup
+                    size="small"
+                    value={printFormat}
+                    exclusive
+                    onChange={(e, val) => val && setPrintFormat(val)}
+                    aria-label="print format"
+                >
+                    <ToggleButton value="thermal" sx={{ px: 2, fontWeight: 700 }}>Thermal (80mm)</ToggleButton>
+                    <ToggleButton value="a4" sx={{ px: 2, fontWeight: 700 }}>A4 Size</ToggleButton>
+                </ToggleButtonGroup>
+                
+                <Button 
+                    variant="contained" 
+                    color="success"
+                    size="small" 
+                    onClick={() => sendWhatsAppInvoice({
+                        customerPhone: completedSaleData?.customerMobile,
+                        customerName: completedSaleData?.customerName,
+                        amount: completedSaleData?.grandTotal,
+                        orderId: completedSaleData?.saleNumber || completedSaleData?.invoiceNumber || completedSaleData?.id,
+                        shopName: 'VAZAHAT'
+                    })} 
+                >
+                    WhatsApp
+                </Button>
+                <Button variant="contained" size="small" onClick={() => window.print()}>Print</Button>
+                <Button variant="outlined" size="small" onClick={() => setShowPrint(false)}>Close</Button>
+            </Stack>
         </Box>
-        <Box sx={{ p: 1, maxHeight: '80vh', overflowY: 'auto' }}>
-            {completedSaleData?.type === 'EXCHANGE' ? <ExchangeInvoicePrint sale={completedSaleData} /> : <StandardInvoicePrint sale={completedSaleData} />}
+        <Box sx={{ p: 3, maxHeight: '80vh', overflowY: 'auto', bgcolor: '#f1f5f9' }}>
+            <Box sx={{ 
+                bgcolor: '#fff', 
+                p: printFormat === 'a4' ? 4 : 2, 
+                boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', 
+                borderRadius: 2,
+                width: printFormat === 'a4' ? '100%' : 'fit-content',
+                mx: 'auto'
+            }}>
+                {completedSaleData?.type === 'EXCHANGE' ? (
+                    <ExchangeInvoicePrint sale={completedSaleData} />
+                ) : (
+                    printFormat === 'a4' ? 
+                        <StandardInvoicePrint sale={completedSaleData} /> : 
+                        <ThermalInvoicePrint sale={completedSaleData} />
+                )}
+            </Box>
         </Box>
       </Dialog>
 

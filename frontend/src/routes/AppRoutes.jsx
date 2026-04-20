@@ -102,6 +102,7 @@ const DataImportExportPage = lazy(() => import('../modules/data/DataImportExport
 const DataHubSubPage = lazy(() => import('../modules/data/DataHubSubPage'));
 const SalesHubSubPage = lazy(() => import('../modules/sales/SalesHubSubPage'));
 const VoucherListPage = lazy(() => import('../modules/accounts/VoucherListPage'));
+const AccountMasterPage = lazy(() => import('../modules/accounts/AccountMasterPage'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
 
 // Placeholder for pages that are scaffolded but not yet built
@@ -305,7 +306,7 @@ function AppRoutes() {
             <Route path="setup/accounts/country" element={<PlaceholderPage title="Country Setup" />} />
             <Route path="setup/accounts/states" element={<PlaceholderPage title="States" />} />
             <Route path="setup/accounts/city" element={<PlaceholderPage title="City" />} />
-            <Route path="setup/accounts/new-account" element={<PlaceholderPage title="Account Master" />} />
+            <Route path="setup/accounts/new-account" element={<AccountMasterPage />} />
             <Route path="setup/configurations" element={<PlaceholderPage title="Configurations" />} />
             <Route path="setup/party-wise" element={<PlaceholderPage title="Party Wise Rules" />} />
             <Route path="setup/other-account-details" element={<PlaceholderPage title="Other Account Details" />} />

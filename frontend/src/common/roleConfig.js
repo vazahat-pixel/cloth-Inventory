@@ -57,7 +57,7 @@ const adminSidebarItems = [
   { label: 'Sales & Billing', path: '/sales', icon: PointOfSaleIcon, matchPaths: billingMatchPaths, drilldown: true },
   { label: 'Reports & Analytics', path: '/reports', icon: AssessmentOutlinedIcon, matchPaths: reportsQueriesMatchPaths, drilldown: true },
   { label: 'Suppliers', path: '/masters/suppliers', icon: BusinessIcon, matchPaths: ['/masters/suppliers', '/suppliers/material-ledger'], drilldown: true },
-  { label: 'Accounts & Payments', path: '/ho/accounts/vouchers', icon: AccountBalanceWalletIcon },
+  { label: 'Accounts & Payments', path: '/ho/accounts/vouchers', icon: AccountBalanceWalletIcon, matchPaths: ['/ho/accounts/vouchers', '/ho/setup/accounts/new-account'], drilldown: true },
   { label: 'Customers & Loyalty', path: '/ho/masters/customers', icon: PeopleIcon },
   { label: 'Offer Schemes', path: '/ho/pricing/schemes', icon: LoyaltyIcon },
   { label: 'Offer Configs', path: '/ho/pricing/types', icon: SettingsSuggestIcon },
@@ -97,9 +97,13 @@ export const adminNavConfig = {
       { label: 'Day-End Audit History', path: '/reports/closure' }
     ],
     '/data-import': dataImportNavItems,
-    '/masters/suppliers': [
+    '/ho/masters/suppliers': [
       { label: 'Supplier List', path: '/ho/masters/suppliers' },
       { label: 'Material Ledger', path: '/ho/suppliers/material-ledger' }
+    ],
+    '/ho/accounts/vouchers': [
+      { label: 'Payment/Receipt List', path: '/ho/accounts/vouchers' },
+      { label: 'Chart of Accounts (Master)', path: '/ho/setup/accounts/new-account' }
     ]
   },
 };

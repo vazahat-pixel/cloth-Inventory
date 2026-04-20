@@ -49,12 +49,19 @@ const generateSaleNumber = async (session = null) => {
  * Get product by barcode for scanning
  */
 const getProductForSale = async (barcode, storeId) => {
-    // Search in Item collection's sizes array
-    const parentItem = await Item.findOne({ "sizes.barcode": barcode, isActive: true });
-    if (!parentItem) throw new Error('Product not found for this barcode');
+    // Search in Item collection's sizes array for either barcode or sku
+    const parentItem = await Item.findOne({ 
+        $or: [
+            { "sizes.barcode": barcode }, 
+            { "sizes.sku": barcode }
+        ], 
+        isActive: true 
+    });
+    
+    if (!parentItem) throw new Error('Product not found for this identifier: ' + barcode);
 
-    const variant = parentItem.sizes.find(sz => sz.barcode === barcode);
-    if (!variant) throw new Error('Variant not found for this barcode');
+    const variant = parentItem.sizes.find(sz => sz.barcode === barcode || sz.sku === barcode);
+    if (!variant) throw new Error('Variant not found for this identifier: ' + barcode);
 
     // Check stock from StoreInventory
     const StoreInventory = require('../../models/storeInventory.model');

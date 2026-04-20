@@ -17,6 +17,7 @@ const generateVoucherNumber = async (type, session = null) => {
 };
 
 const createVoucher = async (voucherData, userId) => {
+    console.log('[DEBUG] createVoucher called for user:', userId, 'data:', JSON.stringify(voucherData));
     return await withTransaction(async (session) => {
         const { type, date, entityId, entityModel, entries, totalAmount, narration, referenceId } = voucherData;
 
@@ -59,6 +60,7 @@ const createVoucher = async (voucherData, userId) => {
 };
 
 const getAllVouchers = async (query) => {
+    console.log('[DEBUG] getAllVouchers called with query:', query);
     const { page = 1, limit = 10, type, status, startDate, endDate } = query;
     const filter = {};
     if (type) filter.type = type;
