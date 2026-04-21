@@ -84,6 +84,7 @@ const GRNListPage = () => {
       case 'APPROVED': return 'success';
       case 'DRAFT': return 'warning';
       case 'COMPLETED': return 'info';
+      case 'INVOICED': return 'primary';
       default: return 'default';
     }
   };
@@ -174,17 +175,30 @@ const GRNListPage = () => {
                         </>
                       )}
 
-                      {grn.status === 'APPROVED' && (
+                      {(grn.status === 'APPROVED' || grn.status === 'INVOICED') && (
                         <>
-                          <Tooltip title="Generate Purchase Bill (Voucher)">
-                            <IconButton
-                              size="small"
-                              color="primary"
-                              onClick={() => navigate(`/ho/purchase/new?grnId=${grn._id}`)}
-                            >
-                              <ReceiptIcon sx={{ fontSize: 18 }} />
-                            </IconButton>
-                          </Tooltip>
+                          {grn.status === 'APPROVED' && (
+                            <Tooltip title="Generate Purchase Bill (Voucher)">
+                              <IconButton
+                                size="small"
+                                color="primary"
+                                onClick={() => navigate(`/ho/purchase/new?grnId=${grn._id}`)}
+                              >
+                                <ReceiptIcon sx={{ fontSize: 18 }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                          {grn.status === 'INVOICED' && (
+                             <Tooltip title="View Linked Purchase Bill">
+                              <IconButton
+                                size="small"
+                                color="primary"
+                                onClick={() => navigate(`/ho/purchase`)}
+                              >
+                                <ReceiptIcon sx={{ fontSize: 18 }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
                           <Tooltip title="Print Barcodes / Labels">
                             <IconButton
                               size="small"
