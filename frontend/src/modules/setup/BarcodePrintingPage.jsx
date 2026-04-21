@@ -33,6 +33,8 @@ import JsBarcode from 'jsbarcode';
 import { useNotification } from '../../context/NotificationProvider';
 import { useLoading } from '../../context/LoadingProvider';
 import { useConfirm } from '../../context/ConfirmProvider';
+import * as XLSX from 'xlsx';
+
 
 function generateBarcodeDataUrl(text) {
   if (!text) return '';
@@ -232,7 +234,51 @@ function BarcodePrintingPage() {
     }
   };
 
+  const handleExcelUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    showLoading('Processing excel file...');
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+        if (jsonData && jsonData.length > 0) {
+          const formatted = jsonData.map((row) => ({
+            barcode: String(row.Barcode || row.barcode || row.SKU || row.sku || ''),
+            article: String(row.Article || row.article || row.Item || row.item || row.ItemCode || row.itemCode || ''),
+            size: String(row.Size || row.size || 'N/A'),
+            mrp: Number(row.MRP || row.mrp || row.Price || row.price || 0),
+            color: String(row.Color || row.color || 'N/A'),
+            category: String(row.Category || row.category || 'GARMENT'),
+          })).filter(item => item.barcode);
+
+          setImportResults(formatted);
+          showNotification(`Successfully loaded ${formatted.length} items for printing.`, 'success');
+        } else {
+          showNotification('No data found in Excel sheet.', 'warning');
+        }
+      } catch (err) {
+        console.error('Excel parse error:', err);
+        showNotification('Failed to parse Excel file. Ensure it is a valid .xlsx or .xls file.', 'error');
+      } finally {
+        hideLoading();
+      }
+    };
+    reader.onerror = () => {
+      showNotification('Error reading file.', 'error');
+      hideLoading();
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
   useEffect(() => {
+
     if (activeTab === 2) {
       fetchHistory();
     }
