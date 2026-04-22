@@ -23,8 +23,8 @@ const storesColumns = [
             return value;
         },
     },
-    { field: 'managerName', headerName: 'Manager Name', minWidth: 150 },
-    { field: 'managerPhone', headerName: 'Contact Number', minWidth: 140 },
+    // { field: 'managerName', headerName: 'Manager Name', minWidth: 150 },
+    // { field: 'managerPhone', headerName: 'Contact Number', minWidth: 140 },
     { field: 'email', headerName: 'Login Email', minWidth: 180 },
     { 
         field: 'transferDiscountPct', 

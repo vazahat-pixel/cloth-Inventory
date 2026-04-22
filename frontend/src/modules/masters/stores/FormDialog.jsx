@@ -2,8 +2,8 @@ import MasterFormDialog from '../components/MasterFormDialog';
 
 const storeFields = [
     { name: 'name', label: 'Store Name', required: true },
-    { name: 'managerName', label: 'Manager Name', required: true },
-    { name: 'managerPhone', label: 'Manager Phone', required: true },
+    // { name: 'managerName', label: 'Manager Name', required: true },
+    // { name: 'managerPhone', label: 'Manager Phone', required: true },
     { name: 'gstNumber', label: 'GST Number', required: false },
     { name: 'email', label: 'Login Email / Username', required: true, type: 'email' },
     { 

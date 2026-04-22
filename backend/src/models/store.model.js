@@ -16,12 +16,12 @@ const storeSchema = new mongoose.Schema(
         },
         managerName: {
             type: String,
-            required: [true, 'Manager name is required'],
+            required: false,
             trim: true
         },
         managerPhone: {
             type: String,
-            required: [true, 'Manager phone is required'],
+            required: false,
             trim: true
         },
         email: {
