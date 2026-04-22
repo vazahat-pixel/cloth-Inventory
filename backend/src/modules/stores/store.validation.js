@@ -7,12 +7,12 @@ const createStoreValidation = [
         .isLength({ min: 3 }).withMessage('Store name must be at least 3 characters'),
 
     body('managerName')
-        .trim()
-        .notEmpty().withMessage('Manager name is required'),
+        .optional()
+        .trim(),
 
     body('managerPhone')
+        .optional()
         .trim()
-        .notEmpty().withMessage('Manager phone is required')
         .matches(/^[0-9]{10}$/).withMessage('Manager phone must be a valid 10-digit number'),
 
     body('email')
