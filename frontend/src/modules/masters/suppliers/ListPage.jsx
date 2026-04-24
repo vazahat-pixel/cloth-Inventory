@@ -31,6 +31,8 @@ import ExportButton from '../../../components/erp/ExportButton';
 import StatusBadge from '../../../components/erp/StatusBadge';
 import suppliersExportColumns from '../../../config/exportColumns/suppliers';
 import { fetchMasters, addMasterRecord, updateMasterRecord, deleteMasterRecord } from '../mastersSlice';
+import BulkSupplierUploadDialog from './components/BulkSupplierUploadDialog';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 
 const defaultFormValues = {
   id: '',
@@ -106,6 +108,7 @@ function SuppliersListPage() {
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
   const [viewRow, setViewRow] = useState(null);
   const [formValues, setFormValues] = useState(defaultFormValues);
   const [formErrors, setFormErrors] = useState({});
@@ -202,6 +205,7 @@ function SuppliersListPage() {
           { label: 'Suppliers', active: true },
         ]}
         actions={[
+          <Button key="bulk-upload" variant="outlined" startIcon={<CloudUploadIcon />} onClick={() => setBulkDialogOpen(true)} sx={{ color: '#6366f1', borderColor: '#6366f1', fontWeight: 700 }}>Bulk Upload</Button>,
           <ExportButton
             key="export"
             rows={exportRows}
@@ -213,6 +217,12 @@ function SuppliersListPage() {
             Add Supplier
           </Button>,
         ]}
+      />
+
+      <BulkSupplierUploadDialog 
+        open={bulkDialogOpen} 
+        onClose={() => setBulkDialogOpen(false)} 
+        onUploadSuccess={() => dispatch(fetchMasters('suppliers'))} 
       />
 
       <FilterBar sx={{ mb: 2 }}>

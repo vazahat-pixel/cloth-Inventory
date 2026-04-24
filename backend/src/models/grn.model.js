@@ -50,7 +50,7 @@ const grnSchema = new mongoose.Schema(
         // ── GRN Type: The master switch for all downstream logic ──
         grnType: {
             type: String,
-            enum: ['FABRIC', 'ACCESSORY', 'GARMENT'],
+            enum: ['FABRIC', 'ACCESSORY', 'GARMENT', 'OPENING_BALANCE'],
             required: true,
             default: 'FABRIC'
         },
@@ -63,7 +63,7 @@ const grnSchema = new mongoose.Schema(
         jobWorkId: { type: mongoose.Schema.Types.ObjectId, ref: 'SupplierOutward' },
 
         // ── Parties & Location ────────────────────────────────────
-        supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier', required: true },
+        supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier', required: false },
         warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', required: true },
 
         // ── Invoice Details ───────────────────────────────────────

@@ -101,7 +101,7 @@ const settleConsumption = async ({ grnId, supplierId, warehouseId, jobWorkId, co
 const createGRN = async (grnData, userId) => {
     return await withTransaction(async (session) => {
         const {
-            grnType = 'FABRIC', // Default to FABRIC for safety
+            grnType = 'FABRIC',
             purchaseId, purchaseOrderId,
             supplierId, warehouseId,
             invoiceNumber, invoiceDate,
@@ -109,6 +109,76 @@ const createGRN = async (grnData, userId) => {
             jobWorkId,
             consumptionDetails
         } = grnData;
+
+        // ── OPENING_BALANCE: Fast path — no supplier, no PO, just post stock ──
+        if (grnType === 'OPENING_BALANCE') {
+            if (!warehouseId) throw new Error('Warehouse is required for Opening Balance entry');
+            if (!items || items.length === 0) throw new Error('At least one item is required');
+
+            const processedItems = items.map(item => ({
+                itemId: item.itemId,
+                variantId: item.variantId || item.itemId.toString(),
+                sku: item.sku || item.barcode || 'OB-ENTRY',
+                itemName: item.itemName || '',
+                size: item.size || '',
+                color: item.color || '',
+                uom: item.uom || 'PCS',
+                receivedQty: Number(item.receivedQty || item.qty || 0),
+                costPrice: Number(item.costPrice || item.rate || 0),
+                taxPercent: 0,
+                taxAmount: 0,
+                totalWithTax: Number(item.costPrice || 0) * Number(item.receivedQty || 0),
+                discount: 0,
+                batchNumber: `OB-${Date.now().toString().slice(-6)}`
+            }));
+
+            const totalQty = processedItems.reduce((s, i) => s + i.receivedQty, 0);
+            const totalValue = processedItems.reduce((s, i) => s + (i.costPrice * i.receivedQty), 0);
+            const grnNumber = await generateGrnNumber(session);
+
+            const grn = new GRN({
+                grnNumber,
+                grnType: 'OPENING_BALANCE',
+                supplierId: supplierId || null,
+                warehouseId,
+                invoiceNumber: invoiceNumber || `OB-${new Date().getFullYear()}`,
+                invoiceDate: invoiceDate || new Date(),
+                remarks: remarks || 'Opening Balance Stock Entry',
+                items: processedItems,
+                totalQty,
+                totalValue,
+                totalTaxAmount: 0,
+                grandTotal: totalValue,
+                receivedBy: userId,
+                status: GrnStatus.DRAFT
+            });
+            await grn.save({ session });
+
+            // Auto-post stock immediately
+            const stockService = require('../../services/stock.service');
+            for (const item of processedItems) {
+                if (item.receivedQty > 0) {
+                    await stockService.addStock({
+                        itemId: item.itemId,
+                        barcode: item.sku,
+                        variantId: item.variantId,
+                        locationId: warehouseId,
+                        locationType: 'WAREHOUSE',
+                        qty: item.receivedQty,
+                        type: 'OPENING_BALANCE',
+                        referenceId: grn._id,
+                        referenceType: 'GRN',
+                        performedBy: userId,
+                        session
+                    });
+                }
+            }
+
+            grn.status = GrnStatus.APPROVED;
+            await grn.save({ session });
+            await workflowService.updateStatus(grn._id, DocumentType.GRN, GrnStatus.DRAFT, GrnStatus.APPROVED, userId, `Opening Balance GRN ${grnNumber} posted`);
+            return grn;
+        }
 
         // 1. Validate Parent Document (Optional for Direct GRN)
         let parentDoc = null;

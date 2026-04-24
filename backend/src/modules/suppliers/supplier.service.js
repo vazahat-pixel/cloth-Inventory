@@ -94,10 +94,44 @@ const deleteSupplier = async (id) => {
     return supplier;
 };
 
+const bulkCreateSuppliers = async (suppliersData, userId) => {
+    const results = {
+        success: [],
+        errors: []
+    };
+
+    for (const data of suppliersData) {
+        try {
+            if (!data.name) throw new Error('Supplier name is required');
+            
+            const existing = await Supplier.findOne({ name: data.name, isDeleted: false });
+            if (existing) {
+                throw new Error(`Supplier with name "${data.name}" already exists`);
+            }
+
+            const supplier = new Supplier({
+                ...data,
+                createdBy: userId
+            });
+
+            await supplier.save();
+            results.success.push({ name: supplier.name, id: supplier._id });
+        } catch (error) {
+            results.errors.push({ 
+                name: data.name || 'Unknown', 
+                error: error.message 
+            });
+        }
+    }
+
+    return results;
+};
+
 module.exports = {
     createSupplier,
     getAllSuppliers,
     getSupplierById,
     updateSupplier,
-    deleteSupplier
+    deleteSupplier,
+    bulkCreateSuppliers
 };

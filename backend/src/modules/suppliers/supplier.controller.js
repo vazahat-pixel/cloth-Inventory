@@ -82,10 +82,24 @@ const deleteSupplier = async (req, res, next) => {
     }
 };
 
+const bulkCreateSuppliers = async (req, res, next) => {
+    try {
+        const suppliers = req.body;
+        if (!Array.isArray(suppliers)) {
+            return sendError(res, 'Request body must be an array of suppliers', 400);
+        }
+        const results = await supplierService.bulkCreateSuppliers(suppliers, req.user._id);
+        return sendSuccess(res, results, 'Bulk supplier import completed');
+    } catch (err) {
+        return sendError(res, err.message, 400);
+    }
+};
+
 module.exports = {
     createSupplier,
     getAllSuppliers,
     getSupplierById,
     updateSupplier,
-    deleteSupplier
+    deleteSupplier,
+    bulkCreateSuppliers
 };

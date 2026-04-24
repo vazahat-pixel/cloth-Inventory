@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Item = require('../../models/item.model');
 const Group = require('../../models/group.model');
 const Brand = require('../../models/brand.model');
@@ -223,7 +224,7 @@ class ItemService {
     return `${prefix}-${String(seq).padStart(4, '0')}`;
   }
 
-  async createItem(data = {}) {
+  async createItem(data = {}, options = { allowUpdate: false }) {
     console.log('📦 CREATING_ITEM_PAYLOAD:', JSON.stringify(data, null, 2));
     await this.normalizeItemData(data);
 
@@ -253,7 +254,17 @@ class ItemService {
     }
 
     const existingItem = await Item.findOne({ itemCode });
-    if (existingItem) throw new Error(`Item with code ${itemCode} already exists`);
+    if (existingItem) {
+      if (options.allowUpdate) {
+        return this.updateItem(existingItem._id, data, { mergeSizes: true });
+      }
+      throw new Error(`Item with code ${itemCode} already exists`);
+    }
+
+    // Sanitize vendorId - if it's a string name, remove it so Mongoose doesn't crash
+    if (data.vendorId && typeof data.vendorId === 'string' && !mongoose.Types.ObjectId.isValid(data.vendorId)) {
+      delete data.vendorId;
+    }
 
     const groupIds = normalizeGroupIds(data.groupIds);
     await ensureGroupsExist(groupIds);
@@ -291,7 +302,7 @@ class ItemService {
     return populateItem(item._id);
   }
 
-  async updateItem(id, data = {}) {
+  async updateItem(id, data = {}, options = { mergeSizes: false }) {
     const item = await Item.findById(id);
     if (!item) return null;
 
@@ -313,6 +324,25 @@ class ItemService {
           item[field] = normalizeId(data[field]);
         } else if (field === 'groupIds') {
           item.groupIds = normalizeGroupIds(data[field]);
+        } else if (field === 'sizes' && options.mergeSizes) {
+          // Merge logic for sizes
+          const newSizes = data.sizes || [];
+          newSizes.forEach(newSize => {
+            // Find existing variant by SKU or Size+Color
+            const existingVariant = item.sizes.find(s => 
+              (newSize.sku && s.sku === newSize.sku) || 
+              (s.size === newSize.size && s.color === newSize.color)
+            );
+
+            if (existingVariant) {
+              if (newSize.mrp) existingVariant.mrp = newSize.mrp;
+              if (newSize.stock !== undefined) existingVariant.stock = newSize.stock;
+              if (newSize.reorderLevel !== undefined) existingVariant.reorderLevel = newSize.reorderLevel;
+              if (newSize.sku) existingVariant.sku = newSize.sku;
+            } else {
+              item.sizes.push(newSize);
+            }
+          });
         } else {
           item[field] = data[field];
         }
@@ -339,22 +369,37 @@ class ItemService {
   }
 
   async getAllItems(query = {}, user = null) {
-    const filter = { ...query };
+    const { page = 1, limit = 50, search, brand, section } = query;
+    const filter = {};
 
     if (user && user.role === 'store_staff') {
       filter.type = { $in: ['GARMENT', 'ACCESSORY'] };
       filter.isActive = true;
     }
 
-    return Item.find(filter)
-      .populate('groupIds', 'name groupType level parentId isActive')
-      .populate('sectionId', 'name groupName groupType')
-      .populate('categoryId', 'name groupName groupType')
-      .populate('subCategoryId', 'name groupName groupType')
-      .populate('styleId', 'name groupName groupType')
-      .populate('brand', 'name brandName')
-      .populate('hsCodeId', 'code hsnCode gstRate gstPercent')
-      .sort({ createdAt: -1 });
+    if (search) {
+      filter.$or = [
+        { itemCode: { $regex: search, $options: 'i' } },
+        { itemName: { $regex: search, $options: 'i' } },
+        { hsnCode: { $regex: search, $options: 'i' } }
+      ];
+    }
+    if (brand && brand !== 'all') filter.brandName = brand;
+    if (section && section !== 'all') filter.sectionName = section;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    const [items, total] = await Promise.all([
+      Item.find(filter)
+        .populate('brand', 'name brandName')
+        .populate('hsCodeId', 'code hsnCode gstRate gstPercent')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit)),
+      Item.countDocuments(filter)
+    ]);
+
+    return { items, total, page: parseInt(page), limit: parseInt(limit) };
   }
 
   async getItemById(id) {
@@ -431,6 +476,83 @@ class ItemService {
 
   async deleteItem(id) {
     return Item.findByIdAndDelete(id);
+  }
+
+  async bulkCreateItems(itemsData, options = {}) {
+    const results = { success: [], errors: [] };
+    
+    // Pre-fetch masters
+    const brands = await Brand.find({}).select('_id name brandName').lean();
+    const groups = await Group.find({}).select('_id name groupName groupType').lean();
+    const hsnCodes = await HSNCode.find({}).select('_id code hsnCode').lean();
+
+    const bulkOps = [];
+    const itemCodes = itemsData.map(d => String(d.itemCode).trim().toUpperCase());
+    
+    // Find existing items to decide update vs insert
+    const existingItems = await Item.find({ itemCode: { $in: itemCodes } }).select('itemCode _id').lean();
+    const existingMap = new Map(existingItems.map(i => [i.itemCode, i._id]));
+
+    for (const data of itemsData) {
+      try {
+        const itemCode = String(data.itemCode).trim().toUpperCase();
+        
+        // Resolve Brand
+        if (data.brandName && !data.brand) {
+          const b = brands.find(x => 
+            (x.name?.toLowerCase() === data.brandName.toLowerCase()) || 
+            (x.brandName?.toLowerCase() === data.brandName.toLowerCase())
+          );
+          if (b) data.brand = b._id;
+        }
+
+        // Resolve HSN
+        if (data.hsnCode && !data.hsCodeId) {
+          const h = hsnCodes.find(x => 
+            (x.code?.toLowerCase() === String(data.hsnCode).toLowerCase()) || 
+            (x.hsnCode?.toLowerCase() === String(data.hsnCode).toLowerCase())
+          );
+          if (h) data.hsCodeId = h._id;
+        }
+
+        // Prepare Item Payload
+        const updateDoc = {
+          ...data,
+          itemCode,
+          brandName: data.brandName || data.brand?.brandName || data.brand?.name,
+          hsnCode: data.hsnCode || data.hsCodeId?.code || data.hsCodeId?.hsnCode,
+          type: data.type || 'GARMENT',
+          status: 'Active',
+          isActive: true
+        };
+
+        if (existingMap.has(itemCode)) {
+          // Update Operation
+          bulkOps.push({
+            updateOne: {
+              filter: { itemCode },
+              update: { $set: updateDoc }
+            }
+          });
+        } else {
+          // Insert Operation
+          bulkOps.push({
+            insertOne: {
+              document: updateDoc
+            }
+          });
+        }
+        results.success.push({ itemCode });
+      } catch (error) {
+        results.errors.push({ itemCode: data.itemCode, error: error.message });
+      }
+    }
+
+    if (bulkOps.length > 0) {
+      await Item.bulkWrite(bulkOps, { ordered: false });
+    }
+
+    return results;
   }
 }
 

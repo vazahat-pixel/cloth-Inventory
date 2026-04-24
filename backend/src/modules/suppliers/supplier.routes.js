@@ -12,6 +12,8 @@ router.route('/')
     .post(requireAdmin, createSupplierValidation, supplierController.createSupplier)
     .get(supplierController.getAllSuppliers);
 
+router.post('/bulk', requireAdmin, supplierController.bulkCreateSuppliers);
+
 router.route('/:id')
     .get(supplierController.getSupplierById)
     .patch(requireAdmin, updateSupplierValidation, supplierController.updateSupplier)

@@ -3,12 +3,18 @@ import api from '../../services/api';
 import { normalizeResponse } from '../../services/normalization';
 
 // Async Thunks
-export const fetchItems = createAsyncThunk('items/fetchAll', async (_, { rejectWithValue }) => {
+export const fetchItems = createAsyncThunk('items/fetchAll', async (params = {}, { rejectWithValue }) => {
   try {
-    const response = await api.get('/items');
-    // The items are likely inside response.data.items or response.data.data
-    const raw = response.data.items || response.data.data || [];
-    return normalizeResponse(raw, 'item');
+    const response = await api.get('/items', { params });
+    const resData = response.data.data || response.data || {};
+    // Extract from nested structure: data.items.items, data.items.total
+    const paginationData = resData.items || {};
+    return {
+      records: paginationData.items || [],
+      total: paginationData.total || 0,
+      page: paginationData.page || 1,
+      limit: paginationData.limit || 50
+    };
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -44,6 +50,9 @@ export const deleteItem = createAsyncThunk('items/delete', async (id, { rejectWi
 
 const initialState = {
   records: [],
+  total: 0,
+  page: 1,
+  limit: 50,
   loading: false,
   error: null,
 };
@@ -65,7 +74,10 @@ const itemsSlice = createSlice({
       })
       .addCase(fetchItems.fulfilled, (state, action) => {
         state.loading = false;
-        state.records = action.payload || [];
+        state.records = action.payload.records || [];
+        state.total = action.payload.total || 0;
+        state.page = action.payload.page || 1;
+        state.limit = action.payload.limit || 50;
       })
       .addCase(fetchItems.rejected, (state, action) => {
         state.loading = false;

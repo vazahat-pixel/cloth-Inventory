@@ -129,8 +129,14 @@ const itemSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
-  // Inventory & Defaults
+  
+  // Backup fields for bulk upload data
+  brandName: { type: String, trim: true },
+  hsnCode: { type: String, trim: true },
+  sectionName: { type: String, trim: true },
+  categoryName: { type: String, trim: true },
 
+  // Inventory & Defaults
   defaultWarehouse: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', index: true },
   reorderLevel: { type: Number, default: 0 },
   reorderQty: { type: Number, default: 0 },

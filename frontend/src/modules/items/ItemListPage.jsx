@@ -8,6 +8,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import GridViewRoundedIcon from '@mui/icons-material/GridViewRounded';
 import TableRowsRoundedIcon from '@mui/icons-material/TableRowsRounded';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import PageHeader from '../../components/erp/PageHeader';
 import FilterBar from '../../components/erp/FilterBar';
 import ExportButton from '../../components/erp/ExportButton';
@@ -16,6 +17,7 @@ import { useAppNavigate } from '../../hooks/useAppNavigate';
 import { deleteItem, fetchItems } from './itemsSlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import itemsExportColumns from '../../config/exportColumns/items';
+import BulkItemUploadDialog from './components/BulkItemUploadDialog';
 
 const toExportRows = (rows) => rows.map((row) => ({
   item_code: row.itemCode, item_name: row.itemName, brand: row.brand, hsn_code: row.hsnCode, gst_rate: row.gstRate, color: row.color, fabric: row.fabric, pattern: row.pattern, fit: row.fit, gender: row.gender, season: row.season, occasion: row.occasion, main_group: row.mainGroup, sub_group: row.subGroup, size: row.size, cost_price: row.costPrice, sale_price: row.salePrice, mrp: row.mrp, sku: row.sku, status: row.status,
@@ -24,7 +26,7 @@ const toExportRows = (rows) => rows.map((row) => ({
 function ItemListPage() {
   const navigate = useAppNavigate();
   const dispatch = useDispatch();
-  const items = useSelector((state) => state.items.records);
+  const { records: items, total, loading } = useSelector((state) => state.items);
   const brands = useSelector((state) => state.masters?.brands || []);
   const groups = useSelector((state) => state.masters?.itemGroups || []);
   
@@ -33,30 +35,41 @@ function ItemListPage() {
   const [groupFilter, setGroupFilter] = useState('all');
   const [viewMode, setViewMode] = useState('table');
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(8);
+  const [rowsPerPage, setRowsPerPage] = useState(20); // Default to 20 for better performance
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
 
   useEffect(() => {
-    dispatch(fetchItems());
+    dispatch(fetchItems({ 
+      page: page + 1, 
+      limit: rowsPerPage, 
+      search: searchText,
+      brand: brandFilter,
+      section: groupFilter
+    }));
     dispatch(fetchMasters('brands'));
     dispatch(fetchMasters('itemGroups'));
-  }, [dispatch]);
+  }, [dispatch, page, rowsPerPage, searchText, brandFilter, groupFilter]);
 
-  const rows = useMemo(() => items.map((item) => {
-    const section = item.sectionId?.groupName || item.sectionId?.name || '';
-    const category = item.categoryId?.groupName || item.categoryId?.name || '';
+  const rows = useMemo(() => {
+    const itemsArray = Array.isArray(items) ? items : [];
+    return itemsArray.map((item) => {
+    const section = item.sectionId?.groupName || item.sectionId?.name || item.sectionName || '';
+    const category = item.categoryId?.groupName || item.categoryId?.name || item.categoryName || '';
     const subCategory = item.subCategoryId?.groupName || item.subCategoryId?.name || '';
     
     // Logic: Main group is usually Section or Category
     const mainGroup = section || category || (item.groupIds?.find(g => g.groupType === 'Section' || g.groupType === 'Category')?.name) || '--';
     const subGroup = subCategory || (item.groupIds?.find(g => g.groupType === 'Sub Category')?.name) || '--';
 
+    const variantSizes = [...new Set((item.sizes || []).map((s) => s.size).filter(Boolean))];
     const variantColors = [...new Set((item.sizes || []).map((size) => size.color).filter(Boolean))];
     return {
       id: item.id || item._id,
       itemCode: item.itemCode || item.code || '',
       itemName: item.itemName || item.name || '',
-      brand: item.brand && typeof item.brand === 'object' ? (item.brand.brandName || item.brand.name || 'UNSPECIFIED') : (item.brand ? String(item.brand) : 'UNSPECIFIED'),
+      brand: (item.brand?.brandName || item.brand?.name || item.brandName || 'UNSPECIFIED'),
       color: item.color || item.shadeNo || variantColors.join(', ') || '--',
+      sizes: variantSizes.join(', ') || '--',
       fabric: item.fabric || '--',
       pattern: item.pattern || '--',
       fit: item.fit || '--',
@@ -64,24 +77,17 @@ function ItemListPage() {
       type: item.type || '--',
       mainGroup,
       subGroup,
-      hsnCode: item.hsCodeId?.code || item.hsCodeId?.hsnCode || '--',
-      gstRate: item.hsCodeId?.gstPercent !== undefined ? `${item.hsCodeId.gstPercent}%` : '--',
+      hsnCode: item.hsCodeId?.code || item.hsCodeId?.hsnCode || item.hsnCode || '--',
+      gstRate: item.hsCodeId?.gstPercent !== undefined ? `${item.hsCodeId.gstPercent}%` : (item.gstPercent ? `${item.gstPercent}%` : '--'),
       variantCount: item.sizes?.length || 0,
       status: item.status || 'Active',
     };
-  }), [items]);
-
-  const filteredRows = useMemo(() => {
-    const query = searchText.trim().toLowerCase();
-    return rows.filter((row) => {
-      const matchesSearch = query ? [row.itemCode, row.itemName, row.brand].some((value) => String(value).toLowerCase().includes(query)) : true;
-      const matchesBrand = brandFilter === 'all' ? true : row.brand === brandFilter;
-      const matchesGroup = groupFilter === 'all' ? true : row.mainGroup === groupFilter;
-      return matchesSearch && matchesBrand && matchesGroup;
     });
-  }, [brandFilter, groupFilter, rows, searchText]);
+  }, [items]);
 
-  const paginatedRows = useMemo(() => filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage), [filteredRows, page, rowsPerPage]);
+  // Frontend filtering is now minimal because server handles most of it
+  const filteredRows = rows;
+  const paginatedRows = rows;
   const exportRows = useMemo(() => toExportRows(filteredRows), [filteredRows]);
 
   return (
@@ -91,13 +97,20 @@ function ItemListPage() {
         subtitle="One central registry for Men's Wear, Belts, Ties, and Wallets."
         breadcrumbs={[{ label: 'Items', active: true }]}
         actions={[
+          <Button key="bulk-upload" variant="outlined" startIcon={<CloudUploadIcon />} onClick={() => setBulkDialogOpen(true)} sx={{ color: '#6366f1', borderColor: '#6366f1', fontWeight: 700 }}>Bulk Upload</Button>,
           <ExportButton key="export" rows={exportRows} columns={itemsExportColumns} filename="unified_item_master" sheetName="Items" />,
           <Button key="add" variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={() => navigate('/items/new')} sx={{ bgcolor: '#d946ef', px: 3, fontWeight: 700 }}>Add New Item</Button>,
         ]}
       />
 
+      <BulkItemUploadDialog 
+        open={bulkDialogOpen} 
+        onClose={() => setBulkDialogOpen(false)} 
+        onUploadSuccess={() => dispatch(fetchItems())} 
+      />
+
       <FilterBar sx={{ mb: 2, mt: 1 }}>
-        <TextField size="small" value={searchText} onChange={(e) => { setPage(0); setSearchText(e.target.value); }} placeholder="Search code, name..." sx={{ flex: 1 }} InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }} />
+        <TextField size="small" value={searchText} onChange={(e) => { setPage(0); setSearchText(e.target.value); }} placeholder="Search code, name, HSN..." sx={{ flex: 1 }} InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }} />
         <TextField size="small" select label="Brand" value={brandFilter} onChange={(e) => { setPage(0); setBrandFilter(e.target.value); }} sx={{ minWidth: 160 }}><MenuItem value="all">All Brands</MenuItem>{brands.map((brand) => <MenuItem key={brand.id || brand._id} value={brand.brandName || brand.name}>{brand.brandName || brand.name}</MenuItem>)}</TextField>
         <TextField size="small" select label="Section/Group" value={groupFilter} onChange={(e) => { setPage(0); setGroupFilter(e.target.value); }} sx={{ minWidth: 180 }}><MenuItem value="all">All Sections</MenuItem>{groups.filter(g => g.groupType === 'Section').map((group) => <MenuItem key={group.id || group._id} value={group.groupName || group.name}>{group.groupName || group.name}</MenuItem>)}</TextField>
         <ToggleButtonGroup size="small" value={viewMode} exclusive onChange={(_, value) => value && setViewMode(value)}>
@@ -119,8 +132,8 @@ function ItemListPage() {
                     </Stack>
                     <Typography variant="body2" sx={{ color: '#475569', fontWeight: 500 }}>{row.brand} • {row.mainGroup || 'Unassigned'} • {row.color || 'No Color'}</Typography>
                     <Box sx={{ p: 1, bgcolor: '#f8fafc', borderRadius: 1.5, display: 'flex', gap: 2 }}>
-                       <Typography variant="caption" sx={{ color: '#64748b' }}>GST <b>{row.gstRate}</b></Typography>
-                       <Typography variant="caption" sx={{ color: '#64748b' }}>Variants <b>{row.variantCount}</b></Typography>
+                       <Typography variant="caption" sx={{ color: '#64748b' }}>HSN <b>{row.hsnCode}</b></Typography>
+                       <Typography variant="caption" sx={{ color: '#64748b' }}>Sizes <b>{row.sizes}</b></Typography>
                     </Box>
                     <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
                       <IconButton size="small" color="info" onClick={() => navigate(`/items/view/${row.id}`)}><VisibilityOutlinedIcon fontSize="small" /></IconButton>
@@ -138,7 +151,15 @@ function ItemListPage() {
           <TableContainer>
             <Table size="small">
               <TableHead sx={{ bgcolor: '#f8fafc' }}><TableRow>
-                <TableCell sx={{ fontWeight: 700 }}>Code</TableCell><TableCell sx={{ fontWeight: 700 }}>Name</TableCell><TableCell sx={{ fontWeight: 700 }}>Brand</TableCell><TableCell sx={{ fontWeight: 700 }}>Color</TableCell><TableCell sx={{ fontWeight: 700 }}>Section</TableCell><TableCell sx={{ fontWeight: 700 }}>GST</TableCell><TableCell sx={{ fontWeight: 700 }}>Variants</TableCell><TableCell sx={{ fontWeight: 700 }}>Status</TableCell><TableCell sx={{ fontWeight: 700 }} align="right">Actions</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Code</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Name</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Brand</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>HSN</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Sizes</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Section</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>GST</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Actions</TableCell>
               </TableRow></TableHead>
               <TableBody>
                 {paginatedRows.map((row) => (
@@ -146,10 +167,10 @@ function ItemListPage() {
                     <TableCell sx={{ fontWeight: 800, color: '#6366f1' }}>{row.itemCode}</TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>{row.itemName}</TableCell>
                     <TableCell>{row.brand}</TableCell>
-                    <TableCell>{row.color}</TableCell>
+                    <TableCell><b>{row.hsnCode}</b></TableCell>
+                    <TableCell sx={{ fontSize: '0.75rem', maxWidth: 150 }}>{row.sizes}</TableCell>
                     <TableCell>{row.mainGroup}</TableCell>
                     <TableCell>{row.gstRate}</TableCell>
-                    <TableCell><b>{row.variantCount}</b></TableCell>
                     <TableCell><StatusBadge value={row.status} /></TableCell>
                     <TableCell align="right">
                         <IconButton size="small" color="info" onClick={() => navigate(`/items/view/${row.id}`)}><VisibilityOutlinedIcon fontSize="small" /></IconButton>
@@ -161,7 +182,7 @@ function ItemListPage() {
               </TableBody>
             </Table>
           </TableContainer>
-          <TablePagination component="div" count={filteredRows.length} page={page} rowsPerPage={rowsPerPage} onPageChange={(_, nextPage) => setPage(nextPage)} onRowsPerPageChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(0); }} rowsPerPageOptions={[8, 12, 20]} />
+          <TablePagination component="div" count={total} page={page} rowsPerPage={rowsPerPage} onPageChange={(_, nextPage) => setPage(nextPage)} onRowsPerPageChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(0); }} rowsPerPageOptions={[20, 50, 100]} />
         </Paper>
       )}
     </div>

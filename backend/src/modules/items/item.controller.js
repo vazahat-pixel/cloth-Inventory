@@ -132,6 +132,19 @@ class ItemController {
       return sendError(res, error.message);
     }
   };
+
+  bulkCreateItems = async (req, res) => {
+    try {
+      const items = req.body;
+      if (!Array.isArray(items)) {
+        return sendError(res, 'Request body must be an array of items', 400);
+      }
+      const results = await itemService.bulkCreateItems(items);
+      return sendSuccess(res, results, 'Bulk import completed');
+    } catch (error) {
+      return sendError(res, error.message, 400);
+    }
+  };
 }
 
 module.exports = new ItemController();

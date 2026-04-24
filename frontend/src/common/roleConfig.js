@@ -82,6 +82,7 @@ export const adminNavConfig = {
       {label: 'Inventory Overview', path: '/ho/inventory/stock-overview'},
       {label: 'Barcode Print', path: '/ho/setup/barcode-print'},
       {label: 'Scan-to-Receipt (GRN)', path: '/ho/inventory/grn'},
+      {label: '📦 Opening Stock Entry', path: '/ho/inventory/opening-stock'},
       {label: 'Sale Challan / Bill (Dispatch)', path: '/ho/orders/delivery-challan'},
       {label: 'Billing & Dispatch Queue', path: '/ho/orders/dispatch-queue'},
       {label: 'Item Groups (Hierarchy)', path: '/ho/setup/groups'},

@@ -15,6 +15,7 @@ const DashboardHomePage = lazy(() => import('../pages/dashboard/DashboardHome'))
 // Items & Catalog
 const ItemListPage = lazy(() => import('../modules/items/ItemListPage'));
 const ItemFormPage = lazy(() => import('../modules/items/ItemFormPage'));
+const OpeningStockPage = lazy(() => import('../modules/items/components/OpeningStockPage'));
 
 const BrandListPage = lazy(() => import('../modules/masters/brands/ListPage'));
 const ItemGroupsListPage = lazy(() => import('../modules/masters/itemGroups/ListPage'));
@@ -214,6 +215,7 @@ function AppRoutes() {
             <Route path="inventory/adjustment" element={<StockAdjustmentPage />} />
             <Route path="inventory/movements" element={<MovementHistoryPage />} />
             <Route path="inventory/audit-view" element={<StockAuditView />} />
+            <Route path="inventory/opening-stock" element={<OpeningStockPage />} />
 
             {/* GRN */}
             <Route path="inventory/grn" element={<GRNListPage />} />

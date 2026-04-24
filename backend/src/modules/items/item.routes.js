@@ -14,6 +14,8 @@ router.route('/')
     .get(itemController.getAllItems)
     .post(requireAdmin, itemController.createItem);
 
+router.post('/bulk', requireAdmin, itemController.bulkCreateItems);
+
 router.get('/scan/:barcode', itemController.scanItemByBarcode);
 
 router.post('/:id/attributes', requireAdmin, itemController.updateItemAttributes);
