@@ -393,7 +393,14 @@ const OpeningStockPage = () => {
                     Selected Items
                     <Badge badgeContent={selectedItems.length} color="primary" sx={{ ml: 2 }} />
                   </Typography>
-                  <Button size="small" color="error" onClick={() => setSelectedItems([])}>Clear All</Button>
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    {selectedItems.length > 100 && (
+                      <Typography variant="caption" color="error.main" fontWeight={700}>
+                        ⚠️ Showing first 100 items only for performance
+                      </Typography>
+                    )}
+                    <Button size="small" color="error" onClick={() => setSelectedItems([])}>Clear All</Button>
+                  </Stack>
                 </Stack>
               </Box>
               <TableContainer sx={{ maxHeight: 420 }}>
@@ -412,7 +419,7 @@ const OpeningStockPage = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {selectedItems.map(s => (
+                    {selectedItems.slice(0, 100).map(s => (
                       <TableRow key={s.key} hover>
                         <TableCell sx={{ color: '#6366f1', fontWeight: 700, fontSize: '0.75rem' }}>{s.itemCode}</TableCell>
                         <TableCell sx={{ fontSize: '0.75rem', maxWidth: 180 }}>

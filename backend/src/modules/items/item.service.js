@@ -339,18 +339,60 @@ class ItemService {
     }).populate('brand', 'name brandName').populate('hsCodeId', 'code');
 
     const results = [];
+    
+    // Create lookup maps for O(1) access
+    const itemCodeMap = new Map();
+    const barcodeMap = new Map();
+
+    items.forEach(item => {
+        if (item.itemCode) itemCodeMap.set(item.itemCode.toUpperCase(), item);
+        (item.sizes || []).forEach(v => {
+            if (v.barcode) barcodeMap.set(v.barcode.toUpperCase(), item);
+            if (v.sku) barcodeMap.set(v.sku.toUpperCase(), item);
+        });
+    });
+
     ids.forEach(id => {
-        const item = items.find(it => it.itemCode === id || it.sizes.some(s => s.barcode === id || s.sku === id));
+        const item = itemCodeMap.get(id) || barcodeMap.get(id);
         if (item) {
             const bName = item.brand?.name || item.brand?.brandName || item.brandName || '--';
             const hsn = item.hsCodeId?.code || item.hsnCode || '--';
+            
             if (item.itemCode === id) {
+                // If matched by itemCode, add all its variants
                 item.sizes.forEach(v => {
-                    results.push({ matchedId: id, itemId: item._id, itemCode: item.itemCode, itemName: item.itemName, variantId: v._id, size: v.size, color: v.color || item.color || '--', sku: v.sku || v.barcode || item.itemCode, rate: v.mrp || 0, brandName: bName, hsnCode: hsn });
+                    results.push({
+                        matchedId: id,
+                        itemId: item._id,
+                        itemCode: item.itemCode,
+                        itemName: item.itemName,
+                        variantId: v._id,
+                        size: v.size,
+                        color: v.color || item.color || '--',
+                        sku: v.sku || v.barcode || item.itemCode,
+                        rate: v.mrp || 0,
+                        brandName: bName,
+                        hsnCode: hsn
+                    });
                 });
             } else {
+                // Matched by specific barcode/SKU
                 const v = item.sizes.find(s => s.barcode === id || s.sku === id);
-                if (v) results.push({ matchedId: id, itemId: item._id, itemCode: item.itemCode, itemName: item.itemName, variantId: v._id, size: v.size, color: v.color || item.color || '--', sku: v.sku || v.barcode || item.itemCode, rate: v.mrp || 0, brandName: bName, hsnCode: hsn });
+                if (v) {
+                    results.push({
+                        matchedId: id,
+                        itemId: item._id,
+                        itemCode: item.itemCode,
+                        itemName: item.itemName,
+                        variantId: v._id,
+                        size: v.size,
+                        color: v.color || item.color || '--',
+                        sku: v.sku || v.barcode || item.itemCode,
+                        rate: v.mrp || 0,
+                        brandName: bName,
+                        hsnCode: hsn
+                    });
+                }
             }
         }
     });
