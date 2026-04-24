@@ -15,6 +15,7 @@ router.route('/')
     .post(requireAdmin, itemController.createItem);
 
 router.post('/bulk', requireAdmin, itemController.bulkCreateItems);
+router.post('/resolve-bulk', itemController.resolveBulkItems);
 
 router.get('/scan/:barcode', itemController.scanItemByBarcode);
 

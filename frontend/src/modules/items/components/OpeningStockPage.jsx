@@ -11,6 +11,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import WarehouseIcon from '@mui/icons-material/Warehouse';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import * as XLSX from 'xlsx';
 import api from '../../../services/api';
 
 const OpeningStockPage = () => {
@@ -28,9 +30,11 @@ const OpeningStockPage = () => {
   // Fetch warehouses on mount
   useEffect(() => {
     api.get('/warehouses').then(res => {
-      const list = res.data?.data || res.data?.warehouses || [];
-      setWarehouses(list);
-      if (list.length === 1) setSelectedWarehouse(list[0]);
+      const resData = res.data?.data || res.data || {};
+      const list = resData.warehouses || resData || [];
+      const arr = Array.isArray(list) ? list : [];
+      setWarehouses(arr);
+      if (arr.length === 1) setSelectedWarehouse(arr[0]);
     }).catch(() => {});
   }, []);
 
@@ -72,6 +76,119 @@ const OpeningStockPage = () => {
     setSearchQuery('');
     setSearchResults([]);
   }, [selectedItems]);
+
+  const handleExcelUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setSearching(true);
+    setError('');
+    const reader = new FileReader();
+
+    reader.onload = async (event) => {
+      try {
+        const bstr = event.target.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const json = XLSX.utils.sheet_to_json(ws);
+
+        if (json.length === 0) throw new Error('Excel file is empty');
+
+        // 1. Extract identifiers and qty mapping
+        const identifiers = [];
+        const qtyMap = {}; // key -> { qty, rate }
+        
+        json.forEach(row => {
+          const newRow = {};
+          Object.keys(row).forEach(k => {
+            const cleanKey = k.toLowerCase().trim().replace(/[^a-z0-9]/g, '_');
+            newRow[cleanKey] = row[k];
+          });
+
+          // Match Item Code, MNO, or Barcode (with more aliases)
+          const itemCode = String(newRow.item_code || newRow.itemcode || newRow.style_code || newRow.stylecode || newRow.code || newRow.style || '').trim().toUpperCase();
+          const mno = String(newRow.mno_ || newRow.mno || newRow.manual_no || newRow.manualno || '').trim().toUpperCase();
+          const barcode = String(newRow.barcode || newRow.sku || newRow.ean || '').trim().toUpperCase();
+
+          const mainId = itemCode || mno || barcode;
+
+          if (mainId) {
+            const sizeStr = String(newRow.pack_size || newRow.size || newRow.sz || '').trim().toUpperCase();
+            const qty = Number(newRow.closing_stock || newRow.closingstock || newRow.opening_stock || newRow.openingstock || newRow.qty || newRow.quantity || 0);
+            const rate = Number(newRow.net_rate || newRow.netrate || newRow.rate || newRow.price || newRow.cost || 0);
+
+            // Collect all unique identifiers to send to backend
+            if (itemCode) identifiers.push(itemCode);
+            if (mno) identifiers.push(mno);
+            if (barcode) identifiers.push(barcode);
+
+            const mapKey = sizeStr ? `${mainId}_${sizeStr}` : mainId;
+            
+            qtyMap[mapKey] = { qty, rate };
+
+            // Also map by individual IDs for fallback matching
+            if (itemCode) qtyMap[itemCode] = qtyMap[mapKey];
+            if (mno) qtyMap[mno] = qtyMap[mapKey];
+          }
+        });
+
+        if (identifiers.length === 0) {
+           throw new Error('Excel mein "ITEM CODE", "MNO." ya "CODE" column nahi mila. Kripya check karein.');
+        }
+
+        // 2. Resolve identifiers to item data in bulk
+        const uniqueIds = [...new Set(identifiers)];
+        const res = await api.post('/items/resolve-bulk', { identifiers: uniqueIds });
+        const resolved = res.data?.data || [];
+
+        // 3. Merge with Excel data
+        const newItems = resolved.map(it => {
+          const matchedId = String(it.matchedId).trim().toUpperCase();
+          const itemCode = String(it.itemCode).trim().toUpperCase();
+          const sizeStr = String(it.size || '').trim().toUpperCase();
+          
+          // Try matching by (MatchedID + Size) -> (ItemCode + Size) -> MatchedID -> ItemCode
+          const excelData = qtyMap[`${matchedId}_${sizeStr}`] || 
+                            qtyMap[`${itemCode}_${sizeStr}`] || 
+                            qtyMap[matchedId] || 
+                            qtyMap[itemCode] || 
+                            { qty: 0, rate: 0 };
+          
+          return {
+            key: `${it.itemId}-${it.variantId}`,
+            itemId: it.itemId,
+            itemCode: it.itemCode,
+            itemName: it.itemName,
+            brandName: it.brandName,
+            variantId: it.variantId,
+            size: it.size,
+            color: it.color,
+            sku: it.sku,
+            qty: excelData.qty || 0,
+            rate: excelData.rate || it.rate || 0,
+            hsnCode: it.hsnCode || '--'
+          };
+        }).filter(it => it.qty > 0);
+
+        // 4. Update state, skipping duplicates
+        setSelectedItems(prev => {
+          const keys = new Set(prev.map(p => p.key));
+          const filtered = newItems.filter(n => !keys.has(n.key));
+          return [...prev, ...filtered];
+        });
+
+        setSuccess(`✅ Successfully loaded ${newItems.length} items from Excel.`);
+      } catch (err) {
+        setError(err.message || 'Failed to parse Excel');
+      } finally {
+        setSearching(false);
+        e.target.value = null; // reset input
+      }
+    };
+
+    reader.readAsBinaryString(file);
+  };
 
   const addAllVariants = useCallback((item) => {
     const newEntries = (item.sizes || []).map(variant => ({
@@ -187,9 +304,22 @@ const OpeningStockPage = () => {
 
           {/* Item Search */}
           <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
-            <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
-              Search & Add Items
-            </Typography>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+              <Typography variant="subtitle2" fontWeight={700}>
+                Search & Add Items
+              </Typography>
+              <Button
+                variant="outlined"
+                component="label"
+                size="small"
+                startIcon={<CloudUploadIcon />}
+                disabled={searching || posting}
+                sx={{ borderRadius: 2, fontSize: '0.75rem' }}
+              >
+                Bulk Upload Excel
+                <input type="file" hidden accept=".xlsx, .xls" onChange={handleExcelUpload} />
+              </Button>
+            </Stack>
             <TextField
               fullWidth
               size="small"

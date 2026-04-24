@@ -41,13 +41,8 @@ const getAllWarehouses = async (query, user) => {
 
     const filter = { isDeleted: false };
 
-    // Enforce store scoping for store staff
-    if (user && user.role === 'store_staff') {
-        // Warehouse masters are normally only for admin.
-        // If a store staff asks, they get NOTHING or only their linked store (if it was a warehouse, which it isn't here).
-        // Since the user wants to HIDE other locations, we just return empty for warehouses.
-        return { warehouses: [], total: 0, page: parseInt(page), limit: parseInt(limit) };
-    }
+    // Removed store scoping restriction for store staff to allow stock entry
+    // if (user && user.role === 'store_staff') { ... }
 
     if (search) {
         filter.$or = [

@@ -52,7 +52,7 @@ export const getRoleBasePath = (role) => {
 
 const adminSidebarItems = [
   { label: 'Search Home', path: '/', icon: HomeIcon },
-  { label: 'Goods Control', path: '/inventory/stock-overview', icon: Inventory2Icon, matchPaths: ['/inventory/stock-overview', '/items', '/inventory/grn', '/setup/barcode-print', '/setup/groups', '/setup/hsn-codes', '/setup/sizes', '/masters/brands', '/orders/delivery-challan', '/orders/dispatch-queue'], drilldown: true },
+  { label: 'Goods Control', path: '/inventory/stock-overview', icon: Inventory2Icon, matchPaths: ['/inventory/stock-overview', '/items', '/inventory/grn', '/inventory/opening-stock', '/setup/barcode-print', '/setup/groups', '/setup/hsn-codes', '/setup/sizes', '/masters/brands', '/orders/delivery-challan', '/orders/dispatch-queue'], drilldown: true },
   { label: 'Procurement (Purchase)', path: '/ho/purchase/new', icon: ShoppingCartIcon },
   { label: 'Sales & Billing', path: '/sales', icon: PointOfSaleIcon, matchPaths: billingMatchPaths, drilldown: true },
   { label: 'Reports & Analytics', path: '/reports', icon: AssessmentOutlinedIcon, matchPaths: reportsQueriesMatchPaths, drilldown: true },
@@ -82,7 +82,7 @@ export const adminNavConfig = {
       {label: 'Inventory Overview', path: '/ho/inventory/stock-overview'},
       {label: 'Barcode Print', path: '/ho/setup/barcode-print'},
       {label: 'Scan-to-Receipt (GRN)', path: '/ho/inventory/grn'},
-      {label: '📦 Opening Stock Entry', path: '/ho/inventory/opening-stock'},
+      {label: '📦 Opening Stock Entry', path: '/inventory/opening-stock'},
       {label: 'Sale Challan / Bill (Dispatch)', path: '/ho/orders/delivery-challan'},
       {label: 'Billing & Dispatch Queue', path: '/ho/orders/dispatch-queue'},
       {label: 'Item Groups (Hierarchy)', path: '/ho/setup/groups'},

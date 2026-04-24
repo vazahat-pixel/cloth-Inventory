@@ -145,6 +145,19 @@ class ItemController {
       return sendError(res, error.message, 400);
     }
   };
+
+  resolveBulkItems = async (req, res) => {
+    try {
+      const { identifiers } = req.body;
+      if (!Array.isArray(identifiers)) {
+        return sendError(res, 'identifiers array is required', 400);
+      }
+      const results = await itemService.resolveBulkItems(identifiers);
+      return sendSuccess(res, results, 'Items resolved');
+    } catch (error) {
+      return sendError(res, error.message);
+    }
+  }
 }
 
 module.exports = new ItemController();
