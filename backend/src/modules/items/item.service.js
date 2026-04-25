@@ -398,6 +398,70 @@ class ItemService {
     });
     return results;
   }
+
+  async resolveOpeningBalanceItems(rows) {
+    if (!Array.isArray(rows) || rows.length === 0) return [];
+    
+    const itemCodes = [...new Set(rows.map(r => String(r.itemCode || '').trim().toUpperCase()).filter(Boolean))];
+    const itemNames = [...new Set(rows.map(r => String(r.itemName || '').trim()).filter(Boolean))];
+    
+    // Fetch potential matches
+    const items = await Item.find({
+      $or: [
+        { itemCode: { $in: itemCodes } },
+        { itemName: { $in: itemNames } }
+      ],
+      isActive: true
+    }).populate('brand', 'name brandName').populate('hsCodeId', 'code');
+
+    const results = rows.map(row => {
+      const searchCode = String(row.itemCode || '').trim().toUpperCase();
+      const searchName = String(row.itemName || '').trim().toLowerCase();
+      const searchShade = String(row.shade || row.color || '').trim().toLowerCase();
+      const searchSize = String(row.size || '').trim().toUpperCase();
+
+      // Priority 1: Match by Item Code
+      let matchedItem = items.find(it => it.itemCode?.toUpperCase() === searchCode);
+      
+      // Priority 2: Match by Name + Shade
+      if (!matchedItem) {
+        matchedItem = items.find(it => 
+          it.itemName?.toLowerCase() === searchName && 
+          (String(it.shadeNo || it.color || '').toLowerCase() === searchShade || !searchShade)
+        );
+      }
+
+      if (matchedItem) {
+        // Find variant
+        const variant = (matchedItem.sizes || []).find(v => 
+          String(v.size || '').toUpperCase() === searchSize || 
+          v.sku?.toUpperCase() === searchCode ||
+          v.barcode?.toUpperCase() === searchCode
+        ) || matchedItem.sizes[0];
+
+        return {
+          ...row,
+          itemId: matchedItem._id,
+          variantId: variant ? (variant._id || variant.id) : matchedItem._id,
+          matched: true,
+          itemName: matchedItem.itemName,
+          itemCode: matchedItem.itemCode,
+          size: variant ? variant.size : (row.size || '--'),
+          color: matchedItem.color || matchedItem.shadeNo || '--',
+          sku: variant ? (variant.sku || variant.barcode) : matchedItem.itemCode,
+          costPrice: variant ? (variant.mrp || 0) : (matchedItem.purchasePrice || 0)
+        };
+      }
+
+      return {
+        ...row,
+        matched: false,
+        error: 'Item not found in master'
+      };
+    });
+
+    return results;
+  }
 }
 
 module.exports = new ItemService();

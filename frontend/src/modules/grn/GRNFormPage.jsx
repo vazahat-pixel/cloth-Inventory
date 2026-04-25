@@ -41,6 +41,8 @@ import { fetchPurchaseOrders } from '../purchase/purchaseSlice';
 import { fetchGrns, addGrn, approveGrn, updateGrn } from './grnSlice';
 import { fetchOutwards } from '../production/productionSlice';
 import PieceEntryDialog from './PieceEntryDialog';
+import BulkInventoryUploadDialog from './components/BulkInventoryUploadDialog';
+import FileUploadIcon from '@mui/icons-material/FileUpload';
 
 const defaultForm = {
   grnNumber: '',
@@ -82,6 +84,7 @@ function GRNFormPage({ mode = 'edit' }) {
   const [searchText, setSearchText] = useState('');
   const [activeItemForRolls, setActiveItemForRolls] = useState(null);
   const [isRollDialogOpen, setIsRollDialogOpen] = useState(false);
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const existingGrn = useMemo(() => grns.find(g => (g._id || g.id) === id), [grns, id]);
@@ -411,6 +414,9 @@ function GRNFormPage({ mode = 'edit' }) {
         actions={[
           <Button key="back" variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate('/ho/inventory/grn')}>Back</Button>,
           !isLocked ? (
+            <Button key="bulk-upload" variant="contained" color="info" sx={{ bgcolor: '#0284c7' }} startIcon={<FileUploadIcon />} onClick={() => setIsBulkUploadOpen(true)}>Bulk Excel Upload</Button>
+          ) : null,
+          !isLocked ? (
             <Button key="draft" variant="contained" color="primary" sx={{ bgcolor: '#2563eb' }} startIcon={<SaveOutlinedIcon />} onClick={() => handleSave(true)}>Save Draft</Button>
           ) : null,
           !isLocked ? (
@@ -548,7 +554,6 @@ function GRNFormPage({ mode = 'edit' }) {
                   <Typography variant="h6" sx={{ fontWeight: 800, color: '#1e293b', lineHeight: 1 }}>Scan Barcodes</Typography>
                 </Box>
                 <TextField
-                  fullWidth
                   autoFocus
                   placeholder="Scan finished items one by one..."
                   size="medium"
@@ -561,11 +566,20 @@ function GRNFormPage({ mode = 'edit' }) {
                       setSearchText('');
                     }
                   }}
-                  sx={{ bgcolor: 'white' }}
+                  sx={{ bgcolor: 'white', flex: 1 }}
                   InputProps={{
                     startAdornment: <SearchIcon sx={{ color: '#3b82f6', mr: 1, fontSize: 22 }} />
                   }}
                 />
+                <Button
+                  variant="contained"
+                  color="info"
+                  startIcon={<FileUploadIcon />}
+                  onClick={() => setIsBulkUploadOpen(true)}
+                  sx={{ height: 56, px: 4, fontWeight: 700, borderRadius: 2, whiteSpace: 'nowrap', bgcolor: '#0284c7' }}
+                >
+                  Excel Upload
+                </Button>
               </Stack>
             </Box>
           )}
@@ -669,6 +683,15 @@ function GRNFormPage({ mode = 'edit' }) {
       </Dialog>
 
       <PieceEntryDialog open={isRollDialogOpen} onClose={() => setIsRollDialogOpen(false)} onAdd={handleAddRolls} item={activeItemForRolls} />
+      <BulkInventoryUploadDialog
+        open={isBulkUploadOpen}
+        onClose={() => setIsBulkUploadOpen(false)}
+        warehouseId={formValues.warehouseId}
+        onUploadSuccess={() => {
+          setSuccessMessage('Bulk inventory uploaded successfully.');
+          setTimeout(() => navigate('/ho/inventory/grn'), 2000);
+        }}
+      />
     </Box>
   );
 }

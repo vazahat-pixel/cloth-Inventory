@@ -157,6 +157,19 @@ class ItemController {
     } catch (error) {
       return sendError(res, error.message);
     }
+  };
+
+  resolveOpeningBalanceItems = async (req, res) => {
+    try {
+      const { rows } = req.body;
+      if (!Array.isArray(rows)) {
+        return sendError(res, 'rows array is required', 400);
+      }
+      const results = await itemService.resolveOpeningBalanceItems(rows);
+      return sendSuccess(res, results, 'Items resolved for opening balance');
+    } catch (error) {
+      return sendError(res, error.message);
+    }
   }
 }
 
