@@ -6,6 +6,7 @@ const { requireAdmin } = require('../../middlewares/role.middleware');
 const router = express.Router();
 
 router.use(protect);
+console.log('✅ ITEM_ROUTES: Registering item routes...');
 
 router.get('/next-code', itemController.getNextCode);
 router.get('/next-barcodes', itemController.getNextBarcodes);
@@ -14,9 +15,9 @@ router.route('/')
     .get(itemController.getAllItems)
     .post(requireAdmin, itemController.createItem);
 
+router.post('/resolve-opening-balance', itemController.resolveOpeningBalanceItems);
 router.post('/bulk', requireAdmin, itemController.bulkCreateItems);
 router.post('/resolve-bulk', itemController.resolveBulkItems);
-router.post('/resolve-opening-balance', itemController.resolveOpeningBalanceItems);
 
 router.get('/scan/:barcode', itemController.scanItemByBarcode);
 
@@ -25,10 +26,14 @@ router.post('/:id/sizes', requireAdmin, itemController.updateItemSizes);
 router.post('/:id/allocate-group', requireAdmin, itemController.allocateItemGroups);
 router.post('/:id/deallocate-group', requireAdmin, itemController.deallocateItemGroups);
 
+
+
 router.route('/:id')
     .get(itemController.getItemById)
     .put(requireAdmin, itemController.updateItem)
     .patch(requireAdmin, itemController.updateItem)
     .delete(requireAdmin, itemController.deleteItem);
+
+router.post('/validate-barcodes', itemController.validateBarcodes);
 
 module.exports = router;

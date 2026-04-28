@@ -12,50 +12,51 @@ const toFiniteNumber = (val) => {
 const populateInventoryManual = async (inventoryItems) => {
     if (!inventoryItems || inventoryItems.length === 0) return [];
 
-    const itemIds = inventoryItems.map(item => {
-        try {
-            return item.itemId ? new mongoose.Types.ObjectId(String(item.itemId)) : null;
-        } catch (e) {
-            return null;
-        }
-    }).filter(Boolean);
-    
-    const variantIds = inventoryItems.map(item => String(item.variantId || '')).filter(Boolean);
+    const itemIds = [];
+    const variantIds = [];
+    const barcodes = [];
 
-    console.log(`[DEBUG-POPULATE] Inputs - ItemIds: ${itemIds.length}, VariantIds: ${variantIds.length}`);
+    inventoryItems.forEach(item => {
+        if (item.itemId) itemIds.push(new mongoose.Types.ObjectId(String(item.itemId)));
+        if (item.variantId) variantIds.push(String(item.variantId));
+        if (item.barcode) barcodes.push(String(item.barcode));
+    });
 
     const items = await Item.find({ 
         $or: [
             { _id: { $in: itemIds } },
             { "sizes._id": { $in: variantIds.filter(v => v.length === 24) } },
-            { "sizes.sku": { $in: variantIds } },
-            { "sizes.barcode": { $in: variantIds } }
+            { "sizes.sku": { $in: [...variantIds, ...barcodes] } },
+            { "sizes.barcode": { $in: [...variantIds, ...barcodes] } }
         ]
-    }).lean();
+    }).populate('hsCodeId').lean();
 
-    console.log(`[DEBUG-POPULATE] DB Results - Found ${items.length} items`);
+    // Create indexing Maps for O(1) lookup
+    const itemMap = new Map();
+    const variantToItemMap = new Map();
+    const skuToItemMap = new Map();
+
+    items.forEach(it => {
+        itemMap.set(String(it._id), it);
+        if (it.sizes) {
+            it.sizes.forEach(sz => {
+                variantToItemMap.set(String(sz._id), it);
+                if (sz.sku) skuToItemMap.set(String(sz.sku), it);
+                if (sz.barcode) skuToItemMap.set(String(sz.barcode), it);
+            });
+        }
+    });
 
     return inventoryItems.map(item => {
         const vid = String(item.variantId || '');
         const parentId = String(item.itemId || '');
         const barcode = String(item.barcode || '');
         
-        const parentItem = items.find(it => 
-            String(it._id) === parentId || 
-            (it.sizes && it.sizes.some(sz => 
-                String(sz._id) === vid || 
-                String(sz.sku) === vid || 
-                String(sz.barcode) === vid ||
-                String(sz.sku) === barcode ||
-                String(sz.barcode) === barcode
-            ))
-        );
-
-        const type = parentItem?.type || 'GARMENT';
-        
-        if (!parentItem) {
-            console.warn(`[DEBUG-POPULATE] ORPHAN FOUND: Barcode ${barcode}, ItemID ${parentId}, VarID ${vid}`);
-        }
+        // Try looking up by ID, then variantId, then SKU/Barcode
+        const parentItem = itemMap.get(parentId) || 
+                          variantToItemMap.get(vid) || 
+                          skuToItemMap.get(vid) || 
+                          skuToItemMap.get(barcode);
 
         if (parentItem) {
             const variant = parentItem.sizes.find(sz => 
@@ -86,16 +87,16 @@ const populateInventoryManual = async (inventoryItems) => {
                 location: item.warehouseId?.name || item.storeId?.name || 'Main Warehouse',
                 warehouseName: item.warehouseId?.name || item.storeId?.name || 'Main Warehouse',
                 salePrice: toFiniteNumber(variant.salePrice || parentItem.salePrice || variant.mrp || parentItem.mrp),
-                mrp: toFiniteNumber(variant.mrp || parentItem.mrp || variant.salePrice || parentItem.salePrice)
+                mrp: toFiniteNumber(variant.mrp || parentItem.mrp || variant.salePrice || parentItem.salePrice),
+                hsnCode: parentItem.hsCodeId?.code || parentItem.hsnCode || 'N/A'
             };
         }
         
-        // Fallback for orphans so they don't disappear
         return {
             ...item,
             id: item._id,
             itemCode: barcode || 'ORPHAN',
-            itemName: 'Unknown Item (' + barcode + ')',
+            itemName: 'Unknown Item (' + (barcode || vid) + ')',
             type: 'GARMENT', 
             size: '-',
             color: '-',
@@ -111,29 +112,37 @@ const populateInventoryManual = async (inventoryItems) => {
  * Get store inventory with pagination and filters
  */
 const getStoreInventory = async (query, user) => {
-    const { page = 1, limit = 1000, search, storeId, lowStock } = query;
+    const { page = 1, limit = 50000, search, storeId, warehouseId, lowStock, type } = query;
 
     const storeFilter = {};
     const warehouseFilter = {};
 
     // 1. Enforce scoping
     const normalizedRole = (user.role || '').toLowerCase();
-    const isStoreRole = normalizedRole.includes('staff') || normalizedRole.includes('manager') || normalizedRole.includes('accountant');
+    
+    // HO users (admin or any role without shopId) should see everything
+    const isHOUser = normalizedRole.includes('admin') || !user.shopId;
+    const isStoreRole = !isHOUser && (normalizedRole.includes('staff') || normalizedRole.includes('manager') || normalizedRole.includes('accountant'));
     
     if (isStoreRole) {
         if (!user.shopId) throw new Error('User is not linked to any store. Please contact your administrator.');
         storeFilter.storeId = user.shopId;
         warehouseFilter._id = { $exists: false }; // Hide warehouse for store staff
     } else {
-        // Admin or non-store role: show all or filter by ID
-        if (storeId) {
+        // Admin or HO role: filter by selected location if provided
+        if (storeId && storeId !== 'all') {
             storeFilter.storeId = storeId;
             warehouseFilter.warehouseId = storeId;
+        } else if (warehouseId && warehouseId !== 'all') {
+            // Handle separate warehouse filter if passed
+            warehouseFilter.warehouseId = warehouseId;
+            storeFilter._id = { $exists: false }; 
         }
     }
 
     if (lowStock === 'true') {
         storeFilter.$expr = { $lte: ['$quantityAvailable', '$minStockLevel'] };
+        warehouseFilter.$expr = { $lte: ['$quantity', '$reorderLevel'] };
     }
 
     // If search exists, find matching Item and Variant IDs first
@@ -144,17 +153,35 @@ const getStoreInventory = async (query, user) => {
                 { itemName: searchRegex },
                 { itemCode: searchRegex },
                 { "sizes.sku": searchRegex },
-                { "sizes.barcode": searchRegex }
+                { "sizes.barcode": searchRegex },
+                { type: searchRegex }
             ]
-        }).select('_id sizes');
+        }).select('_id sizes type');
 
         const vIds = [];
+        const itemIds = [];
         matchingItems.forEach(it => {
+            itemIds.push(it._id);
             it.sizes.forEach(sz => vIds.push(String(sz._id)));
         });
 
-        storeFilter.variantId = { $in: vIds };
-        warehouseFilter.variantId = { $in: vIds };
+        storeFilter.$or = [
+            { variantId: { $in: vIds } },
+            { itemId: { $in: itemIds } },
+            { barcode: searchRegex }
+        ];
+        warehouseFilter.$or = [
+            { variantId: { $in: vIds } },
+            { itemId: { $in: itemIds } },
+            { barcode: searchRegex }
+        ];
+    }
+
+    if (type && type !== 'all') {
+        const matchingItems = await Item.find({ type }).select('_id');
+        const itemIds = matchingItems.map(it => it._id);
+        storeFilter.itemId = { $in: itemIds };
+        warehouseFilter.itemId = { $in: itemIds };
     }
 
     const skip = (page - 1) * parseInt(limit);
@@ -172,21 +199,25 @@ const getStoreInventory = async (query, user) => {
             .lean()
     ]);
 
-    console.log(`[STOCK-OVERVIEW-DEBUG] Found: Store(${storeInventory.length}) Warehouse(${warehouseInventory.length})`);
+    console.log(`[STOCK-OVERVIEW-DEBUG] Query Results: StoreCount=${storeInventory.length}, WarehouseCount=${warehouseInventory.length}, UserRole=${user.role}`);
 
     // Combine results
     const rawCombined = [...storeInventory, ...warehouseInventory];
     const populatedCombined = await populateInventoryManual(rawCombined);
 
-    // Filter out orphaned records
+    // Calculate totals across ALL items (before pagination)
+    const totalQuantity = Math.round(populatedCombined.reduce((sum, item) => sum + Number(item.available ?? item.quantity ?? 0), 0));
     const total = populatedCombined.length;
+
+    // Apply pagination
     const combined = populatedCombined.slice(skip, skip + parseInt(limit));
 
-    console.log(`[STOCK-OVERVIEW-DEBUG] Final Combined: ${combined.length}`);
+    console.log(`[STOCK-OVERVIEW-DEBUG] Final Combined: ${combined.length}, TotalQty: ${totalQuantity}`);
 
     return {
         inventory: combined,
         total,
+        totalQuantity,
         page: parseInt(page),
         limit: parseInt(limit)
     };
@@ -236,8 +267,94 @@ const adjustInventory = async (adjustmentData, userId) => {
     });
 };
 
+const { bulkAddStock } = require('../../services/stock.service');
+
+/**
+ * High-performance bulk import for Opening Stock via Excel
+ */
+const bulkImportOpeningStock = async (importData, userId) => {
+    return await withTransaction(async (session) => {
+        const { storeId, items } = importData;
+        if (!storeId) throw new Error('Store ID is required for import');
+        if (!items || !items.length) throw new Error('No items provided for import');
+
+        // 1. Resolve all items by barcode in bulk
+        const barcodes = [...new Set(items.map(i => String(i.itemCode || i.barcode || '').trim()).filter(Boolean))];
+        const matchedItems = await Item.find({ 
+            $or: [
+                { "sizes.barcode": { $in: barcodes } },
+                { "sizes.sku": { $in: barcodes } }
+            ]
+        }).session(session).lean();
+
+        // 2. Create a map for quick lookup
+        const barcodeMap = new Map();
+        matchedItems.forEach(item => {
+            if (item.sizes) {
+                item.sizes.forEach(sz => {
+                    if (sz.barcode) barcodeMap.set(sz.barcode, { item, variant: sz });
+                    if (sz.sku) barcodeMap.set(sz.sku, { item, variant: sz });
+                });
+            }
+        });
+
+        // 3. Prepare items for bulkAddStock and perform validations
+        const validItems = [];
+        const errors = [];
+
+        items.forEach(row => {
+            const barcode = String(row.itemCode || row.barcode || '').trim();
+            const match = barcodeMap.get(barcode);
+            
+            if (!match) {
+                errors.push({ itemCode: barcode, error: 'Item not found in master' });
+                return;
+            }
+
+            const { item, variant } = match;
+
+            // Optional Attribute Validation (Name mismatch check)
+            const excelName = String(row.itemName || '').trim().toLowerCase();
+            const masterName = String(item.itemName || '').trim().toLowerCase();
+            
+            if (excelName && masterName && !masterName.includes(excelName) && !excelName.includes(masterName)) {
+                errors.push({ itemCode: barcode, error: `Name mismatch: Excel(${excelName}) vs Master(${masterName})` });
+                return;
+            }
+
+            validItems.push({
+                itemId: item._id,
+                variantId: variant._id,
+                barcode: barcode,
+                qty: Number(row.closingStock || row.quantity || 0)
+            });
+        });
+
+        // 4. Perform bulk insert if we have valid items
+        if (validItems.length > 0) {
+            await bulkAddStock(validItems, {
+                referenceId: new mongoose.Types.ObjectId(),
+                referenceType: 'OpeningBalance',
+                performedBy: userId,
+                locationId: storeId,
+                locationType: 'STORE',
+                session,
+                mode: 'SET'
+            });
+        }
+
+        return {
+            totalProcessed: items.length,
+            successCount: validItems.length,
+            failedCount: errors.length,
+            errors
+        };
+    });
+};
+
 module.exports = {
     getStoreInventory,
     getProductInStore,
-    adjustInventory
+    adjustInventory,
+    bulkImportOpeningStock
 };

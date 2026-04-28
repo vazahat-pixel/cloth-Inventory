@@ -274,7 +274,8 @@ const removeStock = async ({ itemId, barcode, variantId, locationId, locationTyp
         userId: performedBy,
         locationId,
         locationType,
-        batchNo: 'DEFAULT'
+        batchNo: 'DEFAULT',
+        session
     });
 
     return inventory;
@@ -547,8 +548,128 @@ const releaseStock = async ({ variantId, locationId, locationType, qty, session 
     return inventory;
 };
 
+/**
+ * Bulk Add Stock for high-performance initialization (Opening Balance)
+ */
+const bulkAddStock = async (items, { referenceId, referenceType, performedBy, locationId, locationType, session, mode = 'ADD' }) => {
+    if (!Array.isArray(items) || items.length === 0) return true;
+
+    const StockLedger = require('../models/stockLedger.model');
+    const InventoryModel = locationType === 'STORE' ? StoreInventory : WarehouseInventory;
+
+    // 1. Fetch current inventory records for all barcodes in bulk
+    const barcodes = [...new Set(items.map(i => i.barcode).filter(Boolean))];
+    const currentInventories = await InventoryModel.find({
+        barcode: { $in: barcodes },
+        [locationType === 'STORE' ? 'storeId' : 'warehouseId']: locationId
+    }).session(session);
+
+    const invMap = new Map(currentInventories.map(inv => [inv.barcode, inv]));
+
+    // 2. Map current balances from inventory records (much faster than aggregating ledger)
+    const balanceMap = new Map(currentInventories.map(inv => [inv.barcode, inv.quantity || 0]));
+
+    // 3. Prepare Bulk Operations
+    const invOps = [];
+    const itemOps = [];
+    const movements = [];
+    const ledgerEntries = [];
+
+    for (const item of items) {
+        const qty = Number(item.qty || item.receivedQty || 0);
+        if (qty <= 0) continue;
+
+        const barcode = item.barcode || item.sku;
+        const currentInv = invMap.get(barcode);
+        const currentBalance = balanceMap.get(barcode) || 0;
+        
+        let newBalance, adjustmentQty;
+        if (mode === 'SET') {
+            newBalance = qty;
+            adjustmentQty = newBalance - currentBalance;
+        } else {
+            adjustmentQty = qty;
+            newBalance = currentBalance + adjustmentQty;
+        }
+
+        if (adjustmentQty === 0) continue; 
+
+        // Inventory Update
+        if (!currentInv) {
+            const initData = { 
+                barcode, 
+                itemId: item.itemId, 
+                variantId: item.variantId, 
+                quantity: qty,
+                [locationType === 'STORE' ? 'storeId' : 'warehouseId']: locationId
+            };
+            if (locationType === 'STORE') initData.quantityAvailable = qty;
+            invOps.push({ insertOne: { document: initData } });
+        } else {
+            invOps.push({
+                updateOne: {
+                    filter: { _id: currentInv._id },
+                    update: { 
+                        $set: { 
+                            quantity: newBalance, 
+                            ...(locationType === 'STORE' ? { quantityAvailable: newBalance } : {}),
+                            lastUpdated: Date.now() 
+                        }
+                    }
+                }
+            });
+        }
+
+        // Master Item Update (Always incremental for total global stock)
+        itemOps.push({
+            updateOne: {
+                filter: { "sizes._id": item.variantId },
+                update: { $inc: { "sizes.$.stock": adjustmentQty } }
+            }
+        });
+
+        // Movement
+        movements.push({
+            variantId: item.variantId,
+            qty: Math.abs(adjustmentQty),
+            type: adjustmentQty > 0 ? StockMovementType.OPENING_BALANCE : StockMovementType.ADJUSTMENT,
+            referenceId,
+            referenceType: referenceType || 'OpeningBalance',
+            toLocation: adjustmentQty > 0 ? locationId : null,
+            fromLocation: adjustmentQty < 0 ? locationId : null,
+            performedBy
+        });
+
+        // Ledger
+        ledgerEntries.push({
+            itemId: item.itemId,
+            barcode,
+            type: adjustmentQty > 0 ? 'IN' : 'OUT',
+            quantity: Math.abs(adjustmentQty),
+            source: (referenceType || 'OpeningBalance').toUpperCase(),
+            referenceId: referenceId.toString(),
+            balanceAfter: newBalance,
+            userId: performedBy,
+            locationId,
+            locationType,
+            batchNo: 'DEFAULT'
+        });
+    }
+
+    // 4. Execute Bulk Operations in Parallel for Speed
+    await Promise.all([
+        invOps.length > 0 ? InventoryModel.bulkWrite(invOps, { session }) : Promise.resolve(),
+        itemOps.length > 0 ? Item.bulkWrite(itemOps, { session }) : Promise.resolve(),
+        movements.length > 0 ? StockMovement.insertMany(movements, { session, ordered: false }) : Promise.resolve(),
+        ledgerEntries.length > 0 ? StockLedger.insertMany(ledgerEntries, { session, ordered: false }) : Promise.resolve()
+    ]);
+
+    return true;
+};
+
 module.exports = {
     addStock,
+    bulkAddStock,
     removeStock,
     transferStock,
     reserveStock,

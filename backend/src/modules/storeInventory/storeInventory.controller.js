@@ -4,9 +4,9 @@ const { buildPaginationMeta } = require('../../utils/pagination.helper');
 
 const getStoreInventory = async (req, res, next) => {
     try {
-        const { inventory, total, page, limit } = await storeInventoryService.getStoreInventory(req.query, req.user);
+        const { inventory, total, totalQuantity, page, limit } = await storeInventoryService.getStoreInventory(req.query, req.user);
         const meta = buildPaginationMeta(total, page, limit);
-        return sendSuccess(res, { inventory, meta }, 'Store inventory retrieved successfully');
+        return sendSuccess(res, { inventory, meta, totalQuantity }, 'Store inventory retrieved successfully');
     } catch (err) {
         next(err);
     }
@@ -82,9 +82,19 @@ const reconcileStock = async (req, res, next) => {
     }
 };
 
+const bulkImportOpeningStock = async (req, res, next) => {
+    try {
+        const result = await storeInventoryService.bulkImportOpeningStock(req.body, req.user._id);
+        return sendSuccess(res, { data: result }, 'Bulk import completed');
+    } catch (err) {
+        next(err);
+    }
+};
+
 module.exports = {
     getStoreInventory,
     getProductInStore,
     adjustInventory,
-    reconcileStock
+    reconcileStock,
+    bulkImportOpeningStock
 };

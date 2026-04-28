@@ -11,6 +11,12 @@ import LowStockAlert from "./components/LowStockAlert";
 import RecentSalesTable from "./components/RecentSalesTable";
 import QuickActions from "./components/QuickActions";
 import { useAppNavigate } from "../../hooks/useAppNavigate";
+import { useEffect } from "react";
+import { useDispatch } from "react-redux";
+import { fetchSales } from "../../modules/sales/salesSlice";
+import { fetchPurchases } from "../../modules/purchase/purchaseSlice";
+import { fetchStockOverview } from "../../modules/inventory/inventorySlice";
+import { fetchCompanyProfile } from "../../modules/settings/settingsSlice";
 
 function formatCurrency(value) {
   const amount = Number(value);
@@ -67,7 +73,16 @@ function getRecordTimestamp(value) {
 }
 
 function DashboardHome() {
+  const dispatch = useDispatch();
   const navigate = useAppNavigate();
+
+  useEffect(() => {
+    dispatch(fetchSales());
+    dispatch(fetchPurchases());
+    dispatch(fetchStockOverview());
+    dispatch(fetchCompanyProfile());
+  }, [dispatch]);
+
   const sales = useSelector((state) => state.sales?.records ?? []);
   const purchase = useSelector((state) => state.purchase?.records ?? []);
   const stock = useSelector((state) => state.inventory?.stock ?? []);
@@ -79,7 +94,8 @@ function DashboardHome() {
 
   const filteredSales = useMemo(() => {
     const records = sales.filter((record) => {
-      const dateKey = getRecordDateKey(record.date);
+      const dateValue = record.date || record.saleDate || record.createdAt;
+      const dateKey = getRecordDateKey(dateValue);
 
       return range === RANGE_TODAY
         ? dateKey === todayKey

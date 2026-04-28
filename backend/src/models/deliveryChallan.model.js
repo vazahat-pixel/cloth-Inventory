@@ -72,7 +72,23 @@ const deliveryChallanSchema = new mongoose.Schema(
             trim: true
         },
         vehicleNumber: { type: String, trim: true },
-        driverName: { type: String, trim: true }
+        driverName: { type: String, trim: true },
+        totalMRP: { type: Number, default: 0 },
+        totalDiscount: { type: Number, default: 0 },
+        taxableAmount: { type: Number, default: 0 },
+        gstAmount: { type: Number, default: 0 },
+        finalAmount: { type: Number, default: 0 },
+        hsnSummary: [
+            {
+                hsnCode: String,
+                totalQty: Number,
+                gstPercent: Number,
+                taxableAmount: Number,
+                cgst: Number,
+                sgst: Number,
+                igst: Number
+            }
+        ]
     },
     { timestamps: true }
 );

@@ -71,6 +71,8 @@ function StockOverviewPage() {
   const isStoreStaff = authUser?.role === 'store_staff' || authUser?.role === 'Staff' || authUser?.role === 'Manager';
   const shopId = authUser?.shopId;
   const backendRows = useSelector((state) => state.inventory.stock || []);
+  const totalRows = useSelector((state) => state.inventory.total || 0);
+  const totalQuantity = useSelector((state) => state.inventory.totalQuantity || 0);
   const sizes = useSelector((state) => state.masters.sizes || []);
   const warehouses = useSelector((state) => state.masters.warehouses || []);
 
@@ -83,17 +85,26 @@ function StockOverviewPage() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
+  // Debounced effect to fetch from backend when filters change
   useEffect(() => {
-    dispatch(fetchStockOverview());
+    const params = {
+      page: 1, // Always fetch first page when limit is high (local pagination)
+      limit: 50000, 
+      search: searchText,
+      type: typeFilter === 'all' ? undefined : typeFilter,
+    };
+    
+    dispatch(fetchStockOverview(params));
     dispatch(fetchMasters('warehouses'));
     dispatch(fetchMasters('sizes'));
-  }, [dispatch]);
+  }, [dispatch, searchText, typeFilter]); // Removed page from dependencies
 
   const sizeLabelLookup = useMemo(() => buildSizeLabelLookup(sizes), [sizes]);
   const getSizeLabel = (value) => resolveSizeLabel(value, sizeLabelLookup);
 
   const rows = useMemo(() => {
     const normalized = normalizeStockRows(backendRows);
+    // Remove the restrictive garment filter for HO/Admin users
     return isStoreStaff ? normalized.filter((r) => r.type === 'GARMENT') : normalized;
   }, [backendRows, isStoreStaff]);
 
@@ -107,6 +118,7 @@ function StockOverviewPage() {
   const filteredRows = useMemo(() => {
     const query = searchText.trim().toLowerCase();
     return rows.filter((row) => {
+      // Local filtering still applied for UI responsiveness
       const matchesSearch = query
         ? [row.itemCode, row.itemName, row.color, row.warehouse, row.brand, row.category]
             .filter(Boolean)
@@ -132,13 +144,24 @@ function StockOverviewPage() {
   );
 
   const summary = useMemo(
-    () => ({
-      totalRows: filteredRows.length,
-      lowStock: filteredRows.filter((row) => row.availableStock <= row.reorderLevel && row.availableStock > 0).length,
-      outOfStock: filteredRows.filter((row) => row.availableStock <= 0).length,
-      inTransit: filteredRows.reduce((sum, row) => sum + Number(row.inTransit || 0), 0),
-    }),
-    [filteredRows],
+    () => {
+      const isLocalFiltered = warehouseFilter !== 'all' || itemFilter !== 'all' || sizeFilter !== 'all' || stockFilter !== 'all';
+      
+      const rawTotalQuantity = isLocalFiltered || searchText 
+        ? filteredRows.reduce((sum, row) => sum + Number(row.availableStock || 0), 0) 
+        : totalQuantity;
+
+      return {
+        // Use filtered rows for rows/qty ONLY if local filters (warehouse/item/size) are active
+        // Otherwise use the global totals from backend
+        totalRows: isLocalFiltered || searchText ? filteredRows.length : totalRows,
+        totalQuantity: Math.round(Number(rawTotalQuantity)),
+        lowStock: filteredRows.filter((row) => row.availableStock <= row.reorderLevel && row.availableStock > 0).length,
+        outOfStock: filteredRows.filter((row) => row.availableStock <= 0).length,
+        inTransit: filteredRows.reduce((sum, row) => sum + Number(row.inTransit || 0), 0),
+      };
+    },
+    [filteredRows, totalRows, totalQuantity, searchText, warehouseFilter, itemFilter, sizeFilter, typeFilter, stockFilter],
   );
 
   const exportRows = useMemo(() => toExportRows(filteredRows), [filteredRows]);
@@ -178,7 +201,8 @@ function StockOverviewPage() {
         </Paper>
       )}
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' }, gap: 2, mb: 2 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(5, 1fr)' }, gap: 2, mb: 2 }}>
+        <SummaryCard label="Total Stock Qty" value={summary.totalQuantity} helper="Sum of all available units." tone="info" />
         <SummaryCard label="Stock Rows" value={summary.totalRows} helper="Visible variant/location rows." />
         <SummaryCard label="Low Stock" value={summary.lowStock} helper="Rows at or below reorder level." tone="warning" />
         <SummaryCard label="Out Of Stock" value={summary.outOfStock} helper="Rows requiring urgent replenishment." tone="warning" />

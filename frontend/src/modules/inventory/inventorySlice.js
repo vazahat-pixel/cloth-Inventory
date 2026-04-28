@@ -10,7 +10,13 @@ export const fetchStockOverview = createAsyncThunk(
       const response = await api.get('/store-inventory', { params });
       const data = response.data.data || response.data;
       const raw = data.inventory || data.data || (Array.isArray(data) ? data : []);
-      return normalizeResponse(raw, 'inventory');
+      const normalized = normalizeResponse(raw, 'inventory');
+      
+      return {
+          stock: normalized,
+          total: data.total || normalized.length,
+          totalQuantity: data.totalQuantity || 0
+      };
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch stock');
     }
@@ -181,6 +187,8 @@ export const applyPurchaseReturn = createAsyncThunk(
 const initialState = {
   warehouses: [],
   stock: [],
+  total: 0,
+  totalQuantity: 0,
   export: [],
   dispatches: [],
   movements: [],
@@ -204,7 +212,9 @@ const inventorySlice = createSlice({
       })
       .addCase(fetchStockOverview.fulfilled, (state, action) => {
         state.loading = false;
-        state.stock = action.payload || [];
+        state.stock = action.payload.stock || [];
+        state.total = action.payload.total || 0;
+        state.totalQuantity = action.payload.totalQuantity || 0;
       })
       .addCase(fetchStockOverview.rejected, (state, action) => {
         state.loading = false;

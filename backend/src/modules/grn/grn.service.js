@@ -96,9 +96,111 @@ const settleConsumption = async ({ grnId, supplierId, warehouseId, jobWorkId, co
     return record[0];
 };
 
+// ─── Opening Balance: Batch-Optimized Handler ─────────────────────────────────
+
+const _createOpeningBalanceGRN = async (grnData, userId) => {
+    const {
+        warehouseId,
+        remarks, items,
+        supplierId, invoiceNumber, invoiceDate
+    } = grnData;
+
+    if (!warehouseId) throw new Error('Warehouse is required for Opening Balance entry');
+    if (!items || items.length === 0) throw new Error('At least one item is required');
+
+    // 1. Create the GRN Header in a quick transaction
+    const grn = await withTransaction(async (session) => {
+        const processedItems = items.map(item => ({
+            itemId: item.itemId,
+            variantId: item.variantId || item.itemId.toString(),
+            sku: item.sku || item.barcode || 'OB-ENTRY',
+            itemName: item.itemName || '',
+            size: item.size || '',
+            color: item.color || '',
+            uom: item.uom || 'PCS',
+            receivedQty: Number(item.receivedQty || item.qty || 0),
+            costPrice: Number(item.costPrice || item.rate || 0),
+            taxPercent: 0,
+            taxAmount: 0,
+            totalWithTax: Number(item.costPrice || 0) * Number(item.receivedQty || 0),
+            discount: 0,
+            batchNumber: `OB-${Date.now().toString().slice(-6)}`
+        }));
+
+        const totalQty = processedItems.reduce((s, i) => s + i.receivedQty, 0);
+        const totalValue = processedItems.reduce((s, i) => s + (i.costPrice * i.receivedQty), 0);
+        const grnNumber = await generateGrnNumber(session);
+
+        const newGrn = new GRN({
+            grnNumber,
+            grnType: 'OPENING_BALANCE',
+            supplierId: supplierId || null,
+            warehouseId,
+            invoiceNumber: invoiceNumber || `OB-${new Date().getFullYear()}`,
+            invoiceDate: invoiceDate || new Date(),
+            remarks: remarks || 'Opening Balance Stock Entry (Bulk)',
+            items: processedItems,
+            totalQty,
+            totalValue,
+            totalTaxAmount: 0,
+            grandTotal: totalValue,
+            receivedBy: userId,
+            status: GrnStatus.DRAFT
+        });
+        await newGrn.save({ session });
+        return newGrn;
+    });
+
+    // 2. Process stock in batches, each with its own transaction to avoid timeout
+    const stockService = require('../../services/stock.service');
+    const validItems = grn.items.filter(i => i.receivedQty > 0).map(item => ({
+        itemId: item.itemId,
+        variantId: item.variantId,
+        barcode: item.sku,
+        receivedQty: item.receivedQty,
+        costPrice: item.costPrice
+    }));
+
+    if (validItems.length > 0) {
+        const BATCH_SIZE = 500;
+        console.log(`🚀 [GRN-DEBUG] Starting Bulk Stock Post for ${validItems.length} items in batches of ${BATCH_SIZE}... WarehouseID: ${warehouseId}`);
+        
+        for (let i = 0; i < validItems.length; i += BATCH_SIZE) {
+            const batch = validItems.slice(i, i + BATCH_SIZE);
+            await withTransaction(async (session) => {
+                await stockService.bulkAddStock(batch, {
+                    referenceId: grn._id,
+                    referenceType: 'GRN',
+                    performedBy: userId,
+                    locationId: warehouseId,
+                    locationType: 'WAREHOUSE',
+                    session
+                });
+            });
+            console.log(`✅ Batch ${Math.floor(i / BATCH_SIZE) + 1} processed (${Math.min(i + BATCH_SIZE, validItems.length)}/${validItems.length})`);
+        }
+    }
+
+    // 3. Finalize GRN Status
+    await withTransaction(async (session) => {
+        const finalGrn = await GRN.findById(grn._id).session(session);
+        finalGrn.status = GrnStatus.APPROVED;
+        await finalGrn.save({ session });
+        await workflowService.updateStatus(finalGrn._id, DocumentType.GRN, GrnStatus.DRAFT, GrnStatus.APPROVED, userId, `Opening Balance GRN ${finalGrn.grnNumber} posted in bulk`);
+    });
+
+    return grn;
+};
+
 // ─── Step 1: Create GRN (Draft) ───────────────────────────────────────────────
 
 const createGRN = async (grnData, userId) => {
+    // For Opening Balance with 9000+ items, we handle transactions internally per batch
+    // to avoid MongoDB 'transactionLifetimeLimitSeconds' (60s) timeout.
+    if (grnData.grnType === 'OPENING_BALANCE') {
+        return await _createOpeningBalanceGRN(grnData, userId);
+    }
+
     return await withTransaction(async (session) => {
         const {
             grnType = 'FABRIC',
@@ -109,76 +211,6 @@ const createGRN = async (grnData, userId) => {
             jobWorkId,
             consumptionDetails
         } = grnData;
-
-        // ── OPENING_BALANCE: Fast path — no supplier, no PO, just post stock ──
-        if (grnType === 'OPENING_BALANCE') {
-            if (!warehouseId) throw new Error('Warehouse is required for Opening Balance entry');
-            if (!items || items.length === 0) throw new Error('At least one item is required');
-
-            const processedItems = items.map(item => ({
-                itemId: item.itemId,
-                variantId: item.variantId || item.itemId.toString(),
-                sku: item.sku || item.barcode || 'OB-ENTRY',
-                itemName: item.itemName || '',
-                size: item.size || '',
-                color: item.color || '',
-                uom: item.uom || 'PCS',
-                receivedQty: Number(item.receivedQty || item.qty || 0),
-                costPrice: Number(item.costPrice || item.rate || 0),
-                taxPercent: 0,
-                taxAmount: 0,
-                totalWithTax: Number(item.costPrice || 0) * Number(item.receivedQty || 0),
-                discount: 0,
-                batchNumber: `OB-${Date.now().toString().slice(-6)}`
-            }));
-
-            const totalQty = processedItems.reduce((s, i) => s + i.receivedQty, 0);
-            const totalValue = processedItems.reduce((s, i) => s + (i.costPrice * i.receivedQty), 0);
-            const grnNumber = await generateGrnNumber(session);
-
-            const grn = new GRN({
-                grnNumber,
-                grnType: 'OPENING_BALANCE',
-                supplierId: supplierId || null,
-                warehouseId,
-                invoiceNumber: invoiceNumber || `OB-${new Date().getFullYear()}`,
-                invoiceDate: invoiceDate || new Date(),
-                remarks: remarks || 'Opening Balance Stock Entry',
-                items: processedItems,
-                totalQty,
-                totalValue,
-                totalTaxAmount: 0,
-                grandTotal: totalValue,
-                receivedBy: userId,
-                status: GrnStatus.DRAFT
-            });
-            await grn.save({ session });
-
-            // Auto-post stock immediately
-            const stockService = require('../../services/stock.service');
-            for (const item of processedItems) {
-                if (item.receivedQty > 0) {
-                    await stockService.addStock({
-                        itemId: item.itemId,
-                        barcode: item.sku,
-                        variantId: item.variantId,
-                        locationId: warehouseId,
-                        locationType: 'WAREHOUSE',
-                        qty: item.receivedQty,
-                        type: 'OPENING_BALANCE',
-                        referenceId: grn._id,
-                        referenceType: 'GRN',
-                        performedBy: userId,
-                        session
-                    });
-                }
-            }
-
-            grn.status = GrnStatus.APPROVED;
-            await grn.save({ session });
-            await workflowService.updateStatus(grn._id, DocumentType.GRN, GrnStatus.DRAFT, GrnStatus.APPROVED, userId, `Opening Balance GRN ${grnNumber} posted`);
-            return grn;
-        }
 
         // 1. Validate Parent Document (Optional for Direct GRN)
         let parentDoc = null;

@@ -54,9 +54,9 @@ const getProductForSale = async (barcode, storeId) => {
         $or: [
             { "sizes.barcode": barcode }, 
             { "sizes.sku": barcode }
-        ], 
+        ],
         isActive: true 
-    });
+    }).populate('hsCodeId');
     
     if (!parentItem) throw new Error('Product not found for this identifier: ' + barcode);
 
@@ -83,7 +83,8 @@ const getProductForSale = async (barcode, storeId) => {
         mrp: toNumber(variant.mrp || parentItem.mrp || variant.salePrice || parentItem.salePrice),
         available: availableQty,
         category: parentItem.categoryId,
-        brand: parentItem.brand
+        brand: parentItem.brand,
+        hsnCode: parentItem.hsCodeId?.code || parentItem.hsnCode || ''
     };
 };
 
@@ -186,24 +187,41 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             const rate = toNumber(item.rate || item.price || variant?.salePrice || parentItem.salePrice);
             const discount = toNumber(item.discount || 0);
 
-            const taxableAmount = (rate * item.quantity);
-            calculatedSubTotal += taxableAmount;
-
-            let gstData = { cgst: 0, sgst: 0, igst: 0, totalTax: 0 };
-            const gstPercentage = parentItem.gstTax || 0;
+            const lineTotal = (rate * item.quantity);
+            const gstPercentage = item.taxPercentage || parentItem.gstTax || 0;
             
-            // If tax data is already provided (e.g. from Dispatch module), use it
-            if (item.taxAmount !== undefined && item.taxAmount !== null) {
-                gstData = {
-                    cgst: toNumber(item.cgst),
-                    sgst: toNumber(item.sgst),
-                    igst: toNumber(item.igst),
-                    totalTax: toNumber(item.taxAmount)
-                };
-            } else if (gstPercentage > 0) {
+            let taxableAmount;
+            let gstData = { cgst: 0, sgst: 0, igst: 0, totalTax: 0 };
+
+            if (saleData.isInclusiveTax) {
+                // Back-calculate taxable from inclusive total
+                taxableAmount = lineTotal / (1 + (gstPercentage / 100));
+                const totalTaxLine = lineTotal - taxableAmount;
                 const gstType = saleData.gstType || 'CGST_SGST';
-                gstData = calculateGST(taxableAmount, gstPercentage, gstType);
+                
+                if (gstType === 'CGST_SGST') {
+                    const cgst = totalTaxLine / 2;
+                    gstData = { cgst, sgst: totalTaxLine - cgst, igst: 0, totalTax: totalTaxLine };
+                } else {
+                    gstData = { cgst: 0, sgst: 0, igst: totalTaxLine, totalTax: totalTaxLine };
+                }
+            } else {
+                taxableAmount = lineTotal;
+                // If tax data is already provided (e.g. from Dispatch module), use it
+                if (item.taxAmount !== undefined && item.taxAmount !== null) {
+                    gstData = {
+                        cgst: toNumber(item.cgst),
+                        sgst: toNumber(item.sgst),
+                        igst: toNumber(item.igst),
+                        totalTax: toNumber(item.taxAmount)
+                    };
+                } else if (gstPercentage > 0) {
+                    const gstType = saleData.gstType || 'CGST_SGST';
+                    gstData = calculateGST(taxableAmount, gstPercentage, gstType);
+                }
             }
+
+            calculatedSubTotal += taxableAmount;
 
             totalCGST += gstData.cgst;
             totalSGST += gstData.sgst;
@@ -213,6 +231,12 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             // Updated item object for sale record
             item.itemId = parentItem._id;
             item.variantId = inventory.variantId;
+            item.itemName = item.itemName || parentItem.itemName || parentItem.name;
+            item.sku = item.sku || variant?.sku || parentItem.sku;
+            item.hsnCode = item.hsnCode || parentItem.hsnCode || parentItem.hsCodeId?.code || '';
+            item.category = item.category || parentItem.categoryName || parentItem.categoryId?.name || '';
+            item.brand = item.brand || parentItem.brandName || parentItem.brandId?.name || '';
+            item.promoDiscount = toNumber(item.promoDiscount);
             item.mrp = mrp;
             item.rate = rate;
             item.taxAmount = gstData.totalTax;

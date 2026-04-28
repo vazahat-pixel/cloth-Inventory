@@ -14,6 +14,7 @@ import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import BugReportOutlinedIcon from '@mui/icons-material/BugReportOutlined';
 import MonitorHeartOutlinedIcon from '@mui/icons-material/MonitorHeartOutlined';
 import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
+import CloudUploadOutlinedIcon from '@mui/icons-material/CloudUploadOutlined';
 
 export const inventoryMatchPaths = ['/inventory'];
 
@@ -60,6 +61,12 @@ export const inventoryNavItems = [
     label: "Lot / Rate Correction",
     path: '/ho/inventory/overwrite-lot-rates',
     icon: DifferenceOutlinedIcon,
+  },
+  {
+    key: 'bulk-import-store-stock',
+    label: 'Bulk Import Store Stock (Excel)',
+    path: '/ho/inventory/bulk-import-store-stock',
+    icon: CloudUploadOutlinedIcon,
   },
 ];
 

@@ -19,12 +19,14 @@ import {
 } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
-import { fetchChallans, updateChallanStatus } from './dispatchSlice';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import { fetchChallans, updateChallanStatus, deleteChallan } from './dispatchSlice';
 import BillPrintDialog from '../../components/BillPrintDialog';
 import StandardInvoicePrint from '../sales/StandardInvoicePrint';
 import SaleChallanPrint from '../sales/SaleChallanPrint';
 import { useNotification } from '../../context/NotificationProvider';
 import { useLoading } from '../../context/LoadingProvider';
+import { useConfirm } from '../../context/ConfirmProvider';
 
 function DeliveryChallanPage({
     pageTitle = 'Delivery Challans',
@@ -38,6 +40,7 @@ function DeliveryChallanPage({
     const { user } = useSelector((state) => state.auth);
     const { showNotification } = useNotification();
     const { showLoading, hideLoading } = useLoading();
+    const { showConfirm } = useConfirm();
 
     const normalizedRole = String(user?.role || '').toLowerCase();
     const isStoreUser = normalizedRole.includes('staff') || normalizedRole.includes('manager') || normalizedRole.includes('accountant');
@@ -47,6 +50,29 @@ function DeliveryChallanPage({
     useEffect(() => {
         dispatch(fetchChallans());
     }, [dispatch]);
+
+    const handleDelete = async (target) => {
+        const id = target.id || target._id;
+        
+        const confirmed = await showConfirm({
+            title: 'Delete Delivery Challan?',
+            message: `Are you sure you want to delete challan ${target?.challanNumber || ''}? This will reverse all associated stock movements from the ${target?.status === 'RECEIVED' ? 'store and warehouse' : 'warehouse'}. This action cannot be undone.`,
+            confirmText: 'Yes, Delete & Reverse Stock',
+            severity: 'error'
+        });
+
+        if (!confirmed) return;
+
+        showLoading('Reversing stock and deleting challan...');
+        try {
+            await dispatch(deleteChallan(id)).unwrap();
+            showNotification('Challan deleted and stock reversed successfully.', 'success');
+        } catch (err) {
+            showNotification(err?.message || 'Failed to delete challan.', 'error');
+        } finally {
+            hideLoading();
+        }
+    };
 
     const handleMarkReceived = async (row) => {
         const id = row.id || row._id;
@@ -209,6 +235,17 @@ function DeliveryChallanPage({
                                                             Billing Review
                                                         </Button>
                                                     )}
+
+                                                    {!isStoreUser && (
+                                                        <IconButton
+                                                            size="small"
+                                                            color="error"
+                                                            onClick={() => handleDelete(row)}
+                                                            disabled={loading}
+                                                        >
+                                                            <DeleteOutlineIcon fontSize="small" />
+                                                        </IconButton>
+                                                    )}
                                                 </Stack>
                                             </TableCell>
                                         </TableRow>
@@ -237,7 +274,7 @@ function DeliveryChallanPage({
                         <StandardInvoicePrint 
                             sale={printTarget} 
                             isTransfer={(printTarget.sourceWarehouseId?.gstNumber || '').trim().toUpperCase() === (printTarget.destinationStoreId?.gstNumber || '').trim().toUpperCase()} 
-                        />
+                            />
                     ) : (
                         <SaleChallanPrint challan={printTarget} />
                     )

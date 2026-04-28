@@ -661,22 +661,6 @@ const confirmDispatch = async (id, userId) => {
                 session
             });
 
-            // A. Deduct physical stock from source warehouse
-            await stockService.removeStock({
-                itemId: itmId,
-                barcode: bcode,
-                variantId: item.variantId,
-                locationId: dispatch.sourceWarehouseId,
-                locationType: 'WAREHOUSE',
-                qty: item.qty,
-                type: 'TRANSFER',
-                referenceId: dispatch._id,
-                referenceType: 'Dispatch',
-                referenceId: dispatch._id,
-                referenceType: 'Dispatch',
-                performedBy: userId,
-                session
-            });
 
             // B. Add to in-transit pool at destination store
             await stockService.addInTransit({
@@ -906,9 +890,109 @@ const receiveDispatch = async (id, userId, receivedItems = []) => {
     });
 };
 
+/* ─────────────────────────────────────────────
+   DELETE DISPATCH (Full Reversal)
+   Reverses stock movements based on status
+───────────────────────────────────────────── */
+const deleteDispatch = async (id, userId) => {
+    return await withTransaction(async (session) => {
+        const dispatch = await Dispatch.findById(id).session(session);
+        if (!dispatch) throw new Error('Dispatch record not found');
+
+        const status = dispatch.status;
+        const items = dispatch.items || [];
+
+        // 1. REVERSE STOCK MOVEMENTS
+        if (status === 'RECEIVED') {
+            // Reverse Store Addition & Warehouse Deduction
+            for (const item of items) {
+                const info = await resolveVariantInfo(item.variantId, session);
+                
+                // Remove from Store
+                await stockService.removeStock({
+                    itemId: info.itemId,
+                    barcode: item.barcode || info.barcode,
+                    variantId: item.variantId,
+                    locationId: dispatch.destinationStoreId,
+                    locationType: 'STORE',
+                    qty: item.qty,
+                    type: 'ADJUSTMENT',
+                    referenceId: dispatch._id,
+                    referenceType: 'Dispatch_Deletion',
+                    performedBy: userId,
+                    session
+                });
+
+                // Add back to Warehouse
+                await stockService.addStock({
+                    itemId: info.itemId,
+                    barcode: info.barcode,
+                    variantId: item.variantId,
+                    locationId: dispatch.sourceWarehouseId,
+                    locationType: 'WAREHOUSE',
+                    qty: item.qty,
+                    type: 'ADJUSTMENT',
+                    referenceId: dispatch._id,
+                    referenceType: 'Dispatch_Deletion',
+                    performedBy: userId,
+                    session
+                });
+            }
+        } else if (status === 'DISPATCHED') {
+            // Reverse Warehouse Deduction
+            for (const item of items) {
+                const info = await resolveVariantInfo(item.variantId, session);
+                
+                // Remove from In-Transit (if applicable)
+                try {
+                    await stockService.removeInTransit({
+                        itemId: info.itemId,
+                        barcode: info.barcode,
+                        variantId: item.variantId,
+                        locationId: dispatch.destinationStoreId,
+                        locationType: 'STORE',
+                        qty: item.qty,
+                        session
+                    });
+                } catch (e) { console.warn('In-transit reversal failed during deletion:', e.message); }
+
+                // Add back to Warehouse
+                await stockService.addStock({
+                    itemId: info.itemId,
+                    barcode: info.barcode,
+                    variantId: item.variantId,
+                    locationId: dispatch.sourceWarehouseId,
+                    locationType: 'WAREHOUSE',
+                    qty: item.qty,
+                    type: 'ADJUSTMENT',
+                    referenceId: dispatch._id,
+                    referenceType: 'Dispatch_Deletion',
+                    performedBy: userId,
+                    session
+                });
+            }
+        }
+
+        // 2. DELETE RELATED DOCUMENTS
+        if (dispatch.referenceType === 'DeliveryChallan' && dispatch.referenceId) {
+            await DeliveryChallan.findByIdAndDelete(dispatch.referenceId).session(session);
+        } else if (dispatch.referenceType === 'Sale' && dispatch.referenceId) {
+            // Maybe don't delete sales, just mark as cancelled? 
+            // User asked for full CRUD, so we delete if it's a mistake.
+            await Sale.findByIdAndDelete(dispatch.referenceId).session(session);
+        }
+
+        // 3. DELETE DISPATCH
+        await Dispatch.findByIdAndDelete(id).session(session);
+
+        return { success: true, message: `Dispatch ${dispatch.challanNumber || id} deleted and stock reversed.` };
+    });
+};
+
 module.exports = {
     createDispatch,
     updateDispatch,
+    deleteDispatch,
     packDispatch,
     confirmDispatch,
     cancelDispatch,

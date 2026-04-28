@@ -46,17 +46,22 @@ class PricingService {
         };
 
         for (const scheme of schemes) {
+            const type = (scheme.type || '').toUpperCase();
             // 1. Basic Threshold Check
             if (scheme.minPurchaseAmount > 0 && totalAmount < scheme.minPurchaseAmount) continue;
             
-            const totalQty = items.reduce((acc, i) => acc + i.quantity, 0);
+            const totalQty = items.reduce((acc, i) => acc + Number(i.qty || i.quantity || 0), 0);
             if (scheme.minPurchaseQuantity > 0 && totalQty < scheme.minPurchaseQuantity) continue;
 
             // 2. Eligibility by Category/Brand/Product
             const eligibleItems = items.filter(item => {
-                const isCatApplicable = !scheme.applicableCategories.length || scheme.applicableCategories.includes(item.category);
-                const isBrandApplicable = !scheme.applicableBrands.length || scheme.applicableBrands.includes(item.brand);
-                const isProductApplicable = !scheme.applicableProducts.length || scheme.applicableProducts.includes(item.productId);
+                const category = item.category;
+                const brand = item.brand;
+                const productId = item.productId || item.variantId || item.id;
+
+                const isCatApplicable = !scheme.applicableCategories?.length || scheme.applicableCategories.some(id => String(id) === String(category));
+                const isBrandApplicable = !scheme.applicableBrands?.length || scheme.applicableBrands.some(b => String(b) === String(brand));
+                const isProductApplicable = !scheme.applicableProducts?.length || scheme.applicableProducts.some(id => String(id) === String(productId));
                 return isCatApplicable && isBrandApplicable && isProductApplicable;
             });
 
@@ -65,43 +70,43 @@ class PricingService {
             let schemeDiscount = 0;
 
             // 3. Apply Scheme logic
-            switch (scheme.type) {
-                case 'PERCENTAGE':
-                    schemeDiscount = eligibleItems.reduce((acc, item) => acc + (item.price * item.quantity * (scheme.value / 100)), 0);
-                    break;
-                case 'FLAT':
-                    // Flat discount per eligible item? Or per bill? Usually per bill for flat
-                    schemeDiscount = scheme.value;
-                    break;
-                case 'BOGO': // Buy 1 Get 1 (Free)
-                    schemeDiscount = eligibleItems.reduce((acc, item) => {
-                        const freeCount = Math.floor(item.quantity / 2);
-                        return acc + (freeCount * item.price);
-                    }, 0);
-                    break;
-                case 'BUY_X_GET_Y':
-                    schemeDiscount = eligibleItems.reduce((acc, item) => {
-                        const sets = Math.floor(item.quantity / (scheme.buyQuantity + scheme.getQuantity));
-                        const freeCount = sets * scheme.getQuantity;
-                        return acc + (freeCount * item.price);
-                    }, 0);
-                    break;
-                case 'FIXED_PRICE': // Any X items for Fixed Amount Y
-                    schemeDiscount = eligibleItems.reduce((acc, item) => {
-                        if (scheme.buyQuantity > 0) {
-                            const sets = Math.floor(item.quantity / scheme.buyQuantity);
-                            const standardCost = sets * scheme.buyQuantity * item.price;
-                            const comboCost = sets * (scheme.value || 0);
-                            return acc + (standardCost - comboCost);
-                        }
-                        return acc;
-                    }, 0);
-                    break;
-                case 'FREE_GIFT': // Metadata purely - staff gives gift
-                    schemeDiscount = 0;
-                    break;
-                default:
-                    break;
+            if (type === 'PERCENTAGE' || type.includes('PERCENTAGE')) {
+                schemeDiscount = eligibleItems.reduce((acc, item) => {
+                    const q = Number(item.qty || item.quantity || 0);
+                    const p = Number(item.price || item.rate || 0);
+                    return acc + (p * q * (scheme.value / 100));
+                }, 0);
+            } else if (type === 'FLAT' || type.includes('FLAT')) {
+                schemeDiscount = scheme.value;
+            } else if (type === 'BOGO') {
+                schemeDiscount = eligibleItems.reduce((acc, item) => {
+                    const q = Number(item.qty || item.quantity || 0);
+                    const p = Number(item.price || item.rate || 0);
+                    const freeCount = Math.floor(q / 2);
+                    return acc + (freeCount * p);
+                }, 0);
+            } else if (type === 'BUY_X_GET_Y') {
+                schemeDiscount = eligibleItems.reduce((acc, item) => {
+                    const q = Number(item.qty || item.quantity || 0);
+                    const p = Number(item.price || item.rate || 0);
+                    const sets = Math.floor(q / (scheme.buyQuantity + scheme.getQuantity));
+                    const freeCount = sets * scheme.getQuantity;
+                    return acc + (freeCount * p);
+                }, 0);
+            } else if (type === 'FIXED_PRICE') {
+                schemeDiscount = eligibleItems.reduce((acc, item) => {
+                    const q = Number(item.qty || item.quantity || 0);
+                    const p = Number(item.price || item.rate || 0);
+                    if (scheme.buyQuantity > 0) {
+                        const sets = Math.floor(q / scheme.buyQuantity);
+                        const standardCost = sets * scheme.buyQuantity * p;
+                        const comboCost = sets * (scheme.value || 0);
+                        return acc + (standardCost - comboCost);
+                    }
+                    return acc;
+                }, 0);
+            } else if (type === 'FREE_GIFT') {
+                schemeDiscount = 0;
             }
 
             if (schemeDiscount > 0 || eligibleItems.length > 0) {

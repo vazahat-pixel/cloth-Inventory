@@ -41,6 +41,16 @@ class ItemController {
     }
   }
 
+  validateBarcodes = async (req, res) => {
+    try {
+      const { barcodes } = req.body;
+      const data = await itemService.validateBarcodes(barcodes);
+      return sendSuccess(res, { data }, 'Barcodes validated');
+    } catch (error) {
+      return sendError(res, error.message);
+    }
+  };
+
   getAllItems = async (req, res) => {
     try {
       const items = await itemService.getAllItems(req.query, req.user);
@@ -153,20 +163,21 @@ class ItemController {
         return sendError(res, 'identifiers array is required', 400);
       }
       const results = await itemService.resolveBulkItems(identifiers);
-      return sendSuccess(res, results, 'Items resolved');
+      return sendSuccess(res, { data: results }, 'Items resolved');
     } catch (error) {
       return sendError(res, error.message);
     }
   };
 
   resolveOpeningBalanceItems = async (req, res) => {
+    console.log('🚀 ITEM_CONTROLLER: resolveOpeningBalanceItems hit');
     try {
       const { rows } = req.body;
       if (!Array.isArray(rows)) {
         return sendError(res, 'rows array is required', 400);
       }
       const results = await itemService.resolveOpeningBalanceItems(rows);
-      return sendSuccess(res, results, 'Items resolved for opening balance');
+      return sendSuccess(res, { data: results }, 'Items resolved for opening balance');
     } catch (error) {
       return sendError(res, error.message);
     }

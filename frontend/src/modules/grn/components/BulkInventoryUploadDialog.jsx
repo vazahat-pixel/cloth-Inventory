@@ -65,11 +65,14 @@ const BulkInventoryUploadDialog = ({ open, onClose, onUploadSuccess, warehouseId
     reader.onload = async (event) => {
       try {
         const bstr = event.target.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
+        // Optimized reading options
+        const wb = XLSX.read(bstr, { type: 'binary', cellDates: true, cellNF: false, cellText: false });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
-        const json = XLSX.utils.sheet_to_json(ws);
+        const json = XLSX.utils.sheet_to_json(ws, { defval: '' });
         
+        console.log(`📊 EXCEL_UPLOAD: Read ${json.length} rows from file`);
+
         if (json.length === 0) {
           setError('The Excel file is empty.');
           setLoading(false);
@@ -163,10 +166,11 @@ const BulkInventoryUploadDialog = ({ open, onClose, onUploadSuccess, warehouseId
   };
 
   const stats = useMemo(() => {
-    const total = resolvedData.length;
-    const matched = resolvedData.filter(d => d.matched).length;
+    const data = Array.isArray(resolvedData) ? resolvedData : [];
+    const total = data.length;
+    const matched = data.filter(d => d.matched).length;
     const unmatched = total - matched;
-    const totalQty = resolvedData.reduce((sum, d) => sum + Number(d.qty || 0), 0);
+    const totalQty = data.reduce((sum, d) => sum + Number(d.qty || 0), 0);
     return { total, matched, unmatched, totalQty };
   }, [resolvedData]);
 

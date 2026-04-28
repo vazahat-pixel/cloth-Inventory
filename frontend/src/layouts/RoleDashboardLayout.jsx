@@ -25,7 +25,9 @@ function RoleDashboardLayout() {
       sx={{
         minHeight: '100vh',
         display: 'flex',
-        background: 'linear-gradient(135deg, #f0f9ff 0%, #f5f3ff 50%, #f0fdf4 100%)',
+        background: pathRole === 'store'
+          ? 'linear-gradient(135deg, #fdf4ff 0%, #fff1f2 50%, #fff7ed 100%)' // Warm/Pink/Orange for Store
+          : 'linear-gradient(135deg, #f0f9ff 0%, #f5f3ff 50%, #f0fdf4 100%)', // Original for HO
       }}
     >
       <RoleSidebar 

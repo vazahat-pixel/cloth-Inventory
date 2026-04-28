@@ -75,6 +75,15 @@ const cancel = async (req, res, next) => {
     }
 };
 
+const remove = async (req, res, next) => {
+    try {
+        const result = await dispatchService.deleteDispatch(req.params.id, req.user._id);
+        return sendSuccess(res, result, 'Dispatch deleted successfully');
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     create,
     update,
@@ -83,5 +92,6 @@ module.exports = {
     getById,
     pack,
     confirm,
-    cancel
+    cancel,
+    remove
 };

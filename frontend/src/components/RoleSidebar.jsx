@@ -90,11 +90,11 @@ const RoleSidebar = ({ navConfig, isCollapsed, onToggle }) => {
     py: isChild ? 0.8 : 1.2,
     px: isCollapsed ? 1.5 : 2,
     transition: 'all 0.2s ease',
-    backgroundColor: isActive ? '#f3f4ff' : 'transparent',
-    color: isActive ? '#6366f1' : '#64748b',
+    backgroundColor: isActive ? (basePath === '/store' ? '#fff1f2' : '#f3f4ff') : 'transparent',
+    color: isActive ? (basePath === '/store' ? '#be185d' : '#6366f1') : '#64748b',
     '&:hover': {
-      backgroundColor: isActive ? '#f3f4ff' : '#f8fafc',
-      color: isActive ? '#6366f1' : '#334155',
+      backgroundColor: isActive ? (basePath === '/store' ? '#fff1f2' : '#f3f4ff') : '#f8fafc',
+      color: isActive ? (basePath === '/store' ? '#be185d' : '#6366f1') : '#334155',
     },
     justifyContent: isCollapsed ? 'center' : 'flex-start',
     minHeight: isChild ? 40 : 48,
@@ -122,7 +122,7 @@ const RoleSidebar = ({ navConfig, isCollapsed, onToggle }) => {
                   sx={{
                     minWidth: isCollapsed ? 0 : 32,
                     mr: isCollapsed ? 0 : 1.5,
-                    color: isActive ? '#6366f1' : '#94a3b8',
+                    color: isActive ? (basePath === '/store' ? '#ec4899' : '#6366f1') : '#94a3b8',
                     justifyContent: 'center',
                   }}
                 >
@@ -171,16 +171,22 @@ const RoleSidebar = ({ navConfig, isCollapsed, onToggle }) => {
                 width: drilldown ? 32 : 38,
                 height: drilldown ? 32 : 38,
                 borderRadius: '11px',
-                background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+                background: basePath === '/store' 
+                  ? 'linear-gradient(135deg, #ec4899 0%, #f97316 100%)' 
+                  : 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: 'white',
-                boxShadow: '0 4px 10px rgba(99, 102, 241, 0.3)',
+                boxShadow: basePath === '/store'
+                  ? '0 4px 10px rgba(236, 72, 153, 0.3)'
+                  : '0 4px 10px rgba(99, 102, 241, 0.3)',
                 flexShrink: 0
               }}
             >
-              <Typography sx={{ fontWeight: 900, fontSize: drilldown ? '1.1rem' : '1.3rem', lineHeight: 1 }}>H</Typography>
+              <Typography sx={{ fontWeight: 900, fontSize: drilldown ? '1.1rem' : '1.3rem', lineHeight: 1 }}>
+                {basePath === '/store' ? 'S' : 'H'}
+              </Typography>
             </Box>
             <Typography
               variant="h6"
@@ -194,7 +200,7 @@ const RoleSidebar = ({ navConfig, isCollapsed, onToggle }) => {
                 lineHeight: 1,
               }}
             >
-              {navConfig.label || 'Head Office'}
+              {basePath === '/store' ? 'Store Panel' : (navConfig.label || 'Head Office')}
             </Typography>
           </Box>
         )}
@@ -206,12 +212,16 @@ const RoleSidebar = ({ navConfig, isCollapsed, onToggle }) => {
               width: 44,
               height: 44,
               borderRadius: '14px',
-              background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+              background: basePath === '/store'
+                ? 'linear-gradient(135deg, #ec4899 0%, #f97316 100%)'
+                : 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: 'white',
-              boxShadow: '0 4px 12px rgba(99, 102, 241, 0.4)',
+              boxShadow: basePath === '/store'
+                ? '0 4px 12px rgba(236, 72, 153, 0.4)'
+                : '0 4px 12px rgba(99, 102, 241, 0.4)',
               m: 'auto',
               '&:hover': {
                 background: 'linear-gradient(135deg, #4f46e5 0%, #9333ea 100%)',

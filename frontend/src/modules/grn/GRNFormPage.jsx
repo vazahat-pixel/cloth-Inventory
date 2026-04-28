@@ -43,6 +43,7 @@ import { fetchOutwards } from '../production/productionSlice';
 import PieceEntryDialog from './PieceEntryDialog';
 import BulkInventoryUploadDialog from './components/BulkInventoryUploadDialog';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
+import { calculateGST } from '../../utils/taxCalculator';
 
 const defaultForm = {
   grnNumber: '',
@@ -73,6 +74,10 @@ function GRNFormPage({ mode = 'edit' }) {
   const suppliers = useSelector((state) => state.masters.suppliers || []);
   const allItems = useSelector((state) => state.items.records || []);
   const supplierOutwards = useSelector((state) => state.production.outwards || []);
+  const taxRules = useSelector((state) => state.masters.taxRules || []);
+
+  const user = useSelector((state) => state.auth.user);
+  const isStoreStaff = user?.role !== 'Admin';
 
   const [formValues, setFormValues] = useState(defaultForm);
   const [lines, setLines] = useState([]);
@@ -109,6 +114,7 @@ function GRNFormPage({ mode = 'edit' }) {
     dispatch(fetchMasters('suppliers'));
     dispatch(fetchItems());
     dispatch(fetchOutwards());
+    dispatch(fetchMasters('taxRules'));
   }, [dispatch]);
 
   const fetchWarehouseFabrics = async (warehouseId) => {
@@ -184,6 +190,8 @@ function GRNFormPage({ mode = 'edit' }) {
           receivedQty: item.receivedQty || 0,
           costPrice: item.costPrice || 0,
           taxPercent: item.taxPercent || item.tax || 0,
+          hsnCode: masterItem.hsnCode || '',
+          category: masterItem.categoryName || masterItem.type || '',
           batchNumber: item.batchNumber || ''
         };
       }));
@@ -240,6 +248,8 @@ function GRNFormPage({ mode = 'edit' }) {
             uom: master?.uom || 'PCS',
             costPrice: variant?.mrp || item.costPrice || item.rate || 0,
             taxPercent: master?.gstPercent || item.taxPercent || 0,
+            hsnCode: master?.hsnCode || '',
+            category: master?.categoryName || master?.type || '',
             batchNumber: `B-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`
           };
         }));
@@ -266,12 +276,29 @@ function GRNFormPage({ mode = 'edit' }) {
   }, [formValues.jobWorkId, formValues.grnType, supplierOutwards, id]);
 
   const totals = useMemo(() => {
+    const rawTotal = lines.reduce((acc, curr) => acc + (Number(curr.costPrice || 0) * Number(curr.receivedQty || 0)), 0);
+    
+    // Detect slab based on rawTotal (exclusive of tax)
+    const slabInfo = calculateGST(rawTotal, null, null, taxRules);
+    const generalRate = slabInfo.rate;
+
     return lines.reduce((acc, curr) => {
       acc.received += Number(curr.receivedQty || 0);
-      acc.totalValue += (Number(curr.costPrice || 0) * Number(curr.receivedQty || 0));
+      
+      // Determine line tax rate
+      const itemRule = calculateGST(0, curr.sku || curr.barcode, curr.category, taxRules);
+      const lineTaxRate = (itemRule.type === 'FLAT') ? itemRule.rate : generalRate;
+      
+      const lineValue = (Number(curr.costPrice || 0) * Number(curr.receivedQty || 0));
+      const lineTax = (lineValue * lineTaxRate) / 100;
+      
+      acc.totalValue += lineValue + lineTax;
+      acc.totalTax += lineTax;
+      acc.generalRate = generalRate;
+      acc.gstSlabMessage = slabInfo.message;
       return acc;
-    }, { received: 0 });
-  }, [lines]);
+    }, { received: 0, totalValue: 0, totalTax: 0, generalRate: 5 });
+  }, [lines, taxRules]);
 
   const updateLine = (idx, field, val) => {
     const newLines = [...lines];
@@ -297,6 +324,8 @@ function GRNFormPage({ mode = 'edit' }) {
       uom: item.uom || 'PCS',
       costPrice: variant.mrp || 0,
       taxPercent: item?.gstPercent || 0,
+      hsnCode: item?.hsnCode || '',
+      category: item?.categoryName || item?.type || '',
       batchNumber: `B-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`
     };
     setLines(prev => [newLine, ...prev]);
@@ -317,6 +346,8 @@ function GRNFormPage({ mode = 'edit' }) {
       uom: item.uom || 'PCS',
       costPrice: v.mrp || 0,
       taxPercent: item?.gstPercent || 0,
+      hsnCode: item?.hsnCode || '',
+      category: item?.categoryName || item?.type || '',
       batchNumber: `B-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`
     }));
     setLines([...lines, ...newLines]);
@@ -354,15 +385,19 @@ function GRNFormPage({ mode = 'edit' }) {
       const payload = {
         ...formValues,
         items: lines
-          .map((l) => ({
-            itemId: l.itemId || l._id || l.id,
-            variantId: l.variantId || l.itemId || l._id || l.id,
-            sku: l.sku || l.itemCode || 'N/A',
-            receivedQty: Number(l.receivedQty || 0),
-            costPrice: Number(l.costPrice || 0),
-            taxPercent: Number(l.taxPercent || 0),
-            batchNumber: l.batchNumber || `B-${Date.now().toString().slice(-4)}`,
-          }))
+          .map((l) => {
+            const itemRule = calculateGST(0, l.sku || l.barcode, l.category, taxRules);
+            const lineTaxRate = (itemRule.type === 'FLAT' ? itemRule.rate : totals.generalRate);
+            return {
+              itemId: l.itemId || l._id || l.id,
+              variantId: l.variantId || l.itemId || l._id || l.id,
+              sku: l.sku || l.itemCode || 'N/A',
+              receivedQty: Number(l.receivedQty || 0),
+              costPrice: Number(l.costPrice || 0),
+              taxPercent: lineTaxRate,
+              batchNumber: l.batchNumber || `B-${Date.now().toString().slice(-4)}`,
+            };
+          })
           .filter((l) => l.receivedQty > 0),
         jobWorkId: formValues.jobWorkId,
         consumptionDetails: consumptionLines.map(cl => ({
@@ -424,6 +459,12 @@ function GRNFormPage({ mode = 'edit' }) {
           ) : null
         ]}
       />
+
+      {totals.gstSlabMessage && !isStoreStaff && (
+        <Alert icon={<CheckCircleOutlinedIcon fontSize="inherit" />} severity="info" sx={{ mb: 2, fontWeight: 700, bgcolor: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0' }}>
+          {totals.gstSlabMessage}
+        </Alert>
+      )}
 
       {errorMessage && <Alert severity="error" sx={{ mb: 2 }}>{errorMessage}</Alert>}
       {successMessage && <Alert severity="success" sx={{ mb: 2 }}>{successMessage}</Alert>}
@@ -615,6 +656,16 @@ function GRNFormPage({ mode = 'edit' }) {
                       <TextField type="number" size="small" value={line.receivedQty} onChange={e => updateLine(idx, 'receivedQty', e.target.value)} sx={{ width: 80 }} />
                     </TableCell>
                     <TableCell align="right">₹{line.costPrice}</TableCell>
+                    {!isStoreStaff && (
+                      <TableCell align="right">
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                          {(() => {
+                             const itemRule = calculateGST(0, line.sku || line.barcode, line.category, taxRules);
+                             return (itemRule.type === 'FLAT' ? itemRule.rate : totals.generalRate);
+                          })()}%
+                        </Typography>
+                      </TableCell>
+                    )}
                     {!isLocked && (
                       <TableCell align="center">
                         <IconButton color="error" onClick={() => removeLine(idx)}><DeleteOutlineIcon /></IconButton>
@@ -622,7 +673,7 @@ function GRNFormPage({ mode = 'edit' }) {
                     )}
                   </TableRow>
                 ))}
-                {!lines.length && <TableRow><TableCell colSpan={6} align="center" sx={{ py: 3 }}>No items added. Please scan garments.</TableCell></TableRow>}
+                {!lines.length && <TableRow><TableCell colSpan={7} align="center" sx={{ py: 3 }}>No items added. Please scan garments.</TableCell></TableRow>}
               </TableBody>
             </Table>
           </TableContainer>

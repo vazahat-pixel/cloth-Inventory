@@ -24,4 +24,6 @@ router.post('/:id/cancel-draft', dispatchController.cancel);
 // Mark as RECEIVED and Update Inventory
 router.post('/:id/receive', dispatchController.receive);
 
+router.delete('/:id', dispatchController.remove);
+
 module.exports = router;

@@ -9,9 +9,12 @@ class PricingController {
     evaluateOffers = async (req, res) => {
         try {
             const { items } = req.body;
+            console.log(`🚀 [PRICING-EVAL] Evaluating ${items?.length} items...`);
             const result = await promotionService.evaluate(items);
+            console.log(`✅ [PRICING-EVAL] Result: TotalDiscount=${result.totalDiscount}, AppliedCount=${result.appliedOffers.length}`);
             return sendSuccess(res, result, 'Offers evaluated successfully');
         } catch (error) {
+            console.error(`❌ [PRICING-EVAL] Error:`, error);
             return sendError(res, error.message, 400);
         }
     };

@@ -234,7 +234,7 @@ class InventoryController {
         warehouseId,
         $or: [{ barcode: barcode }, { variantId: barcode }]
       })
-        .populate('itemId');
+        .populate({ path: 'itemId', populate: { path: 'hsCodeId' } });
 
       if (!stock) {
         return sendNotFound(res, 'Item not found in this warehouse stock');
@@ -252,7 +252,8 @@ class InventoryController {
         size: variant?.size || '-',
         color: variant?.color || item.shade || '-',
         rate: variant?.mrp || item.salePrice || 0,
-        gstPercent: item.gstTax || 0
+        gstPercent: item.gstTax || 0,
+        hsnCode: item.hsCodeId?.code || item.hsnCode || ''
       };
 
       return sendSuccess(res, responseData, 'Item scanned successfully');

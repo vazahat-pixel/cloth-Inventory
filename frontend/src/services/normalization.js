@@ -87,63 +87,69 @@ const normalizeItem = (item, entityType) => {
                 normalized.storeName = item.storeId.name;
                 normalized.warehouseName = item.storeId.name;
             }
-
+            
             // Customer
             if (item.customerId && typeof item.customerId === 'object') {
                 normalized.customerId = item.customerId._id || item.customerId.id;
-                normalized.customerName = item.customerId.name;
-                normalized.customerMobile = item.customerId.phone;
+                normalized.customerName = item.customerId.name || item.customerId.customerName;
+                normalized.customerMobile = item.customerId.phone || item.customerId.mobileNumber;
             }
 
-            // Products
-            if (item.products) {
-                normalized.items = item.products.map(p => {
-                    const prod = (p.productId && typeof p.productId === 'object') ? p.productId : {};
-                    return {
-                        ...p,
-                        productId: prod._id || p.productId,
-                        variantId: prod._id || p.productId,
-                        itemName: prod.name || p.name || '',
-                        sku: prod.sku || p.barcode || '',
-                        size: prod.size || '',
-                        color: prod.color || '',
-                        rate: p.price || p.appliedPrice || 0,
-                        amount: p.total || 0,
-                        quantity: p.quantity || 0
-                    };
-                });
-            }
+            // Products / Items normalization
+            const rawItems = item.items || item.products || [];
+            normalized.items = rawItems.map(p => {
+                const prod = (p.itemId && typeof p.itemId === 'object') ? p.itemId : (p.productId && typeof p.productId === 'object' ? p.productId : {});
+                return {
+                    ...p,
+                    productId: prod._id || p.productId || p.itemId,
+                    variantId: p.variantId || prod._id || p.productId || p.itemId,
+                    itemName: p.itemName || prod.itemName || prod.name || p.name || '',
+                    sku: p.sku || p.barcode || prod.sku || '',
+                    size: p.size || prod.size || '',
+                    color: p.color || prod.color || '',
+                    rate: p.rate || p.price || 0,
+                    amount: p.total || 0,
+                    quantity: p.quantity || 0,
+                    discount: p.discount || 0
+                };
+            });
 
             // Totals
+            const totalLineDiscount = (normalized.items || []).reduce((sum, it) => sum + (it.discount || 0), 0);
+            const totalDiscount = item.discount || 0;
+            // billDiscount is the portion of discount NOT accounted for by lines
+            const billDiscount = Math.max(0, totalDiscount - totalLineDiscount);
+
             normalized.totals = {
-                subTotal: item.subTotal,
-                grossAmount: item.subTotal,
+                subTotal: item.subTotal || 0,
+                grossAmount: item.subTotal || 0,
                 tax: item.tax || item.totalTax || 0,
                 taxAmount: item.tax || item.totalTax || 0,
-                discount: item.discount || 0,
-                lineDiscount: item.lineDiscount || 0,
-                billDiscount: item.billDiscount || item.discount || 0,
-                grandTotal: item.grandTotal,
-                netPayable: item.grandTotal, // Expected by SalesListPage
-                totalQuantity: (item.products || []).reduce((sum, p) => sum + (p.quantity || 0), 0),
+                discount: totalDiscount,
+                lineDiscount: totalLineDiscount,
+                billDiscount: billDiscount,
+                schemeDiscount: item.schemeDiscount || 0,
+                grandTotal: item.grandTotal || 0,
+                netPayable: item.grandTotal || 0,
+                totalQuantity: (normalized.items || []).reduce((sum, p) => sum + (p.quantity || 0), 0),
                 loyaltyRedeemed: item.loyaltyRedeemed || 0,
                 redeemPoints: item.loyaltyRedeemed || 0
             };
 
-            normalized.date = item.saleDate ? new Date(item.saleDate).toISOString().split('T')[0] : '';
-            normalized.invoiceNumber = item.saleNumber;
+            normalized.date = item.saleDate ? new Date(item.saleDate).toISOString().split('T')[0] : (item.date || '');
+            normalized.invoiceNumber = item.saleNumber || item.invoiceNumber;
             normalized.saleType = (item.type || 'RETAIL').toLowerCase();
 
             // Payment object for list and detail view
             normalized.payment = {
                 status: item.status === 'COMPLETED' ? 'Paid' : (item.status || 'Pending'),
-                amountPaid: item.grandTotal || 0,
-                dueAmount: 0,
+                amountPaid: item.amountPaid || item.grandTotal || 0,
+                dueAmount: item.dueAmount || 0,
                 changeReturned: 0,
                 mode: item.paymentMode || 'CASH'
             };
 
-            normalized.salesmanName = item.cashierId?.name || '';
+            normalized.cashierName = item.cashierId?.name || '';
             break;
 
         case 'return':

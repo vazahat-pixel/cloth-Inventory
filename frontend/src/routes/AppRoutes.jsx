@@ -25,7 +25,7 @@ const PriceListPage = lazy(() => import('../modules/pricing/PriceListPage'));
 const PriceListFormPage = lazy(() => import('../modules/pricing/PriceListFormPage'));
 const SchemeListPage = lazy(() => import('../modules/pricing/SchemeListPage'));
 const SchemeFormPage = lazy(() => import('../modules/pricing/SchemeFormPage'));
-const PromotionTypesMaster = lazy(() => import('../modules/pricing/PromotionTypesMaster'));
+const PromotionTypesMaster = lazy(() => import('../modules/pricing/PromotionTypesMaster.jsx'));
 
 // Setup
 const SalesmanListPage = lazy(() => import('../modules/setup/SalesmanListPage'));
@@ -45,6 +45,7 @@ const StockOverviewPage = lazy(() => import('../modules/inventory/StockOverviewP
 const StockAdjustmentPage = lazy(() => import('../modules/inventory/StockAdjustmentPage'));
 const MovementHistoryPage = lazy(() => import('../modules/inventory/MovementHistoryPage'));
 const StockAuditView = lazy(() => import('../modules/inventory/StockAuditView'));
+const StoreOpeningStockImport = lazy(() => import('../modules/inventory/StoreOpeningStockImport'));
 
 // GRN
 const GRNListPage = lazy(() => import('../modules/grn/GRNListPage'));
@@ -216,6 +217,7 @@ function AppRoutes() {
             <Route path="inventory/movements" element={<MovementHistoryPage />} />
             <Route path="inventory/audit-view" element={<StockAuditView />} />
             <Route path="inventory/opening-stock" element={<OpeningStockPage />} />
+            <Route path="inventory/bulk-import-store-stock" element={<StoreOpeningStockImport />} />
 
             {/* GRN */}
             <Route path="inventory/grn" element={<GRNListPage />} />
@@ -369,6 +371,7 @@ function AppRoutes() {
         <Route path="/store" element={<RoleProtectedRoute allowedRoles={['Staff', 'store_staff', 'store_manager', 'accountant', 'Manager', 'Accountant', 'store_manager_admin']}><RoleDashboardLayout /></RoleProtectedRoute>}>
           <Route index element={<DashboardHomePage />} />
           <Route path="inventory/stock-overview" element={<StockOverviewPage />} />
+          <Route path="inventory/bulk-import-store-stock" element={<StoreOpeningStockImport />} />
           <Route path="inventory/receipt" element={<DeliveryChallanPage />} />
           <Route path="inventory/audit-view" element={<StockAuditView />} />
           <Route path="sales/sale-bill/new" element={<SalesBillFormPage />} />

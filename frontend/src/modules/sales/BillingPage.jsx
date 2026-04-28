@@ -7,6 +7,7 @@ import {
   Autocomplete,
   Box,
   Button,
+  Chip,
   Dialog,
   Divider,
   Grid,
@@ -47,6 +48,7 @@ import { ToggleButton, ToggleButtonGroup } from '@mui/material';
 import { sendWhatsAppInvoice } from '../../utils/whatsapp';
 import { useNotification } from '../../context/NotificationProvider';
 import { useLoading } from '../../context/LoadingProvider';
+import { calculateGST } from '../../utils/taxCalculator';
 
 
 const DEFAULT_WALK_IN_NAME = 'Walk-in Customer';
@@ -59,38 +61,69 @@ const toNumber = (value, fallback = 0) => {
   return Number.isFinite(numeric) ? numeric : fallback;
 };
 
-const calculateLine = (line, promoDiscount = 0) => {
+const calculateLine = (line, taxRate = 5, promoDiscount = 0) => {
   const gross = toNumber(line.quantity) * toNumber(line.rate);
-  const manualDisc = (gross * toNumber(line.discount)) / 100;
-  const taxableAmount = Math.max(0, gross - manualDisc - toNumber(promoDiscount));
   
-  // Default tax rate is 5%
-  const taxRate = toNumber(line.tax || 5);
-  const taxAmount = (taxableAmount * taxRate) / 100;
+  // If there's a system promo (e.g. 70% HO offer), we prioritize it 
+  // and usually ignore manual line discounts to prevent double-dipping.
+  const hasPromo = toNumber(promoDiscount) > 0;
+  const manualDiscPercent = hasPromo ? 0 : toNumber(line.discount);
+  const manualDisc = (gross * manualDiscPercent) / 100;
+  
+  const netAfterDiscount = Math.max(0, gross - manualDisc - toNumber(promoDiscount));
+  
+  // Inclusive Tax back-calculation: Taxable = Total / (1 + Rate/100)
+  const taxableAmount = netAfterDiscount / (1 + (taxRate / 100));
+  const taxAmount = netAfterDiscount - taxableAmount;
 
   return {
     gross,
-    discount: manualDisc + toNumber(promoDiscount),
+    manualDiscount: manualDisc,
+    promoDiscount: toNumber(promoDiscount),
     taxAmount,
-    amount: taxableAmount + taxAmount,
+    amount: netAfterDiscount, // Total is inclusive
+    taxRate
   };
 };
 
-const calculateTotals = (lines, billDiscount, loyaltyRedeemed, couponDiscount = 0, schemeDiscount = 0, creditNoteAmount = 0, saleType = 'retail', promoItems = []) => {
+const calculateTotals = (lines, taxRules, billDiscount, loyaltyRedeemed, couponDiscount = 0, schemeDiscount = 0, creditNoteAmount = 0, saleType = 'retail', promoItems = []) => {
+  // 1. Determine the Bill-level GST Slab
+  // detect total taxable value estimate
+  let totalNetBeforeTax = 0;
+  lines.forEach(l => {
+    const promo = promoItems?.find(pi => pi.variantId === l.productId || pi.variantId === l.variantId);
+    const gross = toNumber(l.quantity) * toNumber(l.rate);
+    const manualDisc = (gross * toNumber(l.discount)) / 100;
+    totalNetBeforeTax += Math.max(0, gross - manualDisc - toNumber(promo?.promoDiscount || 0));
+  });
+
+  // Adjust for bill-level discounts to get "Transaction Value"
+  const transactionValue = totalNetBeforeTax - toNumber(billDiscount) - toNumber(couponDiscount) - toNumber(schemeDiscount) - toNumber(loyaltyRedeemed) - toNumber(creditNoteAmount);
+  
+  // Determine general slab based on transaction value
+  // We use calculateGST with the total value. For slab check, we pass null HSN/Category.
+  const slabInfo = calculateGST(transactionValue / 1.05, null, null, taxRules);
+  const generalRate = slabInfo.rate;
+
   const totals = lines.reduce((acc, l) => {
-    // Find promo discount for this specific line
-    const promo = promoItems?.find(pi => pi.variantId === l.productId);
-    const lineRes = calculateLine(l, promo?.promoDiscount || 0);
+    const promo = promoItems?.find(pi => pi.variantId === l.productId || pi.variantId === l.variantId);
+    
+    // 2. Check for item-specific FLAT rules (e.g. BELT 18%)
+    const itemRule = calculateGST(0, l.hsnCode || l.sku, l.category, taxRules);
+    const lineTaxRate = (itemRule.type === 'FLAT') ? itemRule.rate : generalRate;
+
+    const lineRes = calculateLine(l, lineTaxRate, promo?.promoDiscount || 0);
 
     acc.gross += lineRes.gross;
-    acc.lineDiscount += lineRes.discount;
+    acc.manualLineDiscount += lineRes.manualDiscount;
+    acc.promoDiscount += lineRes.promoDiscount;
     acc.taxAmount += lineRes.taxAmount;
     acc.totalQuantity += toNumber(l.quantity);
     return acc;
-  }, { gross: 0, lineDiscount: 0, taxAmount: 0, totalQuantity: 0 });
+  }, { gross: 0, manualLineDiscount: 0, promoDiscount: 0, taxAmount: 0, totalQuantity: 0 });
 
-  const totalPromo = promoItems?.reduce((acc, pi) => acc + (pi.promoDiscount || 0), 0) || 0;
-  const net = totals.gross - totals.lineDiscount - toNumber(billDiscount) - toNumber(couponDiscount) - toNumber(schemeDiscount) + totals.taxAmount - toNumber(loyaltyRedeemed) - toNumber(creditNoteAmount);
+  // For Inclusive Tax: Net = Gross - All Discounts - Adjustments
+  const net = totals.gross - totals.manualLineDiscount - totals.promoDiscount - toNumber(billDiscount) - toNumber(couponDiscount) - toNumber(schemeDiscount) - toNumber(loyaltyRedeemed) - toNumber(creditNoteAmount);
 
   return {
     ...totals,
@@ -101,8 +134,32 @@ const calculateTotals = (lines, billDiscount, loyaltyRedeemed, couponDiscount = 
     schemeDiscount,
     loyaltyRedeemed,
     creditNoteAmount,
-    promoDiscount: totalPromo,
+    lineDiscount: totals.manualLineDiscount,
+    promoDiscount: totals.promoDiscount,
     netPayable: saleType === 'exchange' ? net : (net > 0 ? net : 0),
+    gstSlabMessage: slabInfo.message,
+    gstRate: generalRate,
+    hsnSummary: Object.values(lines.reduce((acc, l) => {
+        const promo = promoItems?.find(pi => pi.variantId === l.productId || pi.variantId === l.variantId);
+        const itemRule = calculateGST(0, l.hsnCode || l.sku, l.category, taxRules);
+        const lineTaxRate = (itemRule.type === 'FLAT') ? itemRule.rate : generalRate;
+        const lineRes = calculateLine(l, lineTaxRate, promo?.promoDiscount || 0);
+        
+        const hsn = l.hsnCode || 'N/A';
+        const key = `${hsn}-${lineTaxRate}`;
+        if (!acc[key]) {
+            acc[key] = { hsnCode: hsn, totalQty: 0, gstPercent: lineTaxRate, taxableAmount: 0, cgst: 0, sgst: 0, igst: 0 };
+        }
+        acc[key].totalQty += toNumber(l.quantity);
+        acc[key].taxableAmount += lineRes.taxableAmount || (lineRes.amount / (1 + (lineTaxRate / 100)));
+        const lineTax = lineRes.taxAmount;
+        // In retail, usually it's same state (CGST+SGST) unless specified.
+        // BillingPage doesn't seem to have isInterState logic yet, I'll add a simple check.
+        acc[key].igst += 0; 
+        acc[key].cgst += lineTax / 2;
+        acc[key].sgst += lineTax / 2;
+        return acc;
+    }, {}))
   };
 };
 
@@ -137,6 +194,7 @@ function BillingPage({
   const user = useSelector((state) => state.auth.user);
   const stores = useSelector((state) => state.masters.stores || EMPTY_ARR);
   const { eligibleOffers, evaluateLoading, totalPromoDiscount, promoItems } = useSelector((state) => state.pricing);
+  const taxRules = useSelector((state) => state.masters.taxRules || EMPTY_ARR);
 
   const isStoreStaff = user?.role !== 'Admin';
 
@@ -209,6 +267,7 @@ function BillingPage({
     dispatch(fetchSchemes());
     dispatch(fetchCoupons());
     dispatch(fetchSales());
+    dispatch(fetchMasters('taxRules'));
   }, [dispatch]);
 
   // Synchronized Total Calculations (Moved up to prevent TDZ error)
@@ -264,23 +323,39 @@ function BillingPage({
 
   const totals = useMemo(
     () => {
+      // Create a map of promo discounts ONLY for the selected scheme
+      const activePromoDiscounts = {};
+      if (selectedScheme) {
+          // If we have a selected scheme, we find which items it applied to from promoItems
+          promoItems.forEach(item => {
+              if (item.appliedOffer === selectedScheme.name) {
+                  activePromoDiscounts[item.variantId] = item.promoDiscount;
+              }
+          });
+      }
+
       const basic = calculateTotals(
         lines,
+        taxRules,
         billDiscount,
         loyaltyRedeemed,
         couponDiscountAmount,
-        schemeDiscountAmount,
+        0, // We handle scheme discount via calculateLine now
         creditNoteAmount,
         saleType,
-        promoItems
+        lines.map(l => ({ 
+            variantId: l.productId, 
+            promoDiscount: activePromoDiscounts[l.productId] || 0 
+        }))
       );
+
       return {
         ...basic,
         returnTotalCredit,
         netPayable: Math.max(0, basic.netPayable - returnTotalCredit),
       };
     },
-    [billDiscount, lines, loyaltyRedeemed, couponDiscountAmount, schemeDiscountAmount, creditNoteAmount, saleType, returnTotalCredit, promoItems],
+    [billDiscount, lines, loyaltyRedeemed, couponDiscountAmount, selectedScheme, creditNoteAmount, saleType, returnTotalCredit, promoItems],
   );
 
   // Real-time Offer Evaluation
@@ -301,7 +376,15 @@ function BillingPage({
     }
   }, [lines, calculatedGross, storeId, customerId, dispatch]);
 
+  // Auto-select offer if only one is available and none selected
+  useEffect(() => {
+    if (eligibleOffers.length === 1 && !selectedScheme) {
+      setSelectedScheme(eligibleOffers[0]);
+    }
+  }, [eligibleOffers, selectedScheme]);
+
   // Sync storeId when warehouses/stores load or user changes
+  // Sync storeId and auto-apply store discount
   useEffect(() => {
     if (!storeId) {
       const defaultId = user?.shopId || warehouses[0]?.id || stores[0]?.id;
@@ -325,6 +408,10 @@ function BillingPage({
       discount: toNumber(item.discount),
       tax: toNumber(item.tax),
       available: toNumber(item.quantity),
+      hsnCode: item.hsnCode || '',
+      category: item.category || '',
+      brand: item.brand || '',
+      productId: item.productId || item.variantId,
     }));
     setLines(loaded);
     setSelectedOption(null);
@@ -402,8 +489,9 @@ function BillingPage({
           rate: toNumber(stock.salePrice || (stock.productId && typeof stock.productId === 'object' ? stock.productId.salePrice : 0)),
           mrp: toNumber(stock.mrp || (stock.productId && typeof stock.productId === 'object' ? stock.productId.mrp : 0)),
           tax: 0,
-          category: stock.productId?.categoryId || stock.category,
-          brand: stock.productId?.brand || stock.brand,
+          hsnCode: stock.productId?.hsnCode || stock.hsnCode || '',
+          category: stock.productId?.categoryName || stock.categoryName || stock.productId?.categoryId || stock.category || '',
+          brand: stock.productId?.brandName || stock.brandName || stock.productId?.brand || stock.brand || '',
         };
         return option;
       })
@@ -500,6 +588,7 @@ function BillingPage({
           available: option.available,
           category: option.category,
           brand: option.brand,
+          hsnCode: option.hsnCode,
         },
       ];
     });
@@ -554,7 +643,9 @@ function BillingPage({
         mrp: toNumber(product.mrp || product.salePrice),
         tax: 0, 
         category: product.category,
-        brand: product.brand
+        brand: product.brand,
+        discount: 0,
+        hsnCode: product.hsnCode || product.hsCodeId?.hsnCode || product.hsCodeId?.code || '',
       });
       setBarcodeInput('');
     } catch (err) {
@@ -646,6 +737,11 @@ function BillingPage({
       return {
         productId: line.productId || line.variantId,
         barcode: line.barcode || line.sku || '',
+        itemName: line.itemName,
+        sku: line.sku,
+        hsnCode: line.hsnCode || '',
+        category: line.category || '',
+        brand: line.brand || '',
         quantity: toNumber(line.quantity),
         price: toNumber(line.rate),
         discount: toNumber(line.discount),
@@ -659,13 +755,16 @@ function BillingPage({
     // 2. Build backend-compliant payload
     const payload = {
       storeId,
+      date: billDate,
+      isInclusiveTax: true, // Explicitly mark as inclusive for retail
       customerId: selectedCustomer?.id || null,
       customerName: selectedCustomer?.name || selectedCustomer?.customerName || customerName,
       customerMobile: selectedCustomer?.mobileNumber || mobileInput,
       customerAddress: selectedCustomer?.address || customerAddress,
       products: preparedProducts,
-      subTotal: totals.grossAmount,
-      discount: toNumber(billDiscount) + toNumber(couponDiscountAmount) + toNumber(schemeDiscountAmount) + toNumber(totalPromoDiscount),
+      subTotal: totals.netPayable - totals.taxAmount, // Actual Taxable Subtotal
+      // Only include discounts that are NOT already in preparedProducts total
+      discount: toNumber(billDiscount) + toNumber(couponDiscountAmount), 
       tax: totals.taxAmount,
       grandTotal: totals.netPayable,
       amountPaid: payment.amountPaid,
@@ -674,8 +773,9 @@ function BillingPage({
       redeemPoints: Math.max(0, toNumber(loyaltyRedeemed)),
       creditNoteId: creditNoteId || null,
       schemeId: selectedScheme?._id || null,
-      schemeDiscount: schemeDiscountAmount,
+      schemeDiscount: totals.promoDiscount, // Use the actual promo total
       type: (saleType || 'retail').toUpperCase(),
+      hsnSummary: totals.hsnSummary,
       exchangeDetails: exchangeItems.length > 0 ? {
           originalSaleId,
           items: exchangeItems.map(i => ({
@@ -1163,8 +1263,13 @@ function BillingPage({
                         Rate
                       </TableCell>
                       <TableCell sx={{ fontWeight: 700 }} align="right">
-                        Discount %
+                        Disc %
                       </TableCell>
+                      {!isStoreStaff && (
+                        <TableCell sx={{ fontWeight: 700 }} align="right">
+                          GST %
+                        </TableCell>
+                      )}
                       <TableCell sx={{ fontWeight: 700 }} align="right">
                         Amount
                       </TableCell>
@@ -1221,10 +1326,15 @@ function BillingPage({
                                 size="small"
                                 value={line.discount}
                                 onChange={(event) => updateLineField(line.id, 'discount', event.target.value)}
-                                sx={{ width: 90 }}
+                                sx={{ width: 70 }}
                                 disabled={isStoreStaff}
                               />
                             </TableCell>
+                            {!isStoreStaff && (
+                              <TableCell align="right" sx={{ fontWeight: 700 }}>
+                                {lineRes.taxRate}%
+                              </TableCell>
+                            )}
                             <TableCell align="right" sx={{ fontWeight: 700 }}>
                               {lineRes.amount.toFixed(2)}
                             </TableCell>
@@ -1302,15 +1412,31 @@ function BillingPage({
               Bill Summary
             </Typography>
 
+            {totals.gstSlabMessage && !isStoreStaff && (
+              <Box sx={{ mb: 2, p: 1.5, borderRadius: 2, bgcolor: '#f0fdf4', border: '1px solid #bbf7d0', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
+                <Typography variant="body2" sx={{ fontWeight: 800, color: '#166534' }}>
+                  ✅ {totals.gstSlabMessage}
+                </Typography>
+              </Box>
+            )}
+
             <Stack spacing={1.2}>
               <SummaryRow label="Total Items" value={totals.totalItems} />
               <SummaryRow label="Total Quantity" value={totals.totalQuantity} />
               <SummaryRow label="Gross Amount" value={totals.grossAmount.toFixed(2)} />
-              {totals.promoDiscount > 0 && (
-                <SummaryRow label="Promotion Offer" value={`-${totals.promoDiscount.toFixed(2)}`} color="#10b981" />
+              
+              {totals.lineDiscount > 0 && (
+                <SummaryRow label="Manual Discount" value={`-${totals.lineDiscount.toFixed(2)}`} color="#f43f5e" />
               )}
-              <SummaryRow label="Line Discount" value={totals.lineDiscount.toFixed(2)} />
-              <SummaryRow label="Tax Amount" value={totals.taxAmount.toFixed(2)} />
+              
+              {totals.promoDiscount > 0 && (
+                <SummaryRow label="Offer Discount" value={`-${totals.promoDiscount.toFixed(2)}`} color="#10b981" />
+              )}
+              
+              {!isStoreStaff && (
+                <SummaryRow label="Tax (Included)" value={totals.taxAmount.toFixed(2)} />
+              )}
+              
               {totals.returnTotalCredit > 0 && (
                 <SummaryRow label="Exchange Credit" value={`-${totals.returnTotalCredit.toFixed(2)}`} color="#10b981" />
               )}
@@ -1318,16 +1444,12 @@ function BillingPage({
               <TextField
                 fullWidth
                 size="small"
-                label="Bill Discount"
+                label="Extra Bill Discount"
                 type="number"
                 value={billDiscount}
                 onChange={(event) => setBillDiscount(event.target.value)}
                 disabled={isStoreStaff}
               />
-
-              {totals.schemeDiscount > 0 && (
-                <SummaryRow label="Scheme Discount" value={totals.schemeDiscount.toFixed(2)} />
-              )}
 
               <Stack direction="row" spacing={1} alignItems="flex-start">
                 <TextField
@@ -1441,6 +1563,37 @@ function BillingPage({
                     No offers applicable for this cart yet.
                   </Typography>
                 )}
+              </Box>
+
+              <Divider />
+
+              {/* HSN Summary Section */}
+              <Box sx={{ mt: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: '#0f172a' }}>
+                  HSN Wise Summary
+                </Typography>
+                <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ borderRadius: 1.5 }}>
+                  <Table size="small">
+                    <TableHead sx={{ bgcolor: '#f8fafc' }}>
+                      <TableRow>
+                        <TableCell sx={{ fontSize: '0.65rem', fontWeight: 800, p: 0.5 }}>HSN</TableCell>
+                        <TableCell align="right" sx={{ fontSize: '0.65rem', fontWeight: 800, p: 0.5 }}>Taxable</TableCell>
+                        <TableCell align="right" sx={{ fontSize: '0.65rem', fontWeight: 800, p: 0.5 }}>GST%</TableCell>
+                        <TableCell align="right" sx={{ fontSize: '0.65rem', fontWeight: 800, p: 0.5 }}>Tax</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {totals.hsnSummary?.map((h, i) => (
+                        <TableRow key={i}>
+                          <TableCell sx={{ fontSize: '0.65rem', p: 0.5 }}>{h.hsnCode}</TableCell>
+                          <TableCell align="right" sx={{ fontSize: '0.65rem', p: 0.5 }}>₹{h.taxableAmount.toFixed(2)}</TableCell>
+                          <TableCell align="right" sx={{ fontSize: '0.65rem', p: 0.5 }}>{h.gstPercent}%</TableCell>
+                          <TableCell align="right" sx={{ fontSize: '0.65rem', p: 0.5 }}>₹{(h.cgst + h.sgst + h.igst).toFixed(2)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               </Box>
 
               <Divider />

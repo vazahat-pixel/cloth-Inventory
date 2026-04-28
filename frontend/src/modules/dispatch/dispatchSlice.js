@@ -11,7 +11,6 @@ export const fetchChallans = createAsyncThunk('dispatch/fetchChallans', async (_
         return rejectWithValue(error.response?.data?.message || 'Failed to fetch delivery challans');
     }
 });
-
 export const addChallan = createAsyncThunk('dispatch/addChallan', async (challanData, { rejectWithValue }) => {
     try {
         const response = await api.post('/dispatch', challanData);
@@ -21,7 +20,6 @@ export const addChallan = createAsyncThunk('dispatch/addChallan', async (challan
         return rejectWithValue(error.response?.data?.message || 'Failed to add delivery challan');
     }
 });
-
 export const updateChallan = createAsyncThunk('dispatch/updateChallan', async ({ id, data }, { rejectWithValue }) => {
     try {
         const response = await api.put(`/dispatch/${id}`, data);
@@ -31,7 +29,6 @@ export const updateChallan = createAsyncThunk('dispatch/updateChallan', async ({
         return rejectWithValue(error.response?.data?.message || 'Failed to update delivery challan');
     }
 });
-
 export const confirmChallan = createAsyncThunk(
     'dispatch/confirmChallan',
     async (id, { rejectWithValue }) => {
@@ -44,7 +41,17 @@ export const confirmChallan = createAsyncThunk(
         }
     }
 );
-
+export const deleteChallan = createAsyncThunk(
+    'dispatch/deleteChallan',
+    async (id, { rejectWithValue }) => {
+        try {
+            await api.delete(`/dispatch/${id}`);
+            return id;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to delete delivery challan');
+        }
+    }
+);
 export const updateChallanStatus = createAsyncThunk(
     'dispatch/updateStatus',
     async ({ id, status }, { rejectWithValue }) => {
@@ -64,13 +71,11 @@ export const updateChallanStatus = createAsyncThunk(
         }
     }
 );
-
 const initialState = {
     records: [],
     loading: false,
     error: null,
 };
-
 const dispatchSlice = createSlice({
     name: 'dispatch',
     initialState,
@@ -136,6 +141,18 @@ const dispatchSlice = createSlice({
                 }
             })
             .addCase(updateChallanStatus.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.payload;
+            })
+            .addCase(deleteChallan.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
+            .addCase(deleteChallan.fulfilled, (state, action) => {
+                state.loading = false;
+                state.records = state.records.filter((r) => r.id !== action.payload && r._id !== action.payload);
+            })
+            .addCase(deleteChallan.rejected, (state, action) => {
                 state.loading = false;
                 state.error = action.payload;
             });

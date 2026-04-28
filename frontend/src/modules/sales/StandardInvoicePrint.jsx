@@ -39,22 +39,29 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
     const company = config?.company || {};
     const invoicing = config?.invoicing || {};
     
-    const rawItems = sale.items || sale.products || [];
-    const normalizedItems = rawItems.map((item) => {
+    const saleItems = sale.items || sale.products || [];
+    const normalizedItems = saleItems.map((item) => {
         const qty = Number(item.quantity ?? item.qty ?? 0);
         const rate = Number(item.rate ?? item.price ?? 0);
         const mrp = Number(item.mrp ?? rate);
-        const discountPercent = Number(item.discountPercent ?? item.discount ?? 0);
-        const taxable = rate * qty;
-        const taxPercentage = Number(item.taxPercentage ?? item.gstPercent ?? 0);
-        const taxAmount = Number(item.taxAmount ?? (taxable * taxPercentage / 100));
-        const lineTotal = Number(item.total ?? (taxable + taxAmount));
+        // Manual discount + Promo/Scheme discount
+        const manualDiscountAmt = (rate * qty * Number(item.discountPercent ?? item.discount ?? 0)) / 100;
+        const promoDiscountAmt = Number(item.promoDiscount ?? item.schemeDiscount ?? 0);
+        const totalDiscountAmt = manualDiscountAmt + promoDiscountAmt;
+        
+        const taxPercentage = Number(item.taxPercentage ?? item.gstPercent ?? 5);
+        const lineTotal = Number(item.total ?? (rate * qty - totalDiscountAmt));
+        
+        // Back-calculate taxable from lineTotal
+        const taxable = lineTotal / (1 + (taxPercentage / 100));
+        const taxAmount = lineTotal - taxable;
+
         return {
             ...item,
             quantity: qty,
             rate,
             mrp,
-            discountPercent,
+            discountAmount: totalDiscountAmt,
             taxable,
             taxPercentage,
             taxAmount,
@@ -62,23 +69,37 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
             itemName: item.itemName || item.variantId?.itemName || item.itemId?.itemName || item.name || 'Item',
             sku: item.sku || item.variantId?.sku || item.barcode || '-',
             size: item.size || item.variantId?.size || '-',
-            color: item.color || item.variantId?.color || '-'
+            color: item.color || item.variantId?.color || '-',
+            hsnCode: item.hsnCode || item.itemId?.hsnCode || 'N/A'
         };
     });
 
-    const hsnSummaryMap = normalizedItems.reduce((acc, item) => {
-        const hsn = item.itemId?.hsCodeId?.code || 'N/A';
-        const gst = item.taxPercentage || 0;
-        const key = `${hsn}-${gst}`;
-        
-        if (!acc[key]) {
-            acc[key] = { hsn, gst, qty: 0, taxable: 0, tax: 0 };
-        }
-        acc[key].qty += item.quantity;
-        acc[key].taxable += item.taxable;
-        acc[key].tax += (item.taxAmount || 0);
+    // Group items by category for the new format
+    const groupedItems = normalizedItems.reduce((acc, item) => {
+        const cat = (item.category || item.itemId?.categoryId?.name || item.categoryId?.name || 'OTHERS').toUpperCase();
+        if (!acc[cat]) acc[cat] = [];
+        acc[cat].push(item);
         return acc;
     }, {});
+
+    const hsnSummaryMap = sale.hsnSummary && sale.hsnSummary.length > 0 
+        ? sale.hsnSummary.reduce((acc, h) => {
+            acc[h.hsnCode] = { hsn: h.hsnCode, gst: h.gstPercent, qty: h.totalQty, taxable: h.taxableAmount, tax: (h.cgst + h.sgst + h.igst) };
+            return acc;
+        }, {})
+        : normalizedItems.reduce((acc, item) => {
+            const hsn = item.hsnCode || 'N/A';
+            const gst = item.taxPercentage || 0;
+            const key = `${hsn}-${gst}`;
+            
+            if (!acc[key]) {
+                acc[key] = { hsn, gst, qty: 0, taxable: 0, tax: 0 };
+            }
+            acc[key].qty += item.quantity;
+            acc[key].taxable += item.taxable;
+            acc[key].tax += item.taxAmount;
+            return acc;
+        }, {});
 
     const sourceLocation = sourceWarehouse.location || {};
     const destinationLocation = destinationStore.location || {};
@@ -94,200 +115,235 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
         destinationLocation.state,
         destinationLocation.pincode
     ].filter(Boolean).join(', ');
-    const sourceGstin = (sourceWarehouse.gstNumber || sourceWarehouse.gstin || company.gstin || '').toUpperCase();
-    const destinationGstin = (destinationStore.gstNumber || destinationStore.gstin || '').toUpperCase();
-    const sourceStateCode = sourceGstin?.slice(0, 2) || '--';
-    const destinationStateCode = destinationGstin?.slice(0, 2) || '--';
+    
+    const sourceGstin = (sourceWarehouse.gstNumber || sourceWarehouse.gstin || company.gstin || '06AAJCR6675A1ZB').toUpperCase();
+    const destinationGstin = (destinationStore.gstNumber || destinationStore.gstin || sale.customerGst || sale.consigneeGst || 'N/A').toUpperCase();
+    const sourceStateCode = sourceGstin?.slice(0, 2) || '06';
+    const destinationStateCode = destinationGstin !== 'N/A' ? destinationGstin.slice(0, 2) : (sale.customerStateCode || '--');
 
     // State determination
     const storeState = (company.address?.state || store.location?.state || 'HARYANA').trim().toUpperCase();
-    const destinationState = sale.destinationStoreId?.location?.state || sale.destinationStoreId?.state || '';
-    const customerState = (sale.customerState || destinationState || storeState).trim().toUpperCase();
+    const destinationState = sale.destinationStoreId?.location?.state || sale.destinationStoreId?.state || sale.customerState || 'HARYANA';
+    const customerState = destinationState.trim().toUpperCase();
     const isInterState = customerState !== storeState;
 
-    const subTotal = Number(sale.subTotal || normalizedItems.reduce((acc, i) => acc + i.taxable, 0));
-    const tax = Number(sale.totalTax ?? sale.tax ?? normalizedItems.reduce((acc, i) => acc + (i.taxAmount || 0), 0));
-    const discount = Number(sale.discount || 0);
-    const grandTotal = Number(sale.grandTotal || (subTotal + tax - discount));
+    const subTotal = normalizedItems.reduce((acc, i) => acc + i.taxable, 0);
+    const totalTax = normalizedItems.reduce((acc, i) => acc + i.taxAmount, 0);
+    const totalDiscount = normalizedItems.reduce((acc, i) => acc + i.discountAmount, 0) + Number(sale.billDiscount || 0);
+    const grandTotal = subTotal + totalTax;
     
-    const isB2B = Boolean(destinationGstin || sale.customerGst || sale.consigneeGst);
-    
+    const isB2B = Boolean(destinationGstin !== 'N/A' || sale.customerGst || sale.consigneeGst);
     const displayTitle = providedTitle || (isTransfer ? 'STOCK TRANSFER NOTE' : (isB2B ? (isInterState ? 'TAX INVOICE (INTER-STATE)' : 'TAX INVOICE') : 'SALE INVOICE'));
 
     const tableHeaderStyle = { 
-        bgcolor: '#f8fafc', 
+        bgcolor: '#E5E7EB', 
         border: '1px solid #000',
         '& .MuiTableCell-root': {
             color: '#000',
             fontWeight: 900,
             fontSize: '10px',
-            py: 0.75,
+            py: 0.5,
             border: '1px solid #000',
-            textTransform: 'uppercase'
+            textTransform: 'uppercase',
+            textAlign: 'center'
         }
     };
 
     const tableCellStyle = {
         fontSize: '10px',
-        py: 0.5,
+        py: 0.4,
         border: '1px solid #000',
         fontWeight: 600,
-        color: '#000'
+        color: '#000',
+        textAlign: 'center'
+    };
+
+    const categoryRowStyle = {
+        bgcolor: '#f1f5f9',
+        '& .MuiTableCell-root': {
+            fontWeight: 900,
+            fontSize: '10px',
+            border: '1px solid #000',
+            py: 0.5,
+            textAlign: 'center'
+        }
     };
 
     return (
         <Paper 
             elevation={0} 
             sx={{ 
-                p: 3, 
+                p: 2, 
                 bgcolor: '#fff', 
                 color: '#000', 
-                maxWidth: 1000, 
+                maxWidth: 900, 
                 mx: 'auto', 
                 borderRadius: 0,
-                border: '2px solid #000',
+                border: '1px solid #000',
                 fontFamily: '"Arial", sans-serif',
                 '@media print': {
-                    p: 1.5,
+                    p: 1,
                     width: '100% !important',
                     maxWidth: 'none !important',
-                    border: '1px solid #000'
+                    border: 'none'
                 }
             }}
         >
             {/* Main Header */}
-            <Box sx={{ textAlign: 'center', mb: 1 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 900, textDecoration: 'underline', fontSize: '13px' }}>
+            <Box sx={{ textAlign: 'center', mb: 1, border: '1px solid #000', p: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 900, textDecoration: 'underline', fontSize: '12px' }}>
                     {displayTitle}
                 </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 950, mt: 1, letterSpacing: 1, textTransform: 'uppercase' }}>
+                <Typography variant="h5" sx={{ fontWeight: 950, mt: 0.5, letterSpacing: 0.5, textTransform: 'uppercase' }}>
                     {company.legalName || 'REBEL MASS EXPORT PVT LTD'}
                 </Typography>
-                <Typography sx={{ fontSize: '11px', fontWeight: 700, lineHeight: 1.4 }}>
+                <Typography sx={{ fontSize: '11px', fontWeight: 700, lineHeight: 1.3 }}>
                     {company.address?.address || 'PLOT NO 418 PHASE 3 SECTOR - 53 HSIIDC KUNDLI SONIPAT'}<br />
                     {company.address?.city || 'SONIPAT'}, {company.address?.state || 'HARYANA'} - {company.address?.pincode || '131028'}
                     &nbsp;GSTIN: {company.gstin || '06AAJCR6675A1ZB'} PH: {company.phone || '9999999999'}
                 </Typography>
             </Box>
 
-            <Divider sx={{ mb: 1, borderBottomWidth: 2, borderColor: '#000' }} />
+            {/* Invoice Meta info Bar */}
+            <Grid container sx={{ mb: 1, border: '1px solid #000', bgcolor: '#00CED1' }}>
+                <Grid item xs={3} sx={{ p: 0.5, borderRight: '1px solid #000' }}>
+                    <Typography sx={{ fontSize: '11px', fontWeight: 900, color: '#fff' }}>INVOICE NO.</Typography>
+                </Grid>
+                <Grid item xs={3} sx={{ p: 0.5, borderRight: '1px solid #000', bgcolor: '#fff' }}>
+                    <Typography sx={{ fontSize: '11px', fontWeight: 900 }}>{invoicing.invoicePrefix}{sale.invoiceNumber || sale.saleNumber || sale.dispatchNumber || '25-26/DAP-1'}</Typography>
+                </Grid>
+                <Grid item xs={3} sx={{ p: 0.5, borderRight: '1px solid #000' }}>
+                    <Typography sx={{ fontSize: '11px', fontWeight: 900, color: '#fff' }}>INVOICE DATE</Typography>
+                </Grid>
+                <Grid item xs={3} sx={{ p: 0.5, bgcolor: '#fff' }}>
+                    <Typography sx={{ fontSize: '11px', fontWeight: 900 }}>{new Date(sale.saleDate || sale.createdAt).toLocaleDateString('en-GB')}</Typography>
+                </Grid>
+            </Grid>
 
-            {/* Invoice Meta info */}
-            <Grid container sx={{ mb: 1, border: '1.5px solid #000' }}>
-                <Grid item xs={6} sx={{ p: 1, borderRight: '1.5px solid #000' }}>
-                    <Typography sx={{ fontSize: '11px' }}><strong>INVOICE NO.:</strong> {invoicing.invoicePrefix}{sale.invoiceNumber || sale.saleNumber || sale.dispatchNumber || '26-27/DAP-1'}</Typography>
+            <Grid container sx={{ mb: 1, border: '1px solid #000' }}>
+                <Grid item xs={6} sx={{ p: 0.5, borderRight: '1px solid #000' }}>
+                    <Typography sx={{ fontSize: '11px' }}><strong>ORDER NO.</strong> {sale.orderNo || '-'}</Typography>
                 </Grid>
-                <Grid item xs={6} sx={{ p: 1 }}>
-                    <Typography sx={{ fontSize: '11px' }}><strong>INVOICE DATE:</strong> {new Date(sale.saleDate || sale.createdAt).toLocaleDateString('en-IN')}</Typography>
-                </Grid>
-                <Grid item xs={6} sx={{ p: 1, borderRight: '1.5px solid #000', borderTop: '1.5px solid #000' }}>
-                    <Typography sx={{ fontSize: '11px' }}><strong>ORDER / PO NO.:</strong> {sale.dispatchNumber || sale.orderNo || '-'}</Typography>
-                </Grid>
-                <Grid item xs={6} sx={{ p: 1, borderTop: '1.5px solid #000' }}>
-                    <Typography sx={{ fontSize: '11px' }}><strong>TRANSPORT:</strong> {sale.transportName || 'BY ROAD'}</Typography>
+                <Grid item xs={6} sx={{ p: 0.5 }}>
+                    <Typography sx={{ fontSize: '11px' }}><strong>Transport-</strong> {sale.transportName || 'BY ROAD'}</Typography>
                 </Grid>
             </Grid>
 
             {/* Side-by-Side Billing & Shipped To */}
-            <Grid container sx={{ border: '1.5px solid #000', mb: 1 }}>
-                <Grid item xs={6} sx={{ p: 1, borderRight: '1.5px solid #000' }}>
-                    <Typography variant="caption" sx={{ fontWeight: 900, display: 'block', borderBottom: '1px solid #000', mb: 0.5, fontSize: '10px' }}>
-                        Dispatch From (Warehouse / HO)
+            <Grid container sx={{ border: '1px solid #000', mb: 1 }}>
+                <Grid item xs={6} sx={{ p: 0.5, borderRight: '1px solid #000' }}>
+                    <Typography variant="caption" sx={{ fontWeight: 900, display: 'block', borderBottom: '1px solid #000', mb: 0.5, fontSize: '10px', bgcolor: '#f3f4f6' }}>
+                        Details Of Receiver (Billed to)
                     </Typography>
-                    <Box sx={{ minHeight: 90 }}>
-                        <Typography sx={{ fontSize: '11px', fontWeight: 900 }}>{sourceWarehouse.name || sourceWarehouse.warehouseName || company.legalName || 'Head Office'}</Typography>
-                        <Typography sx={{ fontSize: '10px' }}>{sourceAddress || company.address?.address || 'N/A'}</Typography>
-                        <Stack sx={{ mt: 1 }}>
-                            <Typography sx={{ fontSize: '10px' }}><strong>Phone No.:</strong> {sourceWarehouse.phone || company.phone || '-'}</Typography>
-                            <Typography sx={{ fontSize: '10px' }}><strong>GSTIN No.:</strong> {sourceGstin || 'N/A'}</Typography>
-                            <Typography sx={{ fontSize: '10px' }}><strong>State:</strong> {(sourceLocation.state || company.address?.state || 'N/A').toUpperCase()} <strong>Code:</strong> {sourceStateCode}</Typography>
-                        </Stack>
-                    </Box>
-                </Grid>
-                <Grid item xs={6} sx={{ p: 1 }}>
-                    <Typography variant="caption" sx={{ fontWeight: 900, display: 'block', borderBottom: '1px solid #000', mb: 0.5, fontSize: '10px' }}>
-                        Consignee (Destination Store)
-                    </Typography>
-                    <Box sx={{ minHeight: 90 }}>
+                    <Box sx={{ minHeight: 70 }}>
                         <Typography sx={{ fontSize: '11px', fontWeight: 900 }}>{destinationStore.name || destinationStore.storeName || sale.customerName || 'N/A'}</Typography>
                         <Typography sx={{ fontSize: '10px' }}>{destinationAddress || sale.consigneeAddress || sale.customerAddress || 'N/A'}</Typography>
-                        <Stack sx={{ mt: 1 }}>
-                            <Typography sx={{ fontSize: '10px' }}><strong>E-mail:</strong> {destinationStore.email || sale.consigneeEmail || '-'}</Typography>
-                            <Typography sx={{ fontSize: '10px' }}><strong>GSTIN No.:</strong> {destinationGstin || sale.consigneeGst || sale.customerGst || 'N/A'}</Typography>
-                            <Typography sx={{ fontSize: '10px' }}><strong>State:</strong> {(destinationLocation.state || sale.consigneeState || customerState || 'N/A').toUpperCase()} <strong>Code:</strong> {destinationStateCode}</Typography>
-                        </Stack>
+                        <Typography sx={{ fontSize: '10px' }}><strong>Phone No.:</strong> {destinationStore.phone || sale.customerMobile || '-'}</Typography>
+                        <Typography sx={{ fontSize: '10px' }}><strong>GSTIN No:</strong> {destinationGstin || sale.customerGst || 'N/A'}</Typography>
+                        <Typography sx={{ fontSize: '10px' }}><strong>State:</strong> {(destinationLocation.state || sale.consigneeState || customerState || 'N/A').toUpperCase()} <strong>GST State Code:</strong> {destinationStateCode}</Typography>
+                    </Box>
+                </Grid>
+                <Grid item xs={6} sx={{ p: 0.5 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 900, display: 'block', borderBottom: '1px solid #000', mb: 0.5, fontSize: '10px', bgcolor: '#f3f4f6' }}>
+                        Details Of Consignee (Shipped to)
+                    </Typography>
+                    <Box sx={{ minHeight: 70 }}>
+                        <Typography sx={{ fontSize: '11px', fontWeight: 900 }}>{destinationStore.name || destinationStore.storeName || sale.customerName || 'N/A'}</Typography>
+                        <Typography sx={{ fontSize: '10px' }}>{destinationAddress || sale.consigneeAddress || sale.customerAddress || 'N/A'}</Typography>
+                        <Typography sx={{ fontSize: '10px' }}><strong>Phone No.:</strong> {destinationStore.phone || '-'} <strong>E-mail:</strong> {destinationStore.email || '-'}</Typography>
+                        <Typography sx={{ fontSize: '10px' }}><strong>GSTIN No:</strong> {destinationGstin || 'N/A'}</Typography>
+                        <Typography sx={{ fontSize: '10px' }}><strong>State:</strong> {(destinationLocation.state || sale.consigneeState || customerState || 'N/A').toUpperCase()} <strong>GST State Code:</strong> {destinationStateCode}</Typography>
                     </Box>
                 </Grid>
             </Grid>
 
-            {/* Professional Line-item Table */}
-            <TableContainer component={Box} sx={{ border: '1px solid #000', mb: 1 }}>
-                <Table size="small" sx={{ borderCollapse: 'collapse' }}>
-                    <TableHead sx={tableHeaderStyle}>
-                        <TableRow>
-                            <TableCell width="30">S.N</TableCell>
-                            <TableCell>Item</TableCell>
-                            <TableCell>SKU / Size</TableCell>
-                            <TableCell align="center">Qty</TableCell>
-                            <TableCell align="right">MRP</TableCell>
-                            <TableCell align="right">Disc %</TableCell>
-                            <TableCell align="right">Rate</TableCell>
-                            <TableCell align="right">Taxable</TableCell>
-                            <TableCell align="center">GST%</TableCell>
-                            <TableCell align="right">Tax</TableCell>
-                            <TableCell align="right">Line Total</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {normalizedItems.map((item, index) => (
-                            <TableRow key={index} sx={{ '& .MuiTableCell-root': tableCellStyle }}>
-                                <TableCell align="center">{index + 1}</TableCell>
-                                <TableCell sx={{ fontSize: '9px' }}>{item.itemName}</TableCell>
-                                <TableCell sx={{ fontSize: '9px' }}>{item.sku} / {item.size}</TableCell>
-                                <TableCell align="center">{item.quantity}</TableCell>
-                                <TableCell align="right">{item.mrp.toFixed(2)}</TableCell>
-                                <TableCell align="right">{item.discountPercent.toFixed(2)}</TableCell>
-                                <TableCell align="right">{item.rate.toFixed(2)}</TableCell>
-                                <TableCell align="right">{item.taxable.toFixed(2)}</TableCell>
-                                <TableCell align="center">{item.taxPercentage}%</TableCell>
-                                <TableCell align="right">{item.taxAmount.toFixed(2)}</TableCell>
-                                <TableCell align="right">{item.lineTotal.toFixed(2)}</TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </TableContainer>
+            {/* professional Category-wise Table */}
+            {Object.keys(groupedItems).map((category, catIndex) => {
+                const catItems = groupedItems[category];
+                const catQty = catItems.reduce((sum, i) => sum + i.quantity, 0);
+                const catGross = catItems.reduce((sum, i) => sum + (i.rate * i.quantity), 0);
+                const catDisc = catItems.reduce((sum, i) => sum + ((i.rate * i.quantity * i.discountPercent) / 100), 0);
+                const catNet = catItems.reduce((sum, i) => sum + i.lineTotal, 0);
+
+                return (
+                    <TableContainer key={category} component={Box} sx={{ border: '1px solid #000', mb: 1, borderRadius: 0 }}>
+                        <Table size="small" sx={{ borderCollapse: 'collapse' }}>
+                            <TableHead sx={tableHeaderStyle}>
+                                <TableRow>
+                                    <TableCell width="40">S. No.</TableCell>
+                                    <TableCell width="120">CATEGORY</TableCell>
+                                    <TableCell width="100">HSN CODE</TableCell>
+                                    <TableCell width="80">TOTAL QTY</TableCell>
+                                    <TableCell width="80">RATE</TableCell>
+                                    <TableCell width="100">GROSS AMOUNT</TableCell>
+                                    <TableCell width="80">DISC</TableCell>
+                                    <TableCell width="60">GST(%)</TableCell>
+                                    <TableCell width="100">NET AMOUNT</TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {catItems.map((item, index) => {
+                                    const grossLine = item.rate * item.quantity;
+                                    return (
+                                        <TableRow key={index} sx={{ '& .MuiTableCell-root': tableCellStyle }}>
+                                            <TableCell>{index + 1}</TableCell>
+                                            <TableCell>{category}</TableCell>
+                                            <TableCell>{item.hsnCode}</TableCell>
+                                            <TableCell>{item.quantity}</TableCell>
+                                            <TableCell>{item.rate.toFixed(2)}</TableCell>
+                                            <TableCell>{grossLine.toFixed(2)}</TableCell>
+                                            <TableCell>{item.discountAmount.toFixed(2)}</TableCell>
+                                            <TableCell>{item.taxPercentage}%</TableCell>
+                                            <TableCell sx={{ fontWeight: 900 }}>{item.lineTotal.toFixed(2)}</TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                                {/* Category Totals Row */}
+                                <TableRow sx={categoryRowStyle}>
+                                    <TableCell colSpan={3} align="left" sx={{ textAlign: 'left !important', pl: 2 }}>TOTALS</TableCell>
+                                    <TableCell>{catQty}</TableCell>
+                                    <TableCell>-</TableCell>
+                                    <TableCell>{catGross.toFixed(2)}</TableCell>
+                                    <TableCell>{catDisc.toFixed(2)}</TableCell>
+                                    <TableCell>-</TableCell>
+                                    <TableCell sx={{ fontWeight: 900 }}>{catNet.toFixed(2)}</TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                );
+            })}
 
             {/* Calculations & Summary */}
-            <Box sx={{ mt: 1, border: '1.5px solid #000' }}>
+            <Box sx={{ mt: 1, border: '1px solid #000' }}>
                 <Grid container>
-                    <Grid item xs={7.5} sx={{ p: 1, borderRight: '1.5px solid #000' }}>
+                    <Grid item xs={7.5} sx={{ p: 1, borderRight: '1px solid #000' }}>
                         <Typography sx={{ fontSize: '10px', fontWeight: 900 }}>TOTAL QTY: {normalizedItems.reduce((acc, i) => acc + i.quantity, 0)} Nos.</Typography>
-                        <Box sx={{ mt: 1.5 }}>
+                        <Box sx={{ mt: 1 }}>
                             <Typography sx={{ fontSize: '9px', fontWeight: 800 }}>Amount Chargeable (in words):</Typography>
-                            <Typography sx={{ fontSize: '11px', fontWeight: 950, textTransform: 'uppercase' }}>
+                            <Typography sx={{ fontSize: '10px', fontWeight: 950, textTransform: 'uppercase' }}>
                                 INR {numberToWords(grandTotal)} ONLY
                             </Typography>
                         </Box>
 
-                        <Box sx={{ mt: 2 }}>
+                        <Box sx={{ mt: 1.5 }}>
                             <Table size="small" sx={{ border: '1px solid #000', borderCollapse: 'collapse' }}>
-                                <TableHead sx={{ bgcolor: '#f1f5f9' }}>
-                                    <TableRow sx={{ '& .MuiTableCell-root': { fontSize: '8px', fontWeight: 900, border: '1px solid #000', py: 0.2 } }}>
+                                <TableHead sx={{ bgcolor: '#f3f4f6' }}>
+                                    <TableRow sx={{ '& .MuiTableCell-root': { fontSize: '8px', fontWeight: 900, border: '1px solid #000', py: 0.2, textAlign: 'center' } }}>
                                         <TableCell>HSN/SAC</TableCell>
-                                        <TableCell align="right">Taxable Val</TableCell>
-                                        {isInterState ? <TableCell align="right">IGST</TableCell> : <><TableCell align="right">CGST</TableCell><TableCell align="right">SGST</TableCell></>}
-                                        <TableCell align="right">Total Tax</TableCell>
+                                        <TableCell>Taxable Val</TableCell>
+                                        {isInterState ? <TableCell>IGST</TableCell> : <><TableCell>CGST</TableCell><TableCell>SGST</TableCell></>}
+                                        <TableCell>Total Tax</TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
                                     {Object.values(hsnSummaryMap).map((h, i) => (
-                                        <TableRow key={i} sx={{ '& .MuiTableCell-root': { fontSize: '8px', border: '1px solid #000', py: 0.2 } }}>
+                                        <TableRow key={i} sx={{ '& .MuiTableCell-root': { fontSize: '8px', border: '1px solid #000', py: 0.2, textAlign: 'center' } }}>
                                             <TableCell>{h.hsn} ({h.gst}%)</TableCell>
-                                            <TableCell align="right">{h.taxable.toFixed(2)}</TableCell>
-                                            {isInterState ? <TableCell align="right">{h.tax.toFixed(2)}</TableCell> : 
-                                            <><TableCell align="right">{(h.tax/2).toFixed(2)}</TableCell><TableCell align="right">{(h.tax/2).toFixed(2)}</TableCell></>}
-                                            <TableCell align="right">{h.tax.toFixed(2)}</TableCell>
+                                            <TableCell>{h.taxable.toFixed(2)}</TableCell>
+                                            {isInterState ? <TableCell>{h.tax.toFixed(2)}</TableCell> : 
+                                            <><TableCell>{(h.tax/2).toFixed(2)}</TableCell><TableCell>{(h.tax/2).toFixed(2)}</TableCell></>}
+                                            <TableCell>{h.tax.toFixed(2)}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
@@ -296,21 +352,17 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
                     </Grid>
                     
                     <Grid item xs={4.5} sx={{ p: 1 }}>
-                        <Stack spacing={0.75}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '11px', fontWeight: 700 }}>Sub Total:</Typography><Typography sx={{ fontSize: '11px', fontWeight: 900 }}>₹{subTotal.toFixed(2)}</Typography></Box>
+                        <Stack spacing={0.5}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>Gross Total:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>₹{normalizedItems.reduce((acc, i) => acc + (i.rate * i.quantity), 0).toFixed(2)}</Typography></Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>Total Discount:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>-₹{totalDiscount.toFixed(2)}</Typography></Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>Taxable Value:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>₹{subTotal.toFixed(2)}</Typography></Box>
                             {isInterState ? 
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>IGST:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>₹{tax.toFixed(2)}</Typography></Box> :
-                                <><Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>CGST:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>₹{(tax/2).toFixed(2)}</Typography></Box>
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>SGST:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>₹{(tax/2).toFixed(2)}</Typography></Box></>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>IGST:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>₹{totalTax.toFixed(2)}</Typography></Box> :
+                                <><Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>CGST:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>₹{(totalTax/2).toFixed(2)}</Typography></Box>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>SGST:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>₹{(totalTax/2).toFixed(2)}</Typography></Box></>
                             }
-                            {discount > 0 && <Box sx={{ display: 'flex', justifyContent: 'space-between', color: 'error.main' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>Disc:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>-₹{discount.toFixed(2)}</Typography></Box>}
-                            <Divider sx={{ my: 0.5, borderBottomWidth: 1.5, borderColor: '#000' }} />
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '13px', fontWeight: 950 }}>GRAND TOTAL:</Typography><Typography sx={{ fontSize: '15px', fontWeight: 950 }}>₹{grandTotal.toFixed(2)}</Typography></Box>
-                            <Box sx={{ mt: 1, p: 0.75, bgcolor: '#f8fafc', border: '1px dashed #000' }}>
-                                <Typography sx={{ fontSize: '9px', fontWeight: 800 }}>Bank Details:</Typography>
-                                <Typography sx={{ fontSize: '9px' }}>{invoicing.bankDetails?.bankName} | A/c: {invoicing.bankDetails?.accountNo}</Typography>
-                                <Typography sx={{ fontSize: '9px' }}>IFSC: {invoicing.bankDetails?.ifsc} | Br: {invoicing.bankDetails?.branch}</Typography>
-                            </Box>
+                            <Divider sx={{ my: 0.5, borderBottomWidth: 1, borderColor: '#000' }} />
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', bgcolor: '#f8fafc', p: 0.5 }}><Typography sx={{ fontSize: '12px', fontWeight: 950 }}>NET PAYABLE:</Typography><Typography sx={{ fontSize: '13px', fontWeight: 950 }}>₹{grandTotal.toFixed(2)}</Typography></Box>
                         </Stack>
                     </Grid>
                 </Grid>
@@ -320,19 +372,19 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
             <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
                 <Box sx={{ flex: 1, border: '1px solid #000', p: 1 }}>
                     <Typography sx={{ fontSize: '9px', fontWeight: 900, mb: 0.5 }}>Terms & Conditions:</Typography>
-                    <Typography sx={{ fontSize: '8px', fontWeight: 600, whiteSpace: 'pre-line', lineHeight: 1.3 }}>
-                        {invoicing.termsAndConditions || 'Standard terms apply.'}
+                    <Typography sx={{ fontSize: '8px', fontWeight: 600, whiteSpace: 'pre-line', lineHeight: 1.2 }}>
+                        {invoicing.termsAndConditions || '1. Goods once sold will not be taken back.\n2. Standard warranty applies.\n3. Subject to local jurisdiction.'}
                     </Typography>
                 </Box>
                 <Box sx={{ width: '35%', textAlign: 'center', p: 1, border: '1px solid #000', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                     <Typography sx={{ fontSize: '9px', fontWeight: 900 }}>For {company.legalName || 'REBEL MASS EXPORT PVT LTD'}</Typography>
-                    <Box sx={{ mt: 5 }}>
+                    <Box sx={{ mt: 3 }}>
                         <Typography sx={{ fontSize: '9px', fontWeight: 950, borderTop: '1px solid #000', pt: 0.5 }}>Authorised Signatory</Typography>
                     </Box>
                 </Box>
             </Box>
 
-            <Typography align="center" sx={{ fontSize: '8px', mt: 1, fontWeight: 700, opacity: 0.7 }}>
+            <Typography align="center" sx={{ fontSize: '8px', mt: 0.5, fontWeight: 700, opacity: 0.7 }}>
                 This is a computer generated document and does not require a physical signature.
             </Typography>
         </Paper>

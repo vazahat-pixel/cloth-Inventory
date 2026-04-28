@@ -124,7 +124,7 @@ function SalesReportPage() {
       const t = s.totals || {};
       totalQuantity += toNum(t.totalQuantity);
       totalGross += toNum(t.grossAmount);
-      totalDiscount += toNum(t.lineDiscount) + toNum(t.billDiscount);
+      totalDiscount += toNum(t.discount);
       totalTax += toNum(t.taxAmount);
       totalNet += toNum(t.netPayable);
     });
@@ -499,7 +499,7 @@ function SalesReportPage() {
                         <TableCell>{row.items?.length || 0}</TableCell>
                         <TableCell align="right">{toNum(t.totalQuantity)}</TableCell>
                         <TableCell align="right">₹{toNum(t.grossAmount).toFixed(2)}</TableCell>
-                        <TableCell align="right">₹{(toNum(t.lineDiscount) + toNum(t.billDiscount)).toFixed(2)}</TableCell>
+                        <TableCell align="right">₹{toNum(t.discount).toFixed(2)}</TableCell>
                         <TableCell align="right">₹{toNum(t.taxAmount).toFixed(2)}</TableCell>
                         <TableCell align="right" sx={{ fontWeight: 700 }}>₹{toNum(t.netPayable).toFixed(2)}</TableCell>
                         <TableCell>{row.payment?.mode || '-'}</TableCell>

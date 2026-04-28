@@ -46,10 +46,28 @@ function Topbar() {
       }}
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <Box sx={{ width: 6, height: 24, borderRadius: 2, background: 'linear-gradient(to bottom, #4f46e5, #06b6d4)' }} />
-        <Typography variant="h6" sx={{ fontSize: 20, fontWeight: 800, color: '#111827', letterSpacing: -0.5 }}>
-          {title}
-        </Typography>
+        <Box sx={{ width: 6, height: 24, borderRadius: 2, background: location.pathname.startsWith('/store') ? 'linear-gradient(to bottom, #ec4899, #f97316)' : 'linear-gradient(to bottom, #4f46e5, #06b6d4)' }} />
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Typography variant="h6" sx={{ fontSize: 20, fontWeight: 800, color: '#111827', letterSpacing: -0.5 }}>
+            {title}
+          </Typography>
+          <Box sx={{ 
+            px: 1.2, py: 0.25, 
+            borderRadius: 1, 
+            bgcolor: location.pathname.startsWith('/store') ? '#fdf2f8' : '#eef2ff',
+            border: '1px solid',
+            borderColor: location.pathname.startsWith('/store') ? '#fbcfe8' : '#e0e7ff',
+          }}>
+            <Typography sx={{ 
+              fontSize: '11px', 
+              fontWeight: 900, 
+              color: location.pathname.startsWith('/store') ? '#be185d' : '#4338ca',
+              letterSpacing: '0.05em'
+            }}>
+              {location.pathname.startsWith('/store') ? 'STORE PANEL' : 'HEAD OFFICE'}
+            </Typography>
+          </Box>
+        </Stack>
       </Box>
 
       <Stack direction="row" spacing={3} alignItems="center">

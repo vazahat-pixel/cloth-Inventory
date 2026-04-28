@@ -38,6 +38,7 @@ import SaleChallanPrint from '../sales/SaleChallanPrint';
 import { useNotification } from '../../context/NotificationProvider';
 import { useLoading } from '../../context/LoadingProvider';
 import { useConfirm } from '../../context/ConfirmProvider';
+import { calculateGST } from '../../utils/taxCalculator';
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
 
@@ -57,6 +58,8 @@ function DeliveryChallanForm({
     const [date, setDate] = useState(getTodayDate());
     const [sourceId, setSourceId] = useState('');
     const [storeId, setStoreId] = useState('');
+    const user = useSelector((state) => state.auth.user);
+    const isStoreStaff = user?.role !== 'Admin';
     const [lines, setLines] = useState([]);
     const [variantPickerValue, setVariantPickerValue] = useState(null);
     const [error, setError] = useState('');
@@ -86,16 +89,55 @@ function DeliveryChallanForm({
     const warehouses = useSelector((state) => state.masters.warehouses || []);
     const stores = useSelector((state) => state.masters.stores || []);
     const stockRows = useSelector((state) => state.inventory.stock || []);
+    const taxRules = useSelector((state) => state.masters.taxRules || []);
 
-    const sourceDoc = useMemo(() => warehouses.find(w => (w.id || w._id) === sourceId) || stores.find(s => (s.id || s._id) === sourceId), [warehouses, stores, sourceId]);
-    const destDoc = useMemo(() => stores.find(s => (s.id || s._id) === storeId), [stores, storeId]);
+    const sourceDoc = useMemo(() => {
+        const fromMasters = warehouses.find(w => (w.id || w._id) === sourceId) || stores.find(s => (s.id || s._id) === sourceId);
+        if (fromMasters) return fromMasters;
+        
+        // Fallback to populated data from the dispatch record itself
+        if (challanRawData?.sourceWarehouseId && (challanRawData.sourceWarehouseId._id === sourceId || challanRawData.sourceWarehouseId.id === sourceId)) {
+            return challanRawData.sourceWarehouseId;
+        }
+        return null;
+    }, [warehouses, stores, sourceId, challanRawData]);
+
+    const destDoc = useMemo(() => {
+        const fromMasters = stores.find(s => (s.id || s._id) === storeId);
+        if (fromMasters) return fromMasters;
+
+        // Fallback to populated data from the dispatch record itself
+        if (challanRawData?.destinationStoreId && (challanRawData.destinationStoreId._id === storeId || challanRawData.destinationStoreId.id === storeId)) {
+            return challanRawData.destinationStoreId;
+        }
+        return null;
+    }, [stores, storeId, challanRawData]);
+
+    const [companySettings, setCompanySettings] = useState(null);
+
+    useEffect(() => {
+        api.get('/settings/company').then(res => {
+            setCompanySettings(res.data?.company || null);
+        }).catch(() => {});
+    }, []);
+
+    // Helper to get GST safely from any doc with company fallback
+    const getGst = (doc) => {
+        const docGst = (doc?.gstNumber || doc?.gstin || doc?.gst || doc?.gstNo || '').trim().toUpperCase();
+        // If it's a warehouse and has no GST, fallback to company GST
+        if (!docGst && doc && (doc.warehouseName || doc.name?.toLowerCase().includes('warehouse'))) {
+            return (companySettings?.gstin || '').trim().toUpperCase();
+        }
+        return docGst;
+    };
+
+    const sourceGst = getGst(sourceDoc);
+    const destinationGst = getGst(destDoc);
 
     const isSameEntity = useMemo(() => {
-        if (!sourceDoc || !destDoc) return true;
-        const sGst = (sourceDoc.gstNumber || '').trim().toUpperCase();
-        const dGst = (destDoc.gstNumber || '').trim().toUpperCase();
-        return sGst === dGst && sGst !== '';
-    }, [sourceDoc, destDoc]);
+        if (!sourceGst || !destinationGst) return false;
+        return sourceGst === destinationGst;
+    }, [sourceGst, destinationGst]);
 
     const isInterState = useMemo(() => {
         if (!sourceDoc || !destDoc) return false;
@@ -103,17 +145,85 @@ function DeliveryChallanForm({
         const dState = (destDoc.location?.state || destDoc.state || '').trim().toLowerCase();
         return sState !== dState && sState !== '' && dState !== '';
     }, [sourceDoc, destDoc]);
-    const sourceGst = (sourceDoc?.gstNumber || '').trim().toUpperCase();
-    const destinationGst = (destDoc?.gstNumber || '').trim().toUpperCase();
+    // Auto-select source warehouse for admin if none selected
+    useEffect(() => {
+        if (!sourceId && warehouses.length > 0) {
+            const defaultId = user?.warehouseId || warehouses[0]?.id || warehouses[0]?._id;
+            if (defaultId) setSourceId(defaultId);
+        }
+    }, [user, warehouses, sourceId]);
+
     const hasBothGst = Boolean(sourceGst && destinationGst);
     const billingDocTypeLabel = !hasBothGst
-        ? 'Unknown (GSTIN missing)'
+        ? (sourceDoc && destDoc ? (isSameEntity ? 'Transfer Bill / Stock Transfer Note' : 'Tax Invoice') : 'Unknown (Select Source & Destination)')
         : (isSameEntity ? 'Transfer Bill / Stock Transfer Note' : 'Tax Invoice');
 
     useEffect(() => {
         dispatch(fetchMasters('warehouses'));
         dispatch(fetchMasters('stores'));
+        dispatch(fetchMasters('taxRules'));
     }, [dispatch]);
+
+    // Auto-fetch and apply store discount when storeId changes
+    useEffect(() => {
+        if (storeId && stores.length > 0 && !isLocked && !isReceiveMode) {
+            const selectedStore = stores.find(s => (s.id || s._id) === storeId);
+            if (selectedStore) {
+                const discount = selectedStore.transferDiscountPct || 0;
+                setLines(prev => prev.map(l => {
+                    const baseMrp = Number(l.mrp || l.rate || 0);
+                    return {
+                        ...l,
+                        discountPercent: discount,
+                        rate: Number((baseMrp * (1 - discount / 100)).toFixed(2)),
+                    };
+                }));
+            }
+        }
+    }, [storeId, stores, isLocked, isReceiveMode]);
+
+    const hsnSummary = useMemo(() => {
+        const summary = {};
+        lines.forEach(l => {
+            const hsn = l.hsnCode || 'N/A';
+            const taxableValue = Number(l.rate || 0) * l.quantity;
+            
+            // Determine GST slab for this item
+            const totalTaxable = lines.reduce((acc, x) => acc + (Number(x.rate || x.mrp || 0) * x.quantity), 0);
+            const slab = calculateGST(totalTaxable, null, null, taxRules);
+            const itemRule = calculateGST(0, l.sku || l.barcode, l.category, taxRules);
+            const actualGstRate = (itemRule.type === 'FLAT') ? itemRule.rate : slab.rate;
+            const displayGstRate = isSameEntity ? 0 : actualGstRate;
+            
+            const taxAmount = !isSameEntity ? (taxableValue * actualGstRate) / 100 : 0;
+            
+            const key = `${hsn}-${displayGstRate}`;
+            if (!summary[key]) {
+                summary[key] = {
+                    hsnCode: hsn,
+                    totalQty: 0,
+                    gstPercent: displayGstRate,
+                    taxableAmount: 0,
+                    cgst: 0,
+                    sgst: 0,
+                    igst: 0,
+                    totalTax: 0
+                };
+            }
+            
+            summary[key].totalQty += l.quantity;
+            summary[key].taxableAmount += taxableValue;
+            summary[key].totalTax += taxAmount;
+            
+            if (isInterState) {
+                summary[key].igst += taxAmount;
+            } else {
+                summary[key].cgst += taxAmount / 2;
+                summary[key].sgst += taxAmount / 2;
+            }
+        });
+        return Object.values(summary);
+    }, [lines, isSameEntity, isInterState, taxRules]);
 
     useEffect(() => {
         if (sourceId && !isReceiveMode) {
@@ -149,7 +259,9 @@ function DeliveryChallanForm({
                             rate: baseRate,
                             mrp: baseRate,
                             discountPercent: 0,
-                            gstPercent: gstPct
+                            gstPercent: gstPct,
+                            hsnCode: item.hsnCode || item.hsCodeId?.code || item.hsCodeId?.hsnCode || '',
+                            category: item.categoryName || item.type || ''
                         });
                     }
                 });
@@ -183,12 +295,22 @@ function DeliveryChallanForm({
             String(o.variantId).toLowerCase() === normalizedCode
         );
 
+        const selectedStore = stores.find(s => (s.id || s._id) === storeId);
+        const storeDiscount = selectedStore?.transferDiscountPct || 0;
+
         if (localMatch) {
             const existing = lines.find(l => l.variantId === localMatch.variantId);
             if (existing) {
                 updateQuantity(existing.variantId, existing.quantity + 1);
             } else {
-                setLines(prev => [...prev, { ...localMatch, quantity: 1, barcode: localMatch.sku }]);
+                const baseMrp = localMatch.mrp || localMatch.rate || 0;
+                setLines(prev => [...prev, { 
+                    ...localMatch, 
+                    quantity: 1, 
+                    barcode: localMatch.sku,
+                    discountPercent: storeDiscount,
+                    rate: Number((baseMrp * (1 - storeDiscount / 100)).toFixed(2))
+                }]);
             }
             setError('');
             return;
@@ -203,6 +325,10 @@ function DeliveryChallanForm({
             const res = await api.get(`/inventory/warehouse/${sourceId}/scan/${code}`);
             const item = res.data.data || res.data;
             if (item) {
+                const selectedStore = stores.find(s => (s.id || s._id) === storeId);
+                const storeDiscount = selectedStore?.transferDiscountPct || 0;
+                const baseMrp = item.rate || item.mrp || 0;
+
                 const newLine = {
                     itemId: item.itemId?._id || item.itemId,
                     variantId: item.variantId,
@@ -214,10 +340,12 @@ function DeliveryChallanForm({
                     color: item.color || item.variantId?.color || '-',
                     available: item.quantity,
                     quantity: 1,
-                    rate: item.rate || item.mrp || 0,
-                    mrp: item.rate || item.mrp || 0,
-                    discountPercent: 0,
-                    gstPercent: Number(item.gstPercent || item.itemId?.hsCodeId?.gstPercent || 0)
+                    rate: Number((baseMrp * (1 - storeDiscount / 100)).toFixed(2)),
+                    mrp: baseMrp,
+                    discountPercent: storeDiscount,
+                    gstPercent: Number(item.gstPercent || item.itemId?.hsCodeId?.gstPercent || 0),
+                    hsnCode: item.itemId?.hsnCode || item.hsnCode || '',
+                    category: item.itemId?.categoryName || item.categoryName || item.itemId?.type || ''
                 };
                 setLines(prev => [...prev, newLine]);
                 setError('');
@@ -296,7 +424,9 @@ function DeliveryChallanForm({
                                 rate: Number(item.rate || item.mrp || 0),
                                 mrp: Number(item.mrp || item.rate || 0),
                                 discountPercent: Number(item.discountPercent || 0),
-                                gstPercent: Number(item.taxPercentage || 0)
+                                gstPercent: Number(item.taxPercentage || 0),
+                                hsnCode: item.hsnCode || itemDoc.hsnCode || itemDoc.hsCodeId?.code || itemDoc.hsCodeId?.hsnCode || '',
+                                category: itemDoc.categoryName || itemDoc.type || ''
                             };
                         });
                         setLines(prefilledLines);
@@ -333,18 +463,31 @@ function DeliveryChallanForm({
                 dcDate: date,
                 sourceId,
                 destinationStoreId: storeId,
-                items: lines.map(l => ({
-                    itemId: l.itemId,
-                    variantId: l.variantId,
-                    barcode: l.barcode,
-                    quantity: l.quantity,
-                    rate: Number(l.rate || l.mrp || 0),
-                    mrp: Number(l.mrp || l.rate || 0),
-                    discountPercent: Number(l.discountPercent || 0),
-                    gstPercent: Number(l.gstPercent || 0)
-                })),
+                items: lines.map(l => {
+                    const totalTaxable = lines.reduce((acc, x) => acc + (Number(x.rate || x.mrp || 0) * x.quantity), 0);
+                    const slab = calculateGST(totalTaxable, null, null, taxRules);
+                    const itemRule = calculateGST(0, l.sku || l.barcode, l.category, taxRules);
+                    const lineRate = (itemRule.type === 'FLAT') ? itemRule.rate : slab.rate;
+
+                    return {
+                        itemId: l.itemId,
+                        variantId: l.variantId,
+                        barcode: l.barcode,
+                        quantity: l.quantity,
+                        rate: Number(l.rate || l.mrp || 0),
+                        mrp: Number(l.mrp || l.rate || 0),
+                        discountPercent: Number(l.discountPercent || 0),
+                        gstPercent: lineRate
+                    };
+                }),
                 status: targetStatus,
-                type: 'WAREHOUSE_TO_STORE'
+                type: 'WAREHOUSE_TO_STORE',
+                totalMRP: lines.reduce((acc, l) => acc + (Number(l.mrp || 0) * l.quantity), 0),
+                totalDiscount: lines.reduce((acc, l) => acc + ((Number(l.mrp || 0) - Number(l.rate || 0)) * l.quantity), 0),
+                taxableAmount: lines.reduce((acc, l) => acc + (Number(l.rate || 0) * l.quantity), 0),
+                gstAmount: hsnSummary.reduce((acc, h) => acc + h.totalTax, 0),
+                finalAmount: lines.reduce((acc, l) => acc + (Number(l.rate || 0) * l.quantity), 0) + hsnSummary.reduce((acc, h) => acc + h.totalTax, 0),
+                hsnSummary
             };
 
             showLoading(id ? 'Updating challan...' : 'Saving new challan...');
@@ -375,16 +518,23 @@ function DeliveryChallanForm({
                     dcDate: date,
                     sourceId,
                     destinationStoreId: storeId,
-                    items: lines.map((l) => ({
-                        itemId: l.itemId,
-                        variantId: l.variantId,
-                        barcode: l.barcode,
-                        quantity: l.quantity,
-                        rate: Number(l.rate || l.mrp || 0),
-                        mrp: Number(l.mrp || l.rate || 0),
-                        discountPercent: Number(l.discountPercent || 0),
-                        gstPercent: Number(l.gstPercent || 0)
-                    }))
+                    items: lines.map((l) => {
+                        const totalTaxable = lines.reduce((acc, x) => acc + (Number(x.rate || x.mrp || 0) * x.quantity), 0);
+                        const slab = calculateGST(totalTaxable, null, null, taxRules);
+                        const itemRule = calculateGST(0, l.sku || l.barcode, l.category, taxRules);
+                        const lineRate = (itemRule.type === 'FLAT') ? itemRule.rate : slab.rate;
+
+                        return {
+                            itemId: l.itemId,
+                            variantId: l.variantId,
+                            barcode: l.barcode,
+                            quantity: l.quantity,
+                            rate: Number(l.rate || l.mrp || 0),
+                            mrp: Number(l.mrp || l.rate || 0),
+                            discountPercent: Number(l.discountPercent || 0),
+                            gstPercent: lineRate
+                        };
+                    })
                 }
             })).unwrap();
 
@@ -444,6 +594,11 @@ function DeliveryChallanForm({
                         <Typography variant="caption" sx={{ color: '#64748b' }}>
                             Source GSTIN: {sourceGst || 'N/A'} | Destination GSTIN: {destinationGst || 'N/A'}
                         </Typography>
+                        {destDoc && (
+                            <Typography variant="body2" sx={{ mt: 0.5, fontWeight: 700, color: '#166534' }}>
+                                Store Discount Applied: {destDoc.transferDiscountPct || 0}%
+                            </Typography>
+                        )}
                     </Box>
                 )}
                 <Stack direction="row" spacing={2} sx={{ opacity: isReceiveMode || isLocked ? 0.6 : 1, pointerEvents: isReceiveMode || isLocked ? 'none' : 'auto' }}>
@@ -528,8 +683,8 @@ function DeliveryChallanForm({
                                 {isBillingMode && <TableCell align="right" sx={{ fontWeight: 700 }}>Bill Rate</TableCell>}
                                 <TableCell align="right" sx={{ fontWeight: 700 }}>Expected Qty</TableCell>
                                 <TableCell align="right" sx={{ fontWeight: 700 }}>Taxable Value</TableCell>
-                                {!isSameEntity && <TableCell align="right" sx={{ fontWeight: 700 }}>GST%</TableCell>}
-                                {!isSameEntity && <TableCell align="right" sx={{ fontWeight: 700 }}>Tax</TableCell>}
+                                {!isSameEntity && !isStoreStaff && <TableCell align="right" sx={{ fontWeight: 700 }}>GST%</TableCell>}
+                                {!isSameEntity && !isStoreStaff && <TableCell align="right" sx={{ fontWeight: 700 }}>Tax</TableCell>}
                                 {isBillingMode && <TableCell align="right" sx={{ fontWeight: 700 }}>Line Total</TableCell>}
                                 {isReceiveMode && <TableCell align="right" sx={{ fontWeight: 700, color: '#166534' }}>Received Qty</TableCell>}
                                 {!isReceiveMode && <TableCell align="right" sx={{ fontWeight: 700 }}>Dispatch Qty</TableCell>}
@@ -541,7 +696,14 @@ function DeliveryChallanForm({
                                 const baseRate = Number(l.mrp || 0);
                                 const billRate = Number(l.rate || l.mrp || 0);
                                 const taxableValue = billRate * (l.quantity || 0);
-                                const taxAmount = !isSameEntity ? (taxableValue * (l.gstPercent || 0)) / 100 : 0;
+                                
+                                // Determine GST slab
+                                const totalTaxableForSlab = lines.reduce((acc, line) => acc + (Number(line.rate || line.mrp || 0) * line.quantity), 0);
+                                const slabInfo = calculateGST(totalTaxableForSlab, null, null, taxRules);
+                                const itemRule = calculateGST(0, l.sku || l.barcode, l.category, taxRules);
+                                const lineTaxRate = (itemRule.type === 'FLAT') ? itemRule.rate : slabInfo.rate;
+                                
+                                const taxAmount = !isSameEntity ? (taxableValue * lineTaxRate) / 100 : 0;
                                 const lineTotal = taxableValue + taxAmount;
                                 
                                 return (
@@ -571,19 +733,19 @@ function DeliveryChallanForm({
                                     )}
                                     <TableCell align="right" sx={{ fontWeight: 700 }}>{l.quantity}</TableCell>
                                     <TableCell align="right">₹{taxableValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                                    {!isSameEntity && (
+                                    {!isSameEntity && !isStoreStaff && (
                                         <TableCell align="right">
                                             {isBillingMode ? (
                                                 <TextField 
-                                                    size="small" type="number" value={l.gstPercent || 0}
+                                                    size="small" type="number" value={lineTaxRate}
                                                     onChange={(e) => updateLineField(l.variantId, 'gstPercent', e.target.value)}
                                                     inputProps={{ style: { textAlign: 'right', width: 70 } }}
                                                     disabled={isLocked}
                                                 />
-                                            ) : `${l.gstPercent}%`}
+                                            ) : `${lineTaxRate}%`}
                                         </TableCell>
                                     )}
-                                    {!isSameEntity && <TableCell align="right">₹{taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>}
+                                    {!isSameEntity && !isStoreStaff && <TableCell align="right">₹{taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>}
                                     {isBillingMode && <TableCell align="right" sx={{ fontWeight: 700 }}>₹{lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>}
                                     {isReceiveMode && (
                                         <TableCell align="right">
@@ -618,7 +780,39 @@ function DeliveryChallanForm({
                     </Table>
                 </TableContainer>
 
-                <Stack direction="row" justifyContent="flex-end" sx={{ mt: 2 }}>
+                <Stack direction="row" spacing={2} sx={{ mt: 3 }}>
+                    <Box sx={{ flex: 1 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>HSN Wise Summary</Typography>
+                        <TableContainer component={Paper} elevation={0} variant="outlined">
+                            <Table size="small">
+                                <TableHead sx={{ bgcolor: '#f8fafc' }}>
+                                    <TableRow>
+                                        <TableCell sx={{ fontSize: '0.7rem', fontWeight: 700 }}>HSN</TableCell>
+                                        <TableCell align="right" sx={{ fontSize: '0.7rem', fontWeight: 700 }}>Qty</TableCell>
+                                        <TableCell align="right" sx={{ fontSize: '0.7rem', fontWeight: 700 }}>GST %</TableCell>
+                                        <TableCell align="right" sx={{ fontSize: '0.7rem', fontWeight: 700 }}>Taxable</TableCell>
+                                        <TableCell align="right" sx={{ fontSize: '0.7rem', fontWeight: 700 }}>CGST</TableCell>
+                                        <TableCell align="right" sx={{ fontSize: '0.7rem', fontWeight: 700 }}>SGST</TableCell>
+                                        <TableCell align="right" sx={{ fontSize: '0.7rem', fontWeight: 700 }}>IGST</TableCell>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {hsnSummary.map((h, i) => (
+                                        <TableRow key={i}>
+                                            <TableCell sx={{ fontSize: '0.7rem' }}>{h.hsnCode}</TableCell>
+                                            <TableCell align="right" sx={{ fontSize: '0.7rem' }}>{h.totalQty}</TableCell>
+                                            <TableCell align="right" sx={{ fontSize: '0.7rem' }}>{h.gstPercent}%</TableCell>
+                                            <TableCell align="right" sx={{ fontSize: '0.7rem' }}>₹{h.taxableAmount.toFixed(2)}</TableCell>
+                                            <TableCell align="right" sx={{ fontSize: '0.7rem' }}>₹{h.cgst.toFixed(2)}</TableCell>
+                                            <TableCell align="right" sx={{ fontSize: '0.7rem' }}>₹{h.sgst.toFixed(2)}</TableCell>
+                                            <TableCell align="right" sx={{ fontSize: '0.7rem' }}>₹{h.igst.toFixed(2)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
+                    </Box>
+
                     <Box sx={{ minWidth: 250, p: 2, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
                         <Stack spacing={1}>
                             <Stack direction="row" justifyContent="space-between">
@@ -630,32 +824,39 @@ function DeliveryChallanForm({
                             <Stack direction="row" justifyContent="space-between">
                                 <Typography variant="body2" color="success.main">Total Discount:</Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 700, color: 'success.main' }}>
-                                    - ₹{lines.reduce((acc, l) => acc + ((Number(l.mrp || 0) - Number(l.rate || l.mrp || 0)) * l.quantity), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    - ₹{lines.reduce((acc, l) => acc + ((Number(l.mrp || 0) - Number(l.rate || 0)) * l.quantity), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </Typography>
                             </Stack>
                             <Stack direction="row" justifyContent="space-between">
                                 <Typography variant="body2">Subtotal / Taxable:</Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                                    ₹{lines.reduce((acc, l) => acc + ((Number(l.rate || l.mrp || 0)) * l.quantity), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    ₹{lines.reduce((acc, l) => acc + ((Number(l.rate || 0)) * l.quantity), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </Typography>
                             </Stack>
                             {!isSameEntity && (
                                 <Stack direction="row" justifyContent="space-between">
                                     <Typography variant="body2">Tax ({isInterState ? 'IGST' : 'CGST+SGST'}):</Typography>
                                     <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                                        ₹{lines.reduce((acc, l) => acc + (((Number(l.rate || l.mrp || 0)) * l.quantity * l.gstPercent) / 100), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        ₹{hsnSummary.reduce((acc, h) => acc + h.totalTax, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </Typography>
                                 </Stack>
                             )}
                             <Divider />
+                            {(() => {
+                                const totalTaxable = lines.reduce((acc, l) => acc + ((Number(l.rate || 0)) * l.quantity), 0);
+                                const slabInfo = calculateGST(totalTaxable, null, null, taxRules);
+                                return slabInfo.message && (
+                                    <Box sx={{ py: 1, px: 1.5, mb: 1, bgcolor: isSameEntity ? '#eff6ff' : '#f0fdf4', borderRadius: 1.5, border: `1px solid ${isSameEntity ? '#bfdbfe' : '#bbf7d0'}` }}>
+                                        <Typography variant="caption" sx={{ fontWeight: 800, color: isSameEntity ? '#1e40af' : '#166534' }}>
+                                            ✅ {isSameEntity ? 'Stock Transfer (0% GST Applied)' : slabInfo.message}
+                                        </Typography>
+                                    </Box>
+                                );
+                            })()}
                             <Stack direction="row" justifyContent="space-between">
                                 <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>Total Value:</Typography>
                                 <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#1e293b' }}>
-                                    ₹{lines.reduce((acc, l) => {
-                                        const base = Number(l.rate || l.mrp || 0) * l.quantity;
-                                        const tax = !isSameEntity ? (base * l.gstPercent) / 100 : 0;
-                                        return acc + base + tax;
-                                    }, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    ₹{(lines.reduce((acc, l) => acc + (Number(l.rate || 0) * l.quantity), 0) + (isSameEntity ? 0 : hsnSummary.reduce((acc, h) => acc + h.totalTax, 0))).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </Typography>
                             </Stack>
                         </Stack>

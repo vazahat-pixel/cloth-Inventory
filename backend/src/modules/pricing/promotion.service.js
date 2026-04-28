@@ -10,7 +10,7 @@ class PromotionService {
      */
     async getActiveSchemes() {
         const now = new Date();
-        return await Scheme.find({
+        const schemes = await Scheme.find({
             isActive: true,
             startDate: { $lte: now },
             $or: [
@@ -18,6 +18,8 @@ class PromotionService {
                 { endDate: null }
             ]
         }).sort({ value: -1 });
+        console.log(`🔍 [SCHEME-DEBUG] Found ${schemes.length} active schemes in DB`);
+        return schemes;
     }
 
     /**
@@ -30,20 +32,31 @@ class PromotionService {
         }
 
         const schemes = await this.getActiveSchemes();
-        let currentItems = items.map(it => ({
-            ...it,
-            originalPrice: Number(it.price || 0),
-            promoPrice: Number(it.price || 0),
-            promoDiscount: 0,
-            appliedOffer: null
-        }));
+        let currentItems = items.map(it => {
+            const qty = Number(it.qty || it.quantity || 0);
+            const variantId = it.variantId || it.productId || it.id;
+            const price = Number(it.price || it.rate || 0);
+            
+            return {
+                ...it,
+                qty,
+                variantId,
+                price,
+                originalPrice: price,
+                promoPrice: price,
+                promoDiscount: 0,
+                appliedOffer: null
+            };
+        });
 
         const appliedOffers = [];
         let totalDiscount = 0;
 
         // Process Group-Based Promotions first (BUY_X_GET_Y)
         for (const scheme of schemes) {
-            if (scheme.type === 'BUY_X_GET_Y' || scheme.type === 'BOGO') {
+            const type = (scheme.type || '').toUpperCase();
+            console.log(`🔍 [SCHEME-DEBUG] Processing Scheme: "${scheme.name}" Type: ${type}`);
+            if (type === 'BUY_X_GET_Y' || type === 'BOGO') {
                 const buy = scheme.buyQuantity || 1;
                 const get = scheme.getQuantity || 1;
                 const totalSet = buy + get;
@@ -51,8 +64,8 @@ class PromotionService {
                 // 1. Identify eligible item instances (flattened for sorting)
                 let eligibleInstances = [];
                 currentItems.forEach((item, idx) => {
-                    const isCatMatch = !scheme.applicableCategories?.length || scheme.applicableCategories.some(id => String(id) === String(item.category));
-                    const isBrandMatch = !scheme.applicableBrands?.length || scheme.applicableBrands.includes(item.brand);
+                    const isCatMatch = !scheme.applicableCategories?.length || scheme.applicableCategories.some(id => String(id) === String(item.category?._id || item.category));
+                    const isBrandMatch = !scheme.applicableBrands?.length || scheme.applicableBrands.includes(item.brand?.name || item.brand);
                     const isProductMatch = !scheme.applicableProducts?.length || scheme.applicableProducts.some(id => String(id) === String(item.variantId));
 
                     if (isCatMatch && isBrandMatch && isProductMatch && !item.appliedOffer) {
@@ -90,36 +103,52 @@ class PromotionService {
 
         // Process Line-Based Promotions (Percentage/Flat) for items not yet under an offer
         for (const scheme of schemes) {
-            if (scheme.type === 'PERCENTAGE' || scheme.type === 'FLAT') {
+            const type = (scheme.type || '').toUpperCase();
+            if (type === 'PERCENTAGE' || type.includes('PERCENTAGE') || type === 'FLAT' || type.includes('FLAT')) {
                 currentItems.forEach(item => {
                     if (item.appliedOffer) return; // Skip if already handled by BOGO
 
-                    const isCatMatch = !scheme.applicableCategories?.length || scheme.applicableCategories.some(id => String(id) === String(item.category));
-                    const isBrandMatch = !scheme.applicableBrands?.length || scheme.applicableBrands.includes(item.brand);
+                    const isCatMatch = !scheme.applicableCategories?.length || scheme.applicableCategories.some(id => String(id) === String(item.category?._id || item.category));
+                    const isBrandMatch = !scheme.applicableBrands?.length || scheme.applicableBrands.some(id => String(id) === String(item.brand?._id || item.brand?.name || item.brand));
+                    const isProductMatch = !scheme.applicableProducts?.length || scheme.applicableProducts.some(id => String(id) === String(item.variantId));
                     
-                    if (isCatMatch && isBrandMatch) {
+                    console.log(`   👉 Item: ${item.variantId} Match: Cat=${isCatMatch}, Brand=${isBrandMatch}, Prod=${isProductMatch}`);
+
+                    if (isCatMatch && isBrandMatch && isProductMatch) {
                         let discount = 0;
-                        if (scheme.type === 'PERCENTAGE') {
+                        if (type === 'PERCENTAGE' || type.includes('PERCENTAGE')) {
                             discount = (item.originalPrice * item.qty) * (scheme.value / 100);
-                        } else if (scheme.type === 'FLAT') {
+                        } else if (type === 'FLAT' || type.includes('FLAT')) {
                             discount = Math.min(scheme.value, item.originalPrice * item.qty);
                         }
 
                         if (discount > 0) {
+                            console.log(`      ✨ Applied ${scheme.name}: -₹${discount}`);
                             item.promoDiscount += discount;
                             item.appliedOffer = scheme.name;
                             totalDiscount += discount;
-                            appliedOffers.push({ id: scheme._id, name: scheme.name, discount });
+                            appliedOffers.push({ _id: scheme._id, name: scheme.name, discount, type: scheme.type });
                         }
                     }
                 });
             }
         }
 
+        // Group applied offers for UI
+        const groupedOffers = [];
+        appliedOffers.forEach(off => {
+            const existing = groupedOffers.find(g => String(g._id) === String(off._id));
+            if (existing) {
+                existing.discount += off.discount;
+            } else {
+                groupedOffers.push({ ...off });
+            }
+        });
+
         return {
             items: currentItems,
             totalDiscount,
-            appliedOffers
+            appliedOffers: groupedOffers
         };
     }
 }

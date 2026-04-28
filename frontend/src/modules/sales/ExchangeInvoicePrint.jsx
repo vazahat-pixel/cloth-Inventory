@@ -10,7 +10,8 @@ const ExchangeInvoicePrint = ({ sale }) => {
     
     const subTotal = sale.subTotal ?? 0;
     const tax = sale.totalTax ?? 0;
-    const discount = sale.discount ?? 0;
+    // Combine all discounts for display
+    const discount = Number(sale.discount || 0) + Number(sale.schemeDiscount || 0) + Number(sale.couponDiscount || 0);
     const grandTotal = sale.grandTotal ?? 0;
     const exchangeAdjustment = sale.exchangeAdjustment ?? 0;
 

@@ -8,6 +8,7 @@ const warehouseFields = [
   { name: 'location', label: 'Complete Address', required: true, multiline: true },
   { name: 'managerName', label: 'Manager Name', required: true },
   { name: 'contactNumber', label: 'Contact Number', required: true },
+  { name: 'gstNumber', label: 'GST Number', required: false },
   {
     name: 'status',
     label: 'Status',

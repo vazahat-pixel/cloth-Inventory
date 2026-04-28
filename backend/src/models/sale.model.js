@@ -15,6 +15,12 @@ const saleItemSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    itemName: { type: String },
+    sku: { type: String },
+    hsnCode: { type: String },
+    category: { type: String },
+    brand: { type: String },
+    promoDiscount: { type: Number, default: 0 },
     quantity: {
         type: Number,
         required: true,
@@ -169,6 +175,17 @@ const saleSchema = new mongoose.Schema(
             type: Boolean,
             default: false
         },
+        hsnSummary: [
+            {
+                hsnCode: String,
+                totalQty: Number,
+                gstPercent: Number,
+                taxableAmount: Number,
+                cgst: Number,
+                sgst: Number,
+                igst: Number
+            }
+        ],
         returnedItems: [saleItemSchema]
     },
     { timestamps: true }

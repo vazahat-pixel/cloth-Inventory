@@ -129,13 +129,14 @@ function CompanyProfilePage() {
           await api.patch(`/warehouses/${primaryWh._id}`, {
             name: values.legalName,
             gstNumber: values.gstin,
+            contactPerson: primaryWh.contactPerson || 'Head Office', // Required by backend validation
             contactPhone: values.phone,
             email: values.email,
             location: values.address
           });
         }
       } catch (whErr) {
-        console.warn('Sync with warehouse failed, but settings saved.');
+        console.warn('Sync with warehouse failed:', whErr.response?.data?.message || whErr.message);
       }
 
       setSuccessMsg('All HO Settings updated successfully!');

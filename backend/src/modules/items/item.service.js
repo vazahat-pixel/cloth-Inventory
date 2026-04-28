@@ -402,8 +402,17 @@ class ItemService {
   async resolveOpeningBalanceItems(rows) {
     if (!Array.isArray(rows) || rows.length === 0) return [];
     
-    const itemCodes = [...new Set(rows.map(r => String(r.itemCode || '').trim().toUpperCase()).filter(Boolean))];
-    const itemNames = [...new Set(rows.map(r => String(r.itemName || '').trim()).filter(Boolean))];
+    // Filter out rows that look like 'Total' rows (often have no item code/name or have 'total' in name)
+    const filteredRows = rows.filter(r => {
+      const name = String(r.itemName || '').toLowerCase();
+      const code = String(r.itemCode || '').toLowerCase();
+      if (!name && !code) return false;
+      if (name.includes('total') || name.includes('grand total')) return false;
+      return true;
+    });
+
+    const itemCodes = [...new Set(filteredRows.map(r => String(r.itemCode || '').trim().toUpperCase()).filter(Boolean))];
+    const itemNames = [...new Set(filteredRows.map(r => String(r.itemName || '').trim()).filter(Boolean))];
     
     // Fetch potential matches
     const items = await Item.find({
@@ -414,21 +423,28 @@ class ItemService {
       isActive: true
     }).populate('brand', 'name brandName').populate('hsCodeId', 'code');
 
-    const results = rows.map(row => {
+    // Optimization: Create maps for O(1) lookup
+    const itemMap = new Map();
+    const nameShadeMap = new Map();
+
+    items.forEach(it => {
+      if (it.itemCode) itemMap.set(it.itemCode.toUpperCase(), it);
+      const key = `${it.itemName?.toLowerCase()}|${String(it.shadeNo || it.color || '').toLowerCase()}`;
+      if (!nameShadeMap.has(key)) nameShadeMap.set(key, it);
+    });
+
+    const results = filteredRows.map(row => {
       const searchCode = String(row.itemCode || '').trim().toUpperCase();
       const searchName = String(row.itemName || '').trim().toLowerCase();
       const searchShade = String(row.shade || row.color || '').trim().toLowerCase();
       const searchSize = String(row.size || '').trim().toUpperCase();
 
       // Priority 1: Match by Item Code
-      let matchedItem = items.find(it => it.itemCode?.toUpperCase() === searchCode);
+      let matchedItem = itemMap.get(searchCode);
       
       // Priority 2: Match by Name + Shade
       if (!matchedItem) {
-        matchedItem = items.find(it => 
-          it.itemName?.toLowerCase() === searchName && 
-          (String(it.shadeNo || it.color || '').toLowerCase() === searchShade || !searchShade)
-        );
+        matchedItem = nameShadeMap.get(`${searchName}|${searchShade}`) || nameShadeMap.get(`${searchName}|`);
       }
 
       if (matchedItem) {
@@ -461,6 +477,33 @@ class ItemService {
     });
 
     return results;
+  }
+
+  async validateBarcodes(barcodes) {
+    if (!Array.isArray(barcodes) || barcodes.length === 0) return {};
+
+    const items = await Item.find({
+        $or: [
+            { "sizes.barcode": { $in: barcodes } },
+            { "sizes.sku": { $in: barcodes } }
+        ]
+    }).lean();
+
+    const resultMap = {};
+    items.forEach(item => {
+        if (item.sizes) {
+            item.sizes.forEach(sz => {
+                if (barcodes.includes(sz.barcode)) {
+                    resultMap[sz.barcode] = { item, variant: sz };
+                }
+                if (barcodes.includes(sz.sku)) {
+                    resultMap[sz.sku] = { item, variant: sz };
+                }
+            });
+        }
+    });
+
+    return resultMap;
   }
 }
 

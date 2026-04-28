@@ -16,6 +16,7 @@ const endpointMap = {
   salesmen: '/setup/salesmen',
   banks: '/banks',
   accounts: '/accounts',
+  taxRules: '/tax-rules',
 };
 
 const responseKeyMap = {
@@ -32,6 +33,7 @@ const responseKeyMap = {
   salesmen: 'salesmen',
   banks: 'banks',
   accounts: 'accounts',
+  taxRules: 'data',
 };
 
 const singularKeyMap = {
@@ -48,6 +50,7 @@ const singularKeyMap = {
   salesmen: 'salesman',
   banks: 'bank',
   accounts: 'account',
+  taxRules: 'taxRule',
 };
 
 // Async Thunks for different master entities
@@ -322,6 +325,7 @@ const initialState = {
   promotionTypes: [],
   salesmen: [],
   accounts: [],
+  taxRules: [],
   loading: false,
   error: null,
 };

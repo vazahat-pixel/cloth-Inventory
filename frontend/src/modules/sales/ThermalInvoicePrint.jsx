@@ -54,7 +54,8 @@ const ThermalInvoicePrint = ({ sale }) => {
 
     const subTotal = Number(sale.subTotal || normalizedItems.reduce((acc, i) => acc + (i.rate * i.quantity), 0));
     const tax = Number(sale.totalTax ?? sale.tax ?? 0);
-    const discount = Number(sale.discount || 0);
+    // Combine all discounts for display
+    const discount = Number(sale.discount || 0) + Number(sale.schemeDiscount || 0) + Number(sale.couponDiscount || 0);
     const grandTotal = Number(sale.grandTotal || (subTotal + tax - discount));
 
     return (
@@ -118,7 +119,7 @@ const ThermalInvoicePrint = ({ sale }) => {
                             <Typography fontSize="inherit" sx={{ flex: 2, color: '#555' }}>{item.sku}/{item.size}</Typography>
                             <Typography fontSize="inherit" sx={{ flex: 1, textAlign: 'center' }}>{item.quantity}</Typography>
                             <Typography fontSize="inherit" sx={{ flex: 1, textAlign: 'right' }}>{item.rate.toFixed(0)}</Typography>
-                            <Typography fontSize="inherit" sx={{ flex: 1, textAlign: 'right' }}>{item.total.toFixed(0)}</Typography>
+                            <Typography fontSize="inherit" sx={{ flex: 1, textAlign: 'right' }}>{(item.amount || item.total || 0).toFixed(0)}</Typography>
                         </Stack>
                     </Box>
                 ))}
