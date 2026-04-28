@@ -239,6 +239,7 @@ function BillingPage({
   const [showPrint, setShowPrint] = useState(false);
   const [printFormat, setPrintFormat] = useState('thermal'); // Default to thermal for POS
   const autoPrintTriggeredRef = useRef(false);
+  const barcodeInputRef = useRef(null);
   const { showNotification } = useNotification();
   const { showLoading, hideLoading } = useLoading();
   const [selectedScheme, setSelectedScheme] = useState(null);
@@ -650,6 +651,10 @@ function BillingPage({
       setBarcodeInput('');
     } catch (err) {
       setErrorMessage(err.response?.data?.message || 'Error fetching product by barcode');
+    } finally {
+      setTimeout(() => {
+        barcodeInputRef.current?.focus();
+      }, 10);
     }
   };
 
@@ -1195,7 +1200,19 @@ function BillingPage({
                 size="small"
                 options={variantOptions}
                 value={selectedOption}
-                onChange={(_, value) => setSelectedOption(value)}
+                onChange={(_, value) => {
+                    setSelectedOption(value);
+                    if (value) {
+                        if (toNumber(value.available) <= 0) {
+                            setErrorMessage(`${value.itemName} (${value.size}/${value.color}) is Out of Stock.`);
+                            setSelectedOption(null);
+                            return;
+                        }
+                        upsertLine(value);
+                        setSelectedOption(null);
+                        setErrorMessage('');
+                    }
+                }}
                 getOptionLabel={(option) =>
                   `${option.itemName} (${option.size}/${option.color}) - SKU: ${option.sku || ''} - BC: ${option.barcode || ''} [Stock: ${option.available}]`
                 }
@@ -1216,6 +1233,8 @@ function BillingPage({
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mb: 2 }}>
               <TextField
                 fullWidth
+                inputRef={barcodeInputRef}
+                autoFocus
                 size="small"
                 label="Barcode / SKU"
                 value={barcodeInput}
