@@ -60,7 +60,7 @@ function getRecordDateKey(value) {
 }
 
 function getSalesAmount(record) {
-  return record.totals?.netPayable ?? record.totals?.grossAmount ?? 0;
+  return record.payment?.amountPaid ?? record.totals?.netPayable ?? record.totals?.grossAmount ?? 0;
 }
 
 function getPurchaseAmount(record) {

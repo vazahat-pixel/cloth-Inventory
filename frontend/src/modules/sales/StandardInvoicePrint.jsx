@@ -47,7 +47,7 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
         // Manual discount + Promo/Scheme discount
         const manualDiscountAmt = (rate * qty * Number(item.discountPercent ?? item.discount ?? 0)) / 100;
         const promoDiscountAmt = Number(item.promoDiscount ?? item.schemeDiscount ?? 0);
-        const totalDiscountAmt = manualDiscountAmt + promoDiscountAmt;
+        const totalDiscountAmt = item.discountAmount !== undefined ? Number(item.discountAmount) : (manualDiscountAmt + promoDiscountAmt);
         
         const taxPercentage = Number(item.taxPercentage ?? item.gstPercent ?? 5);
         const lineTotal = Number(item.total ?? (rate * qty - totalDiscountAmt));
@@ -262,7 +262,7 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
                 const catItems = groupedItems[category];
                 const catQty = catItems.reduce((sum, i) => sum + i.quantity, 0);
                 const catGross = catItems.reduce((sum, i) => sum + (i.rate * i.quantity), 0);
-                const catDisc = catItems.reduce((sum, i) => sum + ((i.rate * i.quantity * i.discountPercent) / 100), 0);
+                const catDisc = catItems.reduce((sum, i) => sum + i.discountAmount, 0);
                 const catNet = catItems.reduce((sum, i) => sum + i.lineTotal, 0);
 
                 return (

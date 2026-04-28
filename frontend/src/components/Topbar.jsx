@@ -52,17 +52,22 @@ function Topbar() {
             {title}
           </Typography>
           <Box sx={{ 
-            px: 1.2, py: 0.25, 
-            borderRadius: 1, 
-            bgcolor: location.pathname.startsWith('/store') ? '#fdf2f8' : '#eef2ff',
-            border: '1px solid',
+            px: 2, py: 0.75, 
+            borderRadius: '24px', 
+            bgcolor: location.pathname.startsWith('/store') ? '#ec4899' : '#4f46e5',
+            border: '2px solid',
             borderColor: location.pathname.startsWith('/store') ? '#fbcfe8' : '#e0e7ff',
+            boxShadow: location.pathname.startsWith('/store') ? '0 4px 14px 0 rgba(236,72,153,0.39)' : '0 4px 14px 0 rgba(79,70,229,0.39)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}>
             <Typography sx={{ 
-              fontSize: '11px', 
+              fontSize: '14px', 
               fontWeight: 900, 
-              color: location.pathname.startsWith('/store') ? '#be185d' : '#4338ca',
-              letterSpacing: '0.05em'
+              color: '#ffffff',
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase'
             }}>
               {location.pathname.startsWith('/store') ? 'STORE PANEL' : 'HEAD OFFICE'}
             </Typography>

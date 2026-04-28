@@ -33,7 +33,7 @@ const getDailyDashSummary = async (user) => {
         {
             $group: {
                 _id: null,
-                totalRevenue: { $sum: '$grandTotal' },
+                totalRevenue: { $sum: '$amountPaid' },
                 count: { $sum: 1 }
             }
         }
@@ -59,7 +59,7 @@ const getDailyDashSummary = async (user) => {
             {
                 $group: {
                     _id: '$storeId',
-                    revenue: { $sum: '$grandTotal' }
+                    revenue: { $sum: '$amountPaid' }
                 }
             },
             {

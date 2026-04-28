@@ -265,7 +265,7 @@ const StoreOpeningStockImport = () => {
 
                     <Divider />
 
-                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} alignItems="flex-end">
+                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} alignItems="flex-start">
                         <Box sx={{ flex: 1 }}>
                             <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700 }}>Select Target Store</Typography>
                             <Autocomplete
@@ -279,10 +279,18 @@ const StoreOpeningStockImport = () => {
                                         {...params} 
                                         placeholder={isStoreStaff ? "Your Store" : "Choose store..."} 
                                         size="small" 
-                                        helperText={isStoreStaff ? `Store: ${selectedStore?.name || 'Loading...'}` : ""}
+                                        sx={{ 
+                                            '& .MuiOutlinedInput-root': { height: 45 },
+                                            bgcolor: isStoreStaff ? '#f1f5f9' : '#fff'
+                                        }}
                                     />
                                 )}
                             />
+                            {isStoreStaff && selectedStore && (
+                                <Typography variant="caption" sx={{ color: '#64748b', mt: 0.5, display: 'block' }}>
+                                    Store: {selectedStore.name}
+                                </Typography>
+                            )}
                         </Box>
 
                         <Box sx={{ flex: 1 }}>
@@ -291,7 +299,7 @@ const StoreOpeningStockImport = () => {
                                 component="label"
                                 variant="outlined"
                                 startIcon={<CloudUploadIcon />}
-                                sx={{ height: 40, width: '100%', borderRadius: 2, textTransform: 'none' }}
+                                sx={{ height: 45, width: '100%', borderRadius: 2, textTransform: 'none', fontWeight: 700, borderStyle: 'dashed', borderWidth: 2 }}
                                 disabled={isLoading || isSaving}
                             >
                                 Choose File
@@ -299,13 +307,13 @@ const StoreOpeningStockImport = () => {
                             </Button>
                         </Box>
 
-                        <Box>
+                        <Box sx={{ pt: 3.5 }}>
                             <Button
                                 variant="contained"
                                 color="primary"
                                 onClick={handleValidate}
                                 disabled={!fileData.length || isLoading || isSaving || !selectedStore}
-                                sx={{ height: 40, borderRadius: 2, px: 4, textTransform: 'none', fontWeight: 700 }}
+                                sx={{ height: 45, borderRadius: 2, px: 4, textTransform: 'none', fontWeight: 700, boxShadow: '0 4px 14px 0 rgba(79,70,229,0.39)' }}
                             >
                                 {isLoading ? <CircularProgress size={20} color="inherit" /> : 'Step 2: Validate Data'}
                             </Button>

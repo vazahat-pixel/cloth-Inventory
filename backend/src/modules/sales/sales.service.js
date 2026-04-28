@@ -65,11 +65,17 @@ const getProductForSale = async (barcode, storeId) => {
 
     // Check stock from StoreInventory
     const StoreInventory = require('../../models/storeInventory.model');
-    const inventory = await StoreInventory.findOne({ storeId, productId: variant._id });
+    let inventory = await StoreInventory.findOne({ storeId, barcode });
+    
+    if (!inventory) {
+        const WarehouseInventory = require('../../models/warehouseInventory.model');
+        inventory = await WarehouseInventory.findOne({ warehouseId: storeId, barcode });
+    }
+
     const availableQty = inventory ? (inventory.quantityAvailable ?? inventory.quantity ?? 0) : 0;
 
     if (availableQty <= 0) {
-        throw new Error(`Out of stock for barcode ${barcode} in this store`);
+        throw new Error(`Out of stock for barcode ${barcode} in this location`);
     }
 
     return {
@@ -152,7 +158,7 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
 
         for (const item of products) {
             const barcode = item.barcode;
-            let inventory = await StoreInventory.findOne({ storeId, barcode }).populate('itemId').session(session);
+            let inventory = await StoreInventory.findOne({ storeId, barcode }).populate({ path: 'itemId', populate: { path: 'hsCodeId' } }).session(session);
             
             // IF SOURCE IS A WAREHOUSE, we need to check StockLedger/Warehouse Stock
             if (!inventory) {
@@ -161,7 +167,7 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
 
                 if (isWarehouse) {
                     const WarehouseInventory = require('../../models/warehouseInventory.model');
-                    const warehouseInv = await WarehouseInventory.findOne({ barcode, warehouseId: storeId }).populate('itemId').session(session);
+                    const warehouseInv = await WarehouseInventory.findOne({ barcode, warehouseId: storeId }).populate({ path: 'itemId', populate: { path: 'hsCodeId' } }).session(session);
 
                     if (warehouseInv) {
                         // Create a "MOCK" inventory object to satisfy the existing logic
@@ -185,9 +191,13 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
 
             const mrp = toNumber(item.mrp || variant?.mrp || parentItem.mrp || variant?.salePrice || parentItem.salePrice);
             const rate = toNumber(item.rate || item.price || variant?.salePrice || parentItem.salePrice);
-            const discount = toNumber(item.discount || 0);
+            const discountPercent = toNumber(item.discount || 0);
+            const promoDiscount = toNumber(item.promoDiscount || 0);
 
-            const lineTotal = (rate * item.quantity);
+            const grossLineTotal = rate * item.quantity;
+            const manualDiscountAmt = (grossLineTotal * discountPercent) / 100;
+            const totalDiscountAmt = manualDiscountAmt + promoDiscount;
+            const lineTotal = grossLineTotal - totalDiscountAmt;
             const gstPercentage = item.taxPercentage || parentItem.gstTax || 0;
             
             let taxableAmount;
@@ -236,7 +246,10 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             item.hsnCode = item.hsnCode || parentItem.hsnCode || parentItem.hsCodeId?.code || '';
             item.category = item.category || parentItem.categoryName || parentItem.categoryId?.name || '';
             item.brand = item.brand || parentItem.brandName || parentItem.brandId?.name || '';
-            item.promoDiscount = toNumber(item.promoDiscount);
+            item.promoDiscount = promoDiscount;
+            item.discountPercent = discountPercent;
+            item.discountAmount = totalDiscountAmt;
+            item.discount = discountPercent; // Keep for backward compatibility
             item.mrp = mrp;
             item.rate = rate;
             item.taxAmount = gstData.totalTax;
