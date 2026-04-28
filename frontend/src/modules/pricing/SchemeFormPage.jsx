@@ -37,6 +37,7 @@ function SchemeFormPage() {
   const categories = useSelector((state) => state.masters.itemGroups || []);
   const brands = useSelector((state) => state.masters.brands || []);
   const promotionTypes = useSelector((state) => state.masters.promotionTypes || []);
+  const stores = useSelector((state) => state.masters.stores || []);
 
   const existing = useMemo(
     () => (isEditMode ? schemes.find((s) => (s.id || s._id) === id) : null),
@@ -62,6 +63,7 @@ function SchemeFormPage() {
       applicableCategories: [],
       applicableBrands: [],
       applicableProducts: [],
+      applicableStores: [],
       minPurchaseAmount: 0,
       minPurchaseQuantity: 0,
       startDate: new Date().toISOString().split('T')[0],
@@ -77,6 +79,7 @@ function SchemeFormPage() {
     dispatch(fetchMasters('itemGroups')); // Categories
     dispatch(fetchItems()); // Products
     dispatch(fetchMasters('promotionTypes'));
+    dispatch(fetchMasters('stores'));
   }, [dispatch]);
 
   useEffect(() => {
@@ -90,6 +93,7 @@ function SchemeFormPage() {
         applicableCategories: existing.applicableCategories || [],
         applicableBrands: existing.applicableBrands || [],
         applicableProducts: existing.applicableProducts || [],
+        applicableStores: existing.applicableStores || [],
         minPurchaseAmount: existing.minPurchaseAmount || 0,
         minPurchaseQuantity: existing.minPurchaseQuantity || 0,
         startDate: existing.startDate ? new Date(existing.startDate).toISOString().split('T')[0] : '',
@@ -272,6 +276,26 @@ function SchemeFormPage() {
                         renderOption={(props, option) => (
                            <li {...props} key={option._id || option.id}>
                                {option.name || option.brandName}
+                           </li>
+                        )}
+                      />
+                    )}
+                  />
+
+                  <Controller
+                    name="applicableStores"
+                    control={control}
+                    render={({ field }) => (
+                      <Autocomplete
+                        multiple
+                        options={stores}
+                        getOptionLabel={(o) => o.name || o.storeName || ''}
+                        value={stores.filter(s => field.value.includes(s._id || s.id))}
+                        onChange={(_, v) => field.onChange(v.map(i => i._id || i.id))}
+                        renderInput={(params) => <TextField {...params} label="Limit to Stores" placeholder="Choose Stores..." />}
+                        renderOption={(props, option) => (
+                           <li {...props} key={option._id || option.id}>
+                               {option.name || option.storeName}
                            </li>
                         )}
                       />
