@@ -52,144 +52,54 @@ function RecentSalesTable({
       elevation={0}
       sx={{
         height: "100%",
-        borderRadius: 5,
-        background: "rgba(255, 255, 255, 0.45)",
-        backdropFilter: "blur(20px)",
-        border: "1px solid rgba(255, 255, 255, 0.3)",
-        boxShadow: "0 15px 35px -10px rgba(0, 0, 0, 0.04)",
+        borderRadius: '6px',
+        background: "#fff",
+        border: "1px solid #e2e8f0",
         overflow: "hidden",
       }}
     >
-      <CardContent sx={{ p: 3.5 }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 3 }}>
-          <Box
+      <CardContent sx={{ p: 2 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+          <ReceiptLongIcon sx={{ fontSize: 18, color: "#2563eb" }} />
+          <Typography
+            variant="subtitle2"
             sx={{
-              p: 1.25,
-              borderRadius: 3,
-              background: "linear-gradient(135deg, #4f46e5, #06b6d4)",
-              color: "#fff",
-              boxShadow: "0 8px 16px -4px rgba(79, 70, 229, 0.4)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              fontWeight: 700,
+              color: "#0f172a",
             }}
           >
-            <ReceiptLongIcon sx={{ fontSize: 22 }} />
-          </Box>
-          <Box>
-            <Typography
-              variant="subtitle1"
-              sx={{
-                fontWeight: 800,
-                color: "#111827",
-                letterSpacing: -0.5,
-                lineHeight: 1.2,
-              }}
-            >
-              {title}
-            </Typography>
-            <Typography variant="caption" sx={{ color: "#6b7280", fontWeight: 600 }}>
-              {subtitle}
-            </Typography>
-          </Box>
+            {title}
+          </Typography>
         </Box>
 
         {recent.length ? (
           <>
-            <TableContainer sx={{ overflow: "hidden" }}>
+            <TableContainer>
               <Table size="small">
-                <TableHead>
+                <TableHead sx={{ bgcolor: '#f8fafc' }}>
                   <TableRow>
-                    <TableCell
-                      sx={{
-                        borderBottom: "1px solid rgba(0,0,0,0.05)",
-                        py: 1.5,
-                        fontWeight: 700,
-                        color: "#6b7280",
-                        fontSize: 11,
-                        textTransform: "uppercase",
-                        letterSpacing: 1,
-                      }}
-                    >
-                      Invoice
-                    </TableCell>
-                    <TableCell
-                      sx={{
-                        borderBottom: "1px solid rgba(0,0,0,0.05)",
-                        py: 1.5,
-                        fontWeight: 700,
-                        color: "#6b7280",
-                        fontSize: 11,
-                        textTransform: "uppercase",
-                        letterSpacing: 1,
-                      }}
-                    >
-                      Date
-                    </TableCell>
-                    <TableCell
-                      sx={{
-                        borderBottom: "1px solid rgba(0,0,0,0.05)",
-                        py: 1.5,
-                        fontWeight: 700,
-                        color: "#6b7280",
-                        fontSize: 11,
-                        textTransform: "uppercase",
-                        letterSpacing: 1,
-                      }}
-                    >
-                      Customer
-                    </TableCell>
-                    <TableCell
-                      align="right"
-                      sx={{
-                        borderBottom: "1px solid rgba(0,0,0,0.05)",
-                        py: 1.5,
-                        fontWeight: 700,
-                        color: "#6b7280",
-                        fontSize: 11,
-                        textTransform: "uppercase",
-                        letterSpacing: 1,
-                      }}
-                    >
-                      Amount
-                    </TableCell>
+                    <TableCell sx={{ py: 1, fontWeight: 700, color: "#64748b", fontSize: '0.7rem', textTransform: 'uppercase' }}>Invoice</TableCell>
+                    <TableCell sx={{ py: 1, fontWeight: 700, color: "#64748b", fontSize: '0.7rem', textTransform: 'uppercase' }}>Date</TableCell>
+                    <TableCell sx={{ py: 1, fontWeight: 700, color: "#64748b", fontSize: '0.7rem', textTransform: 'uppercase' }}>Customer</TableCell>
+                    <TableCell align="right" sx={{ py: 1, fontWeight: 700, color: "#64748b", fontSize: '0.7rem', textTransform: 'uppercase' }}>Amount</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {recent.map((row) => (
-                    <TableRow
-                      key={row.id}
-                      sx={{ "& td": { borderBottom: "1px solid rgba(0,0,0,0.03)", py: 2.25 } }}
-                    >
-                      <TableCell>
+                    <TableRow key={row.id}>
+                      <TableCell sx={{ py: 0.75 }}>
                         <Link
                           component={RouterLink}
                           to={`${basePath}/sales/${row.id}`}
                           underline="none"
-                          sx={{
-                            fontWeight: 800,
-                            color: "#4f46e5",
-                            fontSize: 13,
-                            bgcolor: "rgba(79, 70, 229, 0.05)",
-                            px: 1.5,
-                            py: 0.5,
-                            borderRadius: 100,
-                            display: "inline-block",
-                          }}
+                          sx={{ fontWeight: 600, color: "#2563eb", fontSize: '0.8125rem' }}
                         >
-                          {String(row.invoiceNumber || row.id).slice(-8).toUpperCase()}
+                          #{String(row.invoiceNumber || row.id).slice(-6).toUpperCase()}
                         </Link>
                       </TableCell>
-                      <TableCell sx={{ color: "#6b7280", fontWeight: 600, fontSize: 13 }}>
-                        {formatDate(row.date)}
-                      </TableCell>
-                      <TableCell sx={{ color: "#374151", fontWeight: 700, fontSize: 13 }}>
-                        {row.customerName || "Walk-in"}
-                      </TableCell>
-                      <TableCell
-                        align="right"
-                        sx={{ fontWeight: 900, color: "#111827", fontSize: 14 }}
-                      >
+                      <TableCell sx={{ py: 0.75, color: "#64748b", fontSize: '0.8125rem' }}>{formatDate(row.date)}</TableCell>
+                      <TableCell sx={{ py: 0.75, color: "#334155", fontWeight: 500, fontSize: '0.8125rem' }}>{row.customerName || "Walk-in"}</TableCell>
+                      <TableCell align="right" sx={{ py: 0.75, fontWeight: 700, color: "#0f172a", fontSize: '0.8125rem' }}>
                         {formatCurrency(row.totals?.netPayable ?? row.totals?.grossAmount ?? 0)}
                       </TableCell>
                     </TableRow>

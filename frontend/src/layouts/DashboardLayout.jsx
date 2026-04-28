@@ -9,13 +9,20 @@ function DashboardLayout() {
       sx={{
         minHeight: '100vh',
         display: 'flex',
-        background: 'linear-gradient(135deg, #F8FAFC 0%, #EFF6FF 40%, #F8FAFC 100%)',
+        backgroundColor: '#f8fafc',
       }}
     >
       <Sidebar />
 
       <Box
-        sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}
+        sx={{ 
+          flex: 1, 
+          minWidth: 0, 
+          display: 'flex', 
+          flexDirection: 'column',
+          height: '100vh',
+          overflow: 'hidden'
+        }}
       >
         <Topbar />
         <Box
@@ -23,10 +30,11 @@ function DashboardLayout() {
           sx={{
             flex: 1,
             overflowY: 'auto',
-            p: { xs: 2.5, sm: 3.5 },
+            p: { xs: 1.5, sm: 2 },
             display: 'flex',
             flexDirection: 'column',
-            gap: 2.5,
+            gap: 2,
+            backgroundColor: '#f8fafc',
           }}
         >
           <Outlet />

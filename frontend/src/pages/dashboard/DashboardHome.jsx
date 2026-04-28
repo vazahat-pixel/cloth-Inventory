@@ -206,90 +206,79 @@ function DashboardHome() {
     : "This month's transactions will appear here as invoices are created.";
 
   return (
-    <Box sx={{ width: "100%", minWidth: 0, px: 2 }}>
+    <Box sx={{ width: "100%", minWidth: 0 }}>
       <Box
         sx={{
-          mt: 2,
-          mb: 6,
+          mb: 3,
           display: "flex",
-          alignItems: { xs: "stretch", md: "center" },
+          alignItems: "center",
           justifyContent: "space-between",
           gap: 2,
-          flexDirection: { xs: "column", md: "row" },
         }}
       >
         <Box>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 1 }}>
-            <Box
-              sx={{
-                width: 14,
-                height: 14,
-                borderRadius: "4px",
-                background: "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)",
-                boxShadow: "0 4px 12px rgba(99, 102, 241, 0.4)",
-              }}
-            />
-            <Typography
-              variant="h4"
-              sx={{
-                fontWeight: 900,
-                color: "#1e293b",
-                letterSpacing: "-0.03em",
-                fontSize: { xs: "1.75rem", md: "2.25rem" },
-              }}
-            >
-              Analytics Overview
-            </Typography>
-          </Box>
           <Typography
-            variant="body1"
-            sx={{ color: "#64748b", fontWeight: 600, fontSize: 16, ml: 4 }}
+            variant="h5"
+            sx={{
+              fontWeight: 700,
+              color: "#0f172a",
+              letterSpacing: "-0.02em",
+              fontSize: "1.25rem",
+            }}
           >
-            Proactive monitoring of business throughput and operational metrics.
+            Dashboard
+          </Typography>
+          <Typography
+            variant="body2"
+            sx={{ color: "#64748b", fontWeight: 500 }}
+          >
+            Real-time business overview and metrics.
           </Typography>
         </Box>
         <Box
           sx={{
-            p: 0.75,
-            borderRadius: "16px",
-            bgcolor: "rgba(255, 255, 255, 0.6)",
-            border: "1px solid #f1f5f9",
-            backdropFilter: "blur(10px)",
+            p: 0.5,
+            borderRadius: "6px",
+            bgcolor: "#f1f5f9",
             display: "flex",
             gap: 0.5,
-            boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)",
-            alignSelf: { xs: "flex-start", md: "auto" },
           }}
         >
           <Button
-            variant="text"
+            size="small"
+            variant={isTodayRange ? "contained" : "text"}
             onClick={() => setRange(RANGE_TODAY)}
             sx={{
-              borderRadius: "12px",
-              px: 3,
-              fontWeight: isTodayRange ? 800 : 700,
-              textTransform: "none",
-              color: isTodayRange ? "#6366f1" : "#94a3b8",
-              background: isTodayRange ? "#f3f4ff" : "transparent",
+              borderRadius: "4px",
+              px: 2,
+              minHeight: 28,
+              fontSize: '0.75rem',
+              boxShadow: 'none',
+              backgroundColor: isTodayRange ? "#fff" : "transparent",
+              color: isTodayRange ? "#0f172a" : "#64748b",
               "&:hover": {
-                background: isTodayRange ? "#eef2ff" : "#f8fafc",
+                backgroundColor: isTodayRange ? "#fff" : "rgba(0,0,0,0.05)",
+                boxShadow: 'none',
               },
             }}
           >
             Today
           </Button>
           <Button
-            variant="text"
+            size="small"
+            variant={!isTodayRange ? "contained" : "text"}
             onClick={() => setRange(RANGE_MONTH)}
             sx={{
-              borderRadius: "12px",
-              px: 3,
-              fontWeight: isTodayRange ? 700 : 800,
-              textTransform: "none",
-              color: isTodayRange ? "#94a3b8" : "#6366f1",
-              background: isTodayRange ? "transparent" : "#f3f4ff",
+              borderRadius: "4px",
+              px: 2,
+              minHeight: 28,
+              fontSize: '0.75rem',
+              boxShadow: 'none',
+              backgroundColor: !isTodayRange ? "#fff" : "transparent",
+              color: !isTodayRange ? "#0f172a" : "#64748b",
               "&:hover": {
-                background: isTodayRange ? "#f8fafc" : "#eef2ff",
+                backgroundColor: !isTodayRange ? "#fff" : "rgba(0,0,0,0.05)",
+                boxShadow: 'none',
               },
             }}
           >

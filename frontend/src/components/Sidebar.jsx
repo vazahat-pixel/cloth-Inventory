@@ -1,7 +1,6 @@
 import {
   Box,
   Collapse,
-  Divider,
   List,
   ListItem,
   ListItemButton,
@@ -38,439 +37,199 @@ function Sidebar() {
       sx={{
         width: sidebarWidth,
         flexShrink: 0,
-        alignSelf: 'flex-start',
         height: '100vh',
-        background: 'linear-gradient(180deg, #020617 0%, #0F172A 40%, #020617 100%)',
-        color: '#E2E8F0',
-        borderRight: '1px solid #1E293B',
+        background: '#0f172a',
+        color: '#f1f5f9',
         display: 'flex',
         flexDirection: 'column',
-        overflow: 'hidden',
+        boxShadow: '4px 0 24px 0 rgba(0,0,0,0.05)',
+        zIndex: 1100,
+        position: 'relative',
+        '&::after': {
+          content: '""',
+          position: 'absolute',
+          top: 0,
+          right: 0,
+          width: '1px',
+          height: '100%',
+          background: 'linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0) 100%)',
+        }
       }}
     >
-      <Box sx={{ px: 3, py: 2.5, flexShrink: 0 }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, letterSpacing: 0.3 }}>
-          Cloth ERP
+      <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+        <Typography 
+          variant="h6" 
+          sx={{ 
+            fontWeight: 800, 
+            letterSpacing: -0.5, 
+            color: '#fff',
+            fontSize: '1.1rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1
+          }}
+        >
+          <Box sx={{ width: 6, height: 20, borderRadius: 0.5, bgcolor: '#3b82f6' }} />
+          CLOTH ERP
         </Typography>
-        <Typography variant="caption" sx={{ color: '#94A3B8' }}>
-          Inventory System
+        <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, letterSpacing: 0.5, textTransform: 'uppercase', ml: 2, fontSize: '0.65rem' }}>
+          Management System
         </Typography>
       </Box>
 
-      <Divider sx={{ borderColor: '#1E293B', flexShrink: 0 }} />
-
       <Box
+        className="sidebar-scroll"
         sx={{
           flex: 1,
-          minHeight: 0,
           overflowY: 'auto',
-          overflowX: 'hidden',
-          scrollbarWidth: 'thin',
-          scrollbarColor: '#475569 #020617',
-          '&::-webkit-scrollbar': { width: 6 },
-          '&::-webkit-scrollbar-track': {
-            backgroundColor: '#020617',
-            borderRadius: 3,
-          },
-          '&::-webkit-scrollbar-thumb': {
-            backgroundColor: '#1F2937',
-            borderRadius: 3,
-            '&:hover': { backgroundColor: '#4B5563' },
-          },
+          px: 1.5,
+          pb: 2,
+          '&::-webkit-scrollbar': { width: 4 },
+          '&::-webkit-scrollbar-thumb': { background: '#1e293b', borderRadius: 10 },
         }}
       >
-        <List sx={{ px: 1.5, py: 1.5 }}>
-          {mainNavItems.map((item) => (
-            <Box key={item.path}>
-              <ListItem disablePadding sx={{ mb: 0.5 }}>
-                <ListItemButton
-                  component={NavLink}
-                  to={item.path}
-                  end={item.path === '/'}
-                  sx={{
-                    borderRadius: 1.5,
-                    px: 1.5,
-                    py: 0.75,
-                    color: '#CBD5E1',
-                    alignItems: 'center',
-                    gap: 1,
-                    '&:hover': {
-                      backgroundColor: 'rgba(148, 163, 184, 0.12)',
-                    },
-                    '&.active': {
-                      backgroundColor: '#2563EB',
-                      color: '#FFFFFF',
-                      boxShadow: '0 10px 20px rgba(37, 99, 235, 0.35)',
-                    },
-                  }}
-                >
-                  <ListItemText
-                    primary={item.label}
-                    slotProps={{
-                      primary: {
-                        fontSize: 14,
-                        fontWeight: 600,
+        <List sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+          {mainNavItems.map((item) => {
+            const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
+            
+            return (
+              <Box key={item.path}>
+                <ListItem disablePadding>
+                  <ListItemButton
+                    component={NavLink}
+                    to={item.path}
+                    end={item.path === '/'}
+                    sx={{
+                      borderRadius: 1,
+                      px: 1.5,
+                      py: 0.75,
+                      minHeight: 36,
+                      color: isActive ? '#fff' : '#94a3b8',
+                      backgroundColor: isActive ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+                      transition: 'all 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
+                      '&:hover': {
+                        backgroundColor: isActive ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255, 255, 255, 0.03)',
+                        color: '#fff',
+                      },
+                      '&.active': {
+                        color: '#fff',
+                        '& .MuiTypography-root': { fontWeight: 700 },
+                        '&::before': {
+                          content: '""',
+                          position: 'absolute',
+                          left: -6,
+                          top: '25%',
+                          height: '50%',
+                          width: 3,
+                          borderRadius: '0 4px 4px 0',
+                          backgroundColor: '#3b82f6',
+                          boxShadow: '0 0 8px #3b82f6',
+                        }
                       },
                     }}
-                  />
-                </ListItemButton>
-              </ListItem>
+                  >
+                    <ListItemText
+                      primary={item.label}
+                      slotProps={{
+                        primary: {
+                          fontSize: '0.8125rem',
+                          fontWeight: 500,
+                        },
+                      }}
+                    />
+                  </ListItemButton>
+                </ListItem>
 
-              {item.path === '/masters' && childrenMap.masters && (
-                <Collapse in={showMastersChildren} timeout="auto" unmountOnExit>
-                  <List disablePadding sx={{ pl: 1, pr: 0.5, pb: 0.5 }}>
-                    {childrenMap.masters.map((child) => (
-                      <ListItem key={child.path} disablePadding sx={{ mb: 0.25 }}>
-                        <ListItemButton
-                          component={NavLink}
-                          to={child.path}
-                          sx={{
-                            minHeight: 34,
-                            borderRadius: 1.5,
-                            pl: 2,
-                            color: '#94a3b8',
-                            '&:hover': {
-                              backgroundColor: '#1e293b',
-                            },
-                            '&.active': {
-                              backgroundColor: '#172554',
-                              color: '#bfdbfe',
-                            },
-                          }}
-                        >
-                          <ListItemText
-                            primary={child.label}
-                            slotProps={{
-                              primary: {
-                                fontSize: 12.5,
-                                fontWeight: 600,
+                {/* Sub-menu handling */}
+                {(
+                  (item.path === '/masters' && childrenMap.masters) ||
+                  (item.path === '/inventory' && childrenMap.inventory) ||
+                  (item.path === '/purchase' && childrenMap.purchase) ||
+                  (item.path === '/sales' && childrenMap.sales) ||
+                  (item.path === '/customers' && childrenMap.customers) ||
+                  (item.path === '/settings' && childrenMap.settings) ||
+                  (item.path === '/gst' && childrenMap.gst) ||
+                  (item.path === '/reports' && childrenMap.reports) ||
+                  (item.path === '/pricing' && childrenMap.pricing)
+                ) && (
+                  <Collapse 
+                    in={
+                      (item.path === '/masters' && showMastersChildren) ||
+                      (item.path === '/inventory' && showInventoryChildren) ||
+                      (item.path === '/purchase' && showPurchaseChildren) ||
+                      (item.path === '/sales' && showSalesChildren) ||
+                      (item.path === '/customers' && showCustomersChildren) ||
+                      (item.path === '/settings' && showSettingsChildren) ||
+                      (item.path === '/gst' && showGstChildren) ||
+                      (item.path === '/reports' && showReportsChildren) ||
+                      (item.path === '/pricing' && showPricingChildren)
+                    } 
+                    timeout="auto"
+                  >
+                    <List disablePadding sx={{ pl: 1.5, mt: 0.25, mb: 0.5, display: 'flex', flexDirection: 'column', gap: 0.15 }}>
+                      {(
+                        item.path === '/masters' ? childrenMap.masters :
+                        item.path === '/inventory' ? childrenMap.inventory :
+                        item.path === '/purchase' ? childrenMap.purchase :
+                        item.path === '/sales' ? childrenMap.sales :
+                        item.path === '/customers' ? childrenMap.customers :
+                        item.path === '/settings' ? childrenMap.settings :
+                        item.path === '/gst' ? childrenMap.gst :
+                        item.path === '/reports' ? childrenMap.reports :
+                        item.path === '/pricing' ? childrenMap.pricing : []
+                      ).map((child) => (
+                        <ListItem key={child.path} disablePadding>
+                          <ListItemButton
+                            component={NavLink}
+                            to={child.path}
+                            sx={{
+                              minHeight: 28,
+                              borderRadius: 1,
+                              pl: 2,
+                              color: '#64748b',
+                              transition: 'all 0.1s',
+                              position: 'relative',
+                              '&:hover': {
+                                color: '#cbd5e1',
+                                backgroundColor: 'transparent',
                               },
-                            }}
-                          />
-                        </ListItemButton>
-                      </ListItem>
-                    ))}
-                  </List>
-                </Collapse>
-              )}
-
-              {item.path === '/inventory' && childrenMap.inventory && (
-                <Collapse in={showInventoryChildren} timeout="auto" unmountOnExit>
-                  <List disablePadding sx={{ pl: 1, pr: 0.5, pb: 0.5 }}>
-                    {childrenMap.inventory.map((child) => (
-                      <ListItem key={child.path} disablePadding sx={{ mb: 0.25 }}>
-                        <ListItemButton
-                          component={NavLink}
-                          to={child.path}
-                          sx={{
-                            minHeight: 34,
-                            borderRadius: 1.5,
-                            pl: 2,
-                            color: '#94a3b8',
-                            '&:hover': {
-                              backgroundColor: '#1e293b',
-                            },
-                            '&.active': {
-                              backgroundColor: '#172554',
-                              color: '#bfdbfe',
-                            },
-                          }}
-                        >
-                          <ListItemText
-                            primary={child.label}
-                            slotProps={{
-                              primary: {
-                                fontSize: 12.5,
-                                fontWeight: 600,
+                              '&.active': {
+                                color: '#3b82f6',
+                                backgroundColor: 'transparent',
+                                '& .MuiTypography-root': { fontWeight: 700 },
                               },
+                              '&::before': {
+                                content: '""',
+                                position: 'absolute',
+                                left: 0,
+                                top: '50%',
+                                width: 3,
+                                height: 3,
+                                borderRadius: '50%',
+                                backgroundColor: 'currentColor',
+                                transform: 'translateY(-50%)',
+                                opacity: 0.3
+                              }
                             }}
-                          />
-                        </ListItemButton>
-                      </ListItem>
-                    ))}
-                  </List>
-                </Collapse>
-              )}
-
-              {item.path === '/purchase' && childrenMap.purchase && (
-                <Collapse in={showPurchaseChildren} timeout="auto" unmountOnExit>
-                  <List disablePadding sx={{ pl: 1, pr: 0.5, pb: 0.5 }}>
-                    {childrenMap.purchase.map((child) => (
-                      <ListItem key={child.path} disablePadding sx={{ mb: 0.25 }}>
-                        <ListItemButton
-                          component={NavLink}
-                          to={child.path}
-                          end={child.path === '/purchase'}
-                          sx={{
-                            minHeight: 34,
-                            borderRadius: 1.5,
-                            pl: 2,
-                            color: '#94a3b8',
-                            '&:hover': {
-                              backgroundColor: '#1e293b',
-                            },
-                            '&.active': {
-                              backgroundColor: '#172554',
-                              color: '#bfdbfe',
-                            },
-                          }}
-                        >
-                          <ListItemText
-                            primary={child.label}
-                            slotProps={{
-                              primary: {
-                                fontSize: 12.5,
-                                fontWeight: 600,
-                              },
-                            }}
-                          />
-                        </ListItemButton>
-                      </ListItem>
-                    ))}
-                  </List>
-                </Collapse>
-              )}
-
-              {item.path === '/sales' && childrenMap.sales && (
-                <Collapse in={showSalesChildren} timeout="auto" unmountOnExit>
-                  <List disablePadding sx={{ pl: 1, pr: 0.5, pb: 0.5 }}>
-                    {childrenMap.sales.map((child) => (
-                      <ListItem key={child.path} disablePadding sx={{ mb: 0.25 }}>
-                        <ListItemButton
-                          component={NavLink}
-                          to={child.path}
-                          end={child.path === '/sales'}
-                          sx={{
-                            minHeight: 34,
-                            borderRadius: 1.5,
-                            pl: 2,
-                            color: '#94a3b8',
-                            '&:hover': {
-                              backgroundColor: '#1e293b',
-                            },
-                            '&.active': {
-                              backgroundColor: '#172554',
-                              color: '#bfdbfe',
-                            },
-                          }}
-                        >
-                          <ListItemText
-                            primary={child.label}
-                            slotProps={{
-                              primary: {
-                                fontSize: 12.5,
-                                fontWeight: 600,
-                              },
-                            }}
-                          />
-                        </ListItemButton>
-                      </ListItem>
-                    ))}
-                  </List>
-                </Collapse>
-              )}
-
-              {item.path === '/customers' && childrenMap.customers && (
-                <Collapse in={showCustomersChildren} timeout="auto" unmountOnExit>
-                  <List disablePadding sx={{ pl: 1, pr: 0.5, pb: 0.5 }}>
-                    {childrenMap.customers.map((child) => (
-                      <ListItem key={child.path} disablePadding sx={{ mb: 0.25 }}>
-                        <ListItemButton
-                          component={NavLink}
-                          to={child.path}
-                          end={
-                            child.path === '/customers/rewards' ||
-                            child.path === '/customers/vouchers' ||
-                            child.path === '/customers/credit-notes' ||
-                            child.path === '/customers/loyalty-config'
-                          }
-                          sx={{
-                            minHeight: 34,
-                            borderRadius: 1.5,
-                            pl: 2,
-                            color: '#94a3b8',
-                            '&:hover': {
-                              backgroundColor: '#1e293b',
-                            },
-                            '&.active': {
-                              backgroundColor: '#172554',
-                              color: '#bfdbfe',
-                            },
-                          }}
-                        >
-                          <ListItemText
-                            primary={child.label}
-                            slotProps={{
-                              primary: {
-                                fontSize: 12.5,
-                                fontWeight: 600,
-                              },
-                            }}
-                          />
-                        </ListItemButton>
-                      </ListItem>
-                    ))}
-                  </List>
-                </Collapse>
-              )}
-
-              {item.path === '/settings' && childrenMap.settings && (
-                <Collapse in={showSettingsChildren} timeout="auto" unmountOnExit>
-                  <List disablePadding sx={{ pl: 1, pr: 0.5, pb: 0.5 }}>
-                    {childrenMap.settings.map((child) => (
-                      <ListItem key={child.path} disablePadding sx={{ mb: 0.25 }}>
-                        <ListItemButton
-                          component={NavLink}
-                          to={child.path}
-                          end={false}
-                          sx={{
-                            minHeight: 34,
-                            borderRadius: 1.5,
-                            pl: 2,
-                            color: '#94a3b8',
-                            '&:hover': {
-                              backgroundColor: '#1e293b',
-                            },
-                            '&.active': {
-                              backgroundColor: '#172554',
-                              color: '#bfdbfe',
-                            },
-                          }}
-                        >
-                          <ListItemText
-                            primary={child.label}
-                            slotProps={{
-                              primary: {
-                                fontSize: 12.5,
-                                fontWeight: 600,
-                              },
-                            }}
-                          />
-                        </ListItemButton>
-                      </ListItem>
-                    ))}
-                  </List>
-                </Collapse>
-              )}
-
-              {item.path === '/gst' && childrenMap.gst && (
-                <Collapse in={showGstChildren} timeout="auto" unmountOnExit>
-                  <List disablePadding sx={{ pl: 1, pr: 0.5, pb: 0.5 }}>
-                    {childrenMap.gst.map((child) => (
-                      <ListItem key={child.path} disablePadding sx={{ mb: 0.25 }}>
-                        <ListItemButton
-                          component={NavLink}
-                          to={child.path}
-                          end={false}
-                          sx={{
-                            minHeight: 34,
-                            borderRadius: 1.5,
-                            pl: 2,
-                            color: '#94a3b8',
-                            '&:hover': {
-                              backgroundColor: '#1e293b',
-                            },
-                            '&.active': {
-                              backgroundColor: '#172554',
-                              color: '#bfdbfe',
-                            },
-                          }}
-                        >
-                          <ListItemText
-                            primary={child.label}
-                            slotProps={{
-                              primary: {
-                                fontSize: 12.5,
-                                fontWeight: 600,
-                              },
-                            }}
-                          />
-                        </ListItemButton>
-                      </ListItem>
-                    ))}
-                  </List>
-                </Collapse>
-              )}
-
-              {item.path === '/reports' && childrenMap.reports && (
-                <Collapse in={showReportsChildren} timeout="auto" unmountOnExit>
-                  <List disablePadding sx={{ pl: 1, pr: 0.5, pb: 0.5 }}>
-                    {childrenMap.reports.map((child) => (
-                      <ListItem key={child.path} disablePadding sx={{ mb: 0.25 }}>
-                        <ListItemButton
-                          component={NavLink}
-                          to={child.path}
-                          end={child.path === '/reports'}
-                          sx={{
-                            minHeight: 34,
-                            borderRadius: 1.5,
-                            pl: 2,
-                            color: '#94a3b8',
-                            '&:hover': {
-                              backgroundColor: '#1e293b',
-                            },
-                            '&.active': {
-                              backgroundColor: '#172554',
-                              color: '#bfdbfe',
-                            },
-                          }}
-                        >
-                          <ListItemText
-                            primary={child.label}
-                            slotProps={{
-                              primary: {
-                                fontSize: 12.5,
-                                fontWeight: 600,
-                              },
-                            }}
-                          />
-                        </ListItemButton>
-                      </ListItem>
-                    ))}
-                  </List>
-                </Collapse>
-              )}
-
-              {item.path === '/pricing' && childrenMap.pricing && (
-                <Collapse in={showPricingChildren} timeout="auto" unmountOnExit>
-                  <List disablePadding sx={{ pl: 1, pr: 0.5, pb: 0.5 }}>
-                    {childrenMap.pricing.map((child) => (
-                      <ListItem key={child.path} disablePadding sx={{ mb: 0.25 }}>
-                        <ListItemButton
-                          component={NavLink}
-                          to={child.path}
-                          end={child.path === '/pricing/price-lists' || child.path === '/pricing/schemes' || child.path === '/pricing/coupons'}
-                          sx={{
-                            minHeight: 34,
-                            borderRadius: 1.5,
-                            pl: 2,
-                            color: '#94a3b8',
-                            '&:hover': {
-                              backgroundColor: '#1e293b',
-                            },
-                            '&.active': {
-                              backgroundColor: '#172554',
-                              color: '#bfdbfe',
-                            },
-                          }}
-                        >
-                          <ListItemText
-                            primary={child.label}
-                            slotProps={{
-                              primary: {
-                                fontSize: 12.5,
-                                fontWeight: 600,
-                              },
-                            }}
-                          />
-                        </ListItemButton>
-                      </ListItem>
-                    ))}
-                  </List>
-                </Collapse>
-              )}
-            </Box>
-          ))}
+                          >
+                            <ListItemText
+                              primary={child.label}
+                              slotProps={{
+                                primary: {
+                                  fontSize: '0.75rem',
+                                  fontWeight: 500,
+                                },
+                              }}
+                            />
+                          </ListItemButton>
+                        </ListItem>
+                      ))}
+                    </List>
+                  </Collapse>
+                )}
+              </Box>
+            );
+          })}
         </List>
       </Box>
     </Box>
