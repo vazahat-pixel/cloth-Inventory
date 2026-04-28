@@ -68,9 +68,10 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
             const grossInclusive = baseInclusive * qty;
             const discountInclusive = Math.max(0, grossInclusive - lineTotal);
             
-            displayGross = grossInclusive / (1 + (taxPercentage / 100));
-            displayDiscount = discountInclusive / (1 + (taxPercentage / 100));
-            displayRate = displayGross / (qty || 1);
+            // For Retail/B2C, show inclusive values to match the POS screen exactly
+            displayGross = grossInclusive;
+            displayDiscount = discountInclusive;
+            displayRate = baseInclusive;
         } else {
             // MRP/Rate was exclusive of tax (Dispatch/B2B)
             // In dispatch, 'mrp' is saved as the base rate, 'rate' is the discounted rate
@@ -156,6 +157,7 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
     const totalTax = normalizedItems.reduce((acc, i) => acc + i.taxAmount, 0);
     const totalDiscount = normalizedItems.reduce((acc, i) => acc + i.discountAmount, 0) + Number(sale.billDiscount || 0);
     const grandTotal = subTotal + totalTax;
+    const isInclusiveSource = sale.type === 'RETAIL' && !sale.dispatchNumber;
     
     const isB2B = Boolean(destinationGstin !== 'N/A' || sale.customerGst || sale.consigneeGst);
     const displayTitle = providedTitle || (isTransfer ? 'STOCK TRANSFER NOTE' : (isB2B ? (isInterState ? 'TAX INVOICE (INTER-STATE)' : 'TAX INVOICE') : 'SALE INVOICE'));
@@ -379,12 +381,22 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
                         <Stack spacing={0.5}>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>Gross Total:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>₹{normalizedItems.reduce((acc, i) => acc + i.grossLine, 0).toFixed(2)}</Typography></Box>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>Total Discount:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>-₹{totalDiscount.toFixed(2)}</Typography></Box>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>Taxable Value:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>₹{subTotal.toFixed(2)}</Typography></Box>
-                            {isInterState ? 
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>IGST:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>₹{totalTax.toFixed(2)}</Typography></Box> :
-                                <><Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>CGST:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>₹{(totalTax/2).toFixed(2)}</Typography></Box>
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>SGST:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>₹{(totalTax/2).toFixed(2)}</Typography></Box></>
-                            }
+                            
+                            {!isInclusiveSource && (
+                                <>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>Taxable Value:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>₹{subTotal.toFixed(2)}</Typography></Box>
+                                    {isInterState ? 
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>IGST:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>₹{totalTax.toFixed(2)}</Typography></Box> :
+                                        <><Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>CGST:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>₹{(totalTax/2).toFixed(2)}</Typography></Box>
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>SGST:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>₹{(totalTax/2).toFixed(2)}</Typography></Box></>
+                                    }
+                                </>
+                            )}
+                            
+                            {isInclusiveSource && totalTax > 0 && (
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>Tax Included:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>₹{totalTax.toFixed(2)}</Typography></Box>
+                            )}
+
                             <Divider sx={{ my: 0.5, borderBottomWidth: 1, borderColor: '#000' }} />
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', bgcolor: '#f8fafc', p: 0.5 }}><Typography sx={{ fontSize: '12px', fontWeight: 950 }}>NET PAYABLE:</Typography><Typography sx={{ fontSize: '13px', fontWeight: 950 }}>₹{grandTotal.toFixed(2)}</Typography></Box>
                         </Stack>
