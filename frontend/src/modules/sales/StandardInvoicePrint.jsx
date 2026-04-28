@@ -52,16 +52,41 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
         const taxPercentage = Number(item.taxPercentage ?? item.gstPercent ?? 5);
         const lineTotal = Number(item.total ?? (rate * qty - totalDiscountAmt));
         
+        // Determine if the original source was inclusive or exclusive
+        const isInclusiveSource = sale.type === 'RETAIL' && !sale.dispatchNumber;
+        
         // Back-calculate taxable from lineTotal
         const taxable = lineTotal / (1 + (taxPercentage / 100));
         const taxAmount = lineTotal - taxable;
+        
+        // Mathematically consistent display values (Exclusive of Tax)
+        let displayGross, displayDiscount, displayRate;
+        
+        if (isInclusiveSource) {
+            // MRP/Rate was inclusive of tax
+            const baseInclusive = Math.max(mrp, rate);
+            const grossInclusive = baseInclusive * qty;
+            const discountInclusive = Math.max(0, grossInclusive - lineTotal);
+            
+            displayGross = grossInclusive / (1 + (taxPercentage / 100));
+            displayDiscount = discountInclusive / (1 + (taxPercentage / 100));
+            displayRate = displayGross / (qty || 1);
+        } else {
+            // MRP/Rate was exclusive of tax (Dispatch/B2B)
+            // In dispatch, 'mrp' is saved as the base rate, 'rate' is the discounted rate
+            const baseExclusive = Math.max(mrp, rate); 
+            displayGross = baseExclusive * qty;
+            displayDiscount = Math.max(0, displayGross - taxable);
+            displayRate = baseExclusive;
+        }
 
         return {
             ...item,
             quantity: qty,
-            rate,
+            rate: displayRate,
             mrp,
-            discountAmount: totalDiscountAmt,
+            discountAmount: displayDiscount,
+            grossLine: displayGross,
             taxable,
             taxPercentage,
             taxAmount,
@@ -261,7 +286,7 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
             {Object.keys(groupedItems).map((category, catIndex) => {
                 const catItems = groupedItems[category];
                 const catQty = catItems.reduce((sum, i) => sum + i.quantity, 0);
-                const catGross = catItems.reduce((sum, i) => sum + (i.rate * i.quantity), 0);
+                const catGross = catItems.reduce((sum, i) => sum + i.grossLine, 0);
                 const catDisc = catItems.reduce((sum, i) => sum + i.discountAmount, 0);
                 const catNet = catItems.reduce((sum, i) => sum + i.lineTotal, 0);
 
@@ -283,7 +308,6 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
                             </TableHead>
                             <TableBody>
                                 {catItems.map((item, index) => {
-                                    const grossLine = item.rate * item.quantity;
                                     return (
                                         <TableRow key={index} sx={{ '& .MuiTableCell-root': tableCellStyle }}>
                                             <TableCell>{index + 1}</TableCell>
@@ -291,7 +315,7 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
                                             <TableCell>{item.hsnCode}</TableCell>
                                             <TableCell>{item.quantity}</TableCell>
                                             <TableCell>{item.rate.toFixed(2)}</TableCell>
-                                            <TableCell>{grossLine.toFixed(2)}</TableCell>
+                                            <TableCell>{item.grossLine.toFixed(2)}</TableCell>
                                             <TableCell>{item.discountAmount.toFixed(2)}</TableCell>
                                             <TableCell>{item.taxPercentage}%</TableCell>
                                             <TableCell sx={{ fontWeight: 900 }}>{item.lineTotal.toFixed(2)}</TableCell>
@@ -353,7 +377,7 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
                     
                     <Grid item xs={4.5} sx={{ p: 1 }}>
                         <Stack spacing={0.5}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>Gross Total:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>₹{normalizedItems.reduce((acc, i) => acc + (i.rate * i.quantity), 0).toFixed(2)}</Typography></Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>Gross Total:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>₹{normalizedItems.reduce((acc, i) => acc + i.grossLine, 0).toFixed(2)}</Typography></Box>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>Total Discount:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>-₹{totalDiscount.toFixed(2)}</Typography></Box>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>Taxable Value:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>₹{subTotal.toFixed(2)}</Typography></Box>
                             {isInterState ? 
