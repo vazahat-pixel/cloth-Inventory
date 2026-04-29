@@ -5,6 +5,8 @@ import { getPageTitle } from '../common/navigation';
 import { logout } from '../app/features/auth/authSlice';
 import useRoleBasePath from '../hooks/useRoleBasePath';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import StoreIcon from '@mui/icons-material/Store';
+import CorporateFareIcon from '@mui/icons-material/CorporateFare';
 import { Link } from 'react-router-dom';
 
 function Topbar() {
@@ -44,24 +46,36 @@ function Topbar() {
             {title}
           </Typography>
           <Box sx={{ 
-            px: 1.5, py: 0.5, 
-            borderRadius: '6px', 
-            bgcolor: location.pathname.startsWith('/store') ? '#fdf2f8' : '#eff6ff',
-            border: '1px solid',
-            borderColor: location.pathname.startsWith('/store') ? '#fbcfe8' : '#dbeafe',
+            px: 2, py: 0.75, 
+            borderRadius: '10px', 
+            bgcolor: location.pathname.startsWith('/store') ? '#be185d' : '#1d4ed8',
+            color: '#fff',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
+            gap: 1,
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
           }}>
+            {location.pathname.startsWith('/store') ? (
+              <StoreIcon sx={{ fontSize: 18 }} />
+            ) : (
+              <CorporateFareIcon sx={{ fontSize: 18 }} />
+            )}
             <Typography sx={{ 
-              fontSize: '10px', 
-              fontWeight: 800, 
-              color: location.pathname.startsWith('/store') ? '#be185d' : '#1d4ed8',
-              letterSpacing: '0.05em',
+              fontSize: '12px', 
+              fontWeight: 900, 
+              letterSpacing: '0.08em',
               textTransform: 'uppercase'
             }}>
               {location.pathname.startsWith('/store') ? 'Store Panel' : 'Head Office'}
             </Typography>
+            {location.pathname.startsWith('/store') && user?.store?.name && (
+              <>
+                <Divider orientation="vertical" flexItem sx={{ borderColor: 'rgba(255,255,255,0.3)', my: 0.5 }} />
+                <Typography sx={{ fontSize: '12px', fontWeight: 700 }}>
+                  {user.store.name}
+                </Typography>
+              </>
+            )}
           </Box>
         </Stack>
       </Box>

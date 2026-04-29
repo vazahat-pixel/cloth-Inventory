@@ -189,18 +189,34 @@ const RoleSidebar = ({ navConfig, isCollapsed, onToggle }) => {
                 flexShrink: 0
               }}
             />
-            <Typography
-              variant="h6"
-              sx={{
-                fontWeight: 800,
-                fontSize: '1.1rem',
-                color: '#fff',
-                letterSpacing: '-0.04em',
-                lineHeight: 1,
-              }}
-            >
-              CLOTH ERP
-            </Typography>
+            <Box>
+              <Typography
+                variant="h6"
+                sx={{
+                  fontWeight: 800,
+                  fontSize: '1.1rem',
+                  color: '#fff',
+                  letterSpacing: '-0.04em',
+                  lineHeight: 1,
+                }}
+              >
+                CLOTH ERP
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{
+                  fontWeight: 700,
+                  fontSize: '0.65rem',
+                  color: location.pathname.startsWith('/store') ? '#f472b6' : '#60a5fa',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  lineHeight: 1.5,
+                  display: 'block'
+                }}
+              >
+                {location.pathname.startsWith('/store') ? 'Store Operations' : 'Management Hub'}
+              </Typography>
+            </Box>
           </Box>
         )}
 
