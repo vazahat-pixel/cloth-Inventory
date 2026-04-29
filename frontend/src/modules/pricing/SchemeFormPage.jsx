@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, memo, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams } from 'react-router-dom';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
@@ -22,8 +22,9 @@ import {
   InputAdornment,
   Divider,
   ListItemIcon,
+  ListItemText,
 } from '@mui/material';
-import { FixedSizeList as List } from 'react-window';
+import { List } from 'react-window';
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
 import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
@@ -39,6 +40,44 @@ const toNum = (v, def = 0) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : def;
 };
+
+const ProductRow = memo(({ index, style, items, selection, onToggle }) => {
+  const item = items[index];
+  if (!item) return null;
+  const itemId = item._id || item.id;
+  const isSelected = selection.includes(itemId);
+  
+  return (
+      <Box 
+          style={style} 
+          sx={{ 
+              borderBottom: '1px solid #f1f5f9',
+              '&:hover': { bgcolor: '#f8fafc' },
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              px: 2
+          }}
+          onClick={() => onToggle(itemId, isSelected)}
+      >
+          <ListItemIcon sx={{ minWidth: 40 }}>
+              <Checkbox
+                  edge="start"
+                  checked={isSelected}
+                  tabIndex={-1}
+                  disableRipple
+              />
+          </ListItemIcon>
+          <ListItemText 
+              primary={item.itemName} 
+              secondary={`${item.itemCode || 'No Code'} | ${item.sizes?.map(s => s.sku || s.size).join(', ') || 'No Variants'}`}
+              primaryTypographyProps={{ fontWeight: 700, fontSize: '0.9rem', noWrap: true }}
+              secondaryTypographyProps={{ fontSize: '0.75rem', noWrap: true }}
+          />
+      </Box>
+  );
+});
+
 
 function SchemeFormPage() {
   const { id } = useParams();
@@ -137,6 +176,14 @@ function SchemeFormPage() {
       item.sizes?.some(s => s.sku?.toLowerCase().includes(lower))
     );
   }, [items, productSearch]);
+
+  const handleToggle = useCallback((id, isSelected) => {
+    if (isSelected) {
+        setLocalSelection(prev => prev.filter(i => i !== id));
+    } else {
+        setLocalSelection(prev => [...prev, id]);
+    }
+  }, []);
 
   const onSubmit = (values) => {
     setFormError('');
@@ -422,53 +469,16 @@ function SchemeFormPage() {
                                 <Box sx={{ flex: 1 }}>
                                     {allFiltered.length > 0 ? (
                                         <List
-                                            height={500}
-                                            itemCount={allFiltered.length}
-                                            itemSize={70}
-                                            width="100%"
-                                        >
-                                            {({ index, style }) => {
-                                                const item = allFiltered[index];
-                                                const itemId = item._id || item.id;
-                                                const isSelected = localSelection.includes(itemId);
-                                                
-                                                return (
-                                                    <Box 
-                                                        style={style} 
-                                                        sx={{ 
-                                                            borderBottom: '1px solid #f1f5f9',
-                                                            '&:hover': { bgcolor: '#f8fafc' },
-                                                            cursor: 'pointer',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            px: 2
-                                                        }}
-                                                        onClick={() => {
-                                                            if (isSelected) {
-                                                                setLocalSelection(prev => prev.filter(id => id !== itemId));
-                                                            } else {
-                                                                setLocalSelection(prev => [...prev, itemId]);
-                                                            }
-                                                        }}
-                                                    >
-                                                        <ListItemIcon sx={{ minWidth: 40 }}>
-                                                            <Checkbox
-                                                                edge="start"
-                                                                checked={isSelected}
-                                                                tabIndex={-1}
-                                                                disableRipple
-                                                            />
-                                                        </ListItemIcon>
-                                                        <ListItemText 
-                                                            primary={item.itemName} 
-                                                            secondary={`${item.itemCode || 'No Code'} | Variants: ${item.sizes?.map(s => s.sku || s.size).join(', ') || 'N/A'}`}
-                                                            primaryTypographyProps={{ fontWeight: 700, fontSize: '0.9rem', noWrap: true }}
-                                                            secondaryTypographyProps={{ fontSize: '0.75rem', noWrap: true }}
-                                                        />
-                                                    </Box>
-                                                );
+                                            style={{ height: 500, width: '100%' }}
+                                            rowCount={allFiltered.length}
+                                            rowHeight={70}
+                                            rowComponent={ProductRow}
+                                            rowProps={{
+                                                items: allFiltered,
+                                                selection: localSelection,
+                                                onToggle: handleToggle
                                             }}
-                                        </List>
+                                        />
                                     ) : (
                                         <Box sx={{ p: 4, textAlign: 'center' }}>
                                             <Typography variant="body2" color="textSecondary">No items found matching your search.</Typography>
