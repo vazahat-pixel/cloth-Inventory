@@ -86,7 +86,7 @@ const calculateLine = (line, taxRate = 5, promoDiscount = 0) => {
   };
 };
 
-const calculateTotals = (lines, taxRules, billDiscount, loyaltyRedeemed, couponDiscount = 0, schemeDiscount = 0, creditNoteAmount = 0, saleType = 'retail', promoItems = []) => {
+const calculateTotals = (lines, taxRules, billDiscount, loyaltyRedeemed, couponDiscount = 0, schemeDiscount = 0, creditNoteAmount = 0, saleType = 'retail', promoItems = [], adjustments = []) => {
   // 1. Determine the Bill-level GST Slab
   // detect total taxable value estimate
   let totalNetBeforeTax = 0;
@@ -123,7 +123,8 @@ const calculateTotals = (lines, taxRules, billDiscount, loyaltyRedeemed, couponD
   }, { gross: 0, manualLineDiscount: 0, promoDiscount: 0, taxAmount: 0, totalQuantity: 0 });
 
   // For Inclusive Tax: Net = Gross - All Discounts - Adjustments
-  const net = totals.gross - totals.manualLineDiscount - totals.promoDiscount - toNumber(billDiscount) - toNumber(couponDiscount) - toNumber(schemeDiscount) - toNumber(loyaltyRedeemed) - toNumber(creditNoteAmount);
+  const adjustmentTotal = adjustments.reduce((sum, adj) => sum + toNumber(adj.amount), 0);
+  const net = totals.gross - totals.manualLineDiscount - totals.promoDiscount - toNumber(billDiscount) - toNumber(couponDiscount) - toNumber(schemeDiscount) - toNumber(loyaltyRedeemed) - toNumber(creditNoteAmount) + adjustmentTotal;
 
   return {
     ...totals,
@@ -247,6 +248,7 @@ function BillingPage({
   const [exchangeItems, setExchangeItems] = useState([]);
   const [originalSaleId, setOriginalSaleId] = useState(null);
   const [originalSaleNumber, setOriginalSaleNumber] = useState('');
+  const [adjustments, setAdjustments] = useState([]); // Array of { label, amount }
 
   const pendingDOsForCustomer = useMemo(() => {
     if (!customerId || billingMode !== 'fromDO') return [];
@@ -347,7 +349,8 @@ function BillingPage({
         lines.map(l => ({ 
             variantId: l.productId, 
             promoDiscount: activePromoDiscounts[l.productId] || 0 
-        }))
+        })),
+        adjustments
       );
 
       return {
@@ -690,6 +693,20 @@ function BillingPage({
     );
   };
 
+  const handleAddAdjustment = () => {
+    setAdjustments([...adjustments, { label: '', amount: 0 }]);
+  };
+
+  const updateAdjustment = (index, field, value) => {
+    const next = [...adjustments];
+    next[index] = { ...next[index], [field]: field === 'amount' ? toNumber(value) : value };
+    setAdjustments(next);
+  };
+
+  const removeAdjustment = (index) => {
+    setAdjustments(adjustments.filter((_, i) => i !== index));
+  };
+
   const removeLine = (lineId) => {
     setLines((previous) => previous.filter((line) => line.id !== lineId));
   };
@@ -781,6 +798,7 @@ function BillingPage({
       schemeDiscount: totals.promoDiscount, // Use the actual promo total
       type: (saleType || 'retail').toUpperCase(),
       hsnSummary: totals.hsnSummary,
+      adjustments: adjustments.filter(a => a.label && a.amount !== 0),
       exchangeDetails: exchangeItems.length > 0 ? {
           originalSaleId,
           items: exchangeItems.map(i => ({
@@ -1469,6 +1487,41 @@ function BillingPage({
                 onChange={(event) => setBillDiscount(event.target.value)}
                 disabled={isStoreStaff}
               />
+              
+              <Box sx={{ mt: 1 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0f172a' }}>
+                    Manual Adjustments / Calculations
+                  </Typography>
+                  <Button size="small" startIcon={<AddCircleOutlineIcon />} onClick={handleAddAdjustment}>
+                    Add More
+                  </Button>
+                </Stack>
+                <Stack spacing={1}>
+                  {adjustments.map((adj, index) => (
+                    <Stack key={index} direction="row" spacing={1} alignItems="center">
+                      <TextField
+                        size="small"
+                        placeholder="Label (e.g. Round off)"
+                        value={adj.label}
+                        onChange={(e) => updateAdjustment(index, 'label', e.target.value)}
+                        sx={{ flex: 1 }}
+                      />
+                      <TextField
+                        size="small"
+                        type="number"
+                        placeholder="Amount"
+                        value={adj.amount}
+                        onChange={(e) => updateAdjustment(index, 'amount', e.target.value)}
+                        sx={{ width: 100 }}
+                      />
+                      <IconButton size="small" color="error" onClick={() => removeAdjustment(index)}>
+                        <DeleteOutlineIcon fontSize="small" />
+                      </IconButton>
+                    </Stack>
+                  ))}
+                </Stack>
+              </Box>
 
               <Stack direction="row" spacing={1} alignItems="flex-start">
                 <TextField

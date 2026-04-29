@@ -168,8 +168,8 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
         '& .MuiTableCell-root': {
             color: '#000',
             fontWeight: 900,
-            fontSize: '10px',
-            py: 0.5,
+            fontSize: '9px',
+            py: 0.3,
             border: '1px solid #000',
             textTransform: 'uppercase',
             textAlign: 'center'
@@ -177,8 +177,8 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
     };
 
     const tableCellStyle = {
-        fontSize: '10px',
-        py: 0.4,
+        fontSize: '9px',
+        py: 0.3,
         border: '1px solid #000',
         fontWeight: 600,
         color: '#000',
@@ -203,16 +203,21 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
                 p: 2, 
                 bgcolor: '#fff', 
                 color: '#000', 
-                maxWidth: 900, 
+                maxWidth: '148mm', 
                 mx: 'auto', 
                 borderRadius: 0,
                 border: '1px solid #000',
                 fontFamily: '"Arial", sans-serif',
                 '@media print': {
                     p: 1,
-                    width: '100% !important',
+                    width: '148mm !important',
+                    height: '210mm !important',
                     maxWidth: 'none !important',
-                    border: 'none'
+                    border: 'none',
+                    '@page': {
+                        size: 'A5 portrait',
+                        margin: '2mm'
+                    }
                 }
             }}
         >
@@ -225,9 +230,9 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
                     {company.legalName || 'REBEL MASS EXPORT PVT LTD'}
                 </Typography>
                 <Typography sx={{ fontSize: '11px', fontWeight: 700, lineHeight: 1.3 }}>
-                    {company.address?.address || 'PLOT NO 418 PHASE 3 SECTOR - 53 HSIIDC KUNDLI SONIPAT'}<br />
-                    {company.address?.city || 'SONIPAT'}, {company.address?.state || 'HARYANA'} - {company.address?.pincode || '131028'}
-                    &nbsp;GSTIN: {company.gstin || '06AAJCR6675A1ZB'} PH: {company.phone || '9999999999'}
+                    {store.location?.address || company.address?.address || 'PLOT NO 418 PHASE 3 SECTOR - 53 HSIIDC KUNDLI SONIPAT'}<br />
+                    {store.location?.city || company.address?.city || 'SONIPAT'}, {store.location?.state || company.address?.state || 'HARYANA'} - {store.location?.pincode || company.address?.pincode || '131028'}
+                    &nbsp;GSTIN: {store.gstNumber || company.gstin || '06AAJCR6675A1ZB'} PH: {store.phone || company.phone || '9999999999'}
                 </Typography>
             </Box>
 
@@ -265,7 +270,7 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
                     <Box sx={{ minHeight: 70 }}>
                         <Typography sx={{ fontSize: '11px', fontWeight: 900 }}>{destinationStore.name || destinationStore.storeName || sale.customerName || 'N/A'}</Typography>
                         <Typography sx={{ fontSize: '10px' }}>{destinationAddress || sale.consigneeAddress || sale.customerAddress || 'N/A'}</Typography>
-                        <Typography sx={{ fontSize: '10px' }}><strong>Phone No.:</strong> {destinationStore.phone || sale.customerMobile || '-'}</Typography>
+                        <Typography sx={{ fontSize: '10px' }}><strong>Phone/Mobile:</strong> {sale.customerMobile || destinationStore.phone || '-'}</Typography>
                         <Typography sx={{ fontSize: '10px' }}><strong>GSTIN No:</strong> {destinationGstin || sale.customerGst || 'N/A'}</Typography>
                         <Typography sx={{ fontSize: '10px' }}><strong>State:</strong> {(destinationLocation.state || sale.consigneeState || customerState || 'N/A').toUpperCase()} <strong>GST State Code:</strong> {destinationStateCode}</Typography>
                     </Box>
@@ -297,15 +302,15 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
                         <Table size="small" sx={{ borderCollapse: 'collapse' }}>
                             <TableHead sx={tableHeaderStyle}>
                                 <TableRow>
-                                    <TableCell width="40">S. No.</TableCell>
-                                    <TableCell width="120">CATEGORY</TableCell>
-                                    <TableCell width="100">HSN CODE</TableCell>
-                                    <TableCell width="80">TOTAL QTY</TableCell>
-                                    <TableCell width="80">RATE</TableCell>
-                                    <TableCell width="100">GROSS AMOUNT</TableCell>
-                                    <TableCell width="80">DISC</TableCell>
-                                    <TableCell width="60">GST(%)</TableCell>
-                                    <TableCell width="100">NET AMOUNT</TableCell>
+                                    <TableCell width="30">S.N</TableCell>
+                                    <TableCell width="100">CATEGORY</TableCell>
+                                    <TableCell width="70">HSN</TableCell>
+                                    <TableCell width="50">QTY</TableCell>
+                                    <TableCell width="60">RATE</TableCell>
+                                    <TableCell width="70">GROSS</TableCell>
+                                    <TableCell width="50">DISC</TableCell>
+                                    <TableCell width="40">GST%</TableCell>
+                                    <TableCell width="80">NET AMT</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -381,6 +386,13 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
                         <Stack spacing={0.5}>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>Gross Total:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>₹{normalizedItems.reduce((acc, i) => acc + i.grossLine, 0).toFixed(2)}</Typography></Box>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>Total Discount:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>-₹{totalDiscount.toFixed(2)}</Typography></Box>
+                            
+                            {sale.adjustments?.map((adj, index) => (
+                                <Box key={index} sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <Typography sx={{ fontSize: '10px', fontWeight: 700 }}>{adj.label}:</Typography>
+                                    <Typography sx={{ fontSize: '10px', fontWeight: 900 }}>₹{Number(adj.amount).toFixed(2)}</Typography>
+                                </Box>
+                            ))}
                             
                             {!isInclusiveSource && (
                                 <>

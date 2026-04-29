@@ -76,7 +76,7 @@ class PricingService {
                     const p = Number(item.price || item.rate || 0);
                     return acc + (p * q * (scheme.value / 100));
                 }, 0);
-            } else if (type === 'FLAT' || type.includes('FLAT')) {
+            } else if (type === 'FLAT' || type.includes('FLAT') || type === 'MANUAL') {
                 schemeDiscount = scheme.value;
             } else if (type === 'BOGO') {
                 schemeDiscount = eligibleItems.reduce((acc, item) => {

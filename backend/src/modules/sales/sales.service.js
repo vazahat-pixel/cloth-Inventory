@@ -639,6 +639,7 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             }
         } 
 
+        await sale.populate('storeId');
         return sale;
     };
 

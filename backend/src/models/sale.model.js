@@ -186,6 +186,12 @@ const saleSchema = new mongoose.Schema(
                 igst: Number
             }
         ],
+        adjustments: [
+            {
+                label: String,
+                amount: { type: Number, default: 0 }
+            }
+        ],
         returnedItems: [saleItemSchema]
     },
     { timestamps: true }

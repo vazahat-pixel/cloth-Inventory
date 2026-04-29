@@ -36,6 +36,7 @@ const SCHEME_TYPE_LABELS = {
   BUY_X_GET_Y: 'Buy X Get Y',
   FIXED_PRICE: 'Fixed Price Bundle',
   FREE_GIFT: 'Free Gift on Purchase',
+  MANUAL: 'Manual Discount',
 };
 
 const APPLICABILITY_LABELS = {
@@ -229,6 +230,7 @@ function SchemeListPage() {
                           {row.type === 'BOGO' && 'Buy 1 Get 1'}
                           {row.type === 'BUY_X_GET_Y' && `Buy ${row.buyQuantity} Get ${row.getQuantity}`}
                           {row.type === 'FREE_GIFT' && 'Free Gift'}
+                          {row.type === 'MANUAL' && `₹${row.value} (Manual)`}
                         </Typography>
                       </TableCell>
                       <TableCell>

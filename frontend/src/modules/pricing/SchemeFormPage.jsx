@@ -13,7 +13,21 @@ import {
   Stack,
   TextField,
   Typography,
+  Checkbox,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
+  InputAdornment,
+  Divider,
+  ListItemIcon,
 } from '@mui/material';
+import { FixedSizeList as List } from 'react-window';
+import SearchIcon from '@mui/icons-material/Search';
+import CloseIcon from '@mui/icons-material/Close';
+import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
+import CheckBoxIcon from '@mui/icons-material/CheckBox';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import { useForm, Controller } from 'react-hook-form';
@@ -77,7 +91,7 @@ function SchemeFormPage() {
   useEffect(() => {
     dispatch(fetchMasters('brands'));
     dispatch(fetchMasters('itemGroups')); // Categories
-    dispatch(fetchItems()); // Products
+    dispatch(fetchItems({ limit: 10000 })); // Fetch all items for selection
     dispatch(fetchMasters('promotionTypes'));
     dispatch(fetchMasters('stores'));
   }, [dispatch]);
@@ -103,13 +117,34 @@ function SchemeFormPage() {
     }
   }, [existing, reset, isEditMode]);
 
+  const [productDialogOpen, setProductDialogOpen] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
+  const [localSelection, setLocalSelection] = useState([]);
+
+  // Sync local selection when dialog opens
+  useEffect(() => {
+    if (productDialogOpen) {
+        setLocalSelection(watch('applicableProducts') || []);
+    }
+  }, [productDialogOpen, watch]);
+
+  const allFiltered = useMemo(() => {
+    if (!productSearch) return items;
+    const lower = productSearch.toLowerCase();
+    return items.filter(item => 
+      item.itemName?.toLowerCase().includes(lower) || 
+      item.itemCode?.toLowerCase().includes(lower) ||
+      item.sizes?.some(s => s.sku?.toLowerCase().includes(lower))
+    );
+  }, [items, productSearch]);
+
   const onSubmit = (values) => {
     setFormError('');
     
     // Normalizing values
     const payload = {
       ...values,
-      value: values.type === 'PERCENTAGE' || values.type === 'FLAT' ? Number(values.value) : 0,
+      value: ['PERCENTAGE', 'FLAT', 'FIXED_PRICE', 'MANUAL'].includes(values.type) ? Number(values.value) : 0,
       buyQuantity: values.type === 'BUY_X_GET_Y' ? Number(values.buyQuantity) : (values.type === 'BOGO' ? 1 : 0),
       getQuantity: values.type === 'BUY_X_GET_Y' ? Number(values.getQuantity) : (values.type === 'BOGO' ? 1 : 0),
       minPurchaseAmount: Number(values.minPurchaseAmount),
@@ -191,7 +226,7 @@ function SchemeFormPage() {
                     </TextField>
                   </Grid>
 
-                  {(schemeType === 'PERCENTAGE' || schemeType === 'FLAT' || schemeType === 'FIXED_PRICE') && (
+                  {(schemeType === 'PERCENTAGE' || schemeType === 'FLAT' || schemeType === 'FIXED_PRICE' || schemeType === 'MANUAL') && (
                     <Grid item xs={12} md={6}>
                       <TextField
                         fullWidth
@@ -199,6 +234,7 @@ function SchemeFormPage() {
                         label={
                           schemeType === 'PERCENTAGE' ? 'Discount Percentage (%)' : 
                           schemeType === 'FIXED_PRICE' ? 'Combo Price (₹ for bundle)' : 
+                          schemeType === 'MANUAL' ? 'Manual Discount (₹)' :
                           'Flat Discount (₹)'
                         }
                         {...register('value', { required: true, min: 0 })}
@@ -288,13 +324,30 @@ function SchemeFormPage() {
                     render={({ field }) => (
                       <Autocomplete
                         multiple
-                        options={stores}
+                        disableCloseOnSelect
+                        options={[{ id: 'all', name: '--- SELECT ALL STORES ---' }, ...stores]}
                         getOptionLabel={(o) => o.name || o.storeName || ''}
                         value={stores.filter(s => field.value.includes(s._id || s.id))}
-                        onChange={(_, v) => field.onChange(v.map(i => i._id || i.id))}
+                        onChange={(_, v) => {
+                          if (v.some(i => i.id === 'all')) {
+                            if (field.value.length === stores.length) {
+                                field.onChange([]);
+                            } else {
+                                field.onChange(stores.map(i => i._id || i.id));
+                            }
+                          } else {
+                            field.onChange(v.map(i => i._id || i.id));
+                          }
+                        }}
                         renderInput={(params) => <TextField {...params} label="Limit to Stores" placeholder="Choose Stores..." />}
-                        renderOption={(props, option) => (
+                        renderOption={(props, option, { selected }) => (
                            <li {...props} key={option._id || option.id}>
+                               <Checkbox
+                                 icon={<CheckBoxOutlineBlankIcon fontSize="small" />}
+                                 checkedIcon={<CheckBoxIcon fontSize="small" />}
+                                 style={{ marginRight: 8 }}
+                                 checked={option.id === 'all' ? (field.value.length === stores.length && stores.length > 0) : selected}
+                               />
                                {option.name || option.storeName}
                            </li>
                         )}
@@ -306,19 +359,144 @@ function SchemeFormPage() {
                     name="applicableProducts"
                     control={control}
                     render={({ field }) => (
-                      <Autocomplete
-                        multiple
-                        options={items}
-                        getOptionLabel={(o) => `${o.itemName} (${o.itemCode})`}
-                        value={items.filter(i => field.value.includes(i._id || i.id))}
-                        onChange={(_, v) => field.onChange(v.map(i => i._id || i.id))}
-                        renderInput={(params) => <TextField {...params} label="Specific Products" placeholder="Search items..." />}
-                        renderOption={(props, option) => (
-                           <li {...props} key={option._id || option.id}>
-                               {option.itemName} ({option.itemCode})
-                           </li>
-                        )}
-                      />
+                      <Box>
+                        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Specific Products ({field.value.length} selected)</Typography>
+                            <Button variant="outlined" size="small" onClick={() => setProductDialogOpen(true)}>
+                                Select Products
+                            </Button>
+                        </Stack>
+                        <Paper variant="outlined" sx={{ p: 1, minHeight: 40, maxHeight: 120, overflowY: 'auto', bgcolor: '#f1f5f9' }}>
+                            {field.value.length === 0 ? (
+                                <Typography variant="caption" color="textSecondary">All products included (No restriction)</Typography>
+                            ) : (
+                                <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                                    {items.filter(i => field.value.includes(i._id || i.id)).map(i => (
+                                        <Box key={i._id || i.id} sx={{ bgcolor: '#fff', px: 1, py: 0.5, borderRadius: 1, border: '1px solid #e2e8f0', fontSize: '0.75rem' }}>
+                                            {i.itemName}
+                                        </Box>
+                                    ))}
+                                </Stack>
+                            )}
+                        </Paper>
+
+                        <Dialog 
+                          open={productDialogOpen} 
+                          onClose={() => setProductDialogOpen(false)}
+                          fullWidth
+                          maxWidth="md"
+                          PaperProps={{ sx: { borderRadius: 4, height: '85vh' } }}
+                        >
+                            <DialogTitle sx={{ fontWeight: 800, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                Select Specific Products
+                                <IconButton onClick={() => setProductDialogOpen(false)} size="small">
+                                    <CloseIcon />
+                                </IconButton>
+                            </DialogTitle>
+                            <Divider />
+                            <DialogContent sx={{ p: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                                <Box sx={{ p: 2, bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                                    <TextField
+                                      fullWidth
+                                      size="small"
+                                      placeholder="Search by Item Name, Code or Variant SKU (e.g. TS...)"
+                                      value={productSearch}
+                                      onChange={(e) => setProductSearch(e.target.value)}
+                                      InputProps={{
+                                        startAdornment: (
+                                          <InputAdornment position="start">
+                                            <SearchIcon color="action" />
+                                          </InputAdornment>
+                                        ),
+                                      }}
+                                    />
+                                    <Stack direction="row" spacing={2} sx={{ mt: 1.5, alignItems: 'center' }}>
+                                        <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                                            {allFiltered.length} items found total
+                                        </Typography>
+                                        <Button size="small" variant="text" onClick={() => setLocalSelection([])}>Clear Selection</Button>
+                                        <Button size="small" variant="text" onClick={() => setLocalSelection(items.map(i => i._id || i.id))}>Select All</Button>
+                                    </Stack>
+                                </Box>
+                                
+                                <Box sx={{ flex: 1 }}>
+                                    {allFiltered.length > 0 ? (
+                                        <List
+                                            height={500}
+                                            itemCount={allFiltered.length}
+                                            itemSize={70}
+                                            width="100%"
+                                        >
+                                            {({ index, style }) => {
+                                                const item = allFiltered[index];
+                                                const itemId = item._id || item.id;
+                                                const isSelected = localSelection.includes(itemId);
+                                                
+                                                return (
+                                                    <Box 
+                                                        style={style} 
+                                                        sx={{ 
+                                                            borderBottom: '1px solid #f1f5f9',
+                                                            '&:hover': { bgcolor: '#f8fafc' },
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            px: 2
+                                                        }}
+                                                        onClick={() => {
+                                                            if (isSelected) {
+                                                                setLocalSelection(prev => prev.filter(id => id !== itemId));
+                                                            } else {
+                                                                setLocalSelection(prev => [...prev, itemId]);
+                                                            }
+                                                        }}
+                                                    >
+                                                        <ListItemIcon sx={{ minWidth: 40 }}>
+                                                            <Checkbox
+                                                                edge="start"
+                                                                checked={isSelected}
+                                                                tabIndex={-1}
+                                                                disableRipple
+                                                            />
+                                                        </ListItemIcon>
+                                                        <ListItemText 
+                                                            primary={item.itemName} 
+                                                            secondary={`${item.itemCode || 'No Code'} | Variants: ${item.sizes?.map(s => s.sku || s.size).join(', ') || 'N/A'}`}
+                                                            primaryTypographyProps={{ fontWeight: 700, fontSize: '0.9rem', noWrap: true }}
+                                                            secondaryTypographyProps={{ fontSize: '0.75rem', noWrap: true }}
+                                                        />
+                                                    </Box>
+                                                );
+                                            }}
+                                        </List>
+                                    ) : (
+                                        <Box sx={{ p: 4, textAlign: 'center' }}>
+                                            <Typography variant="body2" color="textSecondary">No items found matching your search.</Typography>
+                                        </Box>
+                                    )}
+                                </Box>
+                            </DialogContent>
+                            <Divider />
+                            <DialogActions sx={{ p: 2, bgcolor: '#f8fafc' }}>
+                                <Typography variant="caption" sx={{ mr: 'auto', ml: 2, fontWeight: 700 }}>
+                                    {localSelection.length} Items Selected
+                                </Typography>
+                                <Button onClick={() => setProductDialogOpen(false)} color="inherit">
+                                    Cancel
+                                </Button>
+                                <Button 
+                                    onClick={() => {
+                                        field.onChange(localSelection);
+                                        setProductDialogOpen(false);
+                                    }} 
+                                    variant="contained" 
+                                    sx={{ px: 4, borderRadius: 2 }}
+                                >
+                                    Confirm Selection
+                                </Button>
+                            </DialogActions>
+                        </Dialog>
+                      </Box>
                     )}
                   />
                 </Stack>

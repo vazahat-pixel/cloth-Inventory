@@ -145,6 +145,12 @@ const ThermalInvoicePrint = ({ sale }) => {
                         <Typography fontSize="inherit">-₹{discount.toFixed(2)}</Typography>
                     </Stack>
                 )}
+                {sale.adjustments?.map((adj, index) => (
+                    <Stack key={index} direction="row" justifyContent="space-between">
+                        <Typography fontSize="inherit">{adj.label}:</Typography>
+                        <Typography fontSize="inherit">₹{Number(adj.amount).toFixed(2)}</Typography>
+                    </Stack>
+                ))}
                 <Divider sx={{ my: 0.5, borderStyle: 'solid', borderColor: '#000' }} />
                 <Stack direction="row" justifyContent="space-between" sx={{ fontSize: '14px', fontWeight: 900 }}>
                     <Typography fontSize="inherit">NET PAYABLE:</Typography>

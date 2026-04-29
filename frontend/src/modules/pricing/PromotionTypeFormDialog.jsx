@@ -18,6 +18,7 @@ const LOGIC_OPTIONS = [
     { value: 'BUY_X_GET_Y', label: 'Buy X, Get Y Free' },
     { value: 'FIXED_PRICE', label: 'Combo Price (e.g. 3 for ₹999)' },
     { value: 'FREE_GIFT', label: 'Free Gift on Purchase' },
+    { value: 'MANUAL', label: 'Manual Calculation' },
 ];
 
 function PromotionTypeFormDialog({ open, onClose, onSubmit, initialValues }) {
