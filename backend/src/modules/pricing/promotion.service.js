@@ -20,14 +20,25 @@ class PromotionService {
         }).lean();
 
         // Sort by Specificity first, then by Value
-        // Specific = has Products, Categories, or Brands defined
+        // Specific = has Products, Categories, Brands, or Stores defined
         schemes.sort((a, b) => {
-            const specificityA = (a.applicableProducts?.length || 0) + (a.applicableCategories?.length || 0) + (a.applicableBrands?.length || 0);
-            const specificityB = (b.applicableProducts?.length || 0) + (b.applicableCategories?.length || 0) + (b.applicableBrands?.length || 0);
+            // Give weights to different types of specificity
+            // Product specific is the most specific, followed by Categories/Brands, then Store specific
+            const scoreA = 
+                (a.applicableProducts?.length ? 100 : 0) + 
+                (a.applicableCategories?.length ? 50 : 0) + 
+                (a.applicableBrands?.length ? 50 : 0) +
+                (a.applicableStores?.length ? 25 : 0);
+            
+            const scoreB = 
+                (b.applicableProducts?.length ? 100 : 0) + 
+                (b.applicableCategories?.length ? 50 : 0) + 
+                (b.applicableBrands?.length ? 50 : 0) +
+                (b.applicableStores?.length ? 25 : 0);
 
-            if (specificityA !== specificityB) {
-                // If specificity is different, higher specificity (more filters) comes first
-                return specificityB - specificityA;
+            if (scoreA !== scoreB) {
+                // Higher specificity score comes first
+                return scoreB - scoreA;
             }
             
             // If specificity is same, higher value comes first

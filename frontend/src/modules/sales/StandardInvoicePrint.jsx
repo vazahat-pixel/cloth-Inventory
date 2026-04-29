@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Box, Divider, Grid, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography, Stack, CircularProgress } from '@mui/material';
 import api from '../../services/api';
 
-const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }) => {
+const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle, isTransfer = false }) => {
     const [config, setConfig] = useState(null);
     const [loading, setLoading] = useState(true);
 
@@ -33,7 +33,7 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
         </Box>
     );
 
-    const store = sale.storeId || sale.warehouseId || {};
+    const store = providedStore || (typeof sale.storeId === 'object' ? sale.storeId : null) || (typeof sale.warehouseId === 'object' ? sale.warehouseId : null) || {};
     const sourceWarehouse = sale.sourceWarehouseId || store || {};
     const destinationStore = sale.destinationStoreId || {};
     const company = config?.company || {};
@@ -203,36 +203,51 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
                 p: 2, 
                 bgcolor: '#fff', 
                 color: '#000', 
-                maxWidth: '148mm', 
+                width: '148mm', 
+                minHeight: '210mm',
                 mx: 'auto', 
                 borderRadius: 0,
                 border: '1px solid #000',
+                boxSizing: 'border-box',
                 fontFamily: '"Arial", sans-serif',
+                position: 'relative',
                 '@media print': {
-                    p: 1,
+                    p: '5mm',
                     width: '148mm !important',
                     height: '210mm !important',
                     maxWidth: 'none !important',
                     border: 'none',
                     '@page': {
                         size: 'A5 portrait',
-                        margin: '2mm'
+                        margin: '0mm'
                     }
                 }
             }}
         >
             {/* Main Header */}
-            <Box sx={{ textAlign: 'center', mb: 1, border: '1px solid #000', p: 1 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 900, textDecoration: 'underline', fontSize: '12px' }}>
+            <Box sx={{ 
+                textAlign: 'center', 
+                mb: 1, 
+                border: '2px solid #000', 
+                p: 1.5, 
+                bgcolor: '#f8fafc',
+                borderRadius: '4px'
+            }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 900, textDecoration: 'underline', fontSize: '10px', mb: 0.5, color: '#475569' }}>
                     {displayTitle}
                 </Typography>
-                <Typography variant="h5" sx={{ fontWeight: 950, mt: 0.5, letterSpacing: 0.5, textTransform: 'uppercase' }}>
-                    {company.legalName || 'REBEL MASS EXPORT PVT LTD'}
+                <Typography variant="h5" sx={{ fontWeight: 950, mt: 0, letterSpacing: 1, textTransform: 'uppercase', fontSize: '22px', color: '#0f172a' }}>
+                    {store.name || company.legalName || 'REBEL MASS EXPORT PVT LTD'}
                 </Typography>
-                <Typography sx={{ fontSize: '11px', fontWeight: 700, lineHeight: 1.3 }}>
-                    {store.location?.address || company.address?.address || 'PLOT NO 418 PHASE 3 SECTOR - 53 HSIIDC KUNDLI SONIPAT'}<br />
-                    {store.location?.city || company.address?.city || 'SONIPAT'}, {store.location?.state || company.address?.state || 'HARYANA'} - {store.location?.pincode || company.address?.pincode || '131028'}
-                    &nbsp;GSTIN: {store.gstNumber || company.gstin || '06AAJCR6675A1ZB'} PH: {store.phone || company.phone || '9999999999'}
+                <Typography sx={{ fontSize: '12px', fontWeight: 800, lineHeight: 1.4, mt: 0.5, color: '#1e293b' }}>
+                    {store.location?.address || store.address || company.address?.address || 'PLOT NO 418 PHASE 3 SECTOR - 53 HSIIDC KUNDLI'}<br />
+                    {store.location?.city || store.city || company.address?.city || 'SONIPAT'}, {store.location?.state || store.state || company.address?.state || 'HARYANA'} - {store.location?.pincode || store.pincode || company.address?.pincode || '131028'}<br />
+                    <Box component="span" sx={{ fontWeight: 900, fontSize: '12px', color: '#000', bgcolor: '#e2e8f0', px: 1, borderRadius: 1, display: 'inline-block', mt: 0.5 }}>
+                        GSTIN: {store.gstNumber || store.gstin || company.gstin || '06AAJCR6675A1ZB'}
+                    </Box>
+                    <Box sx={{ mt: 0.5, fontSize: '11px', fontWeight: 700 }}>
+                        PH: {store.phone || store.managerPhone || company.phone || '9999999999'} | Email: {store.email || company.email || '-'}
+                    </Box>
                 </Typography>
             </Box>
 
@@ -261,30 +276,37 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
                 </Grid>
             </Grid>
 
-            {/* Side-by-Side Billing & Shipped To */}
+            {/* Customer & Store Details side-by-side */}
             <Grid container sx={{ border: '1px solid #000', mb: 1 }}>
                 <Grid item xs={6} sx={{ p: 0.5, borderRight: '1px solid #000' }}>
                     <Typography variant="caption" sx={{ fontWeight: 900, display: 'block', borderBottom: '1px solid #000', mb: 0.5, fontSize: '10px', bgcolor: '#f3f4f6' }}>
-                        Details Of Receiver (Billed to)
+                        Customer Details (Billed to)
                     </Typography>
                     <Box sx={{ minHeight: 70 }}>
-                        <Typography sx={{ fontSize: '11px', fontWeight: 900 }}>{destinationStore.name || destinationStore.storeName || sale.customerName || 'N/A'}</Typography>
+                        <Typography sx={{ fontSize: '12px', fontWeight: 900 }}>{destinationStore.name || destinationStore.storeName || sale.customerName || 'Walk-in Customer'}</Typography>
                         <Typography sx={{ fontSize: '10px' }}>{destinationAddress || sale.consigneeAddress || sale.customerAddress || 'N/A'}</Typography>
-                        <Typography sx={{ fontSize: '10px' }}><strong>Phone/Mobile:</strong> {sale.customerMobile || destinationStore.phone || '-'}</Typography>
-                        <Typography sx={{ fontSize: '10px' }}><strong>GSTIN No:</strong> {destinationGstin || sale.customerGst || 'N/A'}</Typography>
-                        <Typography sx={{ fontSize: '10px' }}><strong>State:</strong> {(destinationLocation.state || sale.consigneeState || customerState || 'N/A').toUpperCase()} <strong>GST State Code:</strong> {destinationStateCode}</Typography>
+                        <Box sx={{ mt: 0.5, p: 0.5, bgcolor: '#f1f5f9', border: '1px dashed #cbd5e1', borderRadius: 1 }}>
+                            <Typography sx={{ fontSize: '11px', fontWeight: 900 }}>
+                                Mobile: {sale.customerMobile || '-'}
+                            </Typography>
+                        </Box>
+                        <Typography sx={{ fontSize: '10px', mt: 0.5 }}><strong>GSTIN:</strong> {sale.customerGst || 'N/A'}</Typography>
                     </Box>
                 </Grid>
                 <Grid item xs={6} sx={{ p: 0.5 }}>
                     <Typography variant="caption" sx={{ fontWeight: 900, display: 'block', borderBottom: '1px solid #000', mb: 0.5, fontSize: '10px', bgcolor: '#f3f4f6' }}>
-                        Details Of Consignee (Shipped to)
+                        Billing Branch / Store Location
                     </Typography>
                     <Box sx={{ minHeight: 70 }}>
-                        <Typography sx={{ fontSize: '11px', fontWeight: 900 }}>{destinationStore.name || destinationStore.storeName || sale.customerName || 'N/A'}</Typography>
-                        <Typography sx={{ fontSize: '10px' }}>{destinationAddress || sale.consigneeAddress || sale.customerAddress || 'N/A'}</Typography>
-                        <Typography sx={{ fontSize: '10px' }}><strong>Phone No.:</strong> {destinationStore.phone || '-'} <strong>E-mail:</strong> {destinationStore.email || '-'}</Typography>
-                        <Typography sx={{ fontSize: '10px' }}><strong>GSTIN No:</strong> {destinationGstin || 'N/A'}</Typography>
-                        <Typography sx={{ fontSize: '10px' }}><strong>State:</strong> {(destinationLocation.state || sale.consigneeState || customerState || 'N/A').toUpperCase()} <strong>GST State Code:</strong> {destinationStateCode}</Typography>
+                        <Typography sx={{ fontSize: '11px', fontWeight: 900 }}>{store.name || 'Store Location'}</Typography>
+                        <Typography sx={{ fontSize: '10px', lineHeight: 1.2 }}>
+                            {store.location?.address || store.address || 'N/A'}<br />
+                            {store.location?.city || store.city || ''}, {store.location?.state || store.state || ''} - {store.location?.pincode || store.pincode || ''}
+                        </Typography>
+                        <Typography sx={{ fontSize: '10px', mt: 1 }}>
+                            <strong>GSTIN:</strong> {store.gstNumber || store.gstin || '-'}<br />
+                            <strong>Contact:</strong> {store.phone || store.managerPhone || '-'}
+                        </Typography>
                     </Box>
                 </Grid>
             </Grid>
@@ -419,9 +441,12 @@ const StandardInvoicePrint = ({ sale, title: providedTitle, isTransfer = false }
             {/* Footer / Declarations */}
             <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
                 <Box sx={{ flex: 1, border: '1px solid #000', p: 1 }}>
-                    <Typography sx={{ fontSize: '9px', fontWeight: 900, mb: 0.5 }}>Terms & Conditions:</Typography>
-                    <Typography sx={{ fontSize: '8px', fontWeight: 600, whiteSpace: 'pre-line', lineHeight: 1.2 }}>
-                        {invoicing.termsAndConditions || '1. Goods once sold will not be taken back.\n2. Standard warranty applies.\n3. Subject to local jurisdiction.'}
+                    <Typography sx={{ fontSize: '9px', fontWeight: 900, mb: 0.5, textDecoration: 'underline' }}>Terms & Conditions / Exchange Policy:</Typography>
+                    <Typography sx={{ fontSize: '8px', fontWeight: 700, whiteSpace: 'pre-line', lineHeight: 1.2 }}>
+                        {`1. Goods once sold can be EXCHANGED within 7 DAYS only if in original condition and with this invoice.
+2. No refund will be provided; credit note will be issued for future purchases.
+3. Items without tags or having signs of wear will not be accepted for exchange.
+4. All disputes are subject to local jurisdiction.`}
                     </Typography>
                 </Box>
                 <Box sx={{ width: '35%', textAlign: 'center', p: 1, border: '1px solid #000', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>

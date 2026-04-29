@@ -493,7 +493,7 @@ function BillingPage({
           rate: toNumber(stock.salePrice || (stock.productId && typeof stock.productId === 'object' ? stock.productId.salePrice : 0)),
           mrp: toNumber(stock.mrp || (stock.productId && typeof stock.productId === 'object' ? stock.productId.mrp : 0)),
           tax: 0,
-          hsnCode: stock.productId?.hsnCode || stock.hsnCode || '',
+          hsnCode: stock.productId?.hsnCode || stock.hsnCode || stock.productId?.hsCodeId?.code || stock.hsCodeId?.code || '',
           category: stock.productId?.categoryName || stock.categoryName || stock.productId?.categoryId || stock.category || '',
           brand: stock.productId?.brandName || stock.brandName || stock.productId?.brand || stock.brand || '',
         };
@@ -633,6 +633,9 @@ function BillingPage({
       const stock = warehouseStock.find(s => (s.productId === product._id || s.barcode === product.barcode));
       const available = product.available || 0;
 
+      const itemDetails = items.find(i => i.id === product.itemId || i._id === product.itemId);
+      const resolvedHsn = product.hsnCode || product.hsCodeId?.code || product.hsCodeId?.hsnCode || itemDetails?.hsnCode || itemDetails?.hsCodeId?.code || '';
+
       upsertLine({
         productId: product._id,
         variantId: product._id,
@@ -649,7 +652,7 @@ function BillingPage({
         category: product.category,
         brand: product.brand,
         discount: 0,
-        hsnCode: product.hsnCode || product.hsCodeId?.hsnCode || product.hsCodeId?.code || '',
+        hsnCode: resolvedHsn,
       });
       setBarcodeInput('');
     } catch (err) {
@@ -1728,7 +1731,7 @@ function BillingPage({
                     aria-label="print format"
                 >
                     <ToggleButton value="thermal" sx={{ px: 2, fontWeight: 700 }}>Thermal (80mm)</ToggleButton>
-                    <ToggleButton value="a4" sx={{ px: 2, fontWeight: 700 }}>A4 Size</ToggleButton>
+                    <ToggleButton value="a4" sx={{ px: 2, fontWeight: 700 }}>A5 Size</ToggleButton>
                 </ToggleButtonGroup>
                 
                 <Button 
@@ -1762,7 +1765,10 @@ function BillingPage({
                     <ExchangeInvoicePrint sale={completedSaleData} />
                 ) : (
                     printFormat === 'a4' ? 
-                        <StandardInvoicePrint sale={completedSaleData} /> : 
+                        <StandardInvoicePrint 
+                            sale={completedSaleData} 
+                            store={availableLocations.find(l => (l.id || l._id) === storeId)}
+                        /> : 
                         <ThermalInvoicePrint sale={completedSaleData} />
                 )}
             </Box>
