@@ -258,15 +258,17 @@ function SchemeFormPage() {
                       label="Offer Type (From your Master List)"
                       {...register('type')}
                     >
-                      {promotionTypes.length > 0 ? (
-                        promotionTypes.map(o => (
-                          <MenuItem key={o._id || o.id} value={o.baseLogic}>
-                            {o.name}
-                          </MenuItem>
-                        ))
-                      ) : (
+                      {promotionTypes.map(o => (
+                        <MenuItem key={o._id || o.id} value={o.baseLogic}>
+                          {o.name}
+                        </MenuItem>
+                      ))}
+                      <MenuItem value="FLAT_PRICE" sx={{ fontWeight: 700, color: '#2563eb' }}>
+                        Flat Selling Price (Target Price)
+                      </MenuItem>
+                      {promotionTypes.length === 0 && (
                         <MenuItem disabled value="">
-                          <em>Add types in "Offer Configs" first!</em>
+                          <em>Add more types in "Offer Configs"</em>
                         </MenuItem>
                       )}
                     </TextField>
