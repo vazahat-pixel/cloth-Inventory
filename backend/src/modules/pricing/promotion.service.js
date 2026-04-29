@@ -10,15 +10,31 @@ class PromotionService {
      */
     async getActiveSchemes() {
         const now = new Date();
-        const schemes = await Scheme.find({
+        let schemes = await Scheme.find({
             isActive: true,
             startDate: { $lte: now },
             $or: [
                 { endDate: { $gte: now } },
                 { endDate: null }
             ]
-        }).sort({ value: -1 });
-        console.log(`🔍 [SCHEME-DEBUG] Found ${schemes.length} active schemes in DB`);
+        }).lean();
+
+        // Sort by Specificity first, then by Value
+        // Specific = has Products, Categories, or Brands defined
+        schemes.sort((a, b) => {
+            const specificityA = (a.applicableProducts?.length || 0) + (a.applicableCategories?.length || 0) + (a.applicableBrands?.length || 0);
+            const specificityB = (b.applicableProducts?.length || 0) + (b.applicableCategories?.length || 0) + (b.applicableBrands?.length || 0);
+
+            if (specificityA !== specificityB) {
+                // If specificity is different, higher specificity (more filters) comes first
+                return specificityB - specificityA;
+            }
+            
+            // If specificity is same, higher value comes first
+            return (b.value || 0) - (a.value || 0);
+        });
+
+        console.log(`🔍 [SCHEME-DEBUG] Found and prioritized ${schemes.length} active schemes`);
         return schemes;
     }
 
