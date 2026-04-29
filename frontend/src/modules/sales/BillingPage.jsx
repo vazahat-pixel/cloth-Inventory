@@ -1717,7 +1717,7 @@ function BillingPage({
       />
 
       <Dialog open={showPrint} onClose={() => setShowPrint(false)} maxWidth="md" fullWidth>
-        <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+        <Box className="no-print" sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
             <Box>
                 <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>Invoice Generated Successfully!</Typography>
                 <Typography variant="caption" color="textSecondary">Select format and print for the customer.</Typography>

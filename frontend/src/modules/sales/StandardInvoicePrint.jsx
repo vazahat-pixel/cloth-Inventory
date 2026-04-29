@@ -160,7 +160,7 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
     const isInclusiveSource = sale.type === 'RETAIL' && !sale.dispatchNumber;
     
     const isB2B = Boolean(destinationGstin !== 'N/A' || sale.customerGst || sale.consigneeGst);
-    const displayTitle = providedTitle || (isTransfer ? 'STOCK TRANSFER NOTE' : (isB2B ? (isInterState ? 'TAX INVOICE (INTER-STATE)' : 'TAX INVOICE') : 'SALE INVOICE'));
+    const displayTitle = providedTitle || (isTransfer ? 'STOCK TRANSFER NOTE' : (isB2B ? (isInterState ? 'TAX INVOICE (INTER-STATE)' : 'RETAIL INVOICE') : 'RETAIL INVOICE'));
 
     const tableHeaderStyle = { 
         bgcolor: '#E5E7EB', 
@@ -233,7 +233,7 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
                 bgcolor: '#f8fafc',
                 borderRadius: '4px'
             }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 900, textDecoration: 'underline', fontSize: '10px', mb: 0.5, color: '#475569' }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 900, textDecoration: 'underline', fontSize: '10px', mb: 0.5, color: '#000', '@media print': { fontSize: '11px' } }}>
                     {displayTitle}
                 </Typography>
                 <Typography variant="h5" sx={{ fontWeight: 950, mt: 0, letterSpacing: 1, textTransform: 'uppercase', fontSize: '22px', color: '#0f172a' }}>
@@ -250,6 +250,17 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
                     </Box>
                 </Typography>
             </Box>
+
+            <style>
+                {`
+                @media print {
+                    .no-print { display: none !important; }
+                    body { background: white !important; margin: 0; padding: 0; }
+                    .MuiDialog-root, .MuiBackdrop-root { background: transparent !important; }
+                    .MuiPaper-root { border: none !important; box-shadow: none !important; }
+                }
+                `}
+            </style>
 
             {/* Invoice Meta info Bar */}
             <Grid container sx={{ mb: 1, border: '1px solid #000', bgcolor: '#00CED1' }}>

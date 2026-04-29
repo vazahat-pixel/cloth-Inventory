@@ -40,7 +40,6 @@ const toNum = (v, def = 0) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : def;
 };
-
 const ProductRow = memo(({ index, style, items, selection, onToggle }) => {
   const item = items[index];
   if (!item) return null;
@@ -191,7 +190,7 @@ function SchemeFormPage() {
     // Normalizing values
     const payload = {
       ...values,
-      value: ['PERCENTAGE', 'FLAT', 'FIXED_PRICE', 'MANUAL'].includes(values.type) ? Number(values.value) : 0,
+      value: ['PERCENTAGE', 'FLAT', 'FLAT_PRICE', 'FIXED_PRICE', 'MANUAL'].includes(values.type) ? Number(values.value) : 0,
       buyQuantity: values.type === 'BUY_X_GET_Y' ? Number(values.buyQuantity) : (values.type === 'BOGO' ? 1 : 0),
       getQuantity: values.type === 'BUY_X_GET_Y' ? Number(values.getQuantity) : (values.type === 'BOGO' ? 1 : 0),
       minPurchaseAmount: Number(values.minPurchaseAmount),
@@ -273,7 +272,7 @@ function SchemeFormPage() {
                     </TextField>
                   </Grid>
 
-                  {(schemeType === 'PERCENTAGE' || schemeType === 'FLAT' || schemeType === 'FIXED_PRICE' || schemeType === 'MANUAL') && (
+                  {(schemeType === 'PERCENTAGE' || schemeType === 'FLAT' || schemeType === 'FLAT_PRICE' || schemeType === 'FIXED_PRICE' || schemeType === 'MANUAL') && (
                     <Grid item xs={12} md={6}>
                       <TextField
                         fullWidth
@@ -281,6 +280,7 @@ function SchemeFormPage() {
                         label={
                           schemeType === 'PERCENTAGE' ? 'Discount Percentage (%)' : 
                           schemeType === 'FIXED_PRICE' ? 'Combo Price (₹ for bundle)' : 
+                          schemeType === 'FLAT_PRICE' ? 'Flat Selling Price (₹ per unit)' : 
                           schemeType === 'MANUAL' ? 'Manual Discount (₹)' :
                           'Flat Discount (₹)'
                         }

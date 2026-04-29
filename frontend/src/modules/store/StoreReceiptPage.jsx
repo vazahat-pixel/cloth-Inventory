@@ -155,7 +155,7 @@ function StoreReceiptPage() {
                   <TableCell>{d.sourceWarehouseId?.name || 'Warehouse'}</TableCell>
                   <TableCell>
                     <Chip 
-                      label={d.referenceType === 'Sale' ? 'TAX INVOICE' : 'DELIVERY CHALLAN'} 
+                      label={d.referenceType === 'Sale' ? 'RETAIL INVOICE' : 'DELIVERY CHALLAN'} 
                       size="small" 
                       color={d.referenceType === 'Sale' ? 'primary' : 'default'}
                       variant="outlined"
