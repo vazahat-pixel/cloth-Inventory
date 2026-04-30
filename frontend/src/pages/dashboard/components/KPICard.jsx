@@ -14,14 +14,17 @@ function KPICard({ title, value, subtitle, icon: Icon, color = 'primary', onClic
     <Card
       elevation={0}
       sx={{
-        height: '100%',
-        borderRadius: '6px',
+        borderRadius: '12px',
         background: '#fff',
         border: '1px solid #e2e8f0',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.02), 0 4px 6px -1px rgba(0,0,0,0.03)',
         cursor: onClick ? 'pointer' : 'default',
+        transition: 'all 0.2s ease-in-out',
         '&:hover': onClick ? {
           borderColor: style.main,
-          backgroundColor: '#fafafa',
+          backgroundColor: '#fff',
+          boxShadow: '0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -2px rgba(0,0,0,0.02)',
+          transform: 'translateY(-2px)'
         } : {}
       }}
       onClick={onClick}

@@ -87,7 +87,7 @@ function SchemeFormPage() {
 
   const schemes = useSelector((state) => state.pricing.schemes);
   const items = useSelector((state) => state.items.records || []);
-  const categories = useSelector((state) => state.masters.itemGroups || []);
+  const categories = useSelector((state) => state.masters.categories || []);
   const brands = useSelector((state) => state.masters.brands || []);
   const promotionTypes = useSelector((state) => state.masters.promotionTypes || []);
   const stores = useSelector((state) => state.masters.stores || []);
@@ -129,7 +129,7 @@ function SchemeFormPage() {
 
   useEffect(() => {
     dispatch(fetchMasters('brands'));
-    dispatch(fetchMasters('itemGroups')); // Categories
+    dispatch(fetchMasters('categories')); // Consistent with other modules
     dispatch(fetchItems({ limit: 10000 })); // Fetch all items for selection
     dispatch(fetchMasters('promotionTypes'));
     dispatch(fetchMasters('stores'));
@@ -158,6 +158,8 @@ function SchemeFormPage() {
 
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [productSearch, setProductSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedBrand, setSelectedBrand] = useState('all');
   const [localSelection, setLocalSelection] = useState([]);
 
   // Sync local selection when dialog opens
@@ -168,14 +170,41 @@ function SchemeFormPage() {
   }, [productDialogOpen, watch]);
 
   const allFiltered = useMemo(() => {
-    if (!productSearch) return items;
-    const lower = productSearch.toLowerCase();
-    return items.filter(item =>
-      item.itemName?.toLowerCase().includes(lower) ||
-      item.itemCode?.toLowerCase().includes(lower) ||
-      item.sizes?.some(s => s.sku?.toLowerCase().includes(lower))
-    );
-  }, [items, productSearch]);
+    return items.filter(item => {
+      // 1. Category Filter
+      if (selectedCategory !== 'all') {
+        const catId = item.categoryId?._id || item.categoryId?.id || item.categoryId;
+        if (catId !== selectedCategory) return false;
+      }
+
+      // 2. Brand Filter
+      if (selectedBrand !== 'all') {
+        const brandId = item.brandId?._id || item.brandId?.id || item.brandId;
+        if (brandId !== selectedBrand) return false;
+      }
+
+      // 3. Text Search
+      if (productSearch) {
+        const lower = productSearch.toLowerCase();
+        const itemName = (item.itemName || '').toLowerCase();
+        const itemCode = (item.itemCode || '').toLowerCase();
+        const catName = (typeof item.categoryId === 'object' ? item.categoryId?.name : item.categoryName || '').toLowerCase();
+        const brandName = (typeof item.brandId === 'object' ? item.brandId?.name : item.brandName || '').toLowerCase();
+        
+        const matchesText = 
+          itemName.includes(lower) || 
+          itemCode.includes(lower) || 
+          catName.includes(lower) ||
+          brandName.includes(lower) ||
+          item.sizes?.some(s => (s.sku || '').toLowerCase().includes(lower)) ||
+          item.sizes?.some(s => (s.barcode || '').toLowerCase().includes(lower));
+          
+        if (!matchesText) return false;
+      }
+
+      return true;
+    });
+  }, [items, productSearch, selectedCategory, selectedBrand]);
 
   const handleToggle = useCallback((id, isSelected) => {
     if (isSelected) {
@@ -449,26 +478,85 @@ function SchemeFormPage() {
                           <Divider />
                           <DialogContent sx={{ p: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                             <Box sx={{ p: 2, bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                              <TextField
-                                fullWidth
-                                size="small"
-                                placeholder="Search by Item Name, Code or Variant SKU (e.g. TS...)"
-                                value={productSearch}
-                                onChange={(e) => setProductSearch(e.target.value)}
-                                InputProps={{
-                                  startAdornment: (
-                                    <InputAdornment position="start">
-                                      <SearchIcon color="action" />
-                                    </InputAdornment>
-                                  ),
-                                }}
-                              />
+                              <Stack direction="row" spacing={2}>
+                                <TextField
+                                  fullWidth
+                                  size="small"
+                                  placeholder="Search by Item Name, Code or Variant SKU..."
+                                  value={productSearch}
+                                  onChange={(e) => setProductSearch(e.target.value)}
+                                  InputProps={{
+                                    startAdornment: (
+                                      <InputAdornment position="start">
+                                        <SearchIcon color="action" />
+                                      </InputAdornment>
+                                    ),
+                                  }}
+                                />
+                                <TextField
+                                  select
+                                  size="small"
+                                  label="Filter by Category"
+                                  value={selectedCategory}
+                                  onChange={(e) => setSelectedCategory(e.target.value)}
+                                  sx={{ minWidth: 200 }}
+                                  SelectProps={{ native: true }}
+                                >
+                                  <option value="all">All Categories</option>
+                                  {categories.map(cat => (
+                                    <option key={cat.id || cat._id} value={cat.id || cat._id}>
+                                      {cat.name || cat.categoryName}
+                                    </option>
+                                  ))}
+                                </TextField>
+                                <TextField
+                                  select
+                                  size="small"
+                                  label="Filter by Brand"
+                                  value={selectedBrand}
+                                  onChange={(e) => setSelectedBrand(e.target.value)}
+                                  sx={{ minWidth: 200 }}
+                                  SelectProps={{ native: true }}
+                                >
+                                  <option value="all">All Brands</option>
+                                  {brands.map(brand => (
+                                    <option key={brand.id || brand._id} value={brand.id || brand._id}>
+                                      {brand.name || brand.brandName}
+                                    </option>
+                                  ))}
+                                </TextField>
+                              </Stack>
                               <Stack direction="row" spacing={2} sx={{ mt: 1.5, alignItems: 'center' }}>
                                 <Typography variant="caption" sx={{ fontWeight: 700 }}>
                                   {allFiltered.length} items found total
                                 </Typography>
-                                <Button size="small" variant="text" onClick={() => setLocalSelection([])}>Clear Selection</Button>
-                                <Button size="small" variant="text" onClick={() => setLocalSelection(items.map(i => i._id || i.id))}>Select All</Button>
+                                <Button 
+                                  size="small" 
+                                  variant="text" 
+                                  onClick={() => {
+                                    const filteredIds = allFiltered.map(i => i._id || i.id);
+                                    setLocalSelection(prev => {
+                                      const newSelection = [...prev];
+                                      filteredIds.forEach(id => {
+                                        if (!newSelection.includes(id)) newSelection.push(id);
+                                      });
+                                      return newSelection;
+                                    });
+                                  }}
+                                >
+                                  Select All Found
+                                </Button>
+                                <Button 
+                                  size="small" 
+                                  variant="text" 
+                                  color="error"
+                                  onClick={() => {
+                                    const filteredIds = allFiltered.map(i => i._id || i.id);
+                                    setLocalSelection(prev => prev.filter(id => !filteredIds.includes(id)));
+                                  }}
+                                >
+                                  Deselect All Found
+                                </Button>
                               </Stack>
                             </Box>
 

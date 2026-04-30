@@ -27,7 +27,6 @@ function LowStockAlert({ items, threshold = 10 }) {
     <Card
       elevation={0}
       sx={{
-        height: '100%',
         borderRadius: 5,
         background: 'rgba(255, 255, 255, 0.45)',
         backdropFilter: 'blur(20px)',

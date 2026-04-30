@@ -7,7 +7,6 @@ function SalesChart({ data, title = 'Sales Trend (Last 7 Days)' }) {
     <Card
       elevation={0}
       sx={{
-        height: '100%',
         borderRadius: 2.5,
         border: '1px solid',
         borderColor: 'divider',

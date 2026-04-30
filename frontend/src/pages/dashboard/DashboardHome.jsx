@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useSelector } from "react-redux";
-import { Box, Button, Grid, Typography } from "@mui/material";
+import { Box, Button, Grid, Typography, Stack } from "@mui/material";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import LocalShippingIcon from "@mui/icons-material/LocalShipping";
@@ -206,12 +206,12 @@ function DashboardHome() {
     : "This month's transactions will appear here as invoices are created.";
 
   return (
-    <Box sx={{ width: "100%", minWidth: 0 }}>
+    <Box sx={{ width: "100%", minWidth: 0, p: { xs: 1, sm: 2, md: 3 } }}>
       <Box
         sx={{
-          mb: 3,
+          mb: 2,
           display: "flex",
-          alignItems: "center",
+          alignItems: "flex-end",
           justifyContent: "space-between",
           gap: 2,
         }}
@@ -220,28 +220,30 @@ function DashboardHome() {
           <Typography
             variant="h5"
             sx={{
-              fontWeight: 700,
+              fontWeight: 800,
               color: "#0f172a",
-              letterSpacing: "-0.02em",
-              fontSize: "1.25rem",
+              letterSpacing: "-0.025em",
+              lineHeight: 1,
+              mb: 0.5
             }}
           >
             Dashboard
           </Typography>
           <Typography
-            variant="body2"
-            sx={{ color: "#64748b", fontWeight: 500 }}
+            variant="caption"
+            sx={{ color: "#64748b", fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}
           >
-            Real-time business overview and metrics.
+            Real-time business performance
           </Typography>
         </Box>
         <Box
           sx={{
             p: 0.5,
-            borderRadius: "6px",
+            borderRadius: "8px",
             bgcolor: "#f1f5f9",
             display: "flex",
             gap: 0.5,
+            border: '1px solid #e2e8f0'
           }}
         >
           <Button
@@ -249,16 +251,17 @@ function DashboardHome() {
             variant={isTodayRange ? "contained" : "text"}
             onClick={() => setRange(RANGE_TODAY)}
             sx={{
-              borderRadius: "4px",
+              borderRadius: "6px",
               px: 2,
-              minHeight: 28,
+              minHeight: 32,
               fontSize: '0.75rem',
-              boxShadow: 'none',
+              fontWeight: 700,
+              boxShadow: isTodayRange ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
               backgroundColor: isTodayRange ? "#fff" : "transparent",
               color: isTodayRange ? "#0f172a" : "#64748b",
               "&:hover": {
                 backgroundColor: isTodayRange ? "#fff" : "rgba(0,0,0,0.05)",
-                boxShadow: 'none',
+                boxShadow: isTodayRange ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
               },
             }}
           >
@@ -269,16 +272,17 @@ function DashboardHome() {
             variant={!isTodayRange ? "contained" : "text"}
             onClick={() => setRange(RANGE_MONTH)}
             sx={{
-              borderRadius: "4px",
+              borderRadius: "6px",
               px: 2,
-              minHeight: 28,
+              minHeight: 32,
               fontSize: '0.75rem',
-              boxShadow: 'none',
+              fontWeight: 700,
+              boxShadow: !isTodayRange ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
               backgroundColor: !isTodayRange ? "#fff" : "transparent",
               color: !isTodayRange ? "#0f172a" : "#64748b",
               "&:hover": {
                 backgroundColor: !isTodayRange ? "#fff" : "rgba(0,0,0,0.05)",
-                boxShadow: 'none',
+                boxShadow: !isTodayRange ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
               },
             }}
           >
@@ -287,66 +291,74 @@ function DashboardHome() {
         </Box>
       </Box>
 
-      <Grid container spacing={3} sx={{ width: "100%", m: 0 }}>
-        <Grid item xs={12} sm={6} lg={3}>
-          <KPICard
-            title="Total Sales"
-            value={formatCurrency(kpis.totalSales)}
-            subtitle={salesSubtitle}
-            icon={TrendingUpIcon}
-            color="primary"
-            onClick={() => navigate('/reports/sales')}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} lg={3}>
-          <KPICard
-            title="Total Purchase"
-            value={formatCurrency(kpis.totalPurchase)}
-            subtitle={purchaseSubtitle}
-            icon={LocalShippingIcon}
-            color="success"
-            onClick={() => navigate('/reports/purchase')}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} lg={3}>
-          <KPICard
-            title="Stock Items"
-            value={kpis.totalItems}
-            subtitle="Active SKU variants"
-            icon={Inventory2Icon}
-            color="info"
-            onClick={() => navigate('/reports/stock')}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} lg={3}>
-          <KPICard
-            title="Low Stock"
-            value={kpis.lowStockCount}
-            subtitle={`At threshold (<= ${lowStockThreshold})`}
-            icon={ShoppingCartIcon}
-            color="warning"
-            onClick={() => navigate('/inventory/stock-overview')}
-          />
+      <Grid container spacing={3} alignItems="flex-start">
+        {/* Main Content Column */}
+        <Grid item xs={12} lg={9}>
+          <Stack spacing={3}>
+            {/* KPI Cards Grid */}
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6} md={3}>
+                <KPICard
+                  title="Total Sales"
+                  value={formatCurrency(kpis.totalSales)}
+                  subtitle={salesSubtitle}
+                  icon={TrendingUpIcon}
+                  color="primary"
+                  onClick={() => navigate('/reports/sales')}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <KPICard
+                  title="Total Purchase"
+                  value={formatCurrency(kpis.totalPurchase)}
+                  subtitle={purchaseSubtitle}
+                  icon={LocalShippingIcon}
+                  color="success"
+                  onClick={() => navigate('/reports/purchase')}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <KPICard
+                  title="Stock Items"
+                  value={kpis.totalItems}
+                  subtitle="Active SKU variants"
+                  icon={Inventory2Icon}
+                  color="info"
+                  onClick={() => navigate('/reports/stock')}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <KPICard
+                  title="Low Stock"
+                  value={kpis.lowStockCount}
+                  subtitle={`Threshold: <= ${lowStockThreshold}`}
+                  icon={ShoppingCartIcon}
+                  color="warning"
+                  onClick={() => navigate('/inventory/stock-overview')}
+                />
+              </Grid>
+            </Grid>
+
+            {/* Sales Chart */}
+            <SalesChart data={chartData} title={salesChartTitle} />
+
+            {/* Recent Sales Table */}
+            <RecentSalesTable
+              sales={filteredSales}
+              title={recentSalesTitle}
+              subtitle={recentSalesSubtitle}
+              emptyTitle={recentSalesEmptyTitle}
+              emptyDescription={recentSalesEmptyDescription}
+            />
+          </Stack>
         </Grid>
 
-        <Grid item xs={12} md={8} lg={9} sx={{ minWidth: 0 }}>
-          <SalesChart data={chartData} title={salesChartTitle} />
-        </Grid>
-        <Grid item xs={12} md={4} lg={3}>
-          <LowStockAlert items={lowStockItems} threshold={lowStockThreshold} />
-        </Grid>
-
-        <Grid item xs={12} md={3} lg={3}>
-          <QuickActions />
-        </Grid>
-        <Grid item xs={12} md={9} lg={9} sx={{ minWidth: 0 }}>
-          <RecentSalesTable
-            sales={filteredSales}
-            title={recentSalesTitle}
-            subtitle={recentSalesSubtitle}
-            emptyTitle={recentSalesEmptyTitle}
-            emptyDescription={recentSalesEmptyDescription}
-          />
+        {/* Sidebar Column */}
+        <Grid item xs={12} lg={3}>
+          <Stack spacing={3}>
+            <LowStockAlert items={lowStockItems} threshold={lowStockThreshold} />
+            <QuickActions />
+          </Stack>
         </Grid>
       </Grid>
     </Box>

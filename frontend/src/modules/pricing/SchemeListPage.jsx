@@ -31,7 +31,9 @@ import { fetchItems } from '../items/itemsSlice';
 
 const SCHEME_TYPE_LABELS = {
   PERCENTAGE: 'Percentage Discount',
+  PERCENTAGE_DISCOUNT: 'Percentage Discount',
   FLAT: 'Flat Discount',
+  FLAT_DISCOUNT: 'Flat Discount',
   BOGO: 'BOGO (Buy 1 Get 1)',
   BUY_X_GET_Y: 'Buy X Get Y',
   FIXED_PRICE: 'Fixed Price Bundle',
@@ -219,20 +221,20 @@ function SchemeListPage() {
                       </TableCell>
                       <TableCell>
                         <Chip 
-                          label={SCHEME_TYPE_LABELS[row.type] || row.type} 
+                          label={SCHEME_TYPE_LABELS[row.type?.toUpperCase()] || row.type} 
                           size="small" 
                           sx={{ fontWeight: 700, bgcolor: '#eff6ff', color: '#2563eb', border: '1px solid #dbeafe' }}
                         />
                       </TableCell>
                       <TableCell>
                         <Typography sx={{ fontWeight: 800, color: '#0f172a' }}>
-                          {row.type === 'PERCENTAGE' && `${row.value}% OFF`}
-                          {row.type === 'FLAT' && `₹${row.value} OFF`}
-                          {row.type === 'BOGO' && 'Buy 1 Get 1'}
-                          {row.type === 'BUY_X_GET_Y' && `Buy ${row.buyQuantity} Get ${row.getQuantity}`}
-                          {row.type === 'FREE_GIFT' && 'Free Gift'}
-                          {row.type === 'FLAT_PRICE' && `Target ₹${row.value}`}
-                          {row.type === 'MANUAL' && `₹${row.value} (Manual)`}
+                          {(row.type?.toUpperCase() === 'PERCENTAGE' || row.type?.toUpperCase() === 'PERCENTAGE_DISCOUNT') && `${row.value}% OFF`}
+                          {(row.type?.toUpperCase() === 'FLAT' || row.type?.toUpperCase() === 'FLAT_DISCOUNT') && `₹${row.value} OFF`}
+                          {row.type?.toUpperCase() === 'BOGO' && 'Buy 1 Get 1'}
+                          {row.type?.toUpperCase() === 'BUY_X_GET_Y' && `Buy ${row.buyQuantity} Get ${row.getQuantity}`}
+                          {row.type?.toUpperCase() === 'FREE_GIFT' && 'Free Gift'}
+                          {row.type?.toUpperCase() === 'FLAT_PRICE' && `Target ₹${row.value}`}
+                          {row.type?.toUpperCase() === 'MANUAL' && `₹${row.value} (Manual)`}
                         </Typography>
                       </TableCell>
                       <TableCell>

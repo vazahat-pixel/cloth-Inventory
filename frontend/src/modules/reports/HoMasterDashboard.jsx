@@ -58,7 +58,7 @@ function HoMasterDashboard() {
   const { sales, purchase, storeBreakdown = [], topItems = [] } = data || {};
 
   return (
-    <Box sx={{ p: 4, bgcolor: '#f1f5f9', minHeight: '100vh' }}>
+    <Box sx={{ p: { xs: 2, md: 3 }, bgcolor: '#f1f5f9', minHeight: '100vh' }}>
       <Stack spacing={4}>
         {/* Header */}
         <Box>
