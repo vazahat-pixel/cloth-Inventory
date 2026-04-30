@@ -326,16 +326,18 @@ function BillingPage({
 
   const totals = useMemo(
     () => {
-      // Create a map of promo discounts ONLY for the selected scheme
+      // Create a map of promo discounts. 
+      // If a specific scheme is selected, we only use THAT one (for focusing).
+      // If NO scheme is selected, we apply ALL specific offers calculated by the backend.
       const activePromoDiscounts = {};
-      if (selectedScheme) {
-          // If we have a selected scheme, we find which items it applied to from promoItems
-          promoItems.forEach(item => {
-              if (item.appliedOffer === selectedScheme.name) {
-                  activePromoDiscounts[item.variantId] = item.promoDiscount;
-              }
-          });
-      }
+      
+      promoItems.forEach(item => {
+          // By default (no selection), we use everything the backend recommended.
+          // If the user clicked a specific offer, we filter to just that one.
+          if (!selectedScheme || item.appliedOffer === selectedScheme.name) {
+              activePromoDiscounts[item.variantId] = (activePromoDiscounts[item.variantId] || 0) + item.promoDiscount;
+          }
+      });
 
       const basic = calculateTotals(
         lines,
@@ -637,8 +639,8 @@ function BillingPage({
       const resolvedHsn = product.hsnCode || product.hsCodeId?.code || product.hsCodeId?.hsnCode || itemDetails?.hsnCode || itemDetails?.hsCodeId?.code || '';
 
       upsertLine({
-        productId: product._id,
-        variantId: product._id,
+        productId: product.productId || product._id,
+        variantId: product.variantId || product._id,
         itemName: product.name || 'Unknown Item',
         styleCode: product.sku || '',
         size: product.size || '',
@@ -1597,41 +1599,58 @@ function BillingPage({
 
               {/* ELIGIBLE OFFERS SECTION */}
               <Box sx={{ mt: 1 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: '#0f172a' }}>
-                  Eligible Offers {evaluateLoading && ' (Evaluating...)'}
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>Applied Promotions {evaluateLoading && ' (Evaluating...)'}</span>
+                  {!evaluateLoading && eligibleOffers.length > 0 && !selectedScheme && (
+                      <Typography variant="caption" sx={{ color: '#10b981', fontWeight: 800 }}>
+                          Auto-Applied All
+                      </Typography>
+                  )}
                 </Typography>
                 {eligibleOffers.length > 0 ? (
                   <Stack spacing={1}>
-                    {eligibleOffers.map((offer) => (
-                      <Paper
-                        key={offer._id}
-                        variant="outlined"
-                        sx={{
-                          p: 1.5,
-                          borderRadius: 2,
-                          borderColor: selectedScheme?._id === offer._id ? '#10b981' : '#e2e8f0',
-                          backgroundColor: selectedScheme?._id === offer._id ? '#f0fdf4' : '#ffffff',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                          '&:hover': { borderColor: '#10b981', transform: 'translateY(-1px)' }
-                        }}
-                        onClick={() => setSelectedScheme(selectedScheme?._id === offer._id ? null : offer)}
-                      >
-                        <Stack direction="row" justifyContent="space-between" alignItems="center">
-                          <Box>
-                            <Typography variant="body2" sx={{ fontWeight: 700, color: '#1e293b' }}>
-                              {offer.name}
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: '#64748b' }}>
-                              {offer.description || offer.type}
-                            </Typography>
-                          </Box>
-                          <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#10b981' }}>
-                            -₹{Number(offer.discount).toFixed(2)}
-                          </Typography>
-                        </Stack>
-                      </Paper>
-                    ))}
+                    {eligibleOffers.map((offer) => {
+                      const isActive = !selectedScheme || selectedScheme?._id === offer._id;
+                      return (
+                        <Paper
+                          key={offer._id}
+                          variant="outlined"
+                          sx={{
+                            p: 1.5,
+                            borderRadius: 2,
+                            borderColor: isActive ? '#10b981' : '#e2e8f0',
+                            backgroundColor: isActive ? '#f0fdf4' : '#ffffff',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            '&:hover': { borderColor: '#10b981', transform: 'translateY(-1px)' },
+                            position: 'relative',
+                            opacity: isActive ? 1 : 0.6
+                          }}
+                          onClick={() => setSelectedScheme(selectedScheme?._id === offer._id ? null : offer)}
+                        >
+                          <Stack direction="row" justifyContent="space-between" alignItems="center">
+                            <Box>
+                              <Typography variant="body2" sx={{ fontWeight: 700, color: '#1e293b' }}>
+                                {offer.name}
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: '#64748b' }}>
+                                {offer.description || offer.type}
+                              </Typography>
+                            </Box>
+                            <Stack alignItems="flex-end">
+                                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#10b981' }}>
+                                  -₹{Number(offer.discount).toFixed(2)}
+                                </Typography>
+                                {isActive && (
+                                    <Typography variant="caption" sx={{ color: '#10b981', fontSize: '0.65rem', fontWeight: 700 }}>
+                                        ACTIVE
+                                    </Typography>
+                                )}
+                            </Stack>
+                          </Stack>
+                        </Paper>
+                      );
+                    })}
                   </Stack>
                 ) : (
                   <Typography variant="caption" sx={{ color: '#94a3b8', fontStyle: 'italic' }}>

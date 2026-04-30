@@ -25,7 +25,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import ToggleOnIcon from '@mui/icons-material/ToggleOn';
 import ToggleOffIcon from '@mui/icons-material/ToggleOff';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import { setSchemeStatus, fetchSchemes } from './pricingSlice';
+import { setSchemeStatus, fetchSchemes, deleteScheme } from './pricingSlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchItems } from '../items/itemsSlice';
 
@@ -35,6 +35,7 @@ const SCHEME_TYPE_LABELS = {
   BOGO: 'BOGO (Buy 1 Get 1)',
   BUY_X_GET_Y: 'Buy X Get Y',
   FIXED_PRICE: 'Fixed Price Bundle',
+  FLAT_PRICE: 'Flat Price (Target)',
   FREE_GIFT: 'Free Gift on Purchase',
   MANUAL: 'Manual Discount',
 };
@@ -230,6 +231,7 @@ function SchemeListPage() {
                           {row.type === 'BOGO' && 'Buy 1 Get 1'}
                           {row.type === 'BUY_X_GET_Y' && `Buy ${row.buyQuantity} Get ${row.getQuantity}`}
                           {row.type === 'FREE_GIFT' && 'Free Gift'}
+                          {row.type === 'FLAT_PRICE' && `Target ₹${row.value}`}
                           {row.type === 'MANUAL' && `₹${row.value} (Manual)`}
                         </Typography>
                       </TableCell>

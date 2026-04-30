@@ -162,7 +162,7 @@ class PromotionService {
         // Process Line-Based Promotions (Percentage/Flat) for items not yet under an offer
         for (const scheme of schemes) {
             const type = (scheme.type || '').toUpperCase();
-            if (type === 'PERCENTAGE' || type.includes('PERCENTAGE') || type === 'FLAT' || type.includes('FLAT') || type === 'MANUAL') {
+            if (type === 'PERCENTAGE' || type.includes('PERCENTAGE') || type === 'FLAT' || type.includes('FLAT') || type === 'FLAT_PRICE' || type === 'MANUAL') {
                 currentItems.forEach(item => {
                     if (item.appliedOffer) return; // Skip if already handled by BOGO
 

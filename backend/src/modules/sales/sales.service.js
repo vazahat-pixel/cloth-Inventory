@@ -80,6 +80,8 @@ const getProductForSale = async (barcode, storeId) => {
 
     return {
         _id: variant._id,
+        productId: parentItem._id, // Link to master item for promotions
+        variantId: variant._id,   // Specific variant ID
         name: parentItem.itemName,
         sku: variant.sku || parentItem.itemCode,
         barcode: variant.barcode,

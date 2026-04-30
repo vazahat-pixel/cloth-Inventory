@@ -6,7 +6,7 @@ const schemeSchema = new mongoose.Schema(
         description: { type: String, trim: true },
         type: {
             type: String,
-            enum: ['PERCENTAGE', 'FLAT', 'BOGO', 'BUY_X_GET_Y', 'FREE_GIFT', 'FIXED_PRICE', 'MANUAL'],
+            enum: ['PERCENTAGE', 'FLAT', 'FLAT_PRICE', 'BOGO', 'BUY_X_GET_Y', 'FREE_GIFT', 'FIXED_PRICE', 'MANUAL'],
             required: true
         },
         value: { type: Number, default: 0 }, // For percentage or flat
