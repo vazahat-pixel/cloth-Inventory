@@ -198,6 +198,7 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
 
     return (
         <Paper 
+            className="printable-invoice-container"
             elevation={0} 
             sx={{ 
                 p: 2, 
@@ -254,10 +255,40 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
             <style>
                 {`
                 @media print {
+                    /* Completely hide the main application UI so it takes 0 space */
+                    #root { display: none !important; }
+                    
+                    /* Hide dialog backdrops and our own toolbar */
+                    .MuiBackdrop-root { display: none !important; }
                     .no-print { display: none !important; }
-                    body { background: white !important; margin: 0; padding: 0; }
-                    .MuiDialog-root, .MuiBackdrop-root { background: transparent !important; }
-                    .MuiPaper-root { border: none !important; box-shadow: none !important; }
+                    
+                    /* Reset body */
+                    body {
+                        background: white !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                    }
+                    
+                    /* Force printable container to top-left, let it size naturally */
+                    .printable-invoice-container {
+                        position: absolute !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        box-shadow: none !important;
+                        border: none !important;
+                        width: 148mm !important;
+                        height: auto !important;
+                        min-height: 0 !important;
+                        page-break-after: avoid !important;
+                    }
+
+                    /* Tell printer to use A5 and no margins */
+                    @page {
+                        size: A5 portrait;
+                        margin: 0;
+                    }
                 }
                 `}
             </style>
