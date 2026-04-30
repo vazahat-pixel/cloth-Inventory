@@ -40,40 +40,41 @@ const toNum = (v, def = 0) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : def;
 };
+
 const ProductRow = memo(({ index, style, items, selection, onToggle }) => {
   const item = items[index];
   if (!item) return null;
   const itemId = item._id || item.id;
   const isSelected = selection.includes(itemId);
-  
+
   return (
-      <Box 
-          style={style} 
-          sx={{ 
-              borderBottom: '1px solid #f1f5f9',
-              '&:hover': { bgcolor: '#f8fafc' },
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              px: 2
-          }}
-          onClick={() => onToggle(itemId, isSelected)}
-      >
-          <ListItemIcon sx={{ minWidth: 40 }}>
-              <Checkbox
-                  edge="start"
-                  checked={isSelected}
-                  tabIndex={-1}
-                  disableRipple
-              />
-          </ListItemIcon>
-          <ListItemText 
-              primary={item.itemName} 
-              secondary={`${item.itemCode || 'No Code'} | ${item.sizes?.map(s => s.sku || s.size).join(', ') || 'No Variants'}`}
-              primaryTypographyProps={{ fontWeight: 700, fontSize: '0.9rem', noWrap: true }}
-              secondaryTypographyProps={{ fontSize: '0.75rem', noWrap: true }}
-          />
-      </Box>
+    <Box
+      style={style}
+      sx={{
+        borderBottom: '1px solid #f1f5f9',
+        '&:hover': { bgcolor: '#f8fafc' },
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        px: 2
+      }}
+      onClick={() => onToggle(itemId, isSelected)}
+    >
+      <ListItemIcon sx={{ minWidth: 40 }}>
+        <Checkbox
+          edge="start"
+          checked={isSelected}
+          tabIndex={-1}
+          disableRipple
+        />
+      </ListItemIcon>
+      <ListItemText
+        primary={item.itemName}
+        secondary={`${item.itemCode || 'No Code'} | ${item.sizes?.map(s => s.sku || s.size).join(', ') || 'No Variants'}`}
+        primaryTypographyProps={{ fontWeight: 700, fontSize: '0.9rem', noWrap: true }}
+        secondaryTypographyProps={{ fontSize: '0.75rem', noWrap: true }}
+      />
+    </Box>
   );
 });
 
@@ -162,15 +163,15 @@ function SchemeFormPage() {
   // Sync local selection when dialog opens
   useEffect(() => {
     if (productDialogOpen) {
-        setLocalSelection(watch('applicableProducts') || []);
+      setLocalSelection(watch('applicableProducts') || []);
     }
   }, [productDialogOpen, watch]);
 
   const allFiltered = useMemo(() => {
     if (!productSearch) return items;
     const lower = productSearch.toLowerCase();
-    return items.filter(item => 
-      item.itemName?.toLowerCase().includes(lower) || 
+    return items.filter(item =>
+      item.itemName?.toLowerCase().includes(lower) ||
       item.itemCode?.toLowerCase().includes(lower) ||
       item.sizes?.some(s => s.sku?.toLowerCase().includes(lower))
     );
@@ -178,15 +179,15 @@ function SchemeFormPage() {
 
   const handleToggle = useCallback((id, isSelected) => {
     if (isSelected) {
-        setLocalSelection(prev => prev.filter(i => i !== id));
+      setLocalSelection(prev => prev.filter(i => i !== id));
     } else {
-        setLocalSelection(prev => [...prev, id]);
+      setLocalSelection(prev => [...prev, id]);
     }
   }, []);
 
   const onSubmit = (values) => {
     setFormError('');
-    
+
     // Normalizing values
     const payload = {
       ...values,
@@ -221,8 +222,8 @@ function SchemeFormPage() {
   return (
     <Box sx={{ p: 4, bgcolor: '#f8fafc', minHeight: '100vh' }}>
       <Stack direction="row" spacing={2} sx={{ mb: 4, alignItems: 'center' }}>
-        <Button 
-          startIcon={<ArrowBackIcon />} 
+        <Button
+          startIcon={<ArrowBackIcon />}
           onClick={() => navigate('/pricing/schemes')}
           sx={{ color: '#64748b', fontWeight: 600 }}
         >
@@ -256,7 +257,7 @@ function SchemeFormPage() {
                       fullWidth
                       select
                       label="Offer Type (From your Master List)"
-                      {...register('type')}
+                      {...register('type', { required: 'Type is required' })}
                     >
                       {promotionTypes.map(o => (
                         <MenuItem key={o._id || o.id} value={o.baseLogic}>
@@ -264,7 +265,10 @@ function SchemeFormPage() {
                         </MenuItem>
                       ))}
                       <MenuItem value="FLAT_PRICE" sx={{ fontWeight: 700, color: '#2563eb' }}>
-                        Flat Selling Price (Target Price)
+                        Flat Selling Price (Fixed Price per item)
+                      </MenuItem>
+                      <MenuItem value="FIXED_PRICE" sx={{ fontWeight: 700, color: '#2563eb' }}>
+                        Bundle Fixed Price (Fixed total for X qty)
                       </MenuItem>
                       {promotionTypes.length === 0 && (
                         <MenuItem disabled value="">
@@ -280,11 +284,11 @@ function SchemeFormPage() {
                         fullWidth
                         type="number"
                         label={
-                          schemeType === 'PERCENTAGE' ? 'Discount Percentage (%)' : 
-                          schemeType === 'FIXED_PRICE' ? 'Combo Price (₹ for bundle)' : 
-                          schemeType === 'FLAT_PRICE' ? 'Flat Selling Price (₹ per unit)' : 
-                          schemeType === 'MANUAL' ? 'Manual Discount (₹)' :
-                          'Flat Discount (₹)'
+                          schemeType === 'PERCENTAGE' ? 'Discount Percentage (%)' :
+                            schemeType === 'FIXED_PRICE' ? 'Combo Price (₹ for bundle)' :
+                              schemeType === 'FLAT_PRICE' ? 'Flat Selling Price (₹ per unit)' :
+                                schemeType === 'MANUAL' ? 'Manual Discount (₹)' :
+                                  'Flat Discount (₹)'
                         }
                         {...register('value', { required: true, min: 0 })}
                         InputProps={{
@@ -301,16 +305,16 @@ function SchemeFormPage() {
                   {(schemeType === 'BUY_X_GET_Y' || schemeType === 'FIXED_PRICE') && (
                     <>
                       <Grid item xs={12} md={3}>
-                        <TextField 
-                            fullWidth 
-                            type="number" 
-                            label={schemeType === 'FIXED_PRICE' ? 'Bundle Qty (X)' : 'Buy Qty (X)'} 
-                            {...register('buyQuantity', { required: true, min: 1 })} 
+                        <TextField
+                          fullWidth
+                          type="number"
+                          label={schemeType === 'FIXED_PRICE' ? 'Bundle Qty (X)' : 'Buy Qty (X)'}
+                          {...register('buyQuantity', { required: true, min: 1 })}
                         />
                       </Grid>
                       {schemeType === 'BUY_X_GET_Y' && (
                         <Grid item xs={12} md={3}>
-                            <TextField fullWidth type="number" label="Get Qty (Y)" {...register('getQuantity', { required: true, min: 1 })} />
+                          <TextField fullWidth type="number" label="Get Qty (Y)" {...register('getQuantity', { required: true, min: 1 })} />
                         </Grid>
                       )}
                     </>
@@ -323,9 +327,9 @@ function SchemeFormPage() {
               <Paper sx={{ p: 3, borderRadius: 3, border: '1px solid #e2e8f0' }} elevation={0}>
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 3 }}>Applicability Rules</Typography>
                 <Typography variant="body2" sx={{ color: '#64748b', mb: 3 }}>
-                    Leave any category/brand/product empty to apply the scheme to ALL items in that group.
+                  Leave any category/brand/product empty to apply the scheme to ALL items in that group.
                 </Typography>
-                
+
                 <Stack spacing={3}>
                   <Controller
                     name="applicableCategories"
@@ -339,9 +343,9 @@ function SchemeFormPage() {
                         onChange={(_, v) => field.onChange(v.map(i => i._id || i.id))}
                         renderInput={(params) => <TextField {...params} label="Limit to Categories" placeholder="Choose Categories..." />}
                         renderOption={(props, option) => (
-                           <li {...props} key={option._id || option.id}>
-                               {option.name || option.categoryName}
-                           </li>
+                          <li {...props} key={option._id || option.id}>
+                            {option.name || option.categoryName}
+                          </li>
                         )}
                       />
                     )}
@@ -359,9 +363,9 @@ function SchemeFormPage() {
                         onChange={(_, v) => field.onChange(v.map(i => i._id || i.id))}
                         renderInput={(params) => <TextField {...params} label="Limit to Brands" placeholder="Choose Brands..." />}
                         renderOption={(props, option) => (
-                           <li {...props} key={option._id || option.id}>
-                               {option.name || option.brandName}
-                           </li>
+                          <li {...props} key={option._id || option.id}>
+                            {option.name || option.brandName}
+                          </li>
                         )}
                       />
                     )}
@@ -380,9 +384,9 @@ function SchemeFormPage() {
                         onChange={(_, v) => {
                           if (v.some(i => i.id === 'all')) {
                             if (field.value.length === stores.length) {
-                                field.onChange([]);
+                              field.onChange([]);
                             } else {
-                                field.onChange(stores.map(i => i._id || i.id));
+                              field.onChange(stores.map(i => i._id || i.id));
                             }
                           } else {
                             field.onChange(v.map(i => i._id || i.id));
@@ -390,15 +394,15 @@ function SchemeFormPage() {
                         }}
                         renderInput={(params) => <TextField {...params} label="Limit to Stores" placeholder="Choose Stores..." />}
                         renderOption={(props, option, { selected }) => (
-                           <li {...props} key={option._id || option.id}>
-                               <Checkbox
-                                 icon={<CheckBoxOutlineBlankIcon fontSize="small" />}
-                                 checkedIcon={<CheckBoxIcon fontSize="small" />}
-                                 style={{ marginRight: 8 }}
-                                 checked={option.id === 'all' ? (field.value.length === stores.length && stores.length > 0) : selected}
-                               />
-                               {option.name || option.storeName}
-                           </li>
+                          <li {...props} key={option._id || option.id}>
+                            <Checkbox
+                              icon={<CheckBoxOutlineBlankIcon fontSize="small" />}
+                              checkedIcon={<CheckBoxIcon fontSize="small" />}
+                              style={{ marginRight: 8 }}
+                              checked={option.id === 'all' ? (field.value.length === stores.length && stores.length > 0) : selected}
+                            />
+                            {option.name || option.storeName}
+                          </li>
                         )}
                       />
                     )}
@@ -410,103 +414,103 @@ function SchemeFormPage() {
                     render={({ field }) => (
                       <Box>
                         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Specific Products ({field.value.length} selected)</Typography>
-                            <Button variant="outlined" size="small" onClick={() => setProductDialogOpen(true)}>
-                                Select Products
-                            </Button>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Specific Products ({field.value.length} selected)</Typography>
+                          <Button variant="outlined" size="small" onClick={() => setProductDialogOpen(true)}>
+                            Select Products
+                          </Button>
                         </Stack>
                         <Paper variant="outlined" sx={{ p: 1, minHeight: 40, maxHeight: 120, overflowY: 'auto', bgcolor: '#f1f5f9' }}>
-                            {field.value.length === 0 ? (
-                                <Typography variant="caption" color="textSecondary">All products included (No restriction)</Typography>
-                            ) : (
-                                <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                                    {items.filter(i => field.value.includes(i._id || i.id)).map(i => (
-                                        <Box key={i._id || i.id} sx={{ bgcolor: '#fff', px: 1, py: 0.5, borderRadius: 1, border: '1px solid #e2e8f0', fontSize: '0.75rem' }}>
-                                            {i.itemName}
-                                        </Box>
-                                    ))}
-                                </Stack>
-                            )}
+                          {field.value.length === 0 ? (
+                            <Typography variant="caption" color="textSecondary">All products included (No restriction)</Typography>
+                          ) : (
+                            <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                              {items.filter(i => field.value.includes(i._id || i.id)).map(i => (
+                                <Box key={i._id || i.id} sx={{ bgcolor: '#fff', px: 1, py: 0.5, borderRadius: 1, border: '1px solid #e2e8f0', fontSize: '0.75rem' }}>
+                                  {i.itemName}
+                                </Box>
+                              ))}
+                            </Stack>
+                          )}
                         </Paper>
 
-                        <Dialog 
-                          open={productDialogOpen} 
+                        <Dialog
+                          open={productDialogOpen}
                           onClose={() => setProductDialogOpen(false)}
                           fullWidth
                           maxWidth="md"
                           PaperProps={{ sx: { borderRadius: 4, height: '85vh' } }}
                         >
-                            <DialogTitle sx={{ fontWeight: 800, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                Select Specific Products
-                                <IconButton onClick={() => setProductDialogOpen(false)} size="small">
-                                    <CloseIcon />
-                                </IconButton>
-                            </DialogTitle>
-                            <Divider />
-                            <DialogContent sx={{ p: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                                <Box sx={{ p: 2, bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                                    <TextField
-                                      fullWidth
-                                      size="small"
-                                      placeholder="Search by Item Name, Code or Variant SKU (e.g. TS...)"
-                                      value={productSearch}
-                                      onChange={(e) => setProductSearch(e.target.value)}
-                                      InputProps={{
-                                        startAdornment: (
-                                          <InputAdornment position="start">
-                                            <SearchIcon color="action" />
-                                          </InputAdornment>
-                                        ),
-                                      }}
-                                    />
-                                    <Stack direction="row" spacing={2} sx={{ mt: 1.5, alignItems: 'center' }}>
-                                        <Typography variant="caption" sx={{ fontWeight: 700 }}>
-                                            {allFiltered.length} items found total
-                                        </Typography>
-                                        <Button size="small" variant="text" onClick={() => setLocalSelection([])}>Clear Selection</Button>
-                                        <Button size="small" variant="text" onClick={() => setLocalSelection(items.map(i => i._id || i.id))}>Select All</Button>
-                                    </Stack>
-                                </Box>
-                                
-                                <Box sx={{ flex: 1 }}>
-                                    {allFiltered.length > 0 ? (
-                                        <List
-                                            style={{ height: 500, width: '100%' }}
-                                            rowCount={allFiltered.length}
-                                            rowHeight={70}
-                                            rowComponent={ProductRow}
-                                            rowProps={{
-                                                items: allFiltered,
-                                                selection: localSelection,
-                                                onToggle: handleToggle
-                                            }}
-                                        />
-                                    ) : (
-                                        <Box sx={{ p: 4, textAlign: 'center' }}>
-                                            <Typography variant="body2" color="textSecondary">No items found matching your search.</Typography>
-                                        </Box>
-                                    )}
-                                </Box>
-                            </DialogContent>
-                            <Divider />
-                            <DialogActions sx={{ p: 2, bgcolor: '#f8fafc' }}>
-                                <Typography variant="caption" sx={{ mr: 'auto', ml: 2, fontWeight: 700 }}>
-                                    {localSelection.length} Items Selected
+                          <DialogTitle sx={{ fontWeight: 800, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            Select Specific Products
+                            <IconButton onClick={() => setProductDialogOpen(false)} size="small">
+                              <CloseIcon />
+                            </IconButton>
+                          </DialogTitle>
+                          <Divider />
+                          <DialogContent sx={{ p: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                            <Box sx={{ p: 2, bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                              <TextField
+                                fullWidth
+                                size="small"
+                                placeholder="Search by Item Name, Code or Variant SKU (e.g. TS...)"
+                                value={productSearch}
+                                onChange={(e) => setProductSearch(e.target.value)}
+                                InputProps={{
+                                  startAdornment: (
+                                    <InputAdornment position="start">
+                                      <SearchIcon color="action" />
+                                    </InputAdornment>
+                                  ),
+                                }}
+                              />
+                              <Stack direction="row" spacing={2} sx={{ mt: 1.5, alignItems: 'center' }}>
+                                <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                                  {allFiltered.length} items found total
                                 </Typography>
-                                <Button onClick={() => setProductDialogOpen(false)} color="inherit">
-                                    Cancel
-                                </Button>
-                                <Button 
-                                    onClick={() => {
-                                        field.onChange(localSelection);
-                                        setProductDialogOpen(false);
-                                    }} 
-                                    variant="contained" 
-                                    sx={{ px: 4, borderRadius: 2 }}
-                                >
-                                    Confirm Selection
-                                </Button>
-                            </DialogActions>
+                                <Button size="small" variant="text" onClick={() => setLocalSelection([])}>Clear Selection</Button>
+                                <Button size="small" variant="text" onClick={() => setLocalSelection(items.map(i => i._id || i.id))}>Select All</Button>
+                              </Stack>
+                            </Box>
+
+                            <Box sx={{ flex: 1 }}>
+                              {allFiltered.length > 0 ? (
+                                <List
+                                  style={{ height: 500, width: '100%' }}
+                                  rowCount={allFiltered.length}
+                                  rowHeight={70}
+                                  rowComponent={ProductRow}
+                                  rowProps={{
+                                    items: allFiltered,
+                                    selection: localSelection,
+                                    onToggle: handleToggle
+                                  }}
+                                />
+                              ) : (
+                                <Box sx={{ p: 4, textAlign: 'center' }}>
+                                  <Typography variant="body2" color="textSecondary">No items found matching your search.</Typography>
+                                </Box>
+                              )}
+                            </Box>
+                          </DialogContent>
+                          <Divider />
+                          <DialogActions sx={{ p: 2, bgcolor: '#f8fafc' }}>
+                            <Typography variant="caption" sx={{ mr: 'auto', ml: 2, fontWeight: 700 }}>
+                              {localSelection.length} Items Selected
+                            </Typography>
+                            <Button onClick={() => setProductDialogOpen(false)} color="inherit">
+                              Cancel
+                            </Button>
+                            <Button
+                              onClick={() => {
+                                field.onChange(localSelection);
+                                setProductDialogOpen(false);
+                              }}
+                              variant="contained"
+                              sx={{ px: 4, borderRadius: 2 }}
+                            >
+                              Confirm Selection
+                            </Button>
+                          </DialogActions>
                         </Dialog>
                       </Box>
                     )}
@@ -522,18 +526,18 @@ function SchemeFormPage() {
               <Paper sx={{ p: 3, borderRadius: 3, border: '1px solid #e2e8f0' }} elevation={0}>
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 3 }}>Requirement Thresholds</Typography>
                 <Stack spacing={3}>
-                  <TextField 
-                    fullWidth 
-                    type="number" 
-                    label="Minimum Bill Value (₹)" 
-                    {...register('minPurchaseAmount')} 
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Minimum Bill Value (₹)"
+                    {...register('minPurchaseAmount')}
                     helperText="Cart value needed to trigger scheme"
                   />
-                  <TextField 
-                    fullWidth 
-                    type="number" 
-                    label="Minimum Item Quantity" 
-                    {...register('minPurchaseQuantity')} 
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Minimum Item Quantity"
+                    {...register('minPurchaseQuantity')}
                     helperText="Item count needed in cart"
                   />
                 </Stack>
@@ -543,26 +547,26 @@ function SchemeFormPage() {
               <Paper sx={{ p: 3, borderRadius: 3, border: '1px solid #e2e8f0' }} elevation={0}>
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 3 }}>Status & Validity</Typography>
                 <Stack spacing={3}>
-                   <TextField
-                      fullWidth
-                      select
-                      label="Execution Status"
-                      {...register('isActive')}
-                    >
-                      <MenuItem value={true}>Active (Live for billing)</MenuItem>
-                      <MenuItem value={false}>Inactive (Draft/Expired)</MenuItem>
-                    </TextField>
+                  <TextField
+                    fullWidth
+                    select
+                    label="Execution Status"
+                    {...register('isActive')}
+                  >
+                    <MenuItem value={true}>Active (Live for billing)</MenuItem>
+                    <MenuItem value={false}>Inactive (Draft/Expired)</MenuItem>
+                  </TextField>
 
-                    <TextField label="Start Date" type="date" fullWidth InputLabelProps={{ shrink: true }} {...register('startDate')} />
-                    <TextField label="End Date" type="date" fullWidth InputLabelProps={{ shrink: true }} {...register('endDate')} />
+                  <TextField label="Start Date" type="date" fullWidth InputLabelProps={{ shrink: true }} {...register('startDate', { required: 'Start Date is required' })} error={!!errors.startDate} helperText={errors.startDate?.message} />
+                  <TextField label="End Date" type="date" fullWidth InputLabelProps={{ shrink: true }} {...register('endDate')} />
                 </Stack>
               </Paper>
 
-              <Button 
-                type="submit" 
-                variant="contained" 
-                size="large" 
-                fullWidth 
+              <Button
+                type="submit"
+                variant="contained"
+                size="large"
+                fullWidth
                 startIcon={<SaveOutlinedIcon />}
                 sx={{ py: 2, borderRadius: 3, fontWeight: 800, fontSize: '1rem', boxShadow: '0 8px 24px rgba(37, 99, 235, 0.25)' }}
               >
