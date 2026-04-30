@@ -483,8 +483,8 @@ function BillingPage({
         const rate = toNumber(stock.salePrice || (stock.productId && typeof stock.productId === 'object' ? stock.productId.salePrice : 0));
         
         const option = {
-          productId: stock.productId?._id || stock.productId || stock.variantId,
-          variantId: stock.productId?._id || stock.productId || stock.variantId,
+          productId: stock.itemId?._id || stock.itemId || stock.productId, // Master Item ID
+          variantId: stock.variantId || stock._id,                         // Specific Variant ID
           itemName: stock.itemName || stock.name || (stock.productId && typeof stock.productId === 'object' ? stock.productId.name : 'Unknown Item'),
           styleCode: stock.itemCode || stock.sku || (stock.productId && typeof stock.productId === 'object' ? stock.productId.sku : ''),
           size: stock.size || (stock.productId && typeof stock.productId === 'object' ? stock.productId.size : ''),

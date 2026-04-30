@@ -176,16 +176,15 @@ class PromotionService {
                         let discount = 0;
                         if (type === 'PERCENTAGE' || type.includes('PERCENTAGE')) {
                             discount = (item.originalPrice * item.qty) * (scheme.value / 100);
-                        } else if (type === 'FLAT' || type.includes('FLAT')) {
-                            // Standard Flat OFF discount
-                            discount = Math.min(scheme.value, item.originalPrice * item.qty);
-                        } else if (type === 'FLAT_PRICE') {
+                        } else if (type === 'FLAT_PRICE' || type === 'FIXED_PRICE') {
                             // Flat Selling Price: Target price per item instance
-                            // Discount = (OriginalPrice - TargetPrice) * Quantity
                             const targetPrice = scheme.value;
                             if (item.originalPrice > targetPrice) {
                                 discount = (item.originalPrice - targetPrice) * item.qty;
                             }
+                        } else if (type === 'FLAT' || type === 'FLAT_DISCOUNT') {
+                            // Standard Flat OFF discount
+                            discount = Math.min(scheme.value, item.originalPrice * item.qty);
                         } else if (type === 'MANUAL') {
                             discount = Math.min(scheme.value, item.originalPrice * item.qty);
                         }
