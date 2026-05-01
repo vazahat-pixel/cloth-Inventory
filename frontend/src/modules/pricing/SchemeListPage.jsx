@@ -90,7 +90,7 @@ function SchemeListPage() {
   const filteredRows = useMemo(() => {
     const query = searchText.trim().toLowerCase();
     return schemes.filter((row) => {
-      const matchesSearch = query ? row.name.toLowerCase().includes(query) : true;
+      const matchesSearch = query ? String(row.name || '').toLowerCase().includes(query) : true;
       const matchesType = typeFilter === 'all' || row.type === typeFilter;
       const matchesStatus = statusFilter === 'all' || 
         (statusFilter === 'ACTIVE' ? row.isActive : !row.isActive);
@@ -129,14 +129,23 @@ function SchemeListPage() {
             Create and manage discounts, BOGO, and buy-X-get-Y offers
           </Typography>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<AddCircleOutlineIcon />}
-          onClick={() => navigate('/pricing/schemes/new')}
-          sx={{ borderRadius: 2.5, px: 3, py: 1.2, fontWeight: 700, boxShadow: '0 4px 12px rgba(37, 99, 235, 0.2)' }}
-        >
-          Create New Scheme
-        </Button>
+        <Stack direction="row" spacing={2}>
+          <Button
+            variant="outlined"
+            onClick={() => navigate('/pricing/groups')}
+            sx={{ borderRadius: 2.5, px: 3, py: 1.2, fontWeight: 700 }}
+          >
+            Manage Groups
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddCircleOutlineIcon />}
+            onClick={() => navigate('/pricing/schemes/new')}
+            sx={{ borderRadius: 2.5, px: 3, py: 1.2, fontWeight: 700, boxShadow: '0 4px 12px rgba(37, 99, 235, 0.2)' }}
+          >
+            Create New Scheme
+          </Button>
+        </Stack>
       </Stack>
 
       <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 4, overflow: 'hidden' }}>

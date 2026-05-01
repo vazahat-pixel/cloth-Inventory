@@ -130,7 +130,68 @@ class PricingService {
         return await Scheme.find().sort({ createdAt: -1 });
     }
 
+    async checkConflicts(data, excludeId = null) {
+        const { startDate, endDate, applicableProducts, applicableCategories, applicableBrands } = data;
+        
+        const query = {
+            isActive: true,
+            _id: { $ne: excludeId },
+            $or: [
+                {
+                    // Case 1: Existing scheme starts during new scheme
+                    startDate: { $gte: new Date(startDate), $lte: new Date(endDate || '2099-12-31') }
+                },
+                {
+                    // Case 2: Existing scheme ends during new scheme
+                    endDate: { $gte: new Date(startDate), $lte: new Date(endDate || '2099-12-31') }
+                },
+                {
+                    // Case 3: New scheme is entirely within existing scheme
+                    startDate: { $lte: new Date(startDate) },
+                    endDate: { $gte: new Date(endDate || '2099-12-31') }
+                }
+            ]
+        };
+
+        const activeSchemes = await Scheme.find(query).lean();
+        const conflicts = [];
+
+        for (const s of activeSchemes) {
+            let hasOverlap = false;
+            
+            // Check product overlap
+            if (applicableProducts?.length && s.applicableProducts?.length) {
+                const overlap = applicableProducts.filter(p => s.applicableProducts.some(sp => String(sp) === String(p)));
+                if (overlap.length > 0) hasOverlap = true;
+            }
+
+            // Check category overlap
+            if (applicableCategories?.length && s.applicableCategories?.length) {
+                const overlap = applicableCategories.filter(c => s.applicableCategories.some(sc => String(sc) === String(c)));
+                if (overlap.length > 0) hasOverlap = true;
+            }
+
+            // Check brand overlap
+            if (applicableBrands?.length && s.applicableBrands?.length) {
+                const overlap = applicableBrands.filter(b => s.applicableBrands.some(sb => String(sb) === String(b)));
+                if (overlap.length > 0) hasOverlap = true;
+            }
+
+            if (hasOverlap) conflicts.push(s.name);
+        }
+
+        return conflicts;
+    }
+
     async createScheme(data, userId) {
+        if (!data.force) {
+            const conflicts = await this.checkConflicts(data);
+            if (conflicts.length > 0) {
+                const error = new Error(`Overlap detected with existing schemes: ${conflicts.join(', ')}. Use force=true to override.`);
+                error.conflicts = conflicts;
+                throw error;
+            }
+        }
         return await Scheme.create({ ...data, createdBy: userId });
     }
 

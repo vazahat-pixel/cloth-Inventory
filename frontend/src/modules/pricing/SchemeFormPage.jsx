@@ -32,7 +32,7 @@ import CheckBoxIcon from '@mui/icons-material/CheckBox';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import { useForm, Controller } from 'react-hook-form';
-import { addScheme, updateScheme } from './pricingSlice';
+import { addScheme, updateScheme, fetchPromotionGroups } from './pricingSlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchItems } from '../items/itemsSlice';
 
@@ -87,10 +87,45 @@ function SchemeFormPage() {
 
   const schemes = useSelector((state) => state.pricing.schemes);
   const items = useSelector((state) => state.items.records || []);
-  const categories = useSelector((state) => state.masters.categories || []);
-  const brands = useSelector((state) => state.masters.brands || []);
+  const stateCategories = useSelector((state) => state.masters.categories || []);
+  const stateBrands = useSelector((state) => state.masters.brands || []);
   const promotionTypes = useSelector((state) => state.masters.promotionTypes || []);
   const stores = useSelector((state) => state.masters.stores || []);
+  const promotionGroups = useSelector((state) => state.pricing.promotionGroups || []);
+
+  const categories = useMemo(() => {
+    if (stateCategories.length > 0) return stateCategories;
+    const unique = new Map();
+    items.forEach(item => {
+      const cat = item.categoryId || item.category;
+      if (cat) {
+        const id = cat._id || cat.id || cat;
+        if (!unique.has(id)) {
+          // Store only plain data to avoid circular references
+          const name = typeof cat === 'object' ? (cat.name || cat.groupName || item.categoryName) : item.categoryName || id;
+          unique.set(id, { _id: id, id: id, name: name });
+        }
+      }
+    });
+    return Array.from(unique.values());
+  }, [stateCategories, items]);
+
+  const brands = useMemo(() => {
+    if (stateBrands.length > 0) return stateBrands;
+    const unique = new Map();
+    items.forEach(item => {
+      const b = item.brand || item.brandId;
+      if (b) {
+        const id = b._id || b.id || b;
+        if (!unique.has(id)) {
+          // Store only plain data to avoid circular references
+          const name = typeof b === 'object' ? (b.name || b.brandName || item.brandName) : item.brandName || id;
+          unique.set(id, { _id: id, id: id, name: name });
+        }
+      }
+    });
+    return Array.from(unique.values());
+  }, [stateBrands, items]);
 
   const existing = useMemo(
     () => (isEditMode ? schemes.find((s) => (s.id || s._id) === id) : null),
@@ -115,6 +150,7 @@ function SchemeFormPage() {
       getQuantity: '',
       applicableCategories: [],
       applicableBrands: [],
+      applicablePromotionGroups: [],
       applicableProducts: [],
       applicableStores: [],
       minPurchaseAmount: 0,
@@ -133,6 +169,7 @@ function SchemeFormPage() {
     dispatch(fetchItems({ limit: 10000 })); // Fetch all items for selection
     dispatch(fetchMasters('promotionTypes'));
     dispatch(fetchMasters('stores'));
+    dispatch(fetchPromotionGroups());
   }, [dispatch]);
 
   useEffect(() => {
@@ -145,6 +182,7 @@ function SchemeFormPage() {
         getQuantity: existing.getQuantity ?? '',
         applicableCategories: existing.applicableCategories || [],
         applicableBrands: existing.applicableBrands || [],
+        applicablePromotionGroups: existing.applicablePromotionGroups || [],
         applicableProducts: existing.applicableProducts || [],
         applicableStores: existing.applicableStores || [],
         minPurchaseAmount: existing.minPurchaseAmount || 0,
@@ -185,19 +223,26 @@ function SchemeFormPage() {
 
       // 3. Text Search
       if (productSearch) {
-        const lower = productSearch.toLowerCase();
-        const itemName = (item.itemName || '').toLowerCase();
-        const itemCode = (item.itemCode || '').toLowerCase();
-        const catName = (typeof item.categoryId === 'object' ? item.categoryId?.name : item.categoryName || '').toLowerCase();
-        const brandName = (typeof item.brandId === 'object' ? item.brandId?.name : item.brandName || '').toLowerCase();
+        const lower = (productSearch || '').toLowerCase();
+        const itemName = (item.itemName || item.name || '').toLowerCase();
+        const itemCode = (item.itemCode || item.sku || '').toLowerCase();
+        
+        // Safe extraction of category/brand names
+        const catName = String(
+          (typeof item.categoryId === 'object' ? (item.categoryId?.name || item.categoryId?.groupName || '') : (item.categoryName || '')) || ''
+        ).toLowerCase();
+        
+        const brandName = String(
+          (typeof item.brandId === 'object' ? (item.brandId?.name || item.brandId?.brandName || '') : (item.brandName || '')) || ''
+        ).toLowerCase();
         
         const matchesText = 
           itemName.includes(lower) || 
           itemCode.includes(lower) || 
           catName.includes(lower) ||
           brandName.includes(lower) ||
-          item.sizes?.some(s => (s.sku || '').toLowerCase().includes(lower)) ||
-          item.sizes?.some(s => (s.barcode || '').toLowerCase().includes(lower));
+          (item.sizes || []).some(s => String(s.sku || '').toLowerCase().includes(lower)) ||
+          (item.sizes || []).some(s => String(s.barcode || '').toLowerCase().includes(lower));
           
         if (!matchesText) return false;
       }
@@ -214,7 +259,11 @@ function SchemeFormPage() {
     }
   }, []);
 
-  const onSubmit = (values) => {
+  const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
+  const [pendingValues, setPendingValues] = useState(null);
+  const [conflictList, setConflictList] = useState([]);
+
+  const onSubmit = (values, force = false) => {
     setFormError('');
 
     // Normalizing values
@@ -227,26 +276,37 @@ function SchemeFormPage() {
       minPurchaseQuantity: Number(values.minPurchaseQuantity),
       startDate: values.startDate || new Date(),
       endDate: values.endDate || null,
+      force: force
     };
 
-    if (isEditMode) {
-      dispatch(updateScheme({ id, scheme: payload }))
-        .unwrap()
-        .then(() => {
-          alert('Scheme updated successfully');
-          navigate('/pricing/schemes');
-        })
-        .catch(err => setFormError(err));
-    } else {
-      dispatch(addScheme(payload))
-        .unwrap()
-        .then(() => {
-          alert('Scheme created successfully');
-          navigate('/pricing/schemes');
-        })
-        .catch(err => setFormError(err));
-    }
+    const action = isEditMode ? updateScheme({ id, scheme: payload }) : addScheme(payload);
+
+    dispatch(action)
+      .unwrap()
+      .then(() => {
+        alert(isEditMode ? 'Scheme updated successfully' : 'Scheme created successfully');
+        navigate('/pricing/schemes');
+      })
+      .catch(err => {
+        if (err.includes('Overlap detected')) {
+          setConflictList(err.split(': ')[1].split(', '));
+          setPendingValues(values);
+          setConflictDialogOpen(true);
+        } else {
+          setFormError(err);
+        }
+      });
   };
+
+  const samplePrice = 1000;
+  const discountVal = watch('value');
+  const previewPrice = useMemo(() => {
+    const val = Number(discountVal) || 0;
+    if (schemeType === 'PERCENTAGE') return samplePrice * (1 - val / 100);
+    if (schemeType === 'FLAT' || schemeType === 'MANUAL') return Math.max(0, samplePrice - val);
+    if (schemeType === 'FLAT_PRICE') return val;
+    return samplePrice;
+  }, [schemeType, discountVal]);
 
   return (
     <Box sx={{ p: 4, bgcolor: '#f8fafc', minHeight: '100vh' }}>
@@ -394,6 +454,33 @@ function SchemeFormPage() {
                         renderOption={(props, option) => (
                           <li {...props} key={option._id || option.id}>
                             {option.name || option.brandName}
+                          </li>
+                        )}
+                      />
+                    )}
+                  />
+
+                  <Controller
+                    name="applicablePromotionGroups"
+                    control={control}
+                    render={({ field }) => (
+                      <Autocomplete
+                        multiple
+                        options={promotionGroups}
+                        getOptionLabel={(o) => o.name || ''}
+                        value={promotionGroups.filter(g => field.value.includes(g._id || g.id))}
+                        onChange={(_, v) => field.onChange(v.map(i => i._id || i.id))}
+                        renderInput={(params) => (
+                          <TextField 
+                            {...params} 
+                            label="Limit to Promotion Groups (Dynamic Sets)" 
+                            placeholder="Choose Groups..." 
+                            helperText="Groups contain dynamic categories/brands (Priority 2)"
+                          />
+                        )}
+                        renderOption={(props, option) => (
+                          <li {...props} key={option._id || option.id}>
+                            {option.name}
                           </li>
                         )}
                       />
@@ -631,6 +718,26 @@ function SchemeFormPage() {
                 </Stack>
               </Paper>
 
+              {/* Preview */}
+              <Paper sx={{ p: 3, borderRadius: 3, bgcolor: '#eff6ff', border: '1px dashed #2563eb' }} elevation={0}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#1e40af', mb: 1 }}>Real-time Preview</Typography>
+                <Stack spacing={1}>
+                  <Stack direction="row" justifyContent="space-between">
+                    <Typography variant="body2">Sample Item Price:</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>₹{samplePrice.toFixed(2)}</Typography>
+                  </Stack>
+                  <Stack direction="row" justifyContent="space-between">
+                    <Typography variant="body2">Discount Type:</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{schemeType}</Typography>
+                  </Stack>
+                  <Divider sx={{ my: 1 }} />
+                  <Stack direction="row" justifyContent="space-between">
+                    <Typography variant="h6" sx={{ color: '#1e40af' }}>Final Price:</Typography>
+                    <Typography variant="h6" sx={{ color: '#1e40af', fontWeight: 900 }}>₹{previewPrice.toFixed(2)}</Typography>
+                  </Stack>
+                </Stack>
+              </Paper>
+
               {/* Status & Validity */}
               <Paper sx={{ p: 3, borderRadius: 3, border: '1px solid #e2e8f0' }} elevation={0}>
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 3 }}>Status & Validity</Typography>
@@ -665,6 +772,36 @@ function SchemeFormPage() {
         </Grid>
       </form>
       {formError && <Alert severity="error" sx={{ mt: 3, borderRadius: 2 }}>{formError}</Alert>}
+
+      <Dialog open={conflictDialogOpen} onClose={() => setConflictDialogOpen(false)}>
+        <DialogTitle sx={{ fontWeight: 800, color: '#991b1b' }}>⚠️ Overlapping Offers Detected</DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            This scheme overlaps with the following active offers:
+          </Typography>
+          <Box sx={{ bgcolor: '#fef2f2', p: 2, borderRadius: 2, mb: 2 }}>
+            {conflictList.map((c, i) => (
+              <Typography key={i} variant="body2" sx={{ color: '#991b1b', fontWeight: 600 }}>• {c}</Typography>
+            ))}
+          </Box>
+          <Typography variant="body2" color="textSecondary">
+            Do you want to launch this scheme anyway? The hierarchy (Item {'>'} Group {'>'} Category {'>'} Brand) will ensure the most specific offer is applied.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setConflictDialogOpen(false)}>Cancel</Button>
+          <Button 
+            variant="contained" 
+            color="error" 
+            onClick={() => {
+              setConflictDialogOpen(false);
+              onSubmit(pendingValues, true);
+            }}
+          >
+            Launch Anyway (Overwrite Logic)
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

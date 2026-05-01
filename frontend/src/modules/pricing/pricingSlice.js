@@ -13,11 +13,30 @@ const mapCouponToBackend = (data) => ({
   isActive: data.status === 'Active'
 });
 
+// Utility to safely sanitize data before serialization
+const sanitize = (data) => {
+  if (!data || typeof data !== 'object') return data;
+  try {
+    const cache = new WeakSet();
+    return JSON.parse(JSON.stringify(data, (key, value) => {
+      if (typeof value === 'object' && value !== null) {
+        if (cache.has(value)) return; // Discard circular
+        if (value instanceof HTMLElement || value.constructor?.name?.includes('HTML')) return;
+        if (key.startsWith('__react')) return;
+        cache.add(value);
+      }
+      return value;
+    }));
+  } catch (e) {
+    return Array.isArray(data) ? [] : {};
+  }
+};
+
 // Async Thunks
 export const fetchPromotionTypes = createAsyncThunk('pricing/fetchTypes', async (_, { rejectWithValue }) => {
   try {
     const response = await api.get('/pricing/promotion-types');
-    return response.data.types || response.data.data?.types || [];
+    return sanitize(response.data.types || response.data.data?.types || []);
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -25,8 +44,9 @@ export const fetchPromotionTypes = createAsyncThunk('pricing/fetchTypes', async 
 
 export const addPromotionType = createAsyncThunk('pricing/addType', async (data, { rejectWithValue }) => {
   try {
-    const response = await api.post('/pricing/promotion-types', data);
-    return response.data.type || response.data.data;
+    const payload = sanitize(data);
+    const response = await api.post('/pricing/promotion-types', payload);
+    return sanitize(response.data.type || response.data.data);
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -35,7 +55,7 @@ export const addPromotionType = createAsyncThunk('pricing/addType', async (data,
 export const fetchPriceLists = createAsyncThunk('pricing/fetchLists', async (_, { rejectWithValue }) => {
   try {
     const response = await api.get('/pricing');
-    return response.data.pricingRules || response.data.data || [];
+    return sanitize(response.data.pricingRules || response.data.data || []);
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -45,8 +65,9 @@ export const fetchPricingRules = fetchPriceLists;
 
 export const addPriceList = createAsyncThunk('pricing/addList', async (data, { rejectWithValue }) => {
   try {
-    const response = await api.post('/pricing', data);
-    return response.data.pricingRule || response.data.data;
+    const payload = sanitize(data);
+    const response = await api.post('/pricing', payload);
+    return sanitize(response.data.pricingRule || response.data.data);
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -54,8 +75,9 @@ export const addPriceList = createAsyncThunk('pricing/addList', async (data, { r
 
 export const updatePriceList = createAsyncThunk('pricing/updateList', async ({ id, priceList }, { rejectWithValue }) => {
   try {
-    const response = await api.patch(`/pricing/${id}`, priceList);
-    return response.data.pricingRule || response.data.data;
+    const payload = sanitize(priceList);
+    const response = await api.patch(`/pricing/${id}`, payload);
+    return sanitize(response.data.pricingRule || response.data.data);
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -65,7 +87,7 @@ export const fetchSchemes = createAsyncThunk('pricing/fetchSchemes', async (_, {
   try {
     const response = await api.get('/pricing/schemes');
     const raw = response.data.schemes || response.data.data || [];
-    return normalizeResponse(raw, 'scheme');
+    return sanitize(normalizeResponse(raw, 'scheme'));
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -73,8 +95,9 @@ export const fetchSchemes = createAsyncThunk('pricing/fetchSchemes', async (_, {
 
 export const addScheme = createAsyncThunk('pricing/addScheme', async (data, { rejectWithValue }) => {
   try {
-    const response = await api.post('/pricing/schemes', data);
-    return normalizeResponse(response.data.scheme || response.data.data, 'scheme');
+    const payload = sanitize(data);
+    const response = await api.post('/pricing/schemes', payload);
+    return sanitize(normalizeResponse(response.data.scheme || response.data.data, 'scheme'));
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -82,8 +105,9 @@ export const addScheme = createAsyncThunk('pricing/addScheme', async (data, { re
 
 export const updateScheme = createAsyncThunk('pricing/updateScheme', async ({ id, scheme }, { rejectWithValue }) => {
   try {
-    const response = await api.patch(`/pricing/schemes/${id}`, scheme);
-    return normalizeResponse(response.data.scheme || response.data.data, 'scheme');
+    const payload = sanitize(scheme);
+    const response = await api.patch(`/pricing/schemes/${id}`, payload);
+    return sanitize(normalizeResponse(response.data.scheme || response.data.data, 'scheme'));
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -93,7 +117,7 @@ export const fetchCoupons = createAsyncThunk('pricing/fetchCoupons', async (_, {
   try {
     const response = await api.get('/pricing/coupons');
     const raw = response.data.coupons || response.data.data || [];
-    return normalizeResponse(raw, 'coupon');
+    return sanitize(normalizeResponse(raw, 'coupon'));
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -101,9 +125,9 @@ export const fetchCoupons = createAsyncThunk('pricing/fetchCoupons', async (_, {
 
 export const addCoupon = createAsyncThunk('pricing/addCoupon', async (data, { rejectWithValue }) => {
   try {
-    const payload = mapCouponToBackend(data);
+    const payload = sanitize(mapCouponToBackend(data));
     const response = await api.post('/pricing/coupons', payload);
-    return normalizeResponse(response.data.coupon || response.data.data, 'coupon');
+    return sanitize(normalizeResponse(response.data.coupon || response.data.data, 'coupon'));
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -125,9 +149,9 @@ export const addCouponsBulk = createAsyncThunk('pricing/addCouponsBulk', async (
 
 export const updateCoupon = createAsyncThunk('pricing/updateCoupon', async ({ id, coupon }, { rejectWithValue }) => {
   try {
-    const payload = mapCouponToBackend(coupon);
+    const payload = sanitize(mapCouponToBackend(coupon));
     const response = await api.patch(`/pricing/coupons/${id}`, payload);
-    return normalizeResponse(response.data.coupon || response.data.data, 'coupon');
+    return sanitize(normalizeResponse(response.data.coupon || response.data.data, 'coupon'));
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -136,7 +160,7 @@ export const updateCoupon = createAsyncThunk('pricing/updateCoupon', async ({ id
 export const setPriceListStatus = createAsyncThunk('pricing/setStatus', async ({ id, status }, { rejectWithValue }) => {
   try {
     const response = await api.patch(`/pricing/${id}`, { status });
-    return response.data.pricingRule || response.data.data;
+    return sanitize(response.data.pricingRule || response.data.data);
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -145,7 +169,7 @@ export const setPriceListStatus = createAsyncThunk('pricing/setStatus', async ({
 export const setSchemeStatus = createAsyncThunk('pricing/setSchemeStatus', async ({ id, status }, { rejectWithValue }) => {
   try {
     const response = await api.patch(`/pricing/schemes/${id}`, { isActive: status === 'ACTIVE' });
-    return normalizeResponse(response.data.scheme || response.data.data, 'scheme');
+    return sanitize(normalizeResponse(response.data.scheme || response.data.data, 'scheme'));
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -162,8 +186,28 @@ export const deleteScheme = createAsyncThunk('pricing/deleteScheme', async (id, 
 
 export const evaluateOffers = createAsyncThunk('pricing/evaluateOffers', async (cartData, { rejectWithValue }) => {
   try {
-    const response = await api.post('/pricing/evaluate', cartData);
-    return response.data.data || response.data;
+    const payload = sanitize(cartData);
+    const response = await api.post('/pricing/evaluate', payload);
+    return sanitize(response.data.data || response.data);
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
+export const fetchPromotionGroups = createAsyncThunk('pricing/fetchGroups', async (_, { rejectWithValue }) => {
+  try {
+    const response = await api.get('/pricing/groups');
+    return sanitize(response.data.groups || response.data.data?.groups || []);
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
+export const addPromotionGroup = createAsyncThunk('pricing/addGroup', async (data, { rejectWithValue }) => {
+  try {
+    const payload = sanitize(data);
+    const response = await api.post('/pricing/groups', payload);
+    return sanitize(response.data.group || response.data.data);
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -174,6 +218,7 @@ const initialState = {
   schemes: [],
   coupons: [],
   promotionTypes: [],
+  promotionGroups: [],
   eligibleOffers: [],
   totalPromoDiscount: 0,
   promoItems: [],
@@ -265,6 +310,12 @@ const pricingSlice = createSlice({
       })
       .addCase(deleteScheme.fulfilled, (state, action) => {
         state.schemes = state.schemes.filter((s) => s.id !== action.payload && s._id !== action.payload);
+      })
+      .addCase(fetchPromotionGroups.fulfilled, (state, action) => {
+        state.promotionGroups = action.payload || [];
+      })
+      .addCase(addPromotionGroup.fulfilled, (state, action) => {
+        state.promotionGroups.unshift(action.payload);
       });
   },
 });

@@ -53,6 +53,25 @@ const singularKeyMap = {
   taxRules: 'taxRule',
 };
 
+// Utility to safely sanitize data before serialization
+const sanitize = (data) => {
+  if (!data || typeof data !== 'object') return data;
+  try {
+    const cache = new WeakSet();
+    return JSON.parse(JSON.stringify(data, (key, value) => {
+      if (typeof value === 'object' && value !== null) {
+        if (cache.has(value)) return;
+        if (value instanceof HTMLElement || value.constructor?.name?.includes('HTML')) return;
+        if (key.startsWith('__react')) return;
+        cache.add(value);
+      }
+      return value;
+    }));
+  } catch (e) {
+    return Array.isArray(data) ? [] : {};
+  }
+};
+
 // Async Thunks for different master entities
 export const fetchMasters = createAsyncThunk('masters/fetchAll', async (entityKey, { rejectWithValue }) => {
   try {
@@ -71,7 +90,8 @@ export const fetchMasters = createAsyncThunk('masters/fetchAll', async (entityKe
       categories: 'category',
     };
     const entityType = entityTypeMapping[entityKey] || entityKey.slice(0, -1);
-    return { entityKey, data: normalizeResponse(raw, entityType) };
+    const normalized = normalizeResponse(raw, entityType);
+    return sanitize({ entityKey, data: normalized });
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -82,8 +102,8 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
     const endpoint = endpointMap[entityKey];
     if (!endpoint) return rejectWithValue(`No endpoint defined for ${entityKey}`);
 
-    // Map frontend fields to backend payloads for specific entities
-    let payload = record;
+    // Map frontend fields to backend payloads
+    let payload = sanitize(record);
     if (entityKey === 'suppliers') {
       // Map frontend fields (supplierName, gstNo) to backend (name, gstNumber)
       payload = {
@@ -185,7 +205,7 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
       categories: 'category',
     };
     const entityType = entityTypeMapping[entityKey] || entityKey.slice(0, -1);
-    return { entityKey, data: normalizeResponse(raw, entityType) };
+    return sanitize({ entityKey, data: normalizeResponse(raw, entityType) });
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
@@ -282,7 +302,7 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
       };
     }
 
-    const response = await api.patch(endpoint, payload);
+    const response = await api.patch(endpoint, sanitize(payload));
 
     const key = responseKeyMap[entityKey];
     const singularKey = singularKeyMap[entityKey];
@@ -295,7 +315,7 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
       categories: 'category',
     };
     const entityType = entityTypeMapping[entityKey] || entityKey.slice(0, -1);
-    return { entityKey, data: normalizeResponse(raw, entityType) };
+    return sanitize({ entityKey, data: normalizeResponse(raw, entityType) });
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }

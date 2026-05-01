@@ -474,17 +474,14 @@ function BillingPage({
   );
 
   const variantOptions = useMemo(() => {
-    console.log('DEBUG: warehouseStock data', warehouseStock);
     const options = warehouseStock
       .map((stock) => {
         const available = toNumber(stock.availableStock ?? stock.quantity);
-        // CRITICAL FIX: The discount and rate should come from the populated productId object
-        // since stock.productId is now the populated Variant object from our manual population.
         const rate = toNumber(stock.salePrice || (stock.productId && typeof stock.productId === 'object' ? stock.productId.salePrice : 0));
         
         const option = {
-          productId: stock.itemId?._id || stock.itemId || stock.productId, // Master Item ID
-          variantId: stock.variantId || stock._id,                         // Specific Variant ID
+          productId: stock.itemId?._id || stock.itemId || stock.productId, 
+          variantId: stock.variantId || stock._id,                         
           itemName: stock.itemName || stock.name || (stock.productId && typeof stock.productId === 'object' ? stock.productId.name : 'Unknown Item'),
           styleCode: stock.itemCode || stock.sku || (stock.productId && typeof stock.productId === 'object' ? stock.productId.sku : ''),
           size: stock.size || (stock.productId && typeof stock.productId === 'object' ? stock.productId.size : ''),
@@ -503,9 +500,8 @@ function BillingPage({
       })
       .filter((option) => option.available > 0);
     
-    console.log('DEBUG: variantOptions generated', options);
     return options;
-  }, [variantSellingPriceMap, warehouseStock]);
+  }, [warehouseStock]);
 
   const handleMobileChange = (value) => {
     setMobileInput(value);
@@ -1335,19 +1331,25 @@ function BillingPage({
                                 </Typography>
                                 {promo?.promoDiscount > 0 && (
                                   <Chip 
-                                    label="OFFER APPLIED" 
+                                    label={`${promo.appliedOfferSource || 'OFFER'} APPLIED`} 
                                     size="small" 
                                     color="success" 
-                                    sx={{ height: 16, fontSize: '0.65rem', fontWeight: 800 }} 
+                                    variant="outlined"
+                                    sx={{ height: 18, fontSize: '0.6rem', fontWeight: 900, borderRadius: 1 }} 
                                   />
                                 )}
                               </Stack>
+                              {promo?.promoDiscount > 0 && (
+                                  <Typography variant="caption" sx={{ color: '#10b981', display: 'block', mt: 0.5, fontWeight: 700 }}>
+                                    Scheme: {promo.appliedOffer} {promo.appliedOfferValue ? `(${promo.appliedOfferType?.includes('PERCENTAGE') ? `${promo.appliedOfferValue}%` : `₹${promo.appliedOfferValue}`})` : ''}
+                                  </Typography>
+                                )}
                             </TableCell>
                             <TableCell align="right">
                               <Box>
                                 <Typography variant="body2">₹{toNumber(line.rate).toFixed(2)}</Typography>
                                 {promo?.promoDiscount > 0 && (
-                                  <Typography variant="caption" sx={{ color: '#10b981', fontWeight: 700 }}>
+                                  <Typography variant="caption" sx={{ color: '#10b981', fontWeight: 800 }}>
                                     Promo: -₹{(promo.promoDiscount / line.quantity).toFixed(2)}
                                   </Typography>
                                 )}
@@ -1631,7 +1633,7 @@ function BillingPage({
                           <Stack direction="row" justifyContent="space-between" alignItems="center">
                             <Box>
                               <Typography variant="body2" sx={{ fontWeight: 700, color: '#1e293b' }}>
-                                {offer.name}
+                                {offer.name} {offer.ruleLabel && <Chip label={offer.ruleLabel} size="small" sx={{ ml: 1, height: 18, fontSize: '0.65rem', fontWeight: 900, bgcolor: '#10b981', color: '#fff' }} />}
                               </Typography>
                               <Typography variant="caption" sx={{ color: '#64748b' }}>
                                 {offer.description || offer.type}

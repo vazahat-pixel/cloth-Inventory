@@ -79,7 +79,7 @@ function PriceListPage() {
   const filteredRows = useMemo(() => {
     const query = searchText.trim().toLowerCase();
     return priceLists.filter((row) => {
-      const matchesSearch = query ? row.name.toLowerCase().includes(query) : true;
+      const matchesSearch = query ? String(row.name || '').toLowerCase().includes(query) : true;
       const matchesStatus = statusFilter === 'all' || row.status === statusFilter;
       return matchesSearch && matchesStatus;
     });

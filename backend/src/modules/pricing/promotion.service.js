@@ -1,4 +1,5 @@
 const Scheme = require('../../models/scheme.model');
+const PromotionGroup = require('../../models/promotionGroup.model');
 
 /**
  * PROMOTION AND OFFER ENGINE (PURE SERVICE)
@@ -10,42 +11,49 @@ class PromotionService {
      */
     async getActiveSchemes() {
         const now = new Date();
+        const todayStart = new Date(now);
+        todayStart.setHours(0, 0, 0, 0);
+        
+        const todayEnd = new Date(now);
+        todayEnd.setHours(23, 59, 59, 999);
+
         let schemes = await Scheme.find({
             isActive: true,
             startDate: { $lte: now },
             $or: [
-                { endDate: { $gte: now } },
+                { endDate: { $gte: todayStart } },
                 { endDate: null }
             ]
-        }).lean();
+        }).populate('applicablePromotionGroups').lean();
 
-        // Sort by Specificity first, then by Value
-        // Specific = has Products, Categories, Brands, or Stores defined
+        console.log(`🔍 [SCHEME-ENGINE] Total Active Schemes in DB: ${schemes.length}`);
+        
+        // Sort by Strict Priority Hierarchy: 
+        // 1. Specific Product(s) - Highest
+        // 2. Promotion Group(s)
+        // 3. Specific Category / Brand
+        // 4. Global Fallback (All items) - Lowest
         schemes.sort((a, b) => {
-            // Give weights to different types of specificity
-            // Product specific is the most specific, followed by Categories/Brands, then Store specific
-            const scoreA = 
-                (a.applicableProducts?.length ? 100 : 0) + 
-                (a.applicableCategories?.length ? 50 : 0) + 
-                (a.applicableBrands?.length ? 50 : 0) +
-                (a.applicableStores?.length ? 25 : 0);
-            
-            const scoreB = 
-                (b.applicableProducts?.length ? 100 : 0) + 
-                (b.applicableCategories?.length ? 50 : 0) + 
-                (b.applicableBrands?.length ? 50 : 0) +
-                (b.applicableStores?.length ? 25 : 0);
+            const getPriorityValue = (s) => {
+                let score = 100; // Default lowest priority
+                if (s.applicableProducts?.length) score = 10;
+                else if (s.applicablePromotionGroups?.length) score = 20;
+                else if (s.applicableCategories?.length || s.applicableBrands?.length) score = 30;
+                
+                // Tie-breaker: if priorities are same, use the higher value (discount %)
+                return score;
+            };
 
-            if (scoreA !== scoreB) {
-                // Higher specificity score comes first
-                return scoreB - scoreA;
-            }
+            const priorityA = getPriorityValue(a);
+            const priorityB = getPriorityValue(b);
+
+            if (priorityA !== priorityB) return priorityA - priorityB;
             
-            // If specificity is same, higher value comes first
+            // If same priority, higher value wins
             return (b.value || 0) - (a.value || 0);
         });
 
-        console.log(`🔍 [SCHEME-DEBUG] Found and prioritized ${schemes.length} active schemes`);
+        console.log(`🔍 [SCHEME-ENGINE] Found and prioritized ${schemes.length} active schemes by hierarchy`);
         return schemes;
     }
 
@@ -86,23 +94,33 @@ class PromotionService {
         const appliedOffers = [];
         let totalDiscount = 0;
 
-        // Process Group-Based Promotions first (BUY_X_GET_Y, FIXED_PRICE)
+        // Process Group-Based Promotions first (BUY_X_GET_Y, BOGO)
         for (const scheme of schemes) {
             const type = (scheme.type || '').toUpperCase();
             console.log(`🔍 [SCHEME-DEBUG] Processing Scheme: "${scheme.name}" Type: ${type}`);
-            if (type === 'BUY_X_GET_Y' || type === 'BOGO' || type === 'FIXED_PRICE') {
+            if (type === 'BUY_X_GET_Y' || type === 'BOGO') {
                 const buy = scheme.buyQuantity || 1;
-                const get = scheme.getQuantity || (type === 'FIXED_PRICE' ? 0 : 1);
-                const totalSet = type === 'FIXED_PRICE' ? buy : (buy + get);
-
+                const get = scheme.getQuantity || 1;
+                const totalSet = buy + get;
                 // 1. Identify eligible item instances (flattened for sorting)
                 let eligibleInstances = [];
                 currentItems.forEach((item, idx) => {
                     const isCatMatch = !scheme.applicableCategories?.length || scheme.applicableCategories.some(id => String(id) === String(item.category?._id || item.category));
-                    const isBrandMatch = !scheme.applicableBrands?.length || scheme.applicableBrands.includes(item.brand?.name || item.brand);
+                    const isBrandMatch = !scheme.applicableBrands?.length || scheme.applicableBrands.some(id => String(id) === String(item.brand?._id || item.brand?.name || item.brand));
                     const isProductMatch = !scheme.applicableProducts?.length || scheme.applicableProducts.some(id => String(id) === String(item.variantId) || String(id) === String(item.productId));
+                    
+                    // Check Promotion Groups
+                    let isGroupMatch = false;
+                    if (scheme.applicablePromotionGroups?.length) {
+                        isGroupMatch = scheme.applicablePromotionGroups.some(group => {
+                            const isProdInGroup = group.applicableProducts?.some(id => String(id) === String(item.variantId));
+                            const isCatInGroup = group.applicableCategories?.some(id => String(id) === String(item.category?._id || item.category));
+                            const isBrandInGroup = group.applicableBrands?.some(id => String(id) === String(item.brand?._id || item.brand));
+                            return isProdInGroup || isCatInGroup || isBrandInGroup;
+                        });
+                    }
 
-                    if (isCatMatch && isBrandMatch && isProductMatch && !item.appliedOffer) {
+                    if ((isCatMatch && isBrandMatch && isProductMatch || isGroupMatch) && !item.appliedOffer) {
                         for (let i = 0; i < item.qty; i++) {
                             eligibleInstances.push({ ...item, cartIdx: idx });
                         }
@@ -115,46 +133,20 @@ class PromotionService {
 
                     // 3. Mark Sets
                     const setsCount = Math.floor(eligibleInstances.length / totalSet);
+                    const freeCount = setsCount * get;
                     
-                    if (type === 'FIXED_PRICE') {
-                        // FIXED_PRICE: the entire set of `buy` items costs `scheme.value`
-                        const totalComboInstances = setsCount * totalSet;
-                        let setDiscountTotal = 0;
-                        
-                        for (let i = 0; i < totalComboInstances; i++) {
-                            const instance = eligibleInstances[i];
-                            const originalItem = currentItems[instance.cartIdx];
-                            
-                            // Calculate discount ratio for this item in the combo
-                            const setOriginalValue = eligibleInstances.slice(Math.floor(i / totalSet) * totalSet, (Math.floor(i / totalSet) + 1) * totalSet).reduce((sum, it) => sum + it.originalPrice, 0);
-                            const itemDiscount = instance.originalPrice - (scheme.value * (instance.originalPrice / setOriginalValue));
-                            
-                            originalItem.promoDiscount += itemDiscount;
-                            originalItem.appliedOffer = scheme.name;
-                            totalDiscount += itemDiscount;
-                            setDiscountTotal += itemDiscount;
-                        }
-                        
-                        appliedOffers.push({ id: scheme._id, name: scheme.name, discount: setDiscountTotal });
-                    } else {
-                        // BOGO / BUY_X_GET_Y
-                        const freeCount = setsCount * get;
-                        
-                        // The last 'freeCount' items in the sorted list are the cheapest
-                        const freeInstances = eligibleInstances.slice(eligibleInstances.length - freeCount);
+                    // The last 'freeCount' items in the sorted list are the cheapest
+                    const freeInstances = eligibleInstances.slice(eligibleInstances.length - freeCount);
 
-                        freeInstances.forEach(fi => {
-                            const originalItem = currentItems[fi.cartIdx];
-                            // We deduct the price of ONE instance from the total
-                            originalItem.promoPrice = 0; 
-                            // Since we deal with qty, we increment the discount for that line
-                            originalItem.promoDiscount += fi.originalPrice;
-                            originalItem.appliedOffer = scheme.name;
-                            totalDiscount += fi.originalPrice;
-                        });
+                    freeInstances.forEach(fi => {
+                        const originalItem = currentItems[fi.cartIdx];
+                        originalItem.promoPrice = 0; 
+                        originalItem.promoDiscount += fi.originalPrice;
+                        originalItem.appliedOffer = scheme.name;
+                        totalDiscount += fi.originalPrice;
+                    });
 
-                        appliedOffers.push({ id: scheme._id, name: scheme.name, discount: freeInstances.reduce((a, b) => a + b.originalPrice, 0) });
-                    }
+                    appliedOffers.push({ _id: scheme._id, name: scheme.name, discount: freeInstances.reduce((a, b) => a + b.originalPrice, 0), ruleLabel: type === 'BOGO' ? 'BOGO' : `Buy ${buy} Get ${get}` });
                 }
             }
         }
@@ -168,11 +160,30 @@ class PromotionService {
 
                     const isCatMatch = !scheme.applicableCategories?.length || scheme.applicableCategories.some(id => String(id) === String(item.category?._id || item.category));
                     const isBrandMatch = !scheme.applicableBrands?.length || scheme.applicableBrands.some(id => String(id) === String(item.brand?._id || item.brand?.name || item.brand));
-                    const isProductMatch = !scheme.applicableProducts?.length || scheme.applicableProducts.some(id => String(id) === String(item.variantId) || String(id) === String(item.productId));
                     
-                    console.log(`   👉 Item: ${item.variantId} Match: Cat=${isCatMatch}, Brand=${isBrandMatch}, Prod=${isProductMatch}`);
+                    const itemVarId = String(item.variantId || item.id);
+                    const itemProdId = String(item.productId || '');
+                    const isProductMatch = !scheme.applicableProducts?.length || scheme.applicableProducts.some(id => String(id) === itemVarId || String(id) === itemProdId);
+                    
+                    // Check Promotion Groups
+                    let isGroupMatch = false;
+                    let appliedSource = 'General';
+                    if (scheme.applicableProducts?.length && isProductMatch) appliedSource = 'Item';
+                    else if (scheme.applicablePromotionGroups?.length) {
+                        isGroupMatch = scheme.applicablePromotionGroups.some(group => {
+                            const isProdInGroup = group.applicableProducts?.some(id => String(id) === itemVarId);
+                            const isCatInGroup = group.applicableCategories?.some(id => String(id) === String(item.category?._id || item.category));
+                            const isBrandInGroup = group.applicableBrands?.some(id => String(id) === String(item.brand?._id || item.brand));
+                            return isProdInGroup || isCatInGroup || isBrandInGroup;
+                        });
+                        if (isGroupMatch) appliedSource = 'Group';
+                    }
+                    else if (scheme.applicableCategories?.length && isCatMatch) appliedSource = 'Category';
+                    else if (scheme.applicableBrands?.length && isBrandMatch) appliedSource = 'Brand';
 
-                    if (isCatMatch && isBrandMatch && isProductMatch) {
+                    console.log(`   👉 Item: ${itemVarId} (Prod: ${itemProdId}) | Match: Cat=${isCatMatch}, Brand=${isBrandMatch}, Prod=${isProductMatch}, Group=${isGroupMatch}`);
+
+                    if (isCatMatch && isBrandMatch && isProductMatch || isGroupMatch) {
                         let discount = 0;
                         if (type === 'PERCENTAGE' || type.includes('PERCENTAGE')) {
                             discount = (item.originalPrice * item.qty) * (scheme.value / 100);
@@ -189,35 +200,53 @@ class PromotionService {
                             discount = Math.min(scheme.value, item.originalPrice * item.qty);
                         }
 
-                        if (discount > 0) {
-                            console.log(`      ✨ Applied ${scheme.name}: -₹${discount}`);
-                            item.promoDiscount += discount;
-                            item.appliedOffer = scheme.name;
-                            totalDiscount += discount;
-                            appliedOffers.push({ _id: scheme._id, name: scheme.name, discount, type: scheme.type });
+                            if (discount > 0) {
+                                console.log(`      ✨ Applied ${scheme.name} (${appliedSource}): -₹${discount}`);
+                                item.promoDiscount += discount;
+                                item.appliedOffer = scheme.name;
+                                item.appliedOfferType = type;
+                                item.appliedOfferValue = scheme.value;
+                                item.appliedOfferSource = appliedSource;
+                                totalDiscount += discount;
+                                
+                                let ruleLabel = '';
+                                if (type.includes('PERCENTAGE')) ruleLabel = `${scheme.value}%`;
+                                else if (type === 'FLAT_PRICE' || type === 'FIXED_PRICE') ruleLabel = `Fixed: ₹${scheme.value}`;
+                                else if (type === 'BOGO') ruleLabel = 'BOGO';
+                                else ruleLabel = `Flat: ₹${scheme.value}`;
+
+                                appliedOffers.push({ 
+                                    _id: scheme._id, 
+                                    name: scheme.name, 
+                                    discount, 
+                                    type: scheme.type, 
+                                    value: scheme.value,
+                                    ruleLabel,
+                                    source: appliedSource 
+                                });
+                            }
                         }
-                    }
-                });
+                    });
+                }
             }
+
+            // Group applied offers for UI
+            const groupedOffers = [];
+            appliedOffers.forEach(off => {
+                const existing = groupedOffers.find(g => String(g._id) === String(off._id));
+                if (existing) {
+                    existing.discount += off.discount;
+                } else {
+                    groupedOffers.push({ ...off });
+                }
+            });
+
+            return {
+                items: currentItems,
+                totalDiscount,
+                appliedOffers: groupedOffers
+            };
         }
-
-        // Group applied offers for UI
-        const groupedOffers = [];
-        appliedOffers.forEach(off => {
-            const existing = groupedOffers.find(g => String(g._id) === String(off._id));
-            if (existing) {
-                existing.discount += off.discount;
-            } else {
-                groupedOffers.push({ ...off });
-            }
-        });
-
-        return {
-            items: currentItems,
-            totalDiscount,
-            appliedOffers: groupedOffers
-        };
     }
-}
 
 module.exports = new PromotionService();

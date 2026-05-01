@@ -252,7 +252,17 @@ class ItemService {
     if (section && section !== 'all') filter.sectionName = section;
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const [items, total] = await Promise.all([
-      Item.find(filter).populate('brand', 'name brandName').populate('hsCodeId', 'code hsnCode gstRate gstPercent').sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit)),
+      Item.find(filter)
+        .populate('brand', 'name brandName')
+        .populate('sectionId', 'name groupName groupType')
+        .populate('categoryId', 'name groupName groupType')
+        .populate('subCategoryId', 'name groupName groupType')
+        .populate('styleId', 'name groupName groupType')
+        .populate('hsCodeId', 'code hsnCode gstRate gstPercent')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
       Item.countDocuments(filter)
     ]);
     return { items, total, page: parseInt(page), limit: parseInt(limit) };

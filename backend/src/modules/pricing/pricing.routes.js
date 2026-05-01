@@ -11,6 +11,13 @@ router.get('/promotion-types', promotionTypeController.getPromotionTypes);
 router.post('/promotion-types', promotionTypeController.createPromotionType);
 router.delete('/promotion-types/:id', promotionTypeController.deletePromotionType);
 
+// Promotion Groups
+const promotionGroupController = require('./promotionGroup.controller');
+router.get('/groups', promotionGroupController.getAll);
+router.post('/groups', promotionGroupController.create);
+router.patch('/groups/:id', promotionGroupController.update);
+router.delete('/groups/:id', promotionGroupController.delete);
+
 router.get('/', (req, res) => require('../../utils/response.handler').sendSuccess(res, { schemes: [] }));
 
 // CRUD for Schemes & Coupons (already handled by masters/setup in some places, but centralized here is better)

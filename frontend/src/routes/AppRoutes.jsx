@@ -26,6 +26,7 @@ const PriceListFormPage = lazy(() => import('../modules/pricing/PriceListFormPag
 const SchemeListPage = lazy(() => import('../modules/pricing/SchemeListPage'));
 const SchemeFormPage = lazy(() => import('../modules/pricing/SchemeFormPage'));
 const PromotionTypesMaster = lazy(() => import('../modules/pricing/PromotionTypesMaster.jsx'));
+const PromotionGroupPage = lazy(() => import('../modules/pricing/PromotionGroupPage.jsx'));
 
 // Setup
 const SalesmanListPage = lazy(() => import('../modules/setup/SalesmanListPage'));
@@ -284,6 +285,7 @@ function AppRoutes() {
             <Route path="pricing/schemes" element={<SchemeListPage />} />
             <Route path="pricing/schemes/new" element={<SchemeFormPage />} />
             <Route path="pricing/schemes/:id/edit" element={<SchemeFormPage mode="edit" />} />
+            <Route path="pricing/groups" element={<PromotionGroupPage />} />
             <Route path="pricing/types" element={<PromotionTypesMaster />} />
 
             {/* Production / Job Work */}

@@ -403,7 +403,8 @@ const normalizeItem = (item, entityType) => {
             normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
             break;
         case 'brand':
-            normalized.brandName = item.name;
+            normalized.brandName = item.name || item.brandName || '';
+            normalized.name = item.name || item.brandName || '';
             normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
             break;
         case 'season':
@@ -412,8 +413,9 @@ const normalizeItem = (item, entityType) => {
             normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
             break;
         case 'category':
-            normalized.categoryName = item.name;
-            normalized.groupName = item.name; // For components expecting groupName
+            normalized.categoryName = item.name || item.categoryName || item.groupName || '';
+            normalized.groupName = item.name || item.groupName || item.categoryName || '';
+            normalized.name = item.name || item.categoryName || item.groupName || '';
             normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
             break;
         case 'group':
