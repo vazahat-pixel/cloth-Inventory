@@ -11,6 +11,7 @@ import {
   MenuItem,
   Paper,
   Stack,
+  Switch,
   TextField,
   Typography,
   Checkbox,
@@ -158,6 +159,7 @@ function SchemeFormPage() {
       startDate: new Date().toISOString().split('T')[0],
       endDate: '',
       isActive: true,
+      isUniversal: false,
     },
   });
 
@@ -190,6 +192,7 @@ function SchemeFormPage() {
         startDate: existing.startDate ? new Date(existing.startDate).toISOString().split('T')[0] : '',
         endDate: existing.endDate ? new Date(existing.endDate).toISOString().split('T')[0] : '',
         isActive: existing.isActive ?? true,
+        isUniversal: existing.isUniversal ?? false,
       });
     }
   }, [existing, reset, isEditMode]);
@@ -274,6 +277,7 @@ function SchemeFormPage() {
       getQuantity: values.type === 'BUY_X_GET_Y' ? Number(values.getQuantity) : (values.type === 'BOGO' ? 1 : 0),
       minPurchaseAmount: Number(values.minPurchaseAmount),
       minPurchaseQuantity: Number(values.minPurchaseQuantity),
+      isUniversal: Boolean(values.isUniversal),
       startDate: values.startDate || new Date(),
       endDate: values.endDate || null,
       force: force
@@ -415,9 +419,36 @@ function SchemeFormPage() {
               {/* Applicability */}
               <Paper sx={{ p: 3, borderRadius: 3, border: '1px solid #e2e8f0' }} elevation={0}>
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 3 }}>Applicability Rules</Typography>
+                
+                {/* Universal Toggle */}
+                <Controller
+                  name="isUniversal"
+                  control={control}
+                  render={({ field }) => (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, p: 2, bgcolor: field.value ? '#eff6ff' : '#f8fafc', borderRadius: 2, border: `1px solid ${field.value ? '#3b82f6' : '#e2e8f0'}` }}>
+                      <Switch
+                        checked={Boolean(field.value)}
+                        onChange={(e) => field.onChange(e.target.checked)}
+                        color="primary"
+                      />
+                      <Box>
+                        <Typography variant="body1" sx={{ fontWeight: 600, color: field.value ? '#1d4ed8' : '#374151' }}>
+                          {field.value ? '🌐 Apply to ALL Items (Global Offer)' : 'Apply to Specific Items Only'}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: '#64748b' }}>
+                          {field.value 
+                            ? 'This offer will apply to every item in the cart — even new products not in any list.'
+                            : 'Enable this to make the offer apply store-wide to all items automatically.'}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  )}
+                />
+
                 <Typography variant="body2" sx={{ color: '#64748b', mb: 3 }}>
                   Leave any category/brand/product empty to apply the scheme to ALL items in that group.
                 </Typography>
+
 
                 <Stack spacing={3}>
                   <Controller

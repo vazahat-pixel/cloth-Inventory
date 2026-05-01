@@ -326,15 +326,14 @@ function BillingPage({
 
   const totals = useMemo(
     () => {
-      // Create a map of promo discounts. 
-      // If a specific scheme is selected, we only use THAT one (for focusing).
-      // If NO scheme is selected, we apply ALL specific offers calculated by the backend.
+      // Build promo discount map from backend-evaluated items.
+      // The backend already assigns the BEST offer per item via priority rules.
+      // We trust the backend completely — never filter by selectedScheme here,
+      // as doing so would zero out discounts on items with a DIFFERENT active offer.
       const activePromoDiscounts = {};
       
       promoItems.forEach(item => {
-          // By default (no selection), we use everything the backend recommended.
-          // If the user clicked a specific offer, we filter to just that one.
-          if (!selectedScheme || item.appliedOffer === selectedScheme.name) {
+          if (item.promoDiscount > 0) {
               activePromoDiscounts[item.variantId] = (activePromoDiscounts[item.variantId] || 0) + item.promoDiscount;
           }
       });
@@ -345,12 +344,12 @@ function BillingPage({
         billDiscount,
         loyaltyRedeemed,
         couponDiscountAmount,
-        0, // We handle scheme discount via calculateLine now
+        0,
         creditNoteAmount,
         saleType,
         lines.map(l => ({ 
             variantId: l.productId, 
-            promoDiscount: activePromoDiscounts[l.productId] || 0 
+            promoDiscount: activePromoDiscounts[l.productId] || activePromoDiscounts[l.variantId] || 0
         })),
         adjustments
       );
@@ -361,7 +360,7 @@ function BillingPage({
         netPayable: Math.max(0, basic.netPayable - returnTotalCredit),
       };
     },
-    [billDiscount, lines, loyaltyRedeemed, couponDiscountAmount, selectedScheme, creditNoteAmount, saleType, returnTotalCredit, promoItems],
+    [billDiscount, lines, loyaltyRedeemed, couponDiscountAmount, creditNoteAmount, saleType, returnTotalCredit, promoItems, taxRules, adjustments],
   );
 
   // Real-time Offer Evaluation
@@ -370,6 +369,7 @@ function BillingPage({
       const evaluationPayload = {
         items: lines.map(l => ({
           productId: l.productId,
+          variantId: l.variantId,
           quantity: l.quantity,
           price: l.rate,
           brand: l.brand,
@@ -382,12 +382,7 @@ function BillingPage({
     }
   }, [lines, calculatedGross, storeId, customerId, dispatch]);
 
-  // Auto-select offer if only one is available and none selected
-  useEffect(() => {
-    if (eligibleOffers.length === 1 && !selectedScheme) {
-      setSelectedScheme(eligibleOffers[0]);
-    }
-  }, [eligibleOffers, selectedScheme]);
+
 
   // Sync storeId when warehouses/stores load or user changes
   // Sync storeId and auto-apply store discount
@@ -558,10 +553,10 @@ function BillingPage({
 
   const upsertLine = (option) => {
     setLines((previous) => {
-      const existing = previous.find((line) => line.productId === option.productId);
+      const existing = previous.find((line) => line.variantId === option.variantId || (line.productId === option.productId && !option.variantId));
       if (existing) {
         return previous.map((line) => {
-          if (line.productId !== option.productId) {
+          if (line.variantId !== option.variantId && (line.productId !== option.productId || option.variantId)) {
             return line;
           }
 
@@ -573,9 +568,9 @@ function BillingPage({
       return [
         ...previous,
         {
-          id: `${option.productId}-${Date.now()}`,
+          id: `${option.variantId || option.productId}-${Date.now()}`,
           productId: option.productId,
-          variantId: option.productId, // Fallback
+          variantId: option.variantId || option.productId,
           itemName: option.itemName,
           styleCode: option.styleCode,
           size: option.size,

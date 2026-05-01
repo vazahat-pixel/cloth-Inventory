@@ -22,6 +22,7 @@ const schemeSchema = new mongoose.Schema(
         applicablePromotionGroups: [{ type: mongoose.Schema.Types.ObjectId, ref: 'PromotionGroup' }],
         minPurchaseAmount: { type: Number, default: 0 },
         minPurchaseQuantity: { type: Number, default: 0 },
+        isUniversal: { type: Boolean, default: false }, // If true, applies to ALL items regardless of product list
         giftItemId: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
         giftQuantity: { type: Number, default: 0 },
         createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
