@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
@@ -16,12 +16,15 @@ import {
   Typography,
   Chip,
   Autocomplete,
-  Tooltip
+  Tooltip,
+  Checkbox
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
+import CheckBoxIcon from '@mui/icons-material/CheckBox';
 import { fetchPromotionGroups, addPromotionGroup, updatePromotionGroup } from './pricingSlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchItems } from '../items/itemsSlice';
@@ -114,6 +117,7 @@ function PromotionGroupPage() {
   }, [masters.brands, items]);
 
   const [open, setOpen] = useState(false);
+  const filteredResultsRef = useRef({ categories: [], brands: [], products: [] });
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -157,6 +161,31 @@ function PromotionGroupPage() {
             handleClose();
         });
     }
+  };
+
+  const getFiltered = (list, search, type) => {
+    if (!search || !search.trim()) return [];
+    const s = search.toLowerCase();
+    return (list || []).filter(item => {
+        if (!item) return false;
+        let label = '';
+        if (type === 'product') {
+            label = `${item.itemName || item.name || ''} (${item.itemCode || item.sku || ''})`;
+        } else {
+            label = item.name || item.groupName || item.categoryName || item.brandName || item.label || '';
+        }
+        return label.toLowerCase().includes(s);
+    });
+  };
+
+
+  const handleSelectBatch = (field, list) => {
+    const current = [...formData[field]];
+    list.forEach(item => {
+        const id = String(item.id || item._id);
+        if (!current.includes(id)) current.push(id);
+    });
+    setFormData(prev => ({ ...prev, [field]: current }));
   };
 
   const getOptionLabel = (option) => {
@@ -235,50 +264,186 @@ function PromotionGroupPage() {
             
             <Box>
                 <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Inclusion Criteria</Typography>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#1e293b' }}>Inclusion Criteria</Typography>
                     <Tooltip title="Products matching ANY of the selected categories, brands, or specific items will be part of this group.">
                         <HelpOutlineIcon sx={{ fontSize: 16, color: 'text.secondary', cursor: 'help' }} />
                     </Tooltip>
                 </Stack>
                 <Stack spacing={2}>
-                    <Autocomplete
-                        multiple
-                        options={categories}
-                        getOptionLabel={getOptionLabel}
-                        value={categories.filter(c => formData.applicableCategories.includes(c.id || c._id))}
-                        isOptionEqualToValue={(option, value) => (option.id || option._id) === (value.id || value._id)}
-                        onChange={(_, v) => setFormData({ 
-                            ...formData, 
-                            applicableCategories: v.map(i => String(i.id || i._id || i)) 
-                        })}
-                        renderInput={(params) => <TextField {...params} label="Included Categories / Groups" placeholder="Select Categories" />}
-                    />
+                    <Box>
+                        <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1.2, mb: 1, display: 'block' }}>Included Categories / Groups</Typography>
+                        <Autocomplete
+                            multiple
+                            disableCloseOnSelect
+                            options={categories}
+                            getOptionLabel={getOptionLabel}
+                            value={categories.filter(c => formData.applicableCategories.includes(String(c.id || c._id)))}
+                            isOptionEqualToValue={(option, value) => String(option.id || option._id) === String(value.id || value._id)}
+                            filterOptions={(options, params) => {
+                                const filtered = options.filter(option => 
+                                    getOptionLabel(option).toLowerCase().includes(params.inputValue.toLowerCase())
+                                );
+                                if (params.inputValue.trim() && filtered.length > 0) {
+                                    return [{ isSelectAll: true, label: `SELECT ALL FOUND (${filtered.length})`, items: filtered }, ...filtered];
+                                }
+                                return filtered;
+                            }}
+                            onChange={(_, v) => {
+                                const selectAll = v.find(i => i.isSelectAll);
+                                if (selectAll) {
+                                    handleSelectBatch('applicableCategories', selectAll.items);
+                                } else {
+                                    setFormData(prev => ({ ...prev, applicableCategories: v.map(i => String(i.id || i._id || i)) }));
+                                }
+                            }}
+                            renderOption={(props, option, { selected }) => {
+                                if (option.isSelectAll) {
+                                    return (
+                                        <li {...props} key="select-all-cat" style={{ fontWeight: 900, color: '#2563eb', backgroundColor: '#eff6ff', borderBottom: '1px solid #dbeafe' }}>
+                                            <AddIcon sx={{ mr: 1, fontSize: 18 }} />
+                                            {option.label}
+                                        </li>
+                                    );
+                                }
+                                return (
+                                    <li {...props} key={option.id || option._id}>
+                                        <Checkbox
+                                            icon={<CheckBoxOutlineBlankIcon fontSize="small" />}
+                                            checkedIcon={<CheckBoxIcon fontSize="small" />}
+                                            style={{ marginRight: 8 }}
+                                            checked={selected}
+                                        />
+                                        {getOptionLabel(option)}
+                                    </li>
+                                );
+                            }}
+                            renderInput={(params) => (
+                                <TextField 
+                                    {...params} 
+                                    label="Select Categories" 
+                                    placeholder="Search categories..." 
+                                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+                                />
+                            )}
+                        />
+                    </Box>
                     
-                    <Autocomplete
-                        multiple
-                        options={brands}
-                        getOptionLabel={getOptionLabel}
-                        value={brands.filter(b => formData.applicableBrands.includes(b.id || b._id))}
-                        isOptionEqualToValue={(option, value) => (option.id || option._id) === (value.id || value._id)}
-                        onChange={(_, v) => setFormData({ 
-                            ...formData, 
-                            applicableBrands: v.map(i => String(i.id || i._id || i)) 
-                        })}
-                        renderInput={(params) => <TextField {...params} label="Included Brands" placeholder="Select Brands" />}
-                    />
+                    <Box>
+                        <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1.2, mb: 1, display: 'block' }}>Included Brands</Typography>
+                        <Autocomplete
+                            multiple
+                            disableCloseOnSelect
+                            options={brands}
+                            getOptionLabel={getOptionLabel}
+                            value={brands.filter(b => formData.applicableBrands.includes(String(b.id || b._id)))}
+                            isOptionEqualToValue={(option, value) => String(option.id || option._id) === String(value.id || value._id)}
+                            filterOptions={(options, params) => {
+                                const filtered = options.filter(option => 
+                                    getOptionLabel(option).toLowerCase().includes(params.inputValue.toLowerCase())
+                                );
+                                if (params.inputValue.trim() && filtered.length > 0) {
+                                    return [{ isSelectAll: true, label: `SELECT ALL FOUND (${filtered.length})`, items: filtered }, ...filtered];
+                                }
+                                return filtered;
+                            }}
+                            onChange={(_, v) => {
+                                const selectAll = v.find(i => i.isSelectAll);
+                                if (selectAll) {
+                                    handleSelectBatch('applicableBrands', selectAll.items);
+                                } else {
+                                    setFormData(prev => ({ ...prev, applicableBrands: v.map(i => String(i.id || i._id || i)) }));
+                                }
+                            }}
+                            renderOption={(props, option, { selected }) => {
+                                if (option.isSelectAll) {
+                                    return (
+                                        <li {...props} key="select-all-brand" style={{ fontWeight: 900, color: '#2563eb', backgroundColor: '#eff6ff', borderBottom: '1px solid #dbeafe' }}>
+                                            <AddIcon sx={{ mr: 1, fontSize: 18 }} />
+                                            {option.label}
+                                        </li>
+                                    );
+                                }
+                                return (
+                                    <li {...props} key={option.id || option._id}>
+                                        <Checkbox
+                                            icon={<CheckBoxOutlineBlankIcon fontSize="small" />}
+                                            checkedIcon={<CheckBoxIcon fontSize="small" />}
+                                            style={{ marginRight: 8 }}
+                                            checked={selected}
+                                        />
+                                        {getOptionLabel(option)}
+                                    </li>
+                                );
+                            }}
+                            renderInput={(params) => (
+                                <TextField 
+                                    {...params} 
+                                    label="Select Brands" 
+                                    placeholder="Search brands..." 
+                                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+                                />
+                            )}
+                        />
+                    </Box>
 
-                    <Autocomplete
-                        multiple
-                        options={items}
-                        getOptionLabel={(o) => `${o.itemName || o.name || ''} (${o.itemCode || o.sku || ''})`}
-                        value={items.filter(i => formData.applicableProducts.includes(i.id || i._id))}
-                        isOptionEqualToValue={(option, value) => (option.id || option._id) === (value.id || value._id)}
-                        onChange={(_, v) => setFormData({ 
-                            ...formData, 
-                            applicableProducts: v.map(i => String(i.id || i._id || i)) 
-                        })}
-                        renderInput={(params) => <TextField {...params} label="Specific Products" placeholder="Search & Select Products" />}
-                    />
+                    <Box>
+                        <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1.2, mb: 1, display: 'block' }}>Specific Products</Typography>
+                        <Autocomplete
+                            multiple
+                            disableCloseOnSelect
+                            options={items}
+                            getOptionLabel={(o) => o.isSelectAll ? o.label : `${o.itemName || o.name || ''} (${o.itemCode || o.sku || ''})`}
+                            value={items.filter(i => formData.applicableProducts.includes(String(i.id || i._id)))}
+                            isOptionEqualToValue={(option, value) => String(option.id || option._id) === String(value.id || value._id)}
+                            filterOptions={(options, params) => {
+                                const filtered = options.filter(option => {
+                                    const label = `${option.itemName || option.name || ''} (${option.itemCode || option.sku || ''})`.toLowerCase();
+                                    return label.includes(params.inputValue.toLowerCase());
+                                });
+                                if (params.inputValue.trim() && filtered.length > 0) {
+                                    return [{ isSelectAll: true, label: `SELECT ALL FOUND (${filtered.length})`, items: filtered }, ...filtered];
+                                }
+                                return filtered;
+                            }}
+                            onChange={(_, v) => {
+                                const selectAll = v.find(i => i.isSelectAll);
+                                if (selectAll) {
+                                    handleSelectBatch('applicableProducts', selectAll.items);
+                                } else {
+                                    setFormData(prev => ({ ...prev, applicableProducts: v.map(i => String(i.id || i._id || i)) }));
+                                }
+                            }}
+                            renderOption={(props, option, { selected }) => {
+                                if (option.isSelectAll) {
+                                    return (
+                                        <li {...props} key="select-all-prod" style={{ fontWeight: 900, color: '#2563eb', backgroundColor: '#eff6ff', borderBottom: '1px solid #dbeafe' }}>
+                                            <AddIcon sx={{ mr: 1, fontSize: 18 }} />
+                                            {option.label}
+                                        </li>
+                                    );
+                                }
+                                return (
+                                    <li {...props} key={option.id || option._id}>
+                                        <Checkbox
+                                            icon={<CheckBoxOutlineBlankIcon fontSize="small" />}
+                                            checkedIcon={<CheckBoxIcon fontSize="small" />}
+                                            style={{ marginRight: 8 }}
+                                            checked={selected}
+                                        />
+                                        {`${option.itemName || option.name || ''} (${option.itemCode || option.sku || ''})`}
+                                    </li>
+                                );
+                            }}
+                            renderInput={(params) => (
+                                <TextField 
+                                    {...params} 
+                                    label="Search & Select Products" 
+                                    placeholder="Type SKU or Name..." 
+                                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+                                />
+                            )}
+                        />
+                    </Box>
                 </Stack>
             </Box>
           </Stack>
