@@ -213,6 +213,16 @@ export const addPromotionGroup = createAsyncThunk('pricing/addGroup', async (dat
   }
 });
 
+export const updatePromotionGroup = createAsyncThunk('pricing/updateGroup', async ({ id, updates }, { rejectWithValue }) => {
+  try {
+    const payload = sanitize(updates);
+    const response = await api.patch(`/pricing/groups/${id}`, payload);
+    return sanitize(response.data.group || response.data.data);
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
 const initialState = {
   priceLists: [],
   schemes: [],
@@ -316,6 +326,12 @@ const pricingSlice = createSlice({
       })
       .addCase(addPromotionGroup.fulfilled, (state, action) => {
         state.promotionGroups.unshift(action.payload);
+      })
+      .addCase(updatePromotionGroup.fulfilled, (state, action) => {
+        const index = state.promotionGroups.findIndex((g) => g._id === action.payload._id || g.id === action.payload.id);
+        if (index !== -1) {
+          state.promotionGroups[index] = action.payload;
+        }
       });
   },
 });

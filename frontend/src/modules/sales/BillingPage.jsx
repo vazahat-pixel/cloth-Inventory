@@ -1051,23 +1051,7 @@ function BillingPage({
                   </TextField>
                 </Grid>
               )}
-              <Grid item xs={12} md={6}>
-                <TextField
-                  select
-                  fullWidth
-                  size="small"
-                  label="Assign Salesman"
-                  value={salesmanId}
-                  onChange={(event) => setSalesmanId(event.target.value)}
-                >
-                  <MenuItem value="">Not Assigned</MenuItem>
-                  {activeSalesmen.map((salesman) => (
-                    <MenuItem key={salesman._id || salesman.id} value={salesman._id || salesman.id}>
-                      {salesman.name}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
+
 
               <Grid item xs={12} md={6}>
                 <TextField
@@ -1104,42 +1088,7 @@ function BillingPage({
                 />
               </Grid>
 
-              <Grid item xs={12} md={6}>
-                <TextField
-                  select
-                  fullWidth
-                  size="small"
-                  label="Select Registered Customer"
-                  value={customerId}
-                  onChange={(event) => {
-                    const selectedId = event.target.value;
-                    setCustomerId(selectedId);
-                    const selected = customerMap[selectedId];
-                    if (selected) {
-                        setMobileInput(selected.mobileNumber || '');
-                        setCustomerName(selected.customerName || '');
-                        setCustomerAddress(selected.address || '');
-                    } else {
-                        setMobileInput('');
-                        setCustomerName('');
-                        setCustomerAddress('');
-                    }
-                    setLoyaltyRedeemed('');
-                    setCreditNoteId('');
-                    if (billingMode === 'fromDO') {
-                      setDeliveryOrderId('');
-                      setLines([]);
-                    }
-                  }}
-                >
-                  <MenuItem value="">-- No Record Found / Manual Entry --</MenuItem>
-                  {activeCustomers.map((customer) => (
-                    <MenuItem key={customer.id} value={customer.id}>
-                      {`${customer.customerName} (${customer.mobileNumber})`}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
+
 
               <Grid item xs={12}>
                 <Button

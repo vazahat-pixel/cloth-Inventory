@@ -4,28 +4,28 @@ import api from '../../services/api';
 export const fetchYieldAnalysis = createAsyncThunk('reports/fetchYield', async (params, { rejectWithValue }) => {
     try {
         const res = await api.get('/reports/production/yield', { params });
-        return res.data.data.report;
+        return res.data.report;
     } catch (e) { return rejectWithValue(e.response?.data?.message || e.message); }
 });
 
 export const fetchConsolidatedStock = createAsyncThunk('reports/fetchConsolidatedStock', async (params, { rejectWithValue }) => {
     try {
         const res = await api.get('/reports/inventory/consolidated');
-        return res.data.data;
+        return res.data;
     } catch (e) { return rejectWithValue(e.response?.data?.message || e.message); }
 });
 
 export const fetchClosurePreview = createAsyncThunk('reports/fetchClosurePreview', async (params, { rejectWithValue }) => {
     try {
         const res = await api.get('/reports/closure/preview', { params });
-        return res.data.data.preview;
+        return res.data.preview;
     } catch (e) { return rejectWithValue(e.response?.data?.message || e.message); }
 });
 
 export const postFinalizeClosure = createAsyncThunk('reports/finalizeClosure', async (data, { rejectWithValue }) => {
     try {
         const res = await api.post('/reports/closure/finalize', data);
-        return res.data.data.closure;
+        return res.data.closure;
     } catch (e) { return rejectWithValue(e.response?.data?.message || e.message); }
 });
 

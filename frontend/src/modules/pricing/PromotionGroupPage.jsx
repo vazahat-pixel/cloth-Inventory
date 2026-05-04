@@ -22,7 +22,7 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
-import { fetchPromotionGroups, addPromotionGroup } from './pricingSlice';
+import { fetchPromotionGroups, addPromotionGroup, updatePromotionGroup } from './pricingSlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchItems } from '../items/itemsSlice';
 
@@ -130,11 +130,33 @@ function PromotionGroupPage() {
     dispatch(fetchItems({ limit: 1000 }));
   }, [dispatch]);
 
-  const handleSubmit = () => {
-    dispatch(addPromotionGroup(formData)).unwrap().then(() => {
-        setOpen(false);
-        setFormData({ name: '', description: '', applicableCategories: [], applicableBrands: [], applicableProducts: [] });
+  const handleEdit = (group) => {
+    setFormData({
+        _id: group._id,
+        name: group.name,
+        description: group.description || '',
+        applicableCategories: group.applicableCategories || [],
+        applicableBrands: group.applicableBrands || [],
+        applicableProducts: group.applicableProducts || []
     });
+    setOpen(true);
+  };
+
+  const handleClose = () => {
+    setOpen(false);
+    setFormData({ name: '', description: '', applicableCategories: [], applicableBrands: [], applicableProducts: [] });
+  };
+
+  const handleSubmit = () => {
+    if (formData._id) {
+        dispatch(updatePromotionGroup({ id: formData._id, updates: formData })).unwrap().then(() => {
+            handleClose();
+        });
+    } else {
+        dispatch(addPromotionGroup(formData)).unwrap().then(() => {
+            handleClose();
+        });
+    }
   };
 
   const getOptionLabel = (option) => {
@@ -175,7 +197,9 @@ function PromotionGroupPage() {
                   <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a' }}>{group.name}</Typography>
                   <Typography variant="body2" color="textSecondary" sx={{ mb: 2, minHeight: 40 }}>{group.description || 'No description provided'}</Typography>
                 </Box>
-                <IconButton size="small"><EditOutlinedIcon fontSize="small" /></IconButton>
+                <IconButton size="small" onClick={() => handleEdit(group)}>
+                  <EditOutlinedIcon fontSize="small" />
+                </IconButton>
               </Stack>
               
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
@@ -197,8 +221,10 @@ function PromotionGroupPage() {
         ))}
       </Grid>
 
-      <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm" PaperProps={{ sx: { borderRadius: 4 } }}>
-        <DialogTitle sx={{ fontWeight: 900, px: 3, pt: 3 }}>Create Promotion Group</DialogTitle>
+      <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm" PaperProps={{ sx: { borderRadius: 4 } }}>
+        <DialogTitle sx={{ fontWeight: 900, px: 3, pt: 3 }}>
+            {formData._id ? 'Edit Promotion Group' : 'Create Promotion Group'}
+        </DialogTitle>
         <DialogContent sx={{ px: 3 }}>
           <Stack spacing={3} sx={{ mt: 1 }}>
             <Box>
@@ -258,9 +284,9 @@ function PromotionGroupPage() {
           </Stack>
         </DialogContent>
         <DialogActions sx={{ p: 3 }}>
-          <Button onClick={(e) => { e.preventDefault(); setOpen(false); }} sx={{ fontWeight: 700, color: 'text.secondary' }}>Cancel</Button>
-          <Button variant="contained" onClick={(e) => { e.preventDefault(); handleSubmit(); }} disabled={!formData.name} sx={{ borderRadius: 2, px: 4, fontWeight: 700 }}>
-            Create Group
+          <Button onClick={handleClose} sx={{ fontWeight: 700, color: 'text.secondary' }}>Cancel</Button>
+          <Button variant="contained" onClick={handleSubmit} disabled={!formData.name} sx={{ borderRadius: 2, px: 4, fontWeight: 700 }}>
+            {formData._id ? 'Update Group' : 'Create Group'}
           </Button>
         </DialogActions>
       </Dialog>
