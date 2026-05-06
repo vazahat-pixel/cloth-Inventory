@@ -7,6 +7,7 @@ import {
   Autocomplete,
   Box,
   Button,
+  Chip,
   Grid,
   MenuItem,
   Paper,
@@ -140,6 +141,7 @@ function SchemeFormPage() {
     handleSubmit,
     watch,
     reset,
+    setValue,
     control,
     formState: { errors },
   } = useForm({
@@ -162,6 +164,163 @@ function SchemeFormPage() {
       isUniversal: false,
     },
   });
+
+  const handleCategoryChange = (newCategoryIds) => {
+    const currentCats = watch('applicableCategories') || [];
+    const currentProds = watch('applicableProducts') || [];
+    
+    const added = newCategoryIds.filter(id => !currentCats.includes(id));
+    const removed = currentCats.filter(id => !newCategoryIds.includes(id));
+
+    let updatedProds = [...currentProds];
+
+    if (added.length > 0) {
+      items.forEach(item => {
+        const cat = item.categoryId || item.category;
+        const catId = cat ? String(cat._id || cat.id || cat) : null;
+        if (catId && added.includes(catId)) {
+          const itemId = String(item._id || item.id);
+          if (!updatedProds.includes(itemId)) {
+            updatedProds.push(itemId);
+          }
+        }
+      });
+    }
+
+    if (removed.length > 0) {
+      items.forEach(item => {
+        const cat = item.categoryId || item.category;
+        const catId = cat ? String(cat._id || cat.id || cat) : null;
+        if (catId && removed.includes(catId)) {
+          const itemId = String(item._id || item.id);
+          updatedProds = updatedProds.filter(id => id !== itemId);
+        }
+      });
+    }
+
+    setValue('applicableCategories', newCategoryIds);
+    setValue('applicableProducts', updatedProds);
+  };
+
+  const handleBrandChange = (newBrandIds) => {
+    const currentBrands = watch('applicableBrands') || [];
+    const currentProds = watch('applicableProducts') || [];
+
+    const added = newBrandIds.filter(id => !currentBrands.includes(id));
+    const removed = currentBrands.filter(id => !newBrandIds.includes(id));
+
+    let updatedProds = [...currentProds];
+
+    if (added.length > 0) {
+      items.forEach(item => {
+        const b = item.brandId || item.brand;
+        const brandId = b ? String(b._id || b.id || b) : null;
+        if (brandId && added.includes(brandId)) {
+          const itemId = String(item._id || item.id);
+          if (!updatedProds.includes(itemId)) {
+            updatedProds.push(itemId);
+          }
+        }
+      });
+    }
+
+    if (removed.length > 0) {
+      items.forEach(item => {
+        const b = item.brandId || item.brand;
+        const brandId = b ? String(b._id || b.id || b) : null;
+        if (brandId && removed.includes(brandId)) {
+          const itemId = String(item._id || item.id);
+          updatedProds = updatedProds.filter(id => id !== itemId);
+        }
+      });
+    }
+
+    setValue('applicableBrands', newBrandIds);
+    setValue('applicableProducts', updatedProds);
+  };
+
+  const handleGroupChange = (newGroupIds) => {
+    const currentGroups = watch('applicablePromotionGroups') || [];
+    const currentCats = watch('applicableCategories') || [];
+    const currentBrands = watch('applicableBrands') || [];
+    const currentProds = watch('applicableProducts') || [];
+
+    const added = newGroupIds.filter(id => !currentGroups.includes(id));
+    const removed = currentGroups.filter(id => !newGroupIds.includes(id));
+
+    let updatedCats = [...currentCats];
+    let updatedBrands = [...currentBrands];
+    let updatedProds = [...currentProds];
+
+    if (added.length > 0) {
+      added.forEach(gId => {
+        const group = promotionGroups.find(g => String(g._id || g.id) === String(gId));
+        if (group) {
+          const gCats = (group.applicableCategories || []).map(c => String(c._id || c.id || c));
+          gCats.forEach(cId => {
+            if (!updatedCats.includes(cId)) updatedCats.push(cId);
+          });
+
+          const gBrands = (group.applicableBrands || []).map(b => String(b._id || b.id || b));
+          gBrands.forEach(bId => {
+            if (!updatedBrands.includes(bId)) updatedBrands.push(bId);
+          });
+
+          const gProds = (group.applicableProducts || []).map(p => String(p._id || p.id || p));
+          gProds.forEach(pId => {
+            if (!updatedProds.includes(pId)) updatedProds.push(pId);
+          });
+
+          items.forEach(item => {
+            const cat = item.categoryId || item.category;
+            const catId = cat ? String(cat._id || cat.id || cat) : null;
+            const b = item.brandId || item.brand;
+            const brandId = b ? String(b._id || b.id || b) : null;
+
+            if ((catId && gCats.includes(catId)) || (brandId && gBrands.includes(brandId))) {
+              const itemId = String(item._id || item.id);
+              if (!updatedProds.includes(itemId)) {
+                updatedProds.push(itemId);
+              }
+            }
+          });
+        }
+      });
+    }
+
+    if (removed.length > 0) {
+      removed.forEach(gId => {
+        const group = promotionGroups.find(g => String(g._id || g.id) === String(gId));
+        if (group) {
+          const gCats = (group.applicableCategories || []).map(c => String(c._id || c.id || c));
+          updatedCats = updatedCats.filter(cId => !gCats.includes(cId));
+
+          const gBrands = (group.applicableBrands || []).map(b => String(b._id || b.id || b));
+          updatedBrands = updatedBrands.filter(bId => !gBrands.includes(bId));
+
+          const gProds = (group.applicableProducts || []).map(p => String(p._id || p.id || p));
+          updatedProds = updatedProds.filter(pId => !gProds.includes(pId));
+
+          items.forEach(item => {
+            const cat = item.categoryId || item.category;
+            const catId = cat ? String(cat._id || cat.id || cat) : null;
+            const b = item.brandId || item.brand;
+            const brandId = b ? String(b._id || b.id || b) : null;
+
+            if ((catId && gCats.includes(catId)) || (brandId && gBrands.includes(brandId))) {
+              const itemId = String(item._id || item.id);
+              updatedProds = updatedProds.filter(id => id !== itemId);
+            }
+          });
+        }
+      });
+    }
+
+    setValue('applicablePromotionGroups', newGroupIds);
+    setValue('applicableCategories', updatedCats);
+    setValue('applicableBrands', updatedBrands);
+    setValue('applicableProducts', updatedProds);
+  };
 
   const schemeType = watch('type');
 
@@ -460,7 +619,7 @@ function SchemeFormPage() {
                         options={categories}
                         getOptionLabel={(o) => o.name || o.categoryName || ''}
                         value={categories.filter(c => field.value.includes(c._id || c.id))}
-                        onChange={(_, v) => field.onChange(v.map(i => i._id || i.id))}
+                        onChange={(_, v) => handleCategoryChange(v.map(i => i._id || i.id))}
                         renderInput={(params) => <TextField {...params} label="Limit to Categories" placeholder="Choose Categories..." />}
                         renderOption={(props, option) => (
                           <li {...props} key={option._id || option.id}>
@@ -480,7 +639,7 @@ function SchemeFormPage() {
                         options={brands}
                         getOptionLabel={(o) => o.name || o.brandName || ''}
                         value={brands.filter(b => field.value.includes(b._id || b.id))}
-                        onChange={(_, v) => field.onChange(v.map(i => i._id || i.id))}
+                        onChange={(_, v) => handleBrandChange(v.map(i => i._id || i.id))}
                         renderInput={(params) => <TextField {...params} label="Limit to Brands" placeholder="Choose Brands..." />}
                         renderOption={(props, option) => (
                           <li {...props} key={option._id || option.id}>
@@ -500,7 +659,7 @@ function SchemeFormPage() {
                         options={promotionGroups}
                         getOptionLabel={(o) => o.name || ''}
                         value={promotionGroups.filter(g => field.value.includes(g._id || g.id))}
-                        onChange={(_, v) => field.onChange(v.map(i => i._id || i.id))}
+                        onChange={(_, v) => handleGroupChange(v.map(i => i._id || i.id))}
                         renderInput={(params) => (
                           <TextField 
                             {...params} 
@@ -746,6 +905,48 @@ function SchemeFormPage() {
                     {...register('minPurchaseQuantity')}
                     helperText="Item count needed in cart"
                   />
+                </Stack>
+              </Paper>
+
+              {/* Targeted Items Summary */}
+              <Paper sx={{ p: 3, borderRadius: 3, border: '1px solid #e2e8f0' }} elevation={0}>
+                <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>Targeted Inventory Summary</Typography>
+                <Stack spacing={2}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body2" color="textSecondary">Selected Categories:</Typography>
+                    <Chip size="small" label={`${watch('applicableCategories')?.length || 0} Categories`} color="primary" variant="outlined" sx={{ fontWeight: 700 }} />
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body2" color="textSecondary">Selected Brands:</Typography>
+                    <Chip size="small" label={`${watch('applicableBrands')?.length || 0} Brands`} color="secondary" variant="outlined" sx={{ fontWeight: 700 }} />
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body2" color="textSecondary">Selected Groups:</Typography>
+                    <Chip size="small" label={`${watch('applicablePromotionGroups')?.length || 0} Groups`} color="info" variant="outlined" sx={{ fontWeight: 700 }} />
+                  </Box>
+                  <Divider />
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: '#f0fdf4', p: 1.5, borderRadius: 2 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 700, color: '#166534' }}>Total Active Items Targeted:</Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 900, color: '#166534' }}>{watch('applicableProducts')?.length || 0}</Typography>
+                  </Box>
+                  {watch('applicableProducts')?.length > 0 && (
+                    <Box>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b', display: 'block', mb: 1 }}>Preview of Mapped Items (Top 5):</Typography>
+                      <Stack spacing={0.5}>
+                        {items.filter(i => watch('applicableProducts')?.includes(i._id || i.id)).slice(0, 5).map(i => (
+                          <Box key={i._id || i.id} sx={{ bgcolor: '#f8fafc', px: 1.5, py: 0.75, borderRadius: 1.5, border: '1px solid #f1f5f9', fontSize: '0.75rem', display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ fontWeight: 600 }}>{i.itemName}</span>
+                            <span style={{ color: '#64748b' }}>{i.itemCode}</span>
+                          </Box>
+                        ))}
+                        {watch('applicableProducts')?.length > 5 && (
+                          <Typography variant="caption" align="center" sx={{ color: '#94a3b8', display: 'block', mt: 0.5 }}>
+                            and {watch('applicableProducts').length - 5} other items...
+                          </Typography>
+                        )}
+                      </Stack>
+                    </Box>
+                  )}
                 </Stack>
               </Paper>
 

@@ -126,6 +126,65 @@ function PromotionGroupPage() {
     applicableProducts: []
   });
 
+  const handleCategoryChange = (newCategoryIds) => {
+    const currentCats = formData.applicableCategories || [];
+    const currentProds = formData.applicableProducts || [];
+
+    const added = newCategoryIds.filter(id => !currentCats.includes(id));
+    const removed = currentCats.filter(id => !newCategoryIds.includes(id));
+
+    let updatedProds = [...currentProds];
+
+    if (added.length > 0) {
+      items.forEach(item => {
+        const cat = item.categoryId || item.category;
+        const catId = cat ? String(cat._id || cat.id || cat) : null;
+        const catName = item.categoryName;
+        
+        if ((catId && added.includes(catId)) || (catName && added.includes(catName))) {
+          const itemId = String(item._id || item.id);
+          if (!updatedProds.includes(itemId)) {
+            updatedProds.push(itemId);
+          }
+        }
+      });
+    }
+
+    if (removed.length > 0) {
+      items.forEach(item => {
+        const cat = item.categoryId || item.category;
+        const catId = cat ? String(cat._id || cat.id || cat) : null;
+        const catName = item.categoryName;
+
+        if ((catId && removed.includes(catId)) || (catName && removed.includes(catName))) {
+          const itemId = String(item._id || item.id);
+          updatedProds = updatedProds.filter(id => id !== itemId);
+        }
+      });
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      applicableCategories: newCategoryIds,
+      applicableProducts: updatedProds
+    }));
+  };
+
+  const filteredProducts = useMemo(() => {
+    if (!formData.applicableCategories || formData.applicableCategories.length === 0) {
+      return items;
+    }
+    
+    return items.filter(item => {
+      const cat = item.categoryId || item.category;
+      const catId = cat ? String(cat._id || cat.id || cat) : null;
+      const catName = item.categoryName;
+
+      return (catId && formData.applicableCategories.includes(catId)) ||
+             (catName && formData.applicableCategories.includes(catName));
+    });
+  }, [items, formData.applicableCategories]);
+
   useEffect(() => {
     dispatch(fetchPromotionGroups());
     dispatch(fetchMasters('categories'));
@@ -181,11 +240,17 @@ function PromotionGroupPage() {
 
   const handleSelectBatch = (field, list) => {
     const current = [...formData[field]];
+    const newIds = [...current];
     list.forEach(item => {
         const id = String(item.id || item._id);
-        if (!current.includes(id)) current.push(id);
+        if (!newIds.includes(id)) newIds.push(id);
     });
-    setFormData(prev => ({ ...prev, [field]: current }));
+    
+    if (field === 'applicableCategories') {
+        handleCategoryChange(newIds);
+    } else {
+        setFormData(prev => ({ ...prev, [field]: newIds }));
+    }
   };
 
   const getOptionLabel = (option) => {
@@ -293,7 +358,7 @@ function PromotionGroupPage() {
                                 if (selectAll) {
                                     handleSelectBatch('applicableCategories', selectAll.items);
                                 } else {
-                                    setFormData(prev => ({ ...prev, applicableCategories: v.map(i => String(i.id || i._id || i)) }));
+                                    handleCategoryChange(v.map(i => String(i.id || i._id || i)));
                                 }
                             }}
                             renderOption={(props, option, { selected }) => {
@@ -387,11 +452,11 @@ function PromotionGroupPage() {
                     </Box>
 
                     <Box>
-                        <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1.2, mb: 1, display: 'block' }}>Specific Products</Typography>
+                        <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1.2, mb: 1, display: 'block' }}>Specific Products ({formData.applicableProducts?.length || 0} selected)</Typography>
                         <Autocomplete
                             multiple
                             disableCloseOnSelect
-                            options={items}
+                            options={filteredProducts}
                             getOptionLabel={(o) => o.isSelectAll ? o.label : `${o.itemName || o.name || ''} (${o.itemCode || o.sku || ''})`}
                             value={items.filter(i => formData.applicableProducts.includes(String(i.id || i._id)))}
                             isOptionEqualToValue={(option, value) => String(option.id || option._id) === String(value.id || value._id)}
