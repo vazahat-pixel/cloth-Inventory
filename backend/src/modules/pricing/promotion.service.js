@@ -130,7 +130,9 @@ class PromotionService {
         try {
             const productIds = items.map(it => it.productId || it.variantId || it.id).filter(Boolean);
             if (productIds.length > 0) {
-                const dbItems = await Item.find({ _id: { $in: productIds } }).lean();
+                const dbItems = await Item.find({ _id: { $in: productIds } })
+                    .select('_id categoryId categoryName brand brandName')
+                    .lean();
                 dbItems.forEach(item => {
                     dbItemsMap.set(String(item._id), item);
                 });

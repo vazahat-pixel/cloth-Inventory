@@ -327,7 +327,7 @@ function SchemeFormPage() {
   useEffect(() => {
     dispatch(fetchMasters('brands'));
     dispatch(fetchMasters('categories')); // Consistent with other modules
-    dispatch(fetchItems({ limit: 10000 })); // Fetch all items for selection
+    dispatch(fetchItems({ limit: 100000 })); // Fetch all items for selection
     dispatch(fetchMasters('promotionTypes'));
     dispatch(fetchMasters('stores'));
     dispatch(fetchPromotionGroups());

@@ -244,7 +244,7 @@ class ItemService {
   }
 
   async getAllItems(query = {}, user = null) {
-    const { page = 1, limit = 50, search, brand, section } = query;
+    const { page = 1, limit = 100000, search, brand, section } = query;
     const filter = {};
     if (user?.role === 'store_staff') { filter.type = { $in: ['GARMENT', 'ACCESSORY'] }; filter.isActive = true; }
     if (search) filter.$or = [{ itemCode: { $regex: search, $options: 'i' } }, { itemName: { $regex: search, $options: 'i' } }, { hsnCode: { $regex: search, $options: 'i' } }];

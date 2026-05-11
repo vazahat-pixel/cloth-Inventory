@@ -13,7 +13,7 @@ export const fetchItems = createAsyncThunk('items/fetchAll', async (params = {},
       records: paginationData.items || [],
       total: paginationData.total || 0,
       page: paginationData.page || 1,
-      limit: paginationData.limit || 50
+      limit: paginationData.limit || 100000
     };
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
@@ -52,7 +52,7 @@ const initialState = {
   records: [],
   total: 0,
   page: 1,
-  limit: 50,
+  limit: 100000,
   loading: false,
   error: null,
 };
@@ -77,7 +77,7 @@ const itemsSlice = createSlice({
         state.records = action.payload.records || [];
         state.total = action.payload.total || 0;
         state.page = action.payload.page || 1;
-        state.limit = action.payload.limit || 50;
+        state.limit = action.payload.limit || 100000;
       })
       .addCase(fetchItems.rejected, (state, action) => {
         state.loading = false;

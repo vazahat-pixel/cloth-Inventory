@@ -750,8 +750,10 @@ function BillingPage({
   const handlePaymentConfirm = (payment) => {
     // 1. Align with backend products array: [{ productId, quantity, price, total }]
     const preparedProducts = lines.map((line) => {
-      const promo = promoItems?.find(pi => pi.variantId === line.productId);
-      const calcs = calculateLine(line, promo?.promoDiscount || 0);
+      const promo = promoItems?.find(pi => pi.variantId === line.productId || pi.variantId === line.variantId);
+      const itemRule = calculateGST(0, line.hsnCode || line.sku, line.category, taxRules);
+      const lineTaxRate = (itemRule.type === 'FLAT') ? itemRule.rate : (totals.gstRate || 5);
+      const calcs = calculateLine(line, lineTaxRate, promo?.promoDiscount || 0);
       return {
         productId: line.productId || line.variantId,
         barcode: line.barcode || line.sku || '',
@@ -763,8 +765,9 @@ function BillingPage({
         quantity: toNumber(line.quantity),
         price: toNumber(line.rate),
         discount: toNumber(line.discount),
+        discountAmount: calcs.manualDiscount + (promo?.promoDiscount || 0),
         promoDiscount: promo?.promoDiscount || 0,
-        taxPercentage: toNumber(line.taxRate || 5),
+        taxPercentage: toNumber(calcs.taxRate || 5),
         taxAmount: calcs.taxAmount,
         total: calcs.amount,
       };
@@ -1260,8 +1263,10 @@ function BillingPage({
                   </TableHead>
                   <TableBody>
                     {lines.map((line) => {
-                        const promo = promoItems?.find(pi => pi.variantId === line.productId);
-                        const lineRes = calculateLine(line, promo?.promoDiscount || 0);
+                        const promo = promoItems?.find(pi => pi.variantId === line.productId || pi.variantId === line.variantId);
+                        const itemRule = calculateGST(0, line.hsnCode || line.sku, line.category, taxRules);
+                        const lineTaxRate = (itemRule.type === 'FLAT') ? itemRule.rate : (totals.gstRate || 5);
+                        const lineRes = calculateLine(line, lineTaxRate, promo?.promoDiscount || 0);
 
                         return (
                           <TableRow key={line.id}>

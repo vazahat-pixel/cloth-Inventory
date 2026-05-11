@@ -246,8 +246,31 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             item.itemName = item.itemName || parentItem.itemName || parentItem.name;
             item.sku = item.sku || variant?.sku || parentItem.sku;
             item.hsnCode = item.hsnCode || parentItem.hsnCode || parentItem.hsCodeId?.code || '';
-            item.category = item.category || parentItem.categoryName || parentItem.categoryId?.name || '';
-            item.brand = item.brand || parentItem.brandName || parentItem.brandId?.name || '';
+            // Safely clean/normalize category and brand to strings to avoid Cast to String Validation errors
+            let finalCategory = '';
+            if (item.category) {
+                if (typeof item.category === 'object') {
+                    finalCategory = item.category.name || item.category.itemName || item.category.title || '';
+                } else {
+                    finalCategory = String(item.category);
+                }
+            } else {
+                finalCategory = parentItem.categoryName || parentItem.categoryId?.name || '';
+            }
+
+            let finalBrand = '';
+            if (item.brand) {
+                if (typeof item.brand === 'object') {
+                    finalBrand = item.brand.name || item.brand.brandName || item.brand.title || '';
+                } else {
+                    finalBrand = String(item.brand);
+                }
+            } else {
+                finalBrand = parentItem.brandName || parentItem.brand?.name || parentItem.brandId?.name || '';
+            }
+
+            item.category = finalCategory;
+            item.brand = finalBrand;
             item.promoDiscount = promoDiscount;
             item.discountPercent = discountPercent;
             item.discountAmount = totalDiscountAmt;
@@ -380,6 +403,13 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
                 itemId: p.itemId,
                 variantId: p.variantId,
                 barcode: p.barcode,
+                itemName: p.itemName,
+                sku: p.sku,
+                hsnCode: p.hsnCode,
+                category: p.category,
+                brand: p.brand,
+                promoDiscount: p.promoDiscount || 0,
+                discountAmount: p.discountAmount || 0,
                 quantity: p.quantity,
                 mrp: p.mrp,
                 rate: p.rate,

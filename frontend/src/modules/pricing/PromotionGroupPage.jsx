@@ -25,7 +25,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
 import CheckBoxIcon from '@mui/icons-material/CheckBox';
-import { fetchPromotionGroups, addPromotionGroup, updatePromotionGroup } from './pricingSlice';
+import { fetchPromotionGroups, addPromotionGroup, updatePromotionGroup, deletePromotionGroup } from './pricingSlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchItems } from '../items/itemsSlice';
 
@@ -222,6 +222,12 @@ function PromotionGroupPage() {
     }
   };
 
+  const handleDeleteGroup = (groupId, groupName) => {
+    if (window.confirm(`Are you sure you want to delete the promotion group "${groupName}"?`)) {
+        dispatch(deletePromotionGroup(groupId));
+    }
+  };
+
   const getFiltered = (list, search, type) => {
     if (!search || !search.trim()) return [];
     const s = search.toLowerCase();
@@ -291,9 +297,14 @@ function PromotionGroupPage() {
                   <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a' }}>{group.name}</Typography>
                   <Typography variant="body2" color="textSecondary" sx={{ mb: 2, minHeight: 40 }}>{group.description || 'No description provided'}</Typography>
                 </Box>
-                <IconButton size="small" onClick={() => handleEdit(group)}>
-                  <EditOutlinedIcon fontSize="small" />
-                </IconButton>
+                <Stack direction="row" spacing={0.5}>
+                  <IconButton size="small" onClick={() => handleEdit(group)}>
+                    <EditOutlinedIcon fontSize="small" sx={{ color: '#64748b' }} />
+                  </IconButton>
+                  <IconButton size="small" onClick={() => handleDeleteGroup(group._id || group.id, group.name)}>
+                    <DeleteOutlineIcon fontSize="small" sx={{ color: '#ef4444' }} />
+                  </IconButton>
+                </Stack>
               </Stack>
               
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
