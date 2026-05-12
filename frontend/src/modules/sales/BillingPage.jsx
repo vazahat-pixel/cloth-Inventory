@@ -1711,7 +1711,7 @@ function BillingPage({
         onRedeem={(pts) => setLoyaltyRedeemed(String(pts))}
       />
 
-      <Dialog open={showPrint} onClose={() => setShowPrint(false)} maxWidth="md" fullWidth>
+      <Dialog open={showPrint} onClose={() => { setShowPrint(false); window.location.reload(); }} maxWidth="md" fullWidth>
         <Box className="no-print" sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
             <Box>
                 <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>Invoice Generated Successfully!</Typography>
@@ -1744,7 +1744,7 @@ function BillingPage({
                     WhatsApp
                 </Button>
                 <Button variant="contained" size="small" onClick={() => window.print()}>Print</Button>
-                <Button variant="outlined" size="small" onClick={() => setShowPrint(false)}>Close</Button>
+                <Button variant="outlined" size="small" onClick={() => { setShowPrint(false); window.location.reload(); }}>Close</Button>
             </Stack>
         </Box>
         <Box sx={{ p: 3, maxHeight: '80vh', overflowY: 'auto', bgcolor: '#f1f5f9' }}>
