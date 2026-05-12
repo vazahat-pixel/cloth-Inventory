@@ -202,20 +202,18 @@ class PromotionService {
                     }
                 });
 
-                if (eligibleInstances.length > buy) {
+                if (eligibleInstances.length >= totalSet) {
                     // Sort by price DESC: most expensive first
                     eligibleInstances.sort((a, b) => b.originalPrice - a.originalPrice);
                     
-                    let paidInstances = [];
-                    let freeInstances = [];
-
-                    for (let i = 0; i < eligibleInstances.length; i += totalSet) {
-                        const chunk = eligibleInstances.slice(i, i + totalSet);
-                        const chunkPaid = chunk.slice(0, buy);
-                        const chunkFree = chunk.slice(buy, buy + get);
-                        paidInstances.push(...chunkPaid);
-                        freeInstances.push(...chunkFree);
-                    }
+                    const setsCount = Math.floor(eligibleInstances.length / totalSet);
+                    const paidCount = setsCount * buy;
+                    const freeCount = setsCount * get;
+                    
+                    // PAID = first 'paidCount' (most expensive) — customer pays these
+                    const paidInstances = eligibleInstances.slice(0, paidCount);
+                    // FREE = last 'freeCount' (cheapest) — customer gets these free
+                    const freeInstances = eligibleInstances.slice(paidCount, paidCount + freeCount);
 
                     // Mark ALL matched items as 'applied' to prevent double-discounting.
                     // This includes BOTH the items the customer pays for AND the free items.
