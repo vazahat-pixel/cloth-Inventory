@@ -190,7 +190,7 @@ function PromotionGroupPage() {
     dispatch(fetchMasters('categories'));
     dispatch(fetchMasters('itemGroups'));
     dispatch(fetchMasters('brands'));
-    dispatch(fetchItems({ limit: 1000 }));
+    dispatch(fetchItems({ limit: 100000 }));
   }, [dispatch]);
 
   const handleEdit = (group) => {

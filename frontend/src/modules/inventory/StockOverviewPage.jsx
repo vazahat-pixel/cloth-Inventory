@@ -99,6 +99,21 @@ function StockOverviewPage() {
     dispatch(fetchMasters('sizes'));
   }, [dispatch, searchText, typeFilter]); // Removed page from dependencies
 
+  // Auto-select Head Office warehouse by default
+  useEffect(() => {
+    if (warehouses && warehouses.length > 0 && warehouseFilter === 'all') {
+      const hoWarehouse = warehouses.find(w => 
+        (w.warehouseName || w.name || '').toLowerCase().includes('head office') || 
+        (w.warehouseName || w.name || '').toLowerCase().includes('rebel')
+      );
+      if (hoWarehouse) {
+        setWarehouseFilter(hoWarehouse.warehouseName || hoWarehouse.name);
+      } else {
+        setWarehouseFilter(warehouses[0].warehouseName || warehouses[0].name);
+      }
+    }
+  }, [warehouses, warehouseFilter]);
+
   const sizeLabelLookup = useMemo(() => buildSizeLabelLookup(sizes), [sizes]);
   const getSizeLabel = (value) => resolveSizeLabel(value, sizeLabelLookup);
 
