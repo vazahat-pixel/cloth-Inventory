@@ -87,7 +87,7 @@ const calculateLine = (line, taxRate = 5, promoDiscount = 0) => {
 };
 
 const calculateTotals = (lines, taxRules, billDiscount, loyaltyRedeemed, couponDiscount = 0, schemeDiscount = 0, creditNoteAmount = 0, saleType = 'retail', promoItems = [], adjustments = []) => {
-  // 1. Determine the Bill-level GST Slab
+  // 1. Determine the Bill-level GST Slab for general UI messages
   // detect total taxable value estimate
   let totalNetBeforeTax = 0;
   lines.forEach(l => {
@@ -100,17 +100,24 @@ const calculateTotals = (lines, taxRules, billDiscount, loyaltyRedeemed, couponD
   // Adjust for bill-level discounts to get "Transaction Value"
   const transactionValue = totalNetBeforeTax - toNumber(billDiscount) - toNumber(couponDiscount) - toNumber(schemeDiscount) - toNumber(loyaltyRedeemed) - toNumber(creditNoteAmount);
   
-  // Determine general slab based on transaction value
-  // We use calculateGST with the total value. For slab check, we pass null HSN/Category.
+  // Determine general slab based on transaction value (for default UI display/estimate)
   const slabInfo = calculateGST(transactionValue / 1.05, null, null, taxRules);
   const generalRate = slabInfo.rate;
 
   const totals = lines.reduce((acc, l) => {
     const promo = promoItems?.find(pi => pi.variantId === l.productId || pi.variantId === l.variantId);
     
-    // 2. Check for item-specific FLAT rules (e.g. BELT 18%)
-    const itemRule = calculateGST(0, l.hsnCode || l.sku, l.category, taxRules);
-    const lineTaxRate = (itemRule.type === 'FLAT') ? itemRule.rate : generalRate;
+    // Calculate net price for this item individually to determine its correct SLAB rate
+    const gross = toNumber(l.quantity) * toNumber(l.rate);
+    const linePromoDiscount = toNumber(promo?.promoDiscount || 0);
+    const lineManualDiscount = (gross * toNumber(l.discount)) / 100;
+    const lineNetPayable = Math.max(0, gross - lineManualDiscount - linePromoDiscount);
+    const unitNetPayable = lineNetPayable / toNumber(l.quantity || 1);
+    const unitTaxableValue = unitNetPayable / 1.05;
+
+    // Check for item-specific rules (FLAT or SLAB) based on the item's individual unit taxable value
+    const itemRule = calculateGST(unitTaxableValue, l.hsnCode || l.sku, l.category, taxRules);
+    const lineTaxRate = itemRule.rate;
 
     const lineRes = calculateLine(l, lineTaxRate, promo?.promoDiscount || 0);
 
@@ -142,8 +149,17 @@ const calculateTotals = (lines, taxRules, billDiscount, loyaltyRedeemed, couponD
     gstRate: generalRate,
     hsnSummary: Object.values(lines.reduce((acc, l) => {
         const promo = promoItems?.find(pi => pi.variantId === l.productId || pi.variantId === l.variantId);
-        const itemRule = calculateGST(0, l.hsnCode || l.sku, l.category, taxRules);
-        const lineTaxRate = (itemRule.type === 'FLAT') ? itemRule.rate : generalRate;
+        
+        // Calculate net price for this item individually to determine its correct HSN summary SLAB rate
+        const gross = toNumber(l.quantity) * toNumber(l.rate);
+        const linePromoDiscount = toNumber(promo?.promoDiscount || 0);
+        const lineManualDiscount = (gross * toNumber(l.discount)) / 100;
+        const lineNetPayable = Math.max(0, gross - lineManualDiscount - linePromoDiscount);
+        const unitNetPayable = lineNetPayable / toNumber(l.quantity || 1);
+        const unitTaxableValue = unitNetPayable / 1.05;
+
+        const itemRule = calculateGST(unitTaxableValue, l.hsnCode || l.sku, l.category, taxRules);
+        const lineTaxRate = itemRule.rate;
         const lineRes = calculateLine(l, lineTaxRate, promo?.promoDiscount || 0);
         
         const hsn = l.hsnCode || 'N/A';
@@ -751,8 +767,17 @@ function BillingPage({
     // 1. Align with backend products array: [{ productId, quantity, price, total }]
     const preparedProducts = lines.map((line) => {
       const promo = promoItems?.find(pi => pi.variantId === line.productId || pi.variantId === line.variantId);
-      const itemRule = calculateGST(0, line.hsnCode || line.sku, line.category, taxRules);
-      const lineTaxRate = (itemRule.type === 'FLAT') ? itemRule.rate : (totals.gstRate || 5);
+      
+      // Calculate net price for this item individually to determine its correct SLAB rate
+      const gross = toNumber(line.quantity) * toNumber(line.rate);
+      const linePromoDiscount = toNumber(promo?.promoDiscount || 0);
+      const lineManualDiscount = (gross * toNumber(line.discount)) / 100;
+      const lineNetPayable = Math.max(0, gross - lineManualDiscount - linePromoDiscount);
+      const unitNetPayable = lineNetPayable / toNumber(line.quantity || 1);
+      const unitTaxableValue = unitNetPayable / 1.05;
+
+      const itemRule = calculateGST(unitTaxableValue, line.hsnCode || line.sku, line.category, taxRules);
+      const lineTaxRate = itemRule.rate;
       const calcs = calculateLine(line, lineTaxRate, promo?.promoDiscount || 0);
       return {
         productId: line.productId || line.variantId,

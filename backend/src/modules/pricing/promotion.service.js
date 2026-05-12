@@ -229,21 +229,37 @@ class PromotionService {
                         currentItems[idx].appliedOffer = scheme.name;
                     });
 
-                    // Apply discount only to FREE instances
-                    freeInstances.forEach(fi => {
-                        const originalItem = currentItems[fi.cartIdx];
-                        originalItem.promoDiscount += fi.originalPrice;
-                        totalDiscount += fi.originalPrice;
+                    // Apportion the discount across all items (both paid and free) in the promotion set.
+                    const matchedInstances = [...paidInstances, ...freeInstances];
+                    const matchedOriginalTotal = matchedInstances.reduce((sum, inst) => sum + inst.originalPrice, 0);
+                    const matchedPaidTotal = paidInstances.reduce((sum, inst) => sum + inst.originalPrice, 0);
+                    const totalSetDiscount = matchedOriginalTotal - matchedPaidTotal;
+
+                    let remainingDiscount = totalSetDiscount;
+                    matchedInstances.forEach((inst, index) => {
+                        const originalItem = currentItems[inst.cartIdx];
+                        let allocatedDiscount;
+                        if (index === matchedInstances.length - 1) {
+                            // Give all remaining discount to the last item to prevent rounding issues
+                            allocatedDiscount = Number(remainingDiscount.toFixed(2));
+                        } else {
+                            allocatedDiscount = Number((inst.originalPrice * (totalSetDiscount / matchedOriginalTotal)).toFixed(2));
+                            remainingDiscount -= allocatedDiscount;
+                        }
+
+                        originalItem.promoDiscount += allocatedDiscount;
                         originalItem.ruleLabel = type === 'BOGO' ? 'BOGO' : `Buy ${buy} Get ${get} Free`;
                         
                         rawAppliedOffers.push({ 
                             _id: scheme._id, 
                             name: scheme.name, 
-                            discount: fi.originalPrice, 
+                            discount: allocatedDiscount, 
                             ruleLabel: originalItem.ruleLabel,
                             type: scheme.type
                         });
                     });
+
+                    totalDiscount += totalSetDiscount;
                 }
             } else {
                 currentItems.forEach(item => {

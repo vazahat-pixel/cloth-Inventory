@@ -204,7 +204,8 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
                 p: 2, 
                 bgcolor: '#fff', 
                 color: '#000', 
-                width: '148mm', 
+                width: '100%', 
+                maxWidth: '800px', 
                 minHeight: '210mm',
                 mx: 'auto', 
                 borderRadius: 0,
@@ -213,14 +214,14 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
                 fontFamily: '"Arial", sans-serif',
                 position: 'relative',
                 '@media print': {
-                    p: '5mm',
-                    width: '148mm !important',
-                    height: '210mm !important',
+                    p: '0mm',
+                    width: '100% !important',
+                    height: 'auto !important',
                     maxWidth: 'none !important',
                     border: 'none',
                     '@page': {
-                        size: 'A5 portrait',
-                        margin: '0mm'
+                        size: 'A4 portrait',
+                        margin: '10mm'
                     }
                 }
             }}
@@ -271,41 +272,39 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
                     
                     /* Force printable container to top-left, let it size naturally */
                     .printable-invoice-container {
-                        position: absolute !important;
-                        left: 0 !important;
-                        top: 0 !important;
-                        margin: 0 !important;
+                        position: relative !important;
+                        margin: 0 auto !important;
                         padding: 0 !important;
                         box-shadow: none !important;
-                        border: none !important;
-                        width: 148mm !important;
+                        border: 1px solid #000 !important;
+                        width: 100% !important;
                         height: auto !important;
                         min-height: 0 !important;
                         page-break-after: avoid !important;
                     }
 
-                    /* Tell printer to use A5 and no margins */
+                    /* Tell printer to use standard margins */
                     @page {
-                        size: A5 portrait;
-                        margin: 0;
+                        size: A4 portrait;
+                        margin: 10mm;
                     }
                 }
                 `}
             </style>
 
             {/* Invoice Meta info Bar */}
-            <Grid container sx={{ mb: 1, border: '1px solid #000', bgcolor: '#00CED1' }}>
+            <Grid container sx={{ mb: 1, border: '1px solid #000', bgcolor: '#f1f5f9' }}>
                 <Grid item xs={3} sx={{ p: 0.5, borderRight: '1px solid #000' }}>
-                    <Typography sx={{ fontSize: '11px', fontWeight: 900, color: '#fff' }}>INVOICE NO.</Typography>
+                    <Typography sx={{ fontSize: '11px', fontWeight: 900, color: '#000' }}>INVOICE NO.</Typography>
                 </Grid>
                 <Grid item xs={3} sx={{ p: 0.5, borderRight: '1px solid #000', bgcolor: '#fff' }}>
-                    <Typography sx={{ fontSize: '11px', fontWeight: 900 }}>{invoicing.invoicePrefix}{sale.invoiceNumber || sale.saleNumber || sale.dispatchNumber || '25-26/DAP-1'}</Typography>
+                    <Typography sx={{ fontSize: '11px', fontWeight: 900, color: '#000' }}>{invoicing.invoicePrefix}{sale.invoiceNumber || sale.saleNumber || sale.dispatchNumber || '25-26/DAP-1'}</Typography>
                 </Grid>
                 <Grid item xs={3} sx={{ p: 0.5, borderRight: '1px solid #000' }}>
-                    <Typography sx={{ fontSize: '11px', fontWeight: 900, color: '#fff' }}>INVOICE DATE</Typography>
+                    <Typography sx={{ fontSize: '11px', fontWeight: 900, color: '#000' }}>INVOICE DATE</Typography>
                 </Grid>
                 <Grid item xs={3} sx={{ p: 0.5, bgcolor: '#fff' }}>
-                    <Typography sx={{ fontSize: '11px', fontWeight: 900 }}>{new Date(sale.saleDate || sale.createdAt).toLocaleDateString('en-GB')}</Typography>
+                    <Typography sx={{ fontSize: '11px', fontWeight: 900, color: '#000' }}>{new Date(sale.saleDate || sale.createdAt).toLocaleDateString('en-GB')}</Typography>
                 </Grid>
             </Grid>
 
