@@ -1278,19 +1278,19 @@ function BillingPage({
                                 <Typography variant="caption" color="textSecondary">
                                   {line.sku} | {line.size}/{line.color}
                                 </Typography>
-                                {promo?.promoDiscount > 0 && (
+                                {promo?.appliedOffer && (
                                   <Chip 
                                     label={`${promo.appliedOfferSource || 'OFFER'} APPLIED`} 
                                     size="small" 
-                                    color="success" 
+                                    color={promo.promoDiscount > 0 ? "success" : "primary"} 
                                     variant="outlined"
                                     sx={{ height: 18, fontSize: '0.6rem', fontWeight: 900, borderRadius: 1 }} 
                                   />
                                 )}
                               </Stack>
-                              {promo?.promoDiscount > 0 && (
-                                  <Typography variant="caption" sx={{ color: '#10b981', display: 'block', mt: 0.5, fontWeight: 700 }}>
-                                    Scheme: {promo.appliedOffer} {promo.appliedOfferValue ? `(${promo.appliedOfferType?.includes('PERCENTAGE') ? `${promo.appliedOfferValue}%` : `₹${promo.appliedOfferValue}`})` : ''}
+                              {promo?.appliedOffer && (
+                                  <Typography variant="caption" sx={{ color: promo.promoDiscount > 0 ? '#10b981' : '#64748b', display: 'block', mt: 0.5, fontWeight: 700 }}>
+                                    Scheme: {promo.appliedOffer} {promo.appliedOfferValue ? `(${promo.appliedOfferType?.includes('PERCENTAGE') ? `${promo.appliedOfferValue}%` : `₹${promo.appliedOfferValue}`})` : ''} {promo.promoDiscount === 0 ? '(Paid Trigger)' : ''}
                                   </Typography>
                                 )}
                             </TableCell>
