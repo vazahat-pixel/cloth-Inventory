@@ -56,6 +56,13 @@ class PromotionService {
             const typeScoreB = getTypeScore(b);
             if (typeScoreA !== typeScoreB) return typeScoreA - typeScoreB;
 
+            // Specificity by product count: fewer products = more specific (higher priority)
+            const countA = a.applicableProducts?.length || 0;
+            const countB = b.applicableProducts?.length || 0;
+            if (countA > 0 && countB > 0 && countA !== countB) {
+                return countA - countB; // Ascending: fewer products first
+            }
+
             return (b.value || 0) - (a.value || 0);
         });
 
