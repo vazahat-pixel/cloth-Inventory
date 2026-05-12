@@ -43,6 +43,19 @@ class PromotionService {
             const priorityB = getPriorityValue(b);
 
             if (priorityA !== priorityB) return priorityA - priorityB;
+
+            // Secondary sort: Type specificity (BOGO / BUY_X_GET_Y bundle deals evaluated first)
+            const getTypeScore = (s) => {
+                const t = (s.type || '').toUpperCase();
+                if (t === 'BOGO' || t === 'BUY_X_GET_Y') return 1;
+                if (t === 'FIXED_PRICE' || t === 'FLAT_PRICE' || t === 'FREE_GIFT') return 2;
+                return 3; // PERCENTAGE / FLAT
+            };
+
+            const typeScoreA = getTypeScore(a);
+            const typeScoreB = getTypeScore(b);
+            if (typeScoreA !== typeScoreB) return typeScoreA - typeScoreB;
+
             return (b.value || 0) - (a.value || 0);
         });
 
