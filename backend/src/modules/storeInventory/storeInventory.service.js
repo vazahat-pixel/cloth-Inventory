@@ -352,9 +352,98 @@ const bulkImportOpeningStock = async (importData, userId) => {
     });
 };
 
+/**
+ * Safely clears all inventory for a given store.
+ * Updates master item quantities, records outward StockMovement, and logs StockLedger adjustments.
+ */
+const clearStoreInventory = async (storeId, userId) => {
+    return await withTransaction(async (session) => {
+        if (!storeId) throw new Error('Store ID is required');
+
+        // Find all non-zero inventory items for this store
+        const inventoryItems = await StoreInventory.find({ storeId }).session(session);
+
+        const itemOps = [];
+        const movements = [];
+        const ledgerEntries = [];
+        const referenceId = new mongoose.Types.ObjectId();
+
+        for (const item of inventoryItems) {
+            const qty = item.quantity || 0;
+            if (qty <= 0) continue;
+
+            // 1. Prepare master stock decrement
+            itemOps.push({
+                updateOne: {
+                    filter: { "sizes._id": item.variantId },
+                    update: { $inc: { "sizes.$.stock": -qty } }
+                }
+            });
+
+            // 2. Prepare Stock Movement record
+            movements.push({
+                variantId: item.variantId,
+                qty: -qty,
+                type: StockMovementType.ADJUSTMENT,
+                referenceId,
+                referenceType: 'Adjustment',
+                fromLocation: storeId,
+                performedBy: userId
+            });
+
+            // 3. Prepare Stock Ledger entry
+            ledgerEntries.push({
+                itemId: item.itemId,
+                barcode: item.barcode,
+                type: 'OUT',
+                quantity: qty,
+                source: 'ADJUSTMENT',
+                referenceId: referenceId.toString(),
+                balanceAfter: 0,
+                userId,
+                locationId: storeId,
+                locationType: 'STORE',
+                batchNo: 'DEFAULT'
+            });
+        }
+
+        // Execute master updates, movements, and ledger entries in bulk if there are any
+        if (itemOps.length > 0) {
+            await Item.bulkWrite(itemOps, { session });
+        }
+        if (movements.length > 0) {
+            const StockMovement = require('../../models/stockMovement.model');
+            await StockMovement.insertMany(movements, { session, ordered: false });
+        }
+        if (ledgerEntries.length > 0) {
+            const StockLedger = require('../../models/stockLedger.model');
+            await StockLedger.insertMany(ledgerEntries, { session, ordered: false });
+        }
+
+        // Delete all Store Inventory records for this store
+        const deleteResult = await StoreInventory.deleteMany({ storeId }).session(session);
+
+        // Record a System Log
+        const SystemLog = require('../../models/systemLog.model');
+        await SystemLog.create([{
+            action: 'DELETE_STORE_INVENTORY',
+            module: 'Inventory',
+            userId,
+            details: `Cleared all inventory for store ${storeId}. Deleted ${deleteResult.deletedCount} inventory records.`
+        }], { session });
+
+        return {
+            success: true,
+            deletedCount: deleteResult.deletedCount
+        };
+    });
+};
+
 module.exports = {
     getStoreInventory,
     getProductInStore,
     adjustInventory,
-    bulkImportOpeningStock
+    bulkImportOpeningStock,
+    clearStoreInventory
 };
+

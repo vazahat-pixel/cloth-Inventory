@@ -17,6 +17,13 @@ import {
   TableRow,
   TextField,
   Typography,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Snackbar,
+  Alert,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import TimelineOutlinedIcon from '@mui/icons-material/TimelineOutlined';
@@ -29,7 +36,7 @@ import SummaryCard from '../../components/erp/SummaryCard';
 import { buildSizeLabelLookup, resolveSizeLabel } from '../../common/sizeDisplay';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import stockOverviewExportColumns from '../../config/exportColumns/stockOverview';
-import { fetchStockOverview } from './inventorySlice';
+import { fetchStockOverview, clearStoreInventory } from './inventorySlice';
 import { fetchMasters } from '../masters/mastersSlice';
 
 const normalizeStockRows = (rows = []) =>
@@ -68,7 +75,8 @@ function StockOverviewPage() {
   const dispatch = useDispatch();
   const navigate = useAppNavigate();
   const authUser = useSelector((state) => state.auth?.user);
-  const isStoreStaff = authUser?.role === 'store_staff' || authUser?.role === 'Staff' || authUser?.role === 'Manager';
+  const userRole = (authUser?.role || '').toLowerCase();
+  const isStoreStaff = userRole.includes('staff') || userRole.includes('manager') || userRole.includes('accountant');
   const shopId = authUser?.shopId;
   const backendRows = useSelector((state) => state.inventory.stock || []);
   const totalRows = useSelector((state) => state.inventory.total || 0);
@@ -84,6 +92,35 @@ function StockOverviewPage() {
   const [stockFilter, setStockFilter] = useState('all');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+
+  // Clear Inventory States
+  const [openClearDialog, setOpenClearDialog] = useState(false);
+  const [clearConfirmText, setClearConfirmText] = useState('');
+  const [isClearing, setIsClearing] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+
+  const handleClearInventory = async () => {
+    if (clearConfirmText !== 'DELETE') return;
+    setIsClearing(true);
+    try {
+      const result = await dispatch(clearStoreInventory(shopId)).unwrap();
+      setSnackbar({
+        open: true,
+        message: `Successfully cleared store inventory! Deleted ${result?.deletedCount || 0} records safely.`,
+        severity: 'success'
+      });
+      setOpenClearDialog(false);
+      setClearConfirmText('');
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err || 'Failed to clear store inventory.',
+        severity: 'error'
+      });
+    } finally {
+      setIsClearing(false);
+    }
+  };
 
   // Debounced effect to fetch from backend when filters change
   useEffect(() => {
@@ -191,8 +228,19 @@ function StockOverviewPage() {
           { label: 'Stock Overview', active: true },
         ]}
         actions={[
+          isStoreStaff && shopId && (
+            <Button
+              key="clear-inventory"
+              variant="contained"
+              color="error"
+              onClick={() => setOpenClearDialog(true)}
+              sx={{ fontWeight: 700, bgcolor: '#dc2626', '&:hover': { bgcolor: '#b91c1c' } }}
+            >
+              Clear Store Inventory
+            </Button>
+          ),
           <ExportButton key="export" rows={exportRows} columns={stockOverviewExportColumns} filename="stock-overview.xlsx" sheetName="Stock Overview" />,
-        ]}
+        ].filter(Boolean)}
       />
 
       {isStoreStaff && !shopId && (
@@ -389,6 +437,82 @@ function StockOverviewPage() {
           }}
         />
       </Paper>
+
+      {/* Clear Store Inventory Confirmation Dialog */}
+      <Dialog
+        open={openClearDialog}
+        onClose={() => !isClearing && setOpenClearDialog(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 800, color: '#dc2626', display: 'flex', alignItems: 'center', gap: 1 }}>
+          ⚠️ CRITICAL ACTION Required
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ color: '#1e293b', fontWeight: 600, mb: 2 }}>
+            You are about to delete ALL inventory stock records for this store.
+          </DialogContentText>
+          <DialogContentText sx={{ fontSize: '0.875rem', color: '#64748b', mb: 3 }}>
+            This will completely wipe your local store inventory. It will **NOT** affect HO (Head Office) or warehouse stocks. This action is irreversible.
+          </DialogContentText>
+          <DialogContentText sx={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', mb: 1 }}>
+            Please type <span style={{ color: '#dc2626', fontWeight: 800 }}>DELETE</span> to confirm:
+          </DialogContentText>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="DELETE"
+            value={clearConfirmText}
+            onChange={(e) => setClearConfirmText(e.target.value)}
+            disabled={isClearing}
+            autoFocus
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button
+            onClick={() => {
+              setOpenClearDialog(false);
+              setClearConfirmText('');
+            }}
+            disabled={isClearing}
+            color="inherit"
+            sx={{ fontWeight: 600 }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleClearInventory}
+            disabled={clearConfirmText !== 'DELETE' || isClearing}
+            variant="contained"
+            color="error"
+            sx={{
+              fontWeight: 700,
+              bgcolor: '#dc2626',
+              '&:hover': { bgcolor: '#b91c1c' },
+              '&:disabled': { bgcolor: '#f1f5f9', color: '#94a3b8' }
+            }}
+          >
+            {isClearing ? 'Clearing...' : 'Clear All Stock'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar Alert feedback */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{ width: '100%', fontWeight: 600 }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

@@ -91,10 +91,36 @@ const bulkImportOpeningStock = async (req, res, next) => {
     }
 };
 
+const clearStoreInventory = async (req, res, next) => {
+    try {
+        let storeId = req.body.storeId || req.query.storeId;
+
+        // Store staff can only clear their own store
+        const role = (req.user.role || '').toLowerCase();
+        if (role.includes('staff') || role.includes('manager') || role.includes('accountant')) {
+            if (!req.user.shopId) {
+                return sendError(res, 'User is not linked to any store. Please contact administrator.', 400);
+            }
+            storeId = req.user.shopId.toString();
+        }
+
+        if (!storeId) {
+            return sendError(res, 'storeId is required', 400);
+        }
+
+        const result = await storeInventoryService.clearStoreInventory(storeId, req.user._id);
+        return sendSuccess(res, result, 'Store inventory cleared successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
 module.exports = {
     getStoreInventory,
     getProductInStore,
     adjustInventory,
     reconcileStock,
-    bulkImportOpeningStock
+    bulkImportOpeningStock,
+    clearStoreInventory
 };
+

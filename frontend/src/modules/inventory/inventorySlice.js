@@ -128,6 +128,19 @@ export const applyStockAdjustment = createAsyncThunk(
   }
 );
 
+export const clearStoreInventory = createAsyncThunk(
+  'inventory/clearStoreInventory',
+  async (storeId, { dispatch, rejectWithValue }) => {
+    try {
+      const response = await api.delete('/store-inventory/clear-all', { data: { storeId } });
+      dispatch(fetchStockOverview({ storeId }));
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to clear store inventory');
+    }
+  }
+);
+
 export const applyStockAudit = createAsyncThunk(
   'inventory/audit',
   async (auditData, { rejectWithValue }) => {
@@ -268,6 +281,7 @@ const inventorySlice = createSlice({
             'inventory/adjust',
             'inventory/audit',
             'inventory/receive',
+            'inventory/clearStoreInventory',
           ].some((prefix) => action.type.startsWith(prefix)),
         (state) => {
           state.loading = true;
@@ -282,6 +296,7 @@ const inventorySlice = createSlice({
             'inventory/adjust',
             'inventory/audit',
             'inventory/receive',
+            'inventory/clearStoreInventory',
           ].some((prefix) => action.type.startsWith(prefix)),
         (state) => {
           state.loading = false;
@@ -295,6 +310,7 @@ const inventorySlice = createSlice({
             'inventory/adjust',
             'inventory/audit',
             'inventory/receive',
+            'inventory/clearStoreInventory',
           ].some((prefix) => action.type.startsWith(prefix)),
         (state, action) => {
           state.loading = false;

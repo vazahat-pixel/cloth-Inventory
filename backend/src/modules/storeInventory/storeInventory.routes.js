@@ -12,5 +12,6 @@ router.post('/reconcile', storeInventoryController.reconcileStock);
 router.get('/:productId', storeInventoryController.getProductInStore);
 
 router.post('/bulk-import', storeInventoryController.bulkImportOpeningStock);
+router.delete('/clear-all', storeInventoryController.clearStoreInventory);
 
 module.exports = router;
