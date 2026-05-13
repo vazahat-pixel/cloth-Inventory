@@ -25,6 +25,7 @@ const populateInventoryManual = async (inventoryItems) => {
     const items = await Item.find({ 
         $or: [
             { _id: { $in: itemIds } },
+            { itemCode: { $in: [...variantIds, ...barcodes] } },
             { "sizes._id": { $in: variantIds.filter(v => v.length === 24) } },
             { "sizes.sku": { $in: [...variantIds, ...barcodes] } },
             { "sizes.barcode": { $in: [...variantIds, ...barcodes] } }
@@ -35,9 +36,13 @@ const populateInventoryManual = async (inventoryItems) => {
     const itemMap = new Map();
     const variantToItemMap = new Map();
     const skuToItemMap = new Map();
+    const codeToItemMap = new Map();
 
     items.forEach(it => {
         itemMap.set(String(it._id), it);
+        if (it.itemCode) {
+            codeToItemMap.set(it.itemCode, it);
+        }
         if (it.sizes) {
             it.sizes.forEach(sz => {
                 variantToItemMap.set(String(sz._id), it);
@@ -52,11 +57,13 @@ const populateInventoryManual = async (inventoryItems) => {
         const parentId = String(item.itemId || '');
         const barcode = String(item.barcode || '');
         
-        // Try looking up by ID, then variantId, then SKU/Barcode
+        // Try looking up by ID, then variantId, then SKU/Barcode/ItemCode
         const parentItem = itemMap.get(parentId) || 
                           variantToItemMap.get(vid) || 
                           skuToItemMap.get(vid) || 
-                          skuToItemMap.get(barcode);
+                          skuToItemMap.get(barcode) ||
+                          codeToItemMap.get(vid) ||
+                          codeToItemMap.get(barcode);
 
         if (parentItem) {
             const variant = parentItem.sizes.find(sz => 
