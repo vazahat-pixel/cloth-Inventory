@@ -136,8 +136,12 @@ function StockOverviewPage() {
     dispatch(fetchMasters('sizes'));
   }, [dispatch, searchText, typeFilter]); // Removed page from dependencies
 
-  // Auto-select Head Office warehouse by default
+  // Auto-select Head Office warehouse by default (Only for non-store staff)
   useEffect(() => {
+    if (isStoreStaff) {
+      setWarehouseFilter('all');
+      return;
+    }
     if (warehouses && warehouses.length > 0 && warehouseFilter === 'all') {
       const hoWarehouse = warehouses.find(w => 
         (w.warehouseName || w.name || '').toLowerCase().includes('head office') || 
@@ -149,7 +153,7 @@ function StockOverviewPage() {
         setWarehouseFilter(warehouses[0].warehouseName || warehouses[0].name);
       }
     }
-  }, [warehouses, warehouseFilter]);
+  }, [warehouses, warehouseFilter, isStoreStaff]);
 
   const sizeLabelLookup = useMemo(() => buildSizeLabelLookup(sizes), [sizes]);
   const getSizeLabel = (value) => resolveSizeLabel(value, sizeLabelLookup);
