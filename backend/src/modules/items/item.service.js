@@ -494,6 +494,7 @@ class ItemService {
 
     const items = await Item.find({
         $or: [
+            { itemCode: { $in: barcodes } },
             { "sizes.barcode": { $in: barcodes } },
             { "sizes.sku": { $in: barcodes } }
         ]
@@ -501,12 +502,17 @@ class ItemService {
 
     const resultMap = {};
     items.forEach(item => {
+        if (item.itemCode && barcodes.includes(item.itemCode)) {
+            const defaultVariant = item.sizes?.[0] || { _id: item._id, size: 'UNI' };
+            resultMap[item.itemCode] = { item, variant: defaultVariant };
+        }
+
         if (item.sizes) {
             item.sizes.forEach(sz => {
-                if (barcodes.includes(sz.barcode)) {
+                if (sz.barcode && barcodes.includes(sz.barcode)) {
                     resultMap[sz.barcode] = { item, variant: sz };
                 }
-                if (barcodes.includes(sz.sku)) {
+                if (sz.sku && barcodes.includes(sz.sku)) {
                     resultMap[sz.sku] = { item, variant: sz };
                 }
             });

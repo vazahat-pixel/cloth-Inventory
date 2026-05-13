@@ -282,6 +282,7 @@ const bulkImportOpeningStock = async (importData, userId) => {
         const barcodes = [...new Set(items.map(i => String(i.itemCode || i.barcode || '').trim()).filter(Boolean))];
         const matchedItems = await Item.find({ 
             $or: [
+                { itemCode: { $in: barcodes } },
                 { "sizes.barcode": { $in: barcodes } },
                 { "sizes.sku": { $in: barcodes } }
             ]
@@ -290,6 +291,10 @@ const bulkImportOpeningStock = async (importData, userId) => {
         // 2. Create a map for quick lookup
         const barcodeMap = new Map();
         matchedItems.forEach(item => {
+            if (item.itemCode) {
+                const defaultVariant = item.sizes?.[0] || { _id: item._id, size: 'UNI' };
+                barcodeMap.set(item.itemCode, { item, variant: defaultVariant });
+            }
             if (item.sizes) {
                 item.sizes.forEach(sz => {
                     if (sz.barcode) barcodeMap.set(sz.barcode, { item, variant: sz });
