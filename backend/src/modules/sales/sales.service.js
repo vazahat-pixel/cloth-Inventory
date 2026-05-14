@@ -198,6 +198,33 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
                     itemId: itemIdObj 
                 }).populate({ path: 'itemId', populate: { path: 'hsCodeId' } }).session(session);
             }
+
+            if (!inventory) {
+                const Item = require('../../models/item.model');
+                const mongoose = require('mongoose');
+                const isValidId = mongoose.Types.ObjectId.isValid(variantIdStr);
+                const resolvedItem = await Item.findOne({
+                    $or: [
+                        { itemCode: String(barcode).toUpperCase() },
+                        { "sizes.barcode": barcode },
+                        { "sizes.sku": barcode },
+                        isValidId ? { _id: variantIdStr } : null,
+                        isValidId ? { "sizes._id": variantIdStr } : null
+                    ].filter(Boolean)
+                }).session(session);
+
+                if (resolvedItem) {
+                    inventory = await StoreInventory.findOne({
+                        storeId,
+                        $or: [
+                            { itemId: resolvedItem._id },
+                            { barcode: resolvedItem.itemCode },
+                            { barcode: resolvedItem.itemCode.toUpperCase() },
+                            { barcode: barcode }
+                        ]
+                    }).populate({ path: 'itemId', populate: { path: 'hsCodeId' } }).session(session);
+                }
+            }
             
             // IF SOURCE IS A WAREHOUSE, we need to check StockLedger/Warehouse Stock
             if (!inventory) {
@@ -219,6 +246,33 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
                             warehouseId: storeId, 
                             itemId: itemIdObj 
                         }).populate({ path: 'itemId', populate: { path: 'hsCodeId' } }).session(session);
+                    }
+
+                    if (!warehouseInv) {
+                        const Item = require('../../models/item.model');
+                        const mongoose = require('mongoose');
+                        const isValidId = mongoose.Types.ObjectId.isValid(variantIdStr);
+                        const resolvedItem = await Item.findOne({
+                            $or: [
+                                { itemCode: String(barcode).toUpperCase() },
+                                { "sizes.barcode": barcode },
+                                { "sizes.sku": barcode },
+                                isValidId ? { _id: variantIdStr } : null,
+                                isValidId ? { "sizes._id": variantIdStr } : null
+                            ].filter(Boolean)
+                        }).session(session);
+
+                        if (resolvedItem) {
+                            warehouseInv = await WarehouseInventory.findOne({
+                                warehouseId: storeId,
+                                $or: [
+                                    { itemId: resolvedItem._id },
+                                    { barcode: resolvedItem.itemCode },
+                                    { barcode: resolvedItem.itemCode.toUpperCase() },
+                                    { barcode: barcode }
+                                ]
+                            }).populate({ path: 'itemId', populate: { path: 'hsCodeId' } }).session(session);
+                        }
                     }
 
                     if (warehouseInv) {
