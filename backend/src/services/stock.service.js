@@ -37,24 +37,34 @@ const _updateInventory = async ({ itemId, barcode, variantId, locationId, locati
         throw new Error('Invalid location type: ' + locationType);
     }
 
-    const filter = { barcode };
     let InventoryModel;
-
+    const locField = locationType === 'STORE' ? 'storeId' : 'warehouseId';
     if (locationType === 'STORE') {
-        filter.storeId = locationId;
         InventoryModel = StoreInventory;
     } else {
-        filter.warehouseId = locationId;
         InventoryModel = WarehouseInventory;
     }
 
-    let inventory = await InventoryModel.findOne(filter).session(session);
+    let inventory = await InventoryModel.findOne({
+        [locField]: locationId,
+        $or: [
+            { barcode },
+            variantId ? { variantId: String(variantId) } : null
+        ].filter(Boolean)
+    }).session(session);
+
+    if (!inventory && itemId) {
+        inventory = await InventoryModel.findOne({
+            [locField]: locationId,
+            itemId
+        }).session(session);
+    }
     
     const allowNegative = await systemConfigService.getConfigByKey('allowNegativeStock', false);
 
     if (!inventory) {
         if (qty < 0 && !allowNegative) throw new Error(`Insufficient stock for barcode ${barcode} at ${locationType}`);
-        const initData = { ...filter, itemId, variantId, quantity: 0 };
+        const initData = { barcode, [locField]: locationId, itemId, variantId, quantity: 0 };
         if (locationType === 'STORE') initData.quantityAvailable = 0;
         inventory = new InventoryModel(initData);
     }
