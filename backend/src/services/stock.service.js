@@ -59,6 +59,33 @@ const _updateInventory = async ({ itemId, barcode, variantId, locationId, locati
             itemId
         }).session(session);
     }
+
+    if (!inventory) {
+        const Item = require('../models/item.model');
+        const mongoose = require('mongoose');
+        const isValidId = variantId ? mongoose.Types.ObjectId.isValid(variantId) : false;
+        const resolvedItem = await Item.findOne({
+            $or: [
+                { itemCode: String(barcode).toUpperCase() },
+                { "sizes.barcode": barcode },
+                { "sizes.sku": barcode },
+                isValidId ? { _id: variantId } : null,
+                isValidId ? { "sizes._id": variantId } : null
+            ].filter(Boolean)
+        }).session(session);
+
+        if (resolvedItem) {
+            inventory = await InventoryModel.findOne({
+                [locField]: locationId,
+                $or: [
+                    { itemId: resolvedItem._id },
+                    { barcode: resolvedItem.itemCode },
+                    { barcode: resolvedItem.itemCode.toUpperCase() },
+                    { barcode: barcode }
+                ]
+            }).session(session);
+        }
+    }
     
     const allowNegative = await systemConfigService.getConfigByKey('allowNegativeStock', false);
 

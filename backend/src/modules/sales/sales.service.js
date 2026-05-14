@@ -292,7 +292,23 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
                 throw new Error(`Insufficient stock for ${inventory.itemId?.itemName || 'Item'} (Available: ${inventory.quantity})`);
             }
 
-            const parentItem = inventory.itemId;
+            let parentItem = inventory.itemId;
+            if (!parentItem || !parentItem.sizes) {
+                const Item = require('../../models/item.model');
+                const mongoose = require('mongoose');
+                parentItem = await Item.findOne({
+                    $or: [
+                        { itemCode: String(barcode).toUpperCase() },
+                        { "sizes.barcode": barcode },
+                        { "sizes.sku": barcode },
+                        mongoose.Types.ObjectId.isValid(item.productId) ? { _id: item.productId } : null,
+                        mongoose.Types.ObjectId.isValid(item.variantId) ? { "sizes._id": item.variantId } : null
+                    ].filter(Boolean)
+                }).populate('hsCodeId').session(session);
+            }
+            if (!parentItem) {
+                throw new Error(`Master catalog item not found for barcode: ${barcode}`);
+            }
             const variant = parentItem.sizes?.find(s => s.barcode === barcode || s.sku === barcode || String(s._id) === String(inventory.variantId)) || parentItem.sizes?.[0];
 
             const mrp = toNumber(item.mrp || variant?.mrp || parentItem.mrp || variant?.salePrice || parentItem.salePrice);
