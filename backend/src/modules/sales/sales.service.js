@@ -70,10 +70,13 @@ const getProductForSale = async (barcode, storeId) => {
         storeId, 
         $or: [
             { barcode }, 
-            { variantId: String(variant._id) }, 
-            { itemId: parentItem._id }
+            { variantId: String(variant._id) }
         ]
     });
+
+    if (!inventory) {
+        inventory = await StoreInventory.findOne({ storeId, itemId: parentItem._id });
+    }
     
     if (!inventory) {
         const WarehouseInventory = require('../../models/warehouseInventory.model');
@@ -81,10 +84,13 @@ const getProductForSale = async (barcode, storeId) => {
             warehouseId: storeId, 
             $or: [
                 { barcode }, 
-                { variantId: String(variant._id) }, 
-                { itemId: parentItem._id }
+                { variantId: String(variant._id) }
             ]
         });
+
+        if (!inventory) {
+            inventory = await WarehouseInventory.findOne({ warehouseId: storeId, itemId: parentItem._id });
+        }
     }
 
     const availableQty = inventory ? (inventory.quantityAvailable > 0 ? inventory.quantityAvailable : (inventory.quantity || 0)) : 0;
@@ -175,14 +181,23 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
 
         for (const item of products) {
             const barcode = item.barcode;
+            const variantIdStr = item.variantId || item.productId;
+            const itemIdObj = item.itemId || item.productId;
+
             let inventory = await StoreInventory.findOne({ 
                 storeId, 
                 $or: [
                     { barcode }, 
-                    item.variantId ? { variantId: String(item.variantId) } : null,
-                    item.itemId ? { itemId: item.itemId } : null
+                    variantIdStr ? { variantId: String(variantIdStr) } : null
                 ].filter(Boolean)
             }).populate({ path: 'itemId', populate: { path: 'hsCodeId' } }).session(session);
+
+            if (!inventory && itemIdObj) {
+                inventory = await StoreInventory.findOne({ 
+                    storeId, 
+                    itemId: itemIdObj 
+                }).populate({ path: 'itemId', populate: { path: 'hsCodeId' } }).session(session);
+            }
             
             // IF SOURCE IS A WAREHOUSE, we need to check StockLedger/Warehouse Stock
             if (!inventory) {
@@ -191,14 +206,20 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
 
                 if (isWarehouse) {
                     const WarehouseInventory = require('../../models/warehouseInventory.model');
-                    const warehouseInv = await WarehouseInventory.findOne({ 
+                    let warehouseInv = await WarehouseInventory.findOne({ 
                         warehouseId: storeId, 
                         $or: [
                             { barcode }, 
-                            item.variantId ? { variantId: String(item.variantId) } : null,
-                            item.itemId ? { itemId: item.itemId } : null
+                            variantIdStr ? { variantId: String(variantIdStr) } : null
                         ].filter(Boolean)
                     }).populate({ path: 'itemId', populate: { path: 'hsCodeId' } }).session(session);
+
+                    if (!warehouseInv && itemIdObj) {
+                        warehouseInv = await WarehouseInventory.findOne({ 
+                            warehouseId: storeId, 
+                            itemId: itemIdObj 
+                        }).populate({ path: 'itemId', populate: { path: 'hsCodeId' } }).session(session);
+                    }
 
                     if (warehouseInv) {
                         // Create a "MOCK" inventory object to satisfy the existing logic

@@ -781,6 +781,8 @@ function BillingPage({
       const calcs = calculateLine(line, lineTaxRate, promo?.promoDiscount || 0);
       return {
         productId: line.productId || line.variantId,
+        variantId: line.variantId || line.productId,
+        itemId: line.productId || line.variantId,
         barcode: line.barcode || line.sku || '',
         itemName: line.itemName,
         sku: line.sku,
