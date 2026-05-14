@@ -1,22 +1,24 @@
 const mongoose = require('mongoose');
-const dotenv = require('dotenv');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
-dotenv.config({ path: path.join(__dirname, '../.env') });
-
+const connectDB = require('../src/config/db');
 const User = require('../src/models/user.model');
+const Store = require('../src/models/store.model');
 
-async function checkUser() {
+async function checkUsers() {
+    await connectDB();
     try {
-        await mongoose.connect(process.env.MONGODB_URI);
-        const users = await User.find({});
-        for (const u of users) {
-            console.log(`User: ${u.name}, Role: ${u.role}, ShopId: ${u.shopId}`);
-        }
-        await mongoose.disconnect();
-    } catch (err) {
-        console.error(err);
+        const users = await User.find().populate('shopId').lean();
+        console.log(`ℹ️ Total Users in DB: ${users.length}`);
+        users.forEach(user => {
+            console.log(`   - Name: "${user.name}" | Email: "${user.email}" | Role: "${user.role}" | Linked Shop: "${user.shopId?.name || 'None'}" (ID: ${user.shopId?._id || 'None'})`);
+        });
+    } catch (e) {
+        console.error(e);
+    } finally {
+        await mongoose.connection.close();
     }
 }
 
-checkUser();
+checkUsers();

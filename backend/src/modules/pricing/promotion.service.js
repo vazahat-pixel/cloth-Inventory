@@ -150,11 +150,19 @@ class PromotionService {
         try {
             const productIds = items.map(it => it.productId || it.variantId || it.id).filter(Boolean);
             if (productIds.length > 0) {
-                const dbItems = await Item.find({ _id: { $in: productIds } })
-                    .select('_id categoryId categoryName brand brandName')
-                    .lean();
+                const dbItems = await Item.find({
+                    $or: [
+                        { _id: { $in: productIds } },
+                        { "sizes._id": { $in: productIds } }
+                    ]
+                }).select('_id categoryId categoryName brand brandName sizes').lean();
                 dbItems.forEach(item => {
                     dbItemsMap.set(String(item._id), item);
+                    if (item.sizes) {
+                        item.sizes.forEach(sz => {
+                            if (sz._id) dbItemsMap.set(String(sz._id), item);
+                        });
+                    }
                 });
             }
         } catch (err) {

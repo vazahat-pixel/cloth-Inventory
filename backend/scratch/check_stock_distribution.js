@@ -1,42 +1,42 @@
 const mongoose = require('mongoose');
-const dotenv = require('dotenv');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
-dotenv.config({ path: path.join(__dirname, '../.env') });
-
+const connectDB = require('../src/config/db');
+const Item = require('../src/models/item.model');
 const StoreInventory = require('../src/models/storeInventory.model');
-const WarehouseInventory = require('../src/models/warehouseInventory.model');
 const Store = require('../src/models/store.model');
-const Warehouse = require('../src/models/warehouse.model');
 
-async function checkDistribution() {
+async function check() {
+    await connectDB();
     try {
-        await mongoose.connect(process.env.MONGODB_URI);
+        const itemCount = await Item.countDocuments({});
+        const invCount = await StoreInventory.countDocuments({});
+        console.log(`Current items in DB: ${itemCount}`);
+        console.log(`Current storeinventories in DB: ${invCount}`);
         
-        const storeStats = await StoreInventory.aggregate([
-            { $group: { _id: "$storeId", total: { $sum: "$quantity" }, rows: { $sum: 1 } } }
-        ]);
-        
-        const warehouseStats = await WarehouseInventory.aggregate([
-            { $group: { _id: "$warehouseId", total: { $sum: "$quantity" }, rows: { $sum: 1 } } }
-        ]);
-
-        console.log('--- Store Stats ---');
-        for (const s of storeStats) {
-            const store = await Store.findById(s._id);
-            console.log(`Store: ${store ? store.name : s._id}, Total: ${s.total}, Rows: ${s.rows}`);
+        if (invCount > 0) {
+            console.log("\nFound store inventory! Sample:");
+            const samples = await StoreInventory.find({}).limit(5).populate('itemId').lean();
+            for (const sample of samples) {
+                console.log(`- Item: ${sample.itemId?.itemName || 'N/A'} (Code: ${sample.barcode || 'N/A'}), Qty: ${sample.quantity}, StoreID: ${sample.storeId}`);
+            }
+        } else {
+            console.log("No store inventory records found in MongoDB!");
         }
 
-        console.log('--- Warehouse Stats ---');
-        for (const w of warehouseStats) {
-            const warehouse = await Warehouse.findById(w._id);
-            console.log(`Warehouse: ${warehouse ? warehouse.name : w._id}, Total: ${w.total}, Rows: ${w.rows}`);
+        console.log("\nListing active stores in DB:");
+        const stores = await Store.find({}).lean();
+        for (const store of stores) {
+            const count = await StoreInventory.countDocuments({ storeId: store._id });
+            console.log(`- Store: "${store.name}" (_id: ${store._id}, code: ${store.storeCode}), inventory records: ${count}, isActive: ${store.isActive}`);
         }
 
-        await mongoose.disconnect();
-    } catch (err) {
-        console.error(err);
+    } catch (e) {
+        console.error(e);
+    } finally {
+        await mongoose.connection.close();
     }
 }
 
-checkDistribution();
+check();
