@@ -77,27 +77,50 @@ const toLocalRows = (rows) =>
     updatedAt: row.updatedAt || '',
   }));
 
+const formatTimestamp = (isoString) => {
+  if (!isoString) return { date: '', time: '' };
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return { date: isoString, time: '' };
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    const sec = String(d.getSeconds()).padStart(2, '0');
+    return { date: `${yyyy}-${mm}-${dd}`, time: `${hh}:${min}:${sec}` };
+  } catch (err) {
+    return { date: isoString, time: '' };
+  }
+};
+
 const toExportRows = (rows) =>
-  rows.map((row) => ({
-    supplier_name: row.supplierName,
-    contact_person: row.contactPerson,
-    phone: row.phone,
-    alternate_phone: row.alternatePhone,
-    email: row.email,
-    gst_no: row.gstNo,
-    pan_no: row.panNo,
-    address_line_1: row.addressLine1,
-    address_line_2: row.addressLine2,
-    city: row.city,
-    state: row.state,
-    pincode: row.pincode,
-    country: row.country,
-    supplier_type: row.supplierType,
-    status: row.status,
-    notes: row.notes,
-    created_at: row.createdAt || '',
-    updated_at: row.updatedAt || '',
-  }));
+  rows.map((row) => {
+    const created = formatTimestamp(row.createdAt);
+    const updated = formatTimestamp(row.updatedAt);
+    return {
+      supplier_name: row.supplierName,
+      contact_person: row.contactPerson,
+      phone: row.phone,
+      alternate_phone: row.alternatePhone,
+      email: row.email,
+      gst_no: row.gstNo,
+      pan_no: row.panNo,
+      address_line_1: row.addressLine1,
+      address_line_2: row.addressLine2,
+      city: row.city,
+      state: row.state,
+      pincode: row.pincode,
+      country: row.country,
+      supplier_type: row.supplierType,
+      status: row.status,
+      notes: row.notes,
+      created_at: created.date,
+      created_at_time: created.time,
+      updated_at: updated.date,
+      updated_at_time: updated.time,
+    };
+  });
 
 function SuppliersListPage() {
   const dispatch = useDispatch();

@@ -20,6 +20,37 @@ const toFiniteNumber = (value, label = 'quantity') => {
     return numeric;
 };
 
+const _getItemMetadata = async (variantId, barcode, session) => {
+    try {
+        const item = await Item.findOne({
+            $or: [
+                { "sizes._id": variantId },
+                { "sizes.barcode": barcode },
+                { "sizes.sku": barcode },
+                { itemCode: barcode }
+            ]
+        }).session(session).lean();
+
+        if (!item) return {};
+
+        const variant = item.sizes?.find(s => 
+            String(s._id) === String(variantId) || 
+            s.barcode === barcode || 
+            s.sku === barcode
+        ) || item.sizes?.[0] || {};
+
+        return {
+            itemName: item.itemName,
+            sku: variant.sku || item.itemCode,
+            barcode: variant.barcode || variant.sku || item.itemCode,
+            color: variant.color || item.color
+        };
+    } catch (err) {
+        console.error('Error fetching item metadata for movement:', err);
+        return {};
+    }
+};
+
 /**
  * Core internal function to update inventory collection based on location type
  */
@@ -215,6 +246,7 @@ const addStock = async ({ itemId, barcode, variantId, locationId, locationType, 
     const before = beforeInv ? beforeInv.toObject() : null;
 
     const inventory = await _updateInventory({ itemId, barcode, variantId, locationId, locationType, qty: movementQty, purchaseRate, session });
+    const metadata = await _getItemMetadata(variantId, barcode, session);
 
     await StockMovement.create([{
         variantId,
@@ -223,7 +255,8 @@ const addStock = async ({ itemId, barcode, variantId, locationId, locationType, 
         referenceId,
         referenceType: resolveReferenceType(referenceType),
         toLocation: locationId,
-        performedBy
+        performedBy,
+        ...metadata
     }], { session });
 
     // Audit Logging
@@ -276,6 +309,7 @@ const removeStock = async ({ itemId, barcode, variantId, locationId, locationTyp
     const before = beforeInv ? beforeInv.toObject() : null;
 
     const inventory = await _updateInventory({ itemId, barcode, variantId, locationId, locationType, qty: -movementQty, session });
+    const metadata = await _getItemMetadata(variantId, barcode, session);
 
     await StockMovement.create([{
         variantId,
@@ -284,7 +318,8 @@ const removeStock = async ({ itemId, barcode, variantId, locationId, locationTyp
         referenceId,
         referenceType: resolveReferenceType(referenceType),
         fromLocation: locationId,
-        performedBy
+        performedBy,
+        ...metadata
     }], { session });
 
     // Audit Logging
@@ -333,6 +368,7 @@ const transferStock = async ({ itemId, barcode, variantId, fromLocationId, fromL
     await _updateInventory({ itemId, barcode, variantId, locationId: toLocationId, locationType: toLocationType, qty: movementQty, session });
 
     // 3. Log single movement record for transfer
+    const metadata = await _getItemMetadata(variantId, barcode, session);
     await StockMovement.create([{
         variantId,
         qty: movementQty,
@@ -341,7 +377,8 @@ const transferStock = async ({ itemId, barcode, variantId, fromLocationId, fromL
         referenceType: resolveReferenceType(referenceType, 'Dispatch'),
         fromLocation: fromLocationId,
         toLocation: toLocationId,
-        performedBy
+        performedBy,
+        ...metadata
     }], { session });
 
     // New: Record transfer in Stock Ledger
@@ -606,6 +643,21 @@ const bulkAddStock = async (items, { referenceId, referenceType, performedBy, lo
     // 2. Map current balances from inventory records (much faster than aggregating ledger)
     const balanceMap = new Map(currentInventories.map(inv => [inv.barcode, inv.quantity || 0]));
 
+    // 2.5 Fetch item metadata for movements in bulk
+    const variantIds = [...new Set(items.map(i => i.variantId).filter(Boolean))];
+    const itemsMetadata = await Item.find({ "sizes._id": { $in: variantIds } }).session(session).lean();
+    const metadataMap = new Map();
+    itemsMetadata.forEach(it => {
+        (it.sizes || []).forEach(sz => {
+            metadataMap.set(String(sz._id), {
+                itemName: it.itemName,
+                sku: sz.sku || it.itemCode,
+                barcode: sz.barcode || sz.sku || it.itemCode,
+                color: sz.color || it.color
+            });
+        });
+    });
+
     // 3. Prepare Bulk Operations
     const invOps = [];
     const itemOps = [];
@@ -674,7 +726,8 @@ const bulkAddStock = async (items, { referenceId, referenceType, performedBy, lo
             referenceType: referenceType || 'OpeningBalance',
             toLocation: adjustmentQty > 0 ? locationId : null,
             fromLocation: adjustmentQty < 0 ? locationId : null,
-            performedBy
+            performedBy,
+            ...(metadataMap.get(String(item.variantId)) || {})
         });
 
         // Ledger

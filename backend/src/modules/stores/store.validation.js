@@ -13,7 +13,7 @@ const createStoreValidation = [
     body('managerPhone')
         .optional()
         .trim()
-        .matches(/^[0-9]{10}$/).withMessage('Manager phone must be a valid 10-digit number'),
+        .matches(/^[6-9]\d{9}$/).withMessage('Manager phone must be a valid 10-digit number'),
 
     body('email')
         .trim()
@@ -23,6 +23,9 @@ const createStoreValidation = [
     body('location.address').notEmpty().withMessage('Address is required'),
     body('location.city').notEmpty().withMessage('City is required'),
     body('location.state').notEmpty().withMessage('State is required'),
+    body('location.pincode')
+        .notEmpty().withMessage('Pincode is required')
+        .isLength({ min: 6, max: 6 }).withMessage('Pincode must be 6 digits'),
 
     body('gstNumber')
         .optional({ checkFalsy: true })
@@ -39,12 +42,16 @@ const updateStoreValidation = [
     body('managerPhone')
         .optional()
         .trim()
-        .matches(/^[0-9]{10}$/).withMessage('Manager phone must be a valid 10-digit number'),
+        .matches(/^[6-9]\d{9}$/).withMessage('Manager phone must be a valid 10-digit number'),
 
     body('email')
         .optional()
         .trim()
         .isEmail().withMessage('Please provide a valid email address'),
+
+    body('location.pincode')
+        .optional()
+        .isLength({ min: 6, max: 6 }).withMessage('Pincode must be 6 digits'),
 
     body('gstNumber')
         .optional({ checkFalsy: true })

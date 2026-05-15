@@ -141,6 +141,19 @@ export const clearStoreInventory = createAsyncThunk(
   }
 );
 
+export const clearWarehouseInventory = createAsyncThunk(
+  'inventory/clearWarehouseInventory',
+  async (warehouseId, { dispatch, rejectWithValue }) => {
+    try {
+      const response = await api.delete('/store-inventory/clear-warehouse', { data: { warehouseId } });
+      dispatch(fetchStockOverview({ warehouseId }));
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to clear warehouse inventory');
+    }
+  }
+);
+
 export const applyStockAudit = createAsyncThunk(
   'inventory/audit',
   async (auditData, { rejectWithValue }) => {
@@ -282,6 +295,7 @@ const inventorySlice = createSlice({
             'inventory/audit',
             'inventory/receive',
             'inventory/clearStoreInventory',
+            'inventory/clearWarehouseInventory',
           ].some((prefix) => action.type.startsWith(prefix)),
         (state) => {
           state.loading = true;
@@ -297,6 +311,7 @@ const inventorySlice = createSlice({
             'inventory/audit',
             'inventory/receive',
             'inventory/clearStoreInventory',
+            'inventory/clearWarehouseInventory',
           ].some((prefix) => action.type.startsWith(prefix)),
         (state) => {
           state.loading = false;
@@ -311,6 +326,7 @@ const inventorySlice = createSlice({
             'inventory/audit',
             'inventory/receive',
             'inventory/clearStoreInventory',
+            'inventory/clearWarehouseInventory',
           ].some((prefix) => action.type.startsWith(prefix)),
         (state, action) => {
           state.loading = false;

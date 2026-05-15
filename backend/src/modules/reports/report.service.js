@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Sale = require('../../models/sale.model');
 const Product = require('../../models/product.model');
 const StoreInventory = require('../../models/storeInventory.model');
@@ -180,12 +181,12 @@ const getLowStockReport = async (storeId) => {
     if (!storeId) {
         // Only return factory low stock if no specific store is requested
         const factoryLow = await Product.find({
-            $expr: { $lte: ['$factoryStock', '$minStockLevel'] },
+            $expr: { $lte: ['$factoryStock', { $ifNull: ['$minStockLevel', 10] }] },
             isDeleted: false
         }).select('name sku factoryStock minStockLevel');
         
         const storeLow = await StoreInventory.find({
-            $expr: { $lte: ['$quantityAvailable', '$minStockLevel'] }
+            $expr: { $lte: ['$quantityAvailable', { $ifNull: ['$minStockLevel', 10] }] }
         }).populate('storeId', 'name').populate('itemId', 'name sku');
         
         return { factoryLow, storeLow };
@@ -193,7 +194,7 @@ const getLowStockReport = async (storeId) => {
 
     const storeLow = await StoreInventory.find({
         storeId,
-        $expr: { $lte: ['$quantityAvailable', '$minStockLevel'] }
+        $expr: { $lte: ['$quantityAvailable', { $ifNull: ['$minStockLevel', 10] }] }
     }).populate('storeId', 'name').populate('itemId', 'name sku');
 
     return { factoryLow: [], storeLow };
@@ -306,7 +307,7 @@ const getLedgerReport = async (accountId) => {
 
         return {
             ...entry.toObject(),
-            runningBalance
+            runningBalance: Number(runningBalance.toFixed(2))
         };
     });
 };
@@ -365,7 +366,11 @@ const getTrialBalance = async (startDate, endDate) => {
         console.warn(`Financial Inconsistency: Total Debit (${totalDebitSum}) != Total Credit (${totalCreditSum})`);
     }
 
-    return { trialBalance, totalDebitSum, totalCreditSum };
+    return { 
+        trialBalance: trialBalance.map(t => ({ ...t, balance: Number(t.balance.toFixed(2)) })), 
+        totalDebitSum: Number(totalDebitSum.toFixed(2)), 
+        totalCreditSum: Number(totalCreditSum.toFixed(2)) 
+    };
 };
 
 /**
@@ -416,7 +421,13 @@ const getProfitAndLoss = async (startDate, endDate) => {
         }
     });
 
-    return { income, expense, totalIncome, totalExpense, netProfit: totalIncome - totalExpense };
+    return { 
+        income: income.map(i => ({ ...i, balance: Number(i.balance.toFixed(2)) })), 
+        expense: expense.map(e => ({ ...e, balance: Number(e.balance.toFixed(2)) })), 
+        totalIncome: Number(totalIncome.toFixed(2)), 
+        totalExpense: Number(totalExpense.toFixed(2)), 
+        netProfit: Number((totalIncome - totalExpense).toFixed(2)) 
+    };
 };
 
 /**
@@ -471,7 +482,14 @@ const getBalanceSheet = async (asOfDate) => {
     equity.push({ name: 'Net Profit/Loss (Current Period)', balance: pl.netProfit });
     totalEquity += pl.netProfit;
 
-    const balanceSheet = { assets, liabilities, equity, totalAssets, totalLiabilities, totalEquity };
+    const balanceSheet = { 
+        assets: assets.map(a => ({ ...a, balance: Number(a.balance.toFixed(2)) })), 
+        liabilities: liabilities.map(l => ({ ...l, balance: Number(l.balance.toFixed(2)) })), 
+        equity: equity.map(e => ({ ...e, balance: Number(e.balance.toFixed(2)) })), 
+        totalAssets: Number(totalAssets.toFixed(2)), 
+        totalLiabilities: Number(totalLiabilities.toFixed(2)), 
+        totalEquity: Number(totalEquity.toFixed(2)) 
+    };
 
     // Balance Check
     if (Math.abs(totalAssets - (totalLiabilities + totalEquity)) > 0.1) {
@@ -759,14 +777,17 @@ const getInTransitReport = async () => {
 /**
  * Consolidated Sales Report
  */
-const getSalesReport = async (startDate, endDate, storeId) => {
+const getSalesReport = async (startDate, endDate, storeId, filters = {}) => {
     const match = { isDeleted: false };
     if (startDate || endDate) {
         match.saleDate = {};
         if (startDate) match.saleDate.$gte = new Date(startDate);
         if (endDate) match.saleDate.$lte = new Date(endDate);
     }
-    if (storeId) match.storeId = new (require('mongoose').Types.ObjectId)(storeId);
+    if (storeId && storeId !== 'all') match.storeId = new (require('mongoose').Types.ObjectId)(storeId);
+    if (filters.warehouseId && filters.warehouseId !== 'all') match.storeId = new (require('mongoose').Types.ObjectId)(filters.warehouseId);
+    if (filters.customerId && filters.customerId !== 'all') match.customerId = new (require('mongoose').Types.ObjectId)(filters.customerId);
+    if (filters.salesmanId && filters.salesmanId !== 'all') match.cashierId = new (require('mongoose').Types.ObjectId)(filters.salesmanId);
 
     const salesByDate = await Sale.aggregate([
         { $match: match },
@@ -840,7 +861,7 @@ const getStockReport = async () => {
                 sku: "$product.sku",
                 minStockLevel: "$product.minStockLevel",
                 totalQty: "$qty",
-                isLowStock: { $lte: ["$qty", "$product.minStockLevel"] }
+                isLowStock: { $lte: ["$qty", { $ifNull: ["$product.minStockLevel", 10] }] }
             }
         }
     ]);
@@ -889,10 +910,10 @@ const getMovementReport = async (startDate, endDate, variantId, storeId) => {
             match.createdAt.$lte = end;
         }
     }
-    if (variantId) match.variantId = new (require('mongoose').Types.ObjectId)(variantId);
+    if (variantId) match.variantId = new mongoose.Types.ObjectId(variantId);
     
     if (storeId) {
-        const oid = new (require('mongoose').Types.ObjectId)(storeId);
+        const oid = new mongoose.Types.ObjectId(storeId);
         match.$or = [
             { fromLocation: oid },
             { toLocation: oid }
@@ -904,26 +925,51 @@ const getMovementReport = async (startDate, endDate, variantId, storeId) => {
         {
             $lookup: {
                 from: "items",
-                localField: "variantId",
-                foreignField: "sizes._id",
+                let: { vId: "$variantId" },
+                pipeline: [
+                    { $match: { $expr: { $or: [
+                        { $eq: ["$_id", "$$vId"] },
+                        { $in: ["$$vId", { $ifNull: ["$sizes._id", []] }] }
+                    ] } } }
+                ],
                 as: "itemDoc"
             }
         },
-        { $unwind: { path: "$itemDoc", preserveNullAndEmptyArrays: true } },
         {
-            $addFields: {
-                matchedVariant: {
-                    $filter: {
-                        input: "$itemDoc.sizes",
-                        as: "sz",
-                        cond: { $eq: ["$$sz._id", "$variantId"] }
-                    }
-                }
+            $lookup: {
+                from: "products",
+                localField: "variantId",
+                foreignField: "_id",
+                as: "productDoc"
             }
         },
+        { $unwind: { path: "$itemDoc", preserveNullAndEmptyArrays: true } },
+        { $unwind: { path: "$productDoc", preserveNullAndEmptyArrays: true } },
         {
             $addFields: {
-                variantInfo: { $arrayElemAt: ["$matchedVariant", 0] }
+                variantInfo: {
+                    $cond: {
+                        if: { $eq: ["$itemDoc._id", "$variantId"] },
+                        then: { 
+                            sku: "$itemDoc.itemCode", 
+                            size: "$itemDoc.accessorySize", 
+                            color: "$itemDoc.shadeNo", 
+                            purchasePrice: "$itemDoc.purchasePrice" 
+                        },
+                        else: {
+                            $arrayElemAt: [
+                                {
+                                    $filter: {
+                                        input: { $ifNull: ["$itemDoc.sizes", []] },
+                                        as: "sz",
+                                        cond: { $eq: ["$$sz._id", "$variantId"] }
+                                    }
+                                },
+                                0
+                            ]
+                        }
+                    }
+                }
             }
         },
         {
@@ -954,14 +1000,35 @@ const getMovementReport = async (startDate, endDate, variantId, storeId) => {
         {
             $project: {
                 date: "$createdAt",
-                itemName: { $ifNull: ["$itemDoc.itemName", "Unknown Item"] },
-                productName: { $ifNull: ["$itemDoc.itemName", "Unknown Item"] },
-                sku: { $ifNull: ["$variantInfo.sku", "$itemDoc.itemCode", "-"] },
-                styleCode: { $ifNull: ["$itemDoc.itemCode", "-"] },
-                size: { $ifNull: ["$variantInfo.size", "$itemDoc.accessorySize", "-"] },
-                color: { $ifNull: ["$variantInfo.color", "$itemDoc.shadeNo", "-"] },
-                qty: { $abs: "$qty" },
-                quantityChange: "$qty",
+                type: 1,
+                referenceId: 1,
+                referenceType: 1,
+                qty: 1,
+                barcode: 1,
+                itemName: { 
+                    $ifNull: [
+                        "$itemDoc.itemName", 
+                        "$productDoc.name",
+                        "Unknown Item"
+                    ] 
+                },
+                productName: { 
+                    $ifNull: [
+                        "$itemDoc.itemName", 
+                        "$productDoc.name",
+                        "Unknown Item"
+                    ] 
+                },
+                sku: { $ifNull: ["$variantInfo.sku", "$productDoc.sku", "-"] },
+                size: { $ifNull: ["$variantInfo.size", "$productDoc.size", "-"] },
+                color: { $ifNull: ["$variantInfo.color", "$productDoc.color", "-"] },
+                purchaseRate: { $ifNull: ["$variantInfo.purchasePrice", "$productDoc.costPrice", 0] },
+                totalValue: { 
+                    $multiply: [
+                        { $abs: "$qty" }, 
+                        { $ifNull: ["$variantInfo.purchasePrice", "$productDoc.costPrice", 0] }
+                    ] 
+                },
                 type: { $cond: [{ $gt: ["$qty", 0] }, "IN", "OUT"] },
                 sourceType: "$type",
                 fromLocation: 1,

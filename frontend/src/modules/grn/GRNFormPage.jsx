@@ -354,24 +354,40 @@ function GRNFormPage({ mode = 'edit' }) {
     setSelectedItem(null);
   };
 
-  const handleBarcodeScan = (barcode) => {
-    const item = allItems.find(it => {
-      if (it.itemCode === barcode) return true;
-      return (it.sizes || []).some(s => s.sku === barcode || s.barcode === barcode);
-    });
-    if (item) {
-      if (item.type === 'FABRIC' || item.type === 'ACCESSORY') {
-        setActiveItemForRolls(item);
-        setIsRollDialogOpen(true);
-        return;
+  const handleBarcodeScan = async (barcode) => {
+    if (!barcode) return;
+    setErrorMessage('');
+    
+    try {
+      const api = (await import('../../services/api')).default;
+      const response = await api.get(`/items/scan/${encodeURIComponent(barcode)}`);
+      
+      if (response.data.success && response.data.data) {
+        const { item, variant } = response.data.data;
+        if (item.type === 'FABRIC' || item.type === 'ACCESSORY') {
+          setActiveItemForRolls(item);
+          setIsRollDialogOpen(true);
+        } else if (variant) {
+          addLineItem(item, variant);
+        }
+      } else {
+        throw new Error('Barcode not found');
       }
-      const variant = (item.sizes || []).find(v => v.sku === barcode || v.barcode === barcode) || item.sizes?.[0];
-      if (variant) {
-        addLineItem(item, variant);
+    } catch (err) {
+      console.error('Scan error:', err);
+      // Fallback to local search if API fails or returns not found
+      const localItem = allItems.find(it => {
+        if (it.itemCode?.toUpperCase() === barcode.toUpperCase()) return true;
+        return (it.sizes || []).some(s => s.sku?.toUpperCase() === barcode.toUpperCase() || s.barcode?.toUpperCase() === barcode.toUpperCase());
+      });
+
+      if (localItem) {
+        const variant = (localItem.sizes || []).find(v => v.sku?.toUpperCase() === barcode.toUpperCase() || v.barcode?.toUpperCase() === barcode.toUpperCase()) || localItem.sizes?.[0];
+        addLineItem(localItem, variant);
+      } else {
+        setErrorMessage(`Barcode NOT FOUND: ${barcode}. Please check Item Master.`);
+        setTimeout(() => setErrorMessage(''), 5000);
       }
-    } else {
-      setErrorMessage(`Barcode NOT FOUND: ${barcode}. Please check Item Master.`);
-      setTimeout(() => setErrorMessage(''), 3000);
     }
   };
 

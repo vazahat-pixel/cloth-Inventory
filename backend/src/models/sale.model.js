@@ -20,6 +20,8 @@ const saleItemSchema = new mongoose.Schema({
     hsnCode: { type: String },
     category: { type: String },
     brand: { type: String },
+    size: { type: String },
+    color: { type: String },
     promoDiscount: { type: Number, default: 0 },
     quantity: {
         type: Number,

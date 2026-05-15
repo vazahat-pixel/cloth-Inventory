@@ -133,9 +133,18 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
       payload = {
         name: record.customerName,
         phone: record.mobileNumber,
+        alternatePhone: record.alternatePhone,
         email: record.email,
         address: record.address,
+        gstNumber: record.gstNumber,
+        panNo: record.panNo,
+        city: record.city,
+        state: record.state,
+        pincode: record.pincode,
         points: record.loyaltyPoints ?? 0,
+        creditLimit: record.creditLimit ?? 0,
+        groupId: record.groupId === '' ? null : record.groupId,
+        saleNature: record.saleNature,
         isActive: record.status !== 'Inactive',
       };
     } else if (entityKey === 'warehouses') {
@@ -172,6 +181,7 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
     } else if (entityKey === 'itemGroups') {
       payload = {
         name: record.groupName,
+        code: record.code || record.groupCode,
         groupType: record.groupType,
         parentId: record.parentId === '' ? null : record.parentId,
         description: record.description,
@@ -245,9 +255,18 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
       payload = {
         name: updates.customerName,
         phone: updates.mobileNumber,
+        alternatePhone: updates.alternatePhone,
         email: updates.email,
         address: updates.address,
+        gstNumber: updates.gstNumber,
+        panNo: updates.panNo,
+        city: updates.city,
+        state: updates.state,
+        pincode: updates.pincode,
         points: updates.loyaltyPoints ?? 0,
+        creditLimit: updates.creditLimit ?? 0,
+        groupId: updates.groupId === '' ? null : updates.groupId,
+        saleNature: updates.saleNature,
         isActive: updates.status !== 'Inactive',
       };
     } else if (entityKey === 'warehouses') {
@@ -283,6 +302,7 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
     } else if (entityKey === 'itemGroups') {
       payload = {
         name: updates.groupName,
+        code: updates.code || updates.groupCode,
         groupType: updates.groupType,
         parentId: updates.parentId === '' ? null : updates.parentId,
         description: updates.description,

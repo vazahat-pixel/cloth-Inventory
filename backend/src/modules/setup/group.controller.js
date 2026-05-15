@@ -7,6 +7,7 @@ class GroupController {
       // Map groupName from frontend to name in backend
       const data = {
         name: req.body.groupName || req.body.name,
+        code: req.body.code || req.body.groupCode,
         groupType: req.body.groupType,
         parentId: req.body.parentId || null,
         description: req.body.description,
@@ -18,6 +19,7 @@ class GroupController {
       const mappedGroup = {
         id: group._id,
         groupName: group.name,
+        code: group.code,
         groupType: group.groupType,
         parentId: group.parentId,
         level: group.level,
@@ -41,6 +43,7 @@ class GroupController {
       const mappedGroups = groups.map(g => ({
         id: g._id,
         groupName: g.name,
+        code: g.code,
         groupType: g.groupType,
         parentId: g.parentId,
         level: g.level,
@@ -60,6 +63,7 @@ class GroupController {
       const { id } = req.params;
       const updates = {
         name: req.body.groupName || req.body.name,
+        code: req.body.code || req.body.groupCode,
         groupType: req.body.groupType,
         parentId: req.body.parentId || null,
         description: req.body.description,
@@ -75,6 +79,7 @@ class GroupController {
       const mappedGroup = {
         id: group._id,
         groupName: group.name,
+        code: group.code,
         groupType: group.groupType,
         parentId: group.parentId,
         level: group.level,

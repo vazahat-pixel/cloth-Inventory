@@ -7,8 +7,9 @@ const createSupplierValidation = [
         .isLength({ min: 2 }).withMessage('Supplier name must be at least 2 characters'),
 
     body('phone')
-        .optional({ checkFalsy: true })
-        .trim(),
+        .notEmpty().withMessage('Phone number is required')
+        .trim()
+        .matches(/^[6-9]\d{9}$/).withMessage('Invalid phone number'),
 
     body('email')
         .optional({ checkFalsy: true })
@@ -17,7 +18,19 @@ const createSupplierValidation = [
 
     body('gstNumber')
         .optional({ checkFalsy: true })
-        .trim(),
+        .trim()
+        .matches(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/)
+        .withMessage('Invalid GST number format'),
+
+    body('panNumber')
+        .optional({ checkFalsy: true })
+        .trim()
+        .matches(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/)
+        .withMessage('Invalid PAN format'),
+
+    body('pincode')
+        .optional({ checkFalsy: true })
+        .isLength({ min: 6, max: 6 }).withMessage('Pincode must be 6 digits'),
 ];
 
 const updateSupplierValidation = [
@@ -28,12 +41,19 @@ const updateSupplierValidation = [
 
     body('phone')
         .optional({ checkFalsy: true })
-        .trim(),
+        .trim()
+        .matches(/^[6-9]\d{9}$/).withMessage('Invalid phone number'),
 
     body('email')
         .optional({ checkFalsy: true })
         .trim()
         .isEmail().withMessage('Please provide a valid email address'),
+
+    body('gstNumber')
+        .optional({ checkFalsy: true })
+        .trim()
+        .matches(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/)
+        .withMessage('Invalid GST number format'),
 ];
 
 module.exports = {

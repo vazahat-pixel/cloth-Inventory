@@ -39,14 +39,31 @@ const StoreMasterPage = () => {
     const [formData, setFormData] = useState({
         name: '',
         code: '',
+        gstNumber: '',
         type: 'STORE',
         address: '',
         city: '',
         state: '',
+        pincode: '',
         contactNumber: '',
-        status: 'Active'
+        status: 'Active',
+        invoicePrefix: '',
+        invoiceFooterText: ''
     });
+    const [formErrors, setFormErrors] = useState({});
     const [editId, setEditId] = useState(null);
+
+    const validateField = (name, value) => {
+        let error = '';
+        if (name === 'name' && !value.trim()) error = 'Store Name is required';
+        if (name === 'contactNumber' && value && !/^\d{10}$/.test(value)) error = 'Phone must be exactly 10 digits';
+        if (name === 'gstNumber' && value && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(value)) error = 'Invalid GST format';
+        if (name === 'pincode' && value && !/^\d{6}$/.test(value)) error = 'Pincode must be 6 digits';
+        if ((name === 'city' || name === 'state') && value && !/^[A-Za-z\s]+$/.test(value)) error = 'Only letters allowed';
+        
+        setFormErrors(prev => ({ ...prev, [name]: error }));
+        return error;
+    };
 
     const fetchData = async () => {
         setLoading(true);
@@ -69,29 +86,50 @@ const StoreMasterPage = () => {
             setFormData({
                 name: store.name,
                 code: store.code || '',
+                gstNumber: store.gstNumber || '',
                 type: store.type || 'STORE',
                 address: store.location?.address || store.address || '',
                 city: store.location?.city || store.city || '',
                 state: store.location?.state || store.state || '',
+                pincode: store.location?.pincode || store.pincode || '',
                 contactNumber: store.contactNumber || '',
-                status: store.status || 'Active'
+                status: store.status || 'Active',
+                invoicePrefix: store.invoicePrefix || '',
+                invoiceFooterText: store.invoiceFooterText || ''
             });
             setEditId(store._id);
         } else {
-            setFormData({ name: '', code: '', type: 'STORE', address: '', city: '', state: '', contactNumber: '', status: 'Active' });
+            setFormData({ 
+                name: '', code: '', gstNumber: '', type: 'STORE', address: '', 
+                city: '', state: '', pincode: '', contactNumber: '', status: 'Active',
+                invoicePrefix: '', invoiceFooterText: ''
+            });
             setEditId(null);
         }
+        setFormErrors({});
         setOpen(true);
     };
 
     const handleSave = async () => {
+        // Final validation
+        const errors = {};
+        Object.keys(formData).forEach(key => {
+            const err = validateField(key, formData[key]);
+            if (err) errors[key] = err;
+        });
+
+        if (Object.values(errors).some(e => e)) {
+            setFormErrors(errors);
+            return;
+        }
+
         const payload = {
             ...formData,
             location: {
                 address: formData.address,
                 city: formData.city,
                 state: formData.state,
-                pincode: ''
+                pincode: formData.pincode
             }
         };
 
@@ -176,16 +214,30 @@ const StoreMasterPage = () => {
                     <Stack spacing={2}>
                         <TextField
                             fullWidth
-                            label="Store Name"
+                            label="Store Name *"
                             value={formData.name}
                             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            onBlur={(e) => validateField('name', e.target.value)}
+                            error={!!formErrors.name}
+                            helperText={formErrors.name}
                         />
-                        <TextField
-                            fullWidth
-                            label="Store Code"
-                            value={formData.code}
-                            onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                        />
+                        <Stack direction="row" spacing={2}>
+                            <TextField
+                                fullWidth
+                                label="Store Code"
+                                value={formData.code}
+                                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                            />
+                            <TextField
+                                fullWidth
+                                label="GST Number"
+                                value={formData.gstNumber}
+                                onChange={(e) => setFormData({ ...formData, gstNumber: e.target.value.toUpperCase() })}
+                                onBlur={(e) => validateField('gstNumber', e.target.value)}
+                                error={!!formErrors.gstNumber}
+                                helperText={formErrors.gstNumber}
+                            />
+                        </Stack>
                         <TextField
                             fullWidth
                             select
@@ -202,6 +254,9 @@ const StoreMasterPage = () => {
                             label="Contact Number"
                             value={formData.contactNumber}
                             onChange={(e) => setFormData({ ...formData, contactNumber: e.target.value })}
+                            onBlur={(e) => validateField('contactNumber', e.target.value)}
+                            error={!!formErrors.contactNumber}
+                            helperText={formErrors.contactNumber}
                         />
                         <Stack direction="row" spacing={2}>
                             <TextField
@@ -209,12 +264,27 @@ const StoreMasterPage = () => {
                                 label="City"
                                 value={formData.city || ''}
                                 onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                                onBlur={(e) => validateField('city', e.target.value)}
+                                error={!!formErrors.city}
+                                helperText={formErrors.city}
                             />
                             <TextField
                                 fullWidth
                                 label="State"
                                 value={formData.state || ''}
                                 onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                                onBlur={(e) => validateField('state', e.target.value)}
+                                error={!!formErrors.state}
+                                helperText={formErrors.state}
+                            />
+                            <TextField
+                                fullWidth
+                                label="Pincode"
+                                value={formData.pincode || ''}
+                                onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
+                                onBlur={(e) => validateField('pincode', e.target.value)}
+                                error={!!formErrors.pincode}
+                                helperText={formErrors.pincode}
                             />
                         </Stack>
                         <TextField
@@ -235,6 +305,28 @@ const StoreMasterPage = () => {
                             <MenuItem value="Active">Active</MenuItem>
                             <MenuItem value="Inactive">Inactive</MenuItem>
                         </TextField>
+
+                        <Typography variant="subtitle2" sx={{ mt: 2, fontWeight: 700, color: '#475569' }}>
+                            Invoice Settings
+                        </Typography>
+                        <Stack direction="row" spacing={2}>
+                            <TextField
+                                fullWidth
+                                label="Invoice Prefix (e.g. BPL)"
+                                value={formData.invoicePrefix}
+                                onChange={(e) => setFormData({ ...formData, invoicePrefix: e.target.value.toUpperCase() })}
+                                placeholder="3 characters recommended"
+                            />
+                        </Stack>
+                        <TextField
+                            fullWidth
+                            label="Invoice Footer Text"
+                            multiline
+                            rows={2}
+                            value={formData.invoiceFooterText}
+                            onChange={(e) => setFormData({ ...formData, invoiceFooterText: e.target.value })}
+                            placeholder="e.g. Thank you for shopping with us!"
+                        />
                     </Stack>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, pb: 2 }}>

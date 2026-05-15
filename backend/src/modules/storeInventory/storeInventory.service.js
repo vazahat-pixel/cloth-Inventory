@@ -30,7 +30,7 @@ const populateInventoryManual = async (inventoryItems) => {
             { "sizes.sku": { $in: [...variantIds, ...barcodes] } },
             { "sizes.barcode": { $in: [...variantIds, ...barcodes] } }
         ]
-    }).populate('hsCodeId').lean();
+    }).populate('hsCodeId categoryId brand').lean();
 
     // Create indexing Maps for O(1) lookup
     const itemMap = new Map();
@@ -66,13 +66,13 @@ const populateInventoryManual = async (inventoryItems) => {
                           codeToItemMap.get(barcode);
 
         if (parentItem) {
-            const variant = parentItem.sizes.find(sz => 
+            const variant = parentItem.sizes?.find(sz => 
                 String(sz._id) === vid || 
                 sz.sku === vid || 
                 sz.barcode === vid ||
                 sz.sku === barcode ||
                 sz.barcode === barcode
-            ) || parentItem.sizes[0] || {};
+            ) || parentItem.sizes?.[0] || {};
             
             return {
                 ...item,
@@ -83,16 +83,16 @@ const populateInventoryManual = async (inventoryItems) => {
                 itemName: parentItem.itemName,
                 type: parentItem.type || 'GARMENT',
                 size: variant.size || 'UNI',
-                color: variant.color || parentItem.shade || 'N/A',
+                color: variant.color || parentItem.color || parentItem.shadeNo || 'N/A',
                 sku: variant.sku || variant.barcode || parentItem.itemCode,
                 barcode: variant.barcode || variant.sku || parentItem.itemCode,
-                brand: parentItem.brand || { name: 'N/A' },
-                category: parentItem.groupIds?.find(g => g.groupType === 'Category') || parentItem.groupIds?.[0] || { name: 'N/A' },
+                brand: parentItem.brand?.name || parentItem.brandName || 'N/A',
+                category: parentItem.categoryId?.name || parentItem.categoryName || (parentItem.groupIds?.find(g => g.groupType === 'Category') || parentItem.groupIds?.[0])?.name || 'GARMENT',
                 available: item.quantityAvailable ?? item.quantity,
                 inTransit: item.quantityInTransit || 0,
                 reorderLevel: item.reorderLevel || 0,
-                location: item.warehouseId?.name || item.storeId?.name || 'Main Warehouse',
-                warehouseName: item.warehouseId?.name || item.storeId?.name || 'Main Warehouse',
+                location: item.storeId ? `[Store] ${item.storeId.name}` : (item.warehouseId ? `[Warehouse] ${item.warehouseId.location?.city || item.warehouseId.name}` : 'Main Warehouse'),
+                warehouseName: item.storeId ? `[Store] ${item.storeId.name}` : (item.warehouseId ? `[Warehouse] ${item.warehouseId.location?.city || item.warehouseId.name}` : 'Main Warehouse'),
                 salePrice: toFiniteNumber(variant.salePrice || parentItem.salePrice || variant.mrp || parentItem.mrp),
                 mrp: toFiniteNumber(variant.mrp || parentItem.mrp || variant.salePrice || parentItem.salePrice),
                 hsnCode: parentItem.hsCodeId?.code || parentItem.hsnCode || 'N/A'
@@ -107,7 +107,7 @@ const populateInventoryManual = async (inventoryItems) => {
             type: 'GARMENT', 
             size: '-',
             color: '-',
-            warehouseName: item.warehouseId?.name || item.storeId?.name || 'N/A',
+            warehouseName: item.storeId ? `[Store] ${item.storeId.name}` : (item.warehouseId ? `[Warehouse] ${item.warehouseId.location?.city || item.warehouseId.name}` : 'Main Warehouse'),
             available: item.quantityAvailable ?? item.quantity,
             inTransit: item.quantityInTransit || 0,
             status: 'ORPHAN'
@@ -195,34 +195,55 @@ const getStoreInventory = async (query, user) => {
 
     console.log('[STOCK-OVERVIEW-DEBUG] Filters:', { storeFilter, warehouseFilter });
 
+    // Fetch totals in parallel with the main query
+    const [totalStoreRows, totalWarehouseRows] = await Promise.all([
+        StoreInventory.countDocuments(storeFilter),
+        WarehouseInventory.countDocuments(warehouseFilter)
+    ]);
+    const total = totalStoreRows + totalWarehouseRows;
+
+    // Apply limit to database queries to prevent fetching 100k+ records into memory
+    // We fetch (skip + limit) from both and then slice to handle the combination properly
+    const dbLimit = skip + parseInt(limit);
+
     const [storeInventory, warehouseInventory] = await Promise.all([
         StoreInventory.find(storeFilter)
             .sort({ lastUpdated: -1 })
+            .limit(dbLimit)
             .populate('storeId', 'name location')
             .lean(),
         WarehouseInventory.find(warehouseFilter)
             .sort({ lastUpdated: -1 })
+            .limit(dbLimit)
             .populate('warehouseId', 'name location')
             .lean()
     ]);
 
-    console.log(`[STOCK-OVERVIEW-DEBUG] Query Results: StoreCount=${storeInventory.length}, WarehouseCount=${warehouseInventory.length}, UserRole=${user.role}`);
-
-    // Combine results
+    // Combine and apply pagination BEFORE population for speed
     const rawCombined = [...storeInventory, ...warehouseInventory];
-    const populatedCombined = await populateInventoryManual(rawCombined);
+    const combinedSlice = rawCombined.slice(skip, skip + parseInt(limit));
 
-    // Calculate totals across ALL items (before pagination)
-    const totalQuantity = Math.round(populatedCombined.reduce((sum, item) => sum + Number(item.available ?? item.quantity ?? 0), 0));
-    const total = populatedCombined.length;
+    // Only populate the current page
+    const inventory = await populateInventoryManual(combinedSlice);
 
-    // Apply pagination
-    const combined = populatedCombined.slice(skip, skip + parseInt(limit));
+    // Calculate totals across ALL items (lightweight aggregation for accuracy)
+    const [storeQtyRes, warehouseQtyRes] = await Promise.all([
+        StoreInventory.aggregate([
+            { $match: storeFilter },
+            { $group: { _id: null, total: { $sum: '$quantityAvailable' } } }
+        ]),
+        WarehouseInventory.aggregate([
+            { $match: warehouseFilter },
+            { $group: { _id: null, total: { $sum: '$quantity' } } }
+        ])
+    ]);
 
-    console.log(`[STOCK-OVERVIEW-DEBUG] Final Combined: ${combined.length}, TotalQty: ${totalQuantity}`);
+    const totalQuantity = Math.round((storeQtyRes[0]?.total || 0) + (warehouseQtyRes[0]?.total || 0));
+
+    console.log(`[STOCK-OVERVIEW-DEBUG] Slice: ${inventory.length}, Total: ${total}, TotalQty: ${totalQuantity}`);
 
     return {
-        inventory: combined,
+        inventory,
         total,
         totalQuantity,
         page: parseInt(page),
@@ -451,11 +472,105 @@ const clearStoreInventory = async (storeId, userId) => {
     });
 };
 
+/**
+ * Clear all inventory for a specific warehouse
+ * Decrements master stock, adds movement logs, and removes the warehouse inventory records.
+ */
+const clearWarehouseInventory = async (warehouseId, userId) => {
+    return await withTransaction(async (session) => {
+        const WarehouseInventory = require('../../models/warehouseInventory.model');
+        const Item = require('../../models/item.model');
+        const { StockMovementType } = require('../../core/enums');
+
+        // Get all inventory for this warehouse
+        const inventoryItems = await WarehouseInventory.find({ warehouseId }).session(session);
+        
+        if (inventoryItems.length === 0) {
+            return { success: true, deletedCount: 0, message: 'No inventory found to clear.' };
+        }
+
+        const itemOps = [];
+        const movements = [];
+        const ledgerEntries = [];
+        const referenceId = new mongoose.Types.ObjectId();
+
+        for (const item of inventoryItems) {
+            const qty = item.quantity || 0;
+            if (qty <= 0) continue;
+
+            // 1. Prepare master stock decrement
+            itemOps.push({
+                updateOne: {
+                    filter: { "sizes._id": item.variantId },
+                    update: { $inc: { "sizes.$.stock": -qty } }
+                }
+            });
+
+            // 2. Prepare Stock Movement record
+            movements.push({
+                variantId: item.variantId,
+                qty: -qty,
+                type: StockMovementType.ADJUSTMENT,
+                referenceId,
+                referenceType: 'Adjustment',
+                fromLocation: warehouseId,
+                performedBy: userId
+            });
+
+            // 3. Prepare Stock Ledger entry
+            ledgerEntries.push({
+                itemId: item.itemId,
+                barcode: item.barcode,
+                type: 'OUT',
+                quantity: qty,
+                source: 'ADJUSTMENT',
+                referenceId: referenceId.toString(),
+                balanceAfter: 0,
+                userId,
+                locationId: warehouseId,
+                locationType: 'WAREHOUSE',
+                batchNo: 'DEFAULT'
+            });
+        }
+
+        // Execute master updates, movements, and ledger entries in bulk if there are any
+        if (itemOps.length > 0) {
+            await Item.bulkWrite(itemOps, { session });
+        }
+        if (movements.length > 0) {
+            const StockMovement = require('../../models/stockMovement.model');
+            await StockMovement.insertMany(movements, { session, ordered: false });
+        }
+        if (ledgerEntries.length > 0) {
+            const StockLedger = require('../../models/stockLedger.model');
+            await StockLedger.insertMany(ledgerEntries, { session, ordered: false });
+        }
+
+        // Delete all Warehouse Inventory records for this warehouse
+        const deleteResult = await WarehouseInventory.deleteMany({ warehouseId }).session(session);
+
+        // Record a System Log
+        const SystemLog = require('../../models/systemLog.model');
+        await SystemLog.create([{
+            action: 'DELETE_WAREHOUSE_INVENTORY',
+            module: 'Inventory',
+            userId,
+            details: `Cleared all inventory for warehouse ${warehouseId}. Deleted ${deleteResult.deletedCount} inventory records.`
+        }], { session });
+
+        return {
+            success: true,
+            deletedCount: deleteResult.deletedCount
+        };
+    });
+};
+
 module.exports = {
     getStoreInventory,
     getProductInStore,
     adjustInventory,
     bulkImportOpeningStock,
-    clearStoreInventory
+    clearStoreInventory,
+    clearWarehouseInventory
 };
 

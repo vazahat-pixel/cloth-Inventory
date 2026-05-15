@@ -1,8 +1,8 @@
 import MasterFormDialog from '../components/MasterFormDialog';
 
 const brandFields = [
-  { name: 'brandName', label: 'Brand Name', required: true },
-  { name: 'shortName', label: 'Short Name', required: true },
+  { name: 'brandName', label: 'Brand Name', required: true, validate: (v) => v.trim().length > 0 || 'Brand Name cannot be empty' },
+  { name: 'shortName', label: 'Brand Code / Short Name', required: true, validate: (v) => v.trim().length > 0 || 'Brand Code cannot be empty' },
   { name: 'description', label: 'Description', multiline: true, minRows: 2, required: true },
   {
     name: 'status',
@@ -24,6 +24,7 @@ function BrandsFormDialog({ open, onClose, onSubmit, initialValues }) {
     const payload = {
       ...values,
       name: values.brandName,
+      code: values.shortName,
       isActive: values.status === 'Active',
     };
     delete payload.brandName;

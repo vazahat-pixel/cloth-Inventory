@@ -13,5 +13,6 @@ router.get('/:productId', storeInventoryController.getProductInStore);
 
 router.post('/bulk-import', storeInventoryController.bulkImportOpeningStock);
 router.delete('/clear-all', storeInventoryController.clearStoreInventory);
+router.delete('/clear-warehouse', storeInventoryController.clearWarehouseInventory);
 
 module.exports = router;

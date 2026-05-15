@@ -162,7 +162,7 @@ function RecentSalesTable({
               </Typography>
               <Button
                 component={RouterLink}
-                to={`${basePath}/sales/new`}
+                to={`${basePath}/sales/sale-bill/new`}
                 variant="outlined"
                 sx={{ mt: 3, borderRadius: 100, fontWeight: 700, textTransform: "none" }}
               >

@@ -33,6 +33,10 @@ const getProductByBarcode = async (req, res, next) => {
 
 const createSale = async (req, res, next) => {
     try {
+        if (!req.body.products?.length && !req.body.items?.length) {
+            return sendError(res, 'Cannot create invoice/sale with empty items', 400);
+        }
+
         // Enforce store scoping for store staff
         if (req.user.role === 'store_staff') {
             if (!req.user.shopId) {
@@ -99,11 +103,21 @@ const applyCreditNote = async (req, res, next) => {
     }
 };
 
+const deleteSale = async (req, res, next) => {
+    try {
+        const sale = await salesService.deleteSale(req.params.id, req.user._id);
+        return sendSuccess(res, { sale }, 'Sale deleted successfully');
+    } catch (err) {
+        return sendError(res, err.message, 400);
+    }
+};
+
 module.exports = {
     getProductByBarcode,
     createSale,
     getAllSales,
     getSaleById,
     cancelSale,
-    applyCreditNote
+    applyCreditNote,
+    deleteSale
 };

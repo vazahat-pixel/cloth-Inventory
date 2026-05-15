@@ -3,13 +3,16 @@ const settingsController = require('./settings.controller');
 const { protect } = require('../../middlewares/auth.middleware');
 const { requireAdmin } = require('../../middlewares/role.middleware');
 
+const { companyProfileValidation } = require('./settings.validation');
+const validate = require('../../middlewares/validate.middleware');
+
 const router = express.Router();
 
 router.use(protect);
 
 router.route('/company')
     .get(settingsController.getCompanyProfile)
-    .patch(requireAdmin, settingsController.updateCompanyProfile);
+    .patch(requireAdmin, companyProfileValidation, validate, settingsController.updateCompanyProfile);
 
 router.route('/invoicing')
     .get(settingsController.getInvoicingConfig)

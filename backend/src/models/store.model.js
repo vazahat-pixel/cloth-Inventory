@@ -47,6 +47,15 @@ const storeSchema = new mongoose.Schema(
             min: [0, 'Discount cannot be negative'],
             max: [100, 'Discount cannot exceed 100%']
         },
+        invoicePrefix: {
+            type: String,
+            uppercase: true,
+            trim: true
+        },
+        invoiceFooterText: {
+            type: String,
+            trim: true
+        },
         isActive: {
             type: Boolean,
             default: true

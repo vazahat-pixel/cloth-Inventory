@@ -27,7 +27,8 @@ function CompanyProfilePage() {
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
-  const { register, handleSubmit, reset, watch } = useForm({
+  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm({
+    mode: 'onBlur',
     defaultValues: {
       // Identity
       legalName: '',
@@ -210,16 +211,16 @@ function CompanyProfilePage() {
                   <Divider sx={{ mb: 3 }} />
                 </Grid>
                 <Grid item xs={12} md={6}>
-                  <TextField fullWidth label="Legal Entity Name *" {...register('legalName', { required: true })} placeholder="REBEL MASS EXPORT PVT LTD" />
+                  <TextField fullWidth label="Legal Entity Name *" {...register('legalName', { required: 'Legal Entity Name is required' })} error={!!errors.legalName} helperText={errors.legalName?.message} placeholder="REBEL MASS EXPORT PVT LTD" />
                 </Grid>
                 <Grid item xs={12} md={3}>
-                  <TextField fullWidth label="GSTIN Number" {...register('gstin')} />
+                  <TextField fullWidth label="GSTIN Number" {...register('gstin', { pattern: { value: /^[A-Za-z0-9]{15}$/, message: 'GSTIN must be 15 alphanumeric characters' } })} error={!!errors.gstin} helperText={errors.gstin?.message} />
                 </Grid>
                 <Grid item xs={12} md={3}>
-                  <TextField fullWidth label="PAN Number" {...register('pan')} />
+                  <TextField fullWidth label="PAN Number" {...register('pan', { pattern: { value: /^[A-Za-z0-9]{10}$/, message: 'PAN must be 10 alphanumeric characters' } })} error={!!errors.pan} helperText={errors.pan?.message} />
                 </Grid>
                 <Grid item xs={12} md={6}>
-                  <TextField fullWidth label="Contact Phone" {...register('phone')} />
+                  <TextField fullWidth label="Contact Phone" {...register('phone', { pattern: { value: /^[0-9]{10}$/, message: 'Phone must be exactly 10 digits' } })} error={!!errors.phone} helperText={errors.phone?.message} />
                 </Grid>
                 <Grid item xs={12} md={6}>
                   <TextField fullWidth label="Contact Email" {...register('email')} />
@@ -233,13 +234,13 @@ function CompanyProfilePage() {
                   <TextField fullWidth label="Street Address" {...register('address.address')} multiline rows={2} />
                 </Grid>
                 <Grid item xs={12} md={4}>
-                  <TextField fullWidth label="City" {...register('address.city')} />
+                  <TextField fullWidth label="City" {...register('address.city', { pattern: { value: /^[A-Za-z\s]+$/, message: 'City must contain only letters and spaces' } })} error={!!errors.address?.city} helperText={errors.address?.city?.message} />
                 </Grid>
                 <Grid item xs={12} md={4}>
-                  <TextField fullWidth label="State" {...register('address.state')} />
+                  <TextField fullWidth label="State" {...register('address.state', { pattern: { value: /^[A-Za-z\s]+$/, message: 'State must contain only letters and spaces' } })} error={!!errors.address?.state} helperText={errors.address?.state?.message} />
                 </Grid>
                 <Grid item xs={12} md={4}>
-                  <TextField fullWidth label="Pincode" {...register('address.pincode')} />
+                  <TextField fullWidth label="Pincode" {...register('address.pincode', { pattern: { value: /^[0-9]{6}$/, message: 'Pincode must be exactly 6 digits' } })} error={!!errors.address?.pincode} helperText={errors.address?.pincode?.message} />
                 </Grid>
               </Grid>
             )}
@@ -283,16 +284,52 @@ function CompanyProfilePage() {
                   <Divider sx={{ mb: 3 }} />
                 </Grid>
                 <Grid item xs={12} md={6}>
-                  <TextField fullWidth label="Bank Name" {...register('bankDetails.bankName')} />
+                  <TextField 
+                    fullWidth 
+                    label="Bank Name" 
+                    {...register('bankDetails.bankName', { 
+                      required: 'Bank Name is required',
+                      pattern: { value: /^[A-Za-z\s]+$/, message: 'Bank Name must contain only letters and spaces' } 
+                    })} 
+                    error={!!errors.bankDetails?.bankName} 
+                    helperText={errors.bankDetails?.bankName?.message} 
+                  />
                 </Grid>
                 <Grid item xs={12} md={6}>
-                  <TextField fullWidth label="Account Number" {...register('bankDetails.accountNo')} />
+                  <TextField 
+                    fullWidth 
+                    label="Account Number" 
+                    {...register('bankDetails.accountNo', { 
+                      required: 'Account Number is required',
+                      pattern: { value: /^\d+$/, message: 'Account Number must contain only digits' }
+                    })} 
+                    error={!!errors.bankDetails?.accountNo}
+                    helperText={errors.bankDetails?.accountNo?.message}
+                  />
                 </Grid>
                 <Grid item xs={12} md={6}>
-                  <TextField fullWidth label="IFSC Code" {...register('bankDetails.ifsc')} />
+                  <TextField 
+                    fullWidth 
+                    label="IFSC Code" 
+                    {...register('bankDetails.ifsc', { 
+                      required: 'IFSC is required',
+                      pattern: { value: /^[A-Z]{4}0[A-Z0-9]{6}$/, message: 'Invalid IFSC format (e.g. SBIN0012345)' }
+                    })} 
+                    error={!!errors.bankDetails?.ifsc}
+                    helperText={errors.bankDetails?.ifsc?.message}
+                  />
                 </Grid>
                 <Grid item xs={12} md={6}>
-                  <TextField fullWidth label="Branch Name" {...register('bankDetails.branch')} />
+                  <TextField 
+                    fullWidth 
+                    label="Branch Name" 
+                    {...register('bankDetails.branch', { 
+                      required: 'Branch Name is required',
+                      pattern: { value: /^[A-Za-z\s]+$/, message: 'Branch Name must contain only letters and spaces' }
+                    })} 
+                    error={!!errors.bankDetails?.branch}
+                    helperText={errors.bankDetails?.branch?.message}
+                  />
                 </Grid>
               </Grid>
             )}

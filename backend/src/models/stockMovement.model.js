@@ -39,7 +39,12 @@ const stockMovementSchema = new mongoose.Schema({
     performedBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
-    }
+    },
+    // Metadata for reporting (Snapshot at time of movement)
+    itemName: String,
+    sku: String,
+    barcode: String,
+    color: String
 }, {
     timestamps: true
 });

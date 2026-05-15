@@ -9,6 +9,9 @@ const { requireAdmin } = require('../../middlewares/role.middleware');
 
 router.use(protect);
 
+const { hsnValidation } = require('./hsn.validation');
+const validate = require('../../middlewares/validate.middleware');
+
 // Salesmen Routes
 router.get('/salesmen', salesmanController.getAllSalesmen);
 router.put('/salesmen/:id', salesmanController.updateSalesman);
@@ -18,10 +21,10 @@ router.post('/salesmen', requireAdmin, salesmanController.createSalesman);
 
 // HSN Routes
 router.get('/hsn', hsnController.getAll);
-router.put('/hsn/:id', hsnController.update);
-router.patch('/hsn/:id', hsnController.update);
+router.put('/hsn/:id', hsnValidation, validate, hsnController.update);
+router.patch('/hsn/:id', hsnValidation, validate, hsnController.update);
 router.delete('/hsn/:id', hsnController.delete);
-router.post('/hsn', requireAdmin, hsnController.create);
+router.post('/hsn', requireAdmin, hsnValidation, validate, hsnController.create);
 
 // Group Routes
 router.get('/groups', groupController.getAll);

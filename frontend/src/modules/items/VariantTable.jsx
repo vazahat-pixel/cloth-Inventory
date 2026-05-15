@@ -700,7 +700,7 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
                     placeholder="Ex: TSHIRT-S-BLUE"
                     disabled={autoGenerateSku}
                     error={Boolean(errors.sku)}
-                    helperText={errors.sku?.message || 'Unique identifier for this variant. Note: Physical barcodes/stickers are generated post-purchase/GRN.'}
+                    helperText={errors.sku?.message || 'Unique identifier for this variant.'}
                   />
                 )}
               />
@@ -709,7 +709,7 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
                 <Controller
                   name="stock"
                   control={control}
-                  rules={{ required: 'Stock is required.' }}
+                  rules={{ required: 'Stock is required.', min: { value: 0, message: 'Stock cannot be negative' } }}
                   render={({ field }) => (
                     <TextField
                       {...field}
@@ -719,6 +719,8 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
                       label="Initial Stock"
                       error={Boolean(errors.stock)}
                       helperText={errors.stock?.message || ' '}
+                      inputProps={{ min: 0 }}
+                      onFocus={(e) => e.target.value === '0' && field.onChange('')}
                     />
                   )}
                 />
@@ -735,6 +737,8 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
                       label="Reorder Level (ROL)"
                       error={Boolean(errors.reorderLevel)}
                       helperText={errors.reorderLevel?.message || 'Trigger for Low Stock Alert'}
+                      inputProps={{ min: 0 }}
+                      onFocus={(e) => e.target.value === '0' && field.onChange('')}
                     />
                   )}
                 />
@@ -743,7 +747,7 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
               <Controller
                 name="mrp"
                 control={control}
-                rules={{ required: 'MRP is required.' }}
+                rules={{ required: 'MRP is required.', min: { value: 0.01, message: 'MRP must be at least 0.01' } }}
                 render={({ field }) => (
                   <TextField
                     {...field}
@@ -753,6 +757,8 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
                     label="MRP"
                     error={Boolean(errors.mrp)}
                     helperText={errors.mrp?.message || ' '}
+                    inputProps={{ min: 0.01, step: 0.01 }}
+                    onFocus={(e) => e.target.value === '0' && field.onChange('')}
                   />
                 )}
               />

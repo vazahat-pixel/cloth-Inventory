@@ -131,6 +131,7 @@ function ReportFilterPanel({
               value={filters?.dateFrom || ''}
               onChange={(e) => update('dateFrom', e.target.value)}
               InputLabelProps={{ shrink: true }}
+              inputProps={{ max: new Date().toISOString().split('T')[0] }}
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
@@ -142,6 +143,7 @@ function ReportFilterPanel({
               value={filters?.dateTo || ''}
               onChange={(e) => update('dateTo', e.target.value)}
               InputLabelProps={{ shrink: true }}
+              inputProps={{ max: new Date().toISOString().split('T')[0] }}
             />
           </Grid>
         </>

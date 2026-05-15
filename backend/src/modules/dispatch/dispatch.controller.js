@@ -3,6 +3,11 @@ const { sendSuccess, sendError } = require('../../utils/response.handler');
 
 const create = async (req, res, next) => {
     try {
+        const { items, products } = req.body;
+        const finalItems = items || products || [];
+        if (!finalItems || finalItems.length === 0) {
+            return sendError(res, 'Cannot create dispatch challan without items', 400);
+        }
         const dispatch = await dispatchService.createDispatch(req.body, req.user._id);
         return sendSuccess(res, { dispatch }, 'Dispatch created successfully');
     } catch (error) {

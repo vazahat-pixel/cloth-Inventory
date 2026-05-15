@@ -84,6 +84,17 @@ function VoucherFormDialog({ open, onClose }) {
   const handleSubmit = async () => {
     if (!isBalanced) return;
     
+    const hasEmptyAccount = formData.entries.some(e => !e.accountId);
+    if (hasEmptyAccount) {
+        alert('Please select an Account / Category for all entries.');
+        return;
+    }
+
+    if (totalDebit <= 0) {
+        alert('Amount must be greater than 0.');
+        return;
+    }
+    
     const result = await dispatch(addVoucher({
         ...formData,
         totalAmount: totalDebit

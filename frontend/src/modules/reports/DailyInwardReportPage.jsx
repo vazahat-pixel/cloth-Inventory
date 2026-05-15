@@ -70,6 +70,8 @@ function DailyInwardReportPage() {
       quantity: toNum(m.quantity || m.qty),
       reference: m.reference || '-',
       reason: m.sourceType || m.reason || 'Inward',
+      purchaseRate: toNum(m.purchaseRate || 0),
+      totalValue: toNum(m.totalValue || 0),
     })).filter(row => {
        if (!query) return true;
        return row.itemName.toLowerCase().includes(query) || row.sku.toLowerCase().includes(query) || row.reference.toLowerCase().includes(query);
@@ -83,9 +85,11 @@ function DailyInwardReportPage() {
 
   const summary = useMemo(() => {
     const totalQty = inwardRows.reduce((sum, r) => sum + r.quantity, 0);
+    const totalValue = inwardRows.reduce((sum, r) => sum + r.totalValue, 0);
     return {
       totalEntries: inwardRows.length,
-      totalQuantity: totalQty
+      totalQuantity: totalQty,
+      totalValue: totalValue
     };
   }, [inwardRows]);
 
@@ -97,6 +101,8 @@ function DailyInwardReportPage() {
         SKU: r.sku,
         'Size/Color': r.sizeColor,
         Quantity: r.quantity,
+        'Purchase Rate': r.purchaseRate,
+        'Total Value': r.totalValue,
         Location: r.location,
         Reference: r.reference,
         Reason: r.reason
@@ -151,14 +157,15 @@ function DailyInwardReportPage() {
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} flexWrap="wrap" useFlexGap>
           <SummaryChip label="Total Receipts" value={summary.totalEntries} />
           <SummaryChip label="Total Quantity Received" value={summary.totalQuantity} strong />
+          <SummaryChip label="Total Value" value={`₹${summary.totalValue.toFixed(2)}`} strong />
         </Stack>
       </Paper>
 
       <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2 }}>
         <Stack direction="row" justifyContent="flex-end" sx={{ p: 1.5 }}>
           <ReportExportButton
-            headers={['Date', 'Item', 'SKU', 'Size/Color', 'Quantity', 'Location', 'Reference', 'Reason']}
-            headerKeys={['Date', 'Item', 'SKU', 'Size/Color', 'Quantity', 'Location', 'Reference', 'Reason']}
+            headers={['Date', 'Item', 'SKU', 'Size/Color', 'Quantity', 'Rate', 'Total Value', 'Location', 'Reference', 'Reason']}
+            headerKeys={['Date', 'Item', 'SKU', 'Size/Color', 'Quantity', 'Purchase Rate', 'Total Value', 'Location', 'Reference', 'Reason']}
             rows={exportRows}
             filename={`daily-inward-report-${filters.dateFrom || today}.csv`}
           />
@@ -172,6 +179,8 @@ function DailyInwardReportPage() {
                 <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Size/Color</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">Quantity</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Rate</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Total Value</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Location</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Reference</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Source/Reason</TableCell>
@@ -185,6 +194,8 @@ function DailyInwardReportPage() {
                   <TableCell sx={{ fontFamily: 'monospace' }}>{row.sku}</TableCell>
                   <TableCell>{row.sizeColor}</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 700, color: '#059669' }}>+{row.quantity}</TableCell>
+                  <TableCell align="right">₹{row.purchaseRate.toFixed(2)}</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700 }}>₹{row.totalValue.toFixed(2)}</TableCell>
                   <TableCell>{row.location}</TableCell>
                   <TableCell>{row.reference}</TableCell>
                   <TableCell>{row.reason}</TableCell>

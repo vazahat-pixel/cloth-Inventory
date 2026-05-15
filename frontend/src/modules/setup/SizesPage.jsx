@@ -112,9 +112,13 @@ function SizesPage() {
     const nextErrors = {};
     if (!formValues.sizeCode.trim()) {
       nextErrors.sizeCode = 'Size code is required.';
+    } else if (formValues.sizeCode.trim().length === 0) {
+      nextErrors.sizeCode = 'Size code cannot be empty.';
     }
     if (!formValues.sizeLabel.trim()) {
-      nextErrors.sizeLabel = 'Size label is required.';
+      nextErrors.sizeLabel = 'Size label/name is required.';
+    } else if (formValues.sizeLabel.trim().length === 0) {
+      nextErrors.sizeLabel = 'Size label/name cannot be empty.';
     }
     if (formValues.sequence === '') {
       nextErrors.sequence = 'Sequence is required.';

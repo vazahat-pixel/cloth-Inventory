@@ -248,6 +248,7 @@ function AppRoutes() {
               <Route index element={<Navigate to="sale-bill" replace />} />
               <Route path="sale-bill" element={<SalesBillListPage />} />
               <Route path="sale-bill/new" element={<SalesBillFormPage />} />
+              <Route path="sale-bill/:id/edit" element={<SalesBillFormPage mode="edit" />} />
               <Route path="sales-return" element={<SalesReturnPage />} />
               <Route path="sales-return/:id" element={<SalesReturnPage />} />
               <Route path=":key" element={<SalesHubSubPage />} />
@@ -333,6 +334,7 @@ function AppRoutes() {
               {/* Analysis & Audit */}
               <Route path="profit" element={<ProfitReportPage />} />
               <Route path="consolidated" element={<ConsolidatedStockPage />} />
+              <Route path="inventory/consolidated" element={<ConsolidatedStockPage />} />
               <Route path="closure-history" element={<StoreClosureAuditPage />} />
               <Route path="closure" element={<DayEndClosurePage />} />
               <Route path="movement" element={<MovementReportPage />} />
@@ -377,6 +379,7 @@ function AppRoutes() {
           <Route path="inventory/receipt" element={<DeliveryChallanPage />} />
           <Route path="inventory/audit-view" element={<StockAuditView />} />
           <Route path="sales/sale-bill/new" element={<SalesBillFormPage />} />
+          <Route path="sales/sale-bill/:id/edit" element={<SalesBillFormPage mode="edit" />} />
           <Route path="sales/sale-bill" element={<SalesBillListPage returnPathBuilder={(saleId) => `/sales/sales-return/${saleId}`} />} />
           <Route path="sales/sales-return" element={<SalesReturnPage listPath="/store/sales/sale-bill" />} />
           <Route path="sales/sales-return/:id" element={<SalesReturnPage listPath="/store/sales/sale-bill" />} />

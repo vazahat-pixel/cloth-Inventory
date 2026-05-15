@@ -23,14 +23,16 @@ const toNumber = (value, fallback = 0) => {
   return Number.isFinite(numeric) ? numeric : fallback;
 };
 
-function PaymentDialog({ open, onClose, netAmount, onConfirm }) {
+function PaymentDialog({ open, onClose, totals, onComplete, store, customer, isEditMode = false }) {
+  const netAmount = totals?.netPayable || 0;
+  const onConfirm = onComplete; // Alias for internal use
   const [paymentMode, setPaymentMode] = useState('Cash');
   const [amountPaid, setAmountPaid] = useState('');
 
   useEffect(() => {
     if (!open) return;
     setPaymentMode('Cash');
-    setAmountPaid(String(netAmount || ''));
+    setAmountPaid(String(Number(netAmount || 0).toFixed(2)));
   }, [netAmount, open]);
 
   const computedAmountPaid = toNumber(amountPaid);
@@ -65,6 +67,16 @@ function PaymentDialog({ open, onClose, netAmount, onConfirm }) {
               <Typography variant="h6" sx={{ color: "#0f172a", fontWeight: 800 }}>
                 ₹{Number(netAmount || 0).toFixed(2)}
               </Typography>
+              {customer && (
+                <Typography variant="caption" sx={{ display: 'block', color: '#64748b', fontWeight: 600 }}>
+                  Customer: {customer.name} ({customer.mobile})
+                </Typography>
+              )}
+              {store && (
+                <Typography variant="caption" sx={{ display: 'block', color: '#64748b', fontWeight: 600 }}>
+                  Store: {store.name}
+                </Typography>
+              )}
             </Box>
 
             <FormControl size="small" sx={{ minWidth: 180 }}>
@@ -105,7 +117,7 @@ function PaymentDialog({ open, onClose, netAmount, onConfirm }) {
       <DialogActions sx={{ p: 2 }}>
         <Button onClick={onClose}>Cancel</Button>
         <Button variant="contained" onClick={handleConfirm}>
-          Confirm Payment
+          {isEditMode ? 'Save & Update Bill' : 'Confirm Payment'}
         </Button>
       </DialogActions>
     </Dialog>

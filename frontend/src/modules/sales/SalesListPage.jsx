@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchSales } from './salesSlice';
+import { fetchSales, deleteSale } from './salesSlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import {
   Box,
@@ -26,6 +26,8 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import SearchIcon from '@mui/icons-material/Search';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import KeyboardReturnOutlinedIcon from '@mui/icons-material/KeyboardReturnOutlined';
+import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import SalesDetailDialog from './SalesDetailDialog';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import BillPrintDialog from '../../components/BillPrintDialog';
@@ -59,6 +61,14 @@ function SalesListPage({
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selectedSale, setSelectedSale] = useState(null);
   const [printTarget, setPrintTarget] = useState(null);
+
+  const handleDelete = (id) => {
+    if (window.confirm('Are you sure you want to delete this sale? This action will restore the stock.')) {
+      dispatch(deleteSale(id)).then(() => {
+        dispatch(fetchSales());
+      });
+    }
+  };
 
   useEffect(() => {
     dispatch(fetchSales());
@@ -209,6 +219,9 @@ function SalesListPage({
                     <TableCell sx={{ fontWeight: 700 }}>Customer / Mobile</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Type</TableCell>
                     <TableCell sx={{ fontWeight: 700 }} align="right">
+                      Total Items
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">
                       Net Amount
                     </TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Store</TableCell>
@@ -268,6 +281,20 @@ function SalesListPage({
                               onClick={() => navigate(returnPathBuilder(row.id))}
                             >
                               <KeyboardReturnOutlinedIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              color="primary"
+                              onClick={() => navigate(`/sales/sale-bill/${row.id}/edit`)}
+                            >
+                              <EditOutlinedIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleDelete(row.id)}
+                            >
+                              <DeleteOutlineOutlinedIcon fontSize="small" />
                             </IconButton>
                           </Stack>
                         </TableCell>

@@ -91,9 +91,18 @@ function MasterListPage({
           id: editingRow.id || editingRow._id,
           updates: payload,
         }),
-      );
+      ).unwrap().then(() => {
+        dispatch(fetchMasters(entityKey));
+      }).catch(() => {
+        dispatch(fetchMasters(entityKey));
+      });
     } else {
-      dispatch(addMasterRecord({ entityKey, record: payload }));
+      dispatch(addMasterRecord({ entityKey, record: payload }))
+      .unwrap().then(() => {
+        dispatch(fetchMasters(entityKey));
+      }).catch(() => {
+        dispatch(fetchMasters(entityKey));
+      });
     }
 
     closeDialog();

@@ -96,13 +96,13 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
             sku: item.sku || item.variantId?.sku || item.barcode || '-',
             size: item.size || item.variantId?.size || '-',
             color: item.color || item.variantId?.color || '-',
-            hsnCode: item.hsnCode || item.itemId?.hsnCode || 'N/A'
+            hsnCode: item.hsnCode || item.itemId?.hsCodeId?.code || item.itemId?.hsnCode || 'N/A'
         };
     });
 
     // Group items by category for the new format
     const groupedItems = normalizedItems.reduce((acc, item) => {
-        const cat = (item.category || item.itemId?.categoryId?.name || item.categoryId?.name || 'OTHERS').toUpperCase();
+        const cat = (item.category || item.itemId?.categoryId?.name || item.categoryId?.name || item.itemId?.category || 'OTHERS').toUpperCase();
         if (!acc[cat]) acc[cat] = [];
         acc[cat].push(item);
         return acc;

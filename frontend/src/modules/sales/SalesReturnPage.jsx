@@ -94,6 +94,14 @@ function SalesReturnPage({
   const [successMessage, setSuccessMessage] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
 
   const { register, handleSubmit, reset, watch } = useForm({
     defaultValues: {
@@ -159,6 +167,10 @@ function SalesReturnPage({
       previous.map((line) => {
         if (line.id !== lineId) {
           return line;
+        }
+
+        if (value === '') {
+          return { ...line, returnQty: '' };
         }
 
         const qty = Math.max(0, Number(value));
@@ -227,9 +239,9 @@ function SalesReturnPage({
 
   if (!sale) {
     const filteredSales = sales.filter(s => 
-      String(s.invoiceNumber || s.billNumber || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      String(s.customerName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      String(s.phone || '').includes(searchQuery)
+      String(s.invoiceNumber || s.billNumber || '').toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      String(s.customerName || '').toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      String(s.phone || '').includes(debouncedSearch)
     ).slice(0, 15);
 
     return (
@@ -262,7 +274,7 @@ function SalesReturnPage({
           </Paper>
 
           <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#475569', mt: 2 }}>
-            {searchQuery ? 'Search Results' : 'Recent Sales for Return'}
+            {debouncedSearch ? 'Search Results' : 'Recent Sales for Return'}
           </Typography>
 
           <Grid container spacing={2}>
@@ -479,6 +491,7 @@ function SalesReturnPage({
                             type="number"
                             value={line.returnQty}
                             onChange={(event) => updateReturnQty(line.id, event.target.value)}
+                            onFocus={(e) => e.target.value === '0' && updateReturnQty(line.id, '')}
                             sx={{ width: 95, '& input': { textAlign: 'right', p: 1 } }}
                           />
                         </TableCell>

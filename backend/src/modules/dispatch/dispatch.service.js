@@ -353,6 +353,19 @@ const updateDispatch = async (id, dispatchData, userId) => {
     return await withTransaction(async (session) => {
         const dispatchMaster = await Dispatch.findById(id).session(session);
         if (!dispatchMaster) throw new Error('Dispatch record not found');
+        if (dispatchData.status && dispatchData.status !== dispatchMaster.status) {
+            const currentStatus = dispatchMaster.status;
+            const newStatus = dispatchData.status;
+            if (currentStatus === 'PENDING' && !['PACKED', 'DISPATCHED'].includes(newStatus)) {
+                throw new Error('Invalid status transition. Status must progress from Pending to In-Transit (Dispatched).');
+            }
+            if (currentStatus === 'DISPATCHED' && newStatus !== 'RECEIVED') {
+                throw new Error('Invalid status transition. Status must progress from In-Transit (Dispatched) to Completed (Received).');
+            }
+            if (currentStatus === 'RECEIVED') {
+                throw new Error('Cannot update status of an already completed dispatch.');
+            }
+        }
         if (!['PENDING', 'PACKED'].includes(dispatchMaster.status)) throw new Error('Only pending or packed challans can be updated');
 
         const { items: newItems, products, notes, sourceId, destinationStoreId, vehicleNumber, driverName } = dispatchData;

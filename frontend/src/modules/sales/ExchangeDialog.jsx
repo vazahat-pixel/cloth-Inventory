@@ -82,9 +82,9 @@ function ExchangeDialog({ open, onClose, onAddItems, storeId }) {
       items: selectedItems.map(i => ({
         ...i,
         quantity: i.returnQty,
-        // We use the original rate for credit calculation
         rate: i.rate,
-        tax: i.taxPercentage || 0,
+        mrp: i.mrp || i.rate,
+        tax: i.tax || i.gstPercent || 0,
         isReturn: true
       }))
     });

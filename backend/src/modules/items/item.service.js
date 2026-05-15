@@ -274,10 +274,52 @@ class ItemService {
 
   async scanItemByBarcode(barcode) {
     if (!barcode) throw new Error('Barcode is required');
-    const upperBarcode = barcode.toUpperCase();
-    const item = await Item.findOne({ $or: [{ itemCode: upperBarcode }, { 'sizes.sku': barcode }, { 'sizes.barcode': barcode }] }).populate('brand', 'name brandName').populate('hsCodeId', 'code hsnCode gstRate gstPercent');
+    const upperBarcode = barcode.toUpperCase().trim();
+    
+    // 1. Direct Match (Item Code, Item Name, SKU, or Barcode)
+    let item = await Item.findOne({ 
+      $or: [
+        { itemCode: upperBarcode }, 
+        { itemName: upperBarcode },
+        { 'sizes.sku': upperBarcode }, 
+        { 'sizes.barcode': upperBarcode }
+      ] 
+    }).populate('brand', 'name brandName').populate('hsCodeId', 'code hsnCode gstRate gstPercent');
+
+    // 2. Composite Match (Handle cases like "ITEMCODE SHADE" - preserving hyphens in codes)
+    if (!item && upperBarcode.includes(' ')) {
+      const parts = upperBarcode.split(/\s+/).filter(Boolean);
+      if (parts.length >= 2) {
+        const potentialCode = parts[0];
+        const potentialShade = parts.slice(1).join(' ');
+        
+        item = await Item.findOne({ 
+          $and: [
+            { $or: [{ itemCode: potentialCode }, { itemName: new RegExp(`^${potentialCode}`, 'i') }] },
+            { $or: [
+              { shadeNo: { $regex: new RegExp(potentialShade, 'i') } },
+              { color: { $regex: new RegExp(potentialShade, 'i') } }
+            ]}
+          ]
+        }).populate('brand', 'name brandName').populate('hsCodeId', 'code hsnCode gstRate gstPercent');
+      }
+    }
+
+    // 3. Fallback: Check if the whole scanned string matches the itemName
+    if (!item) {
+        item = await Item.findOne({ 
+            itemName: { $regex: new RegExp(upperBarcode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') } 
+        }).populate('brand', 'name brandName').populate('hsCodeId', 'code hsnCode gstRate gstPercent');
+    }
+
     if (!item) return null;
-    const variant = item.sizes.find(s => s.sku === barcode || s.barcode === barcode) || item.sizes[0];
+
+    // Determine variant
+    const variant = item.sizes.find(s => 
+      s.sku?.toUpperCase() === upperBarcode || 
+      s.barcode?.toUpperCase() === upperBarcode
+    ) || item.sizes[0];
+
     return { item, variant };
   }
 

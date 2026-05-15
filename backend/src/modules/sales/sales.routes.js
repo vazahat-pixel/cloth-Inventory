@@ -16,6 +16,7 @@ router.route('/')
 
 router.get('/:id', requireAny, salesController.getSaleById);
 router.patch('/:id/cancel', requireAny, salesController.cancelSale);
+router.delete('/:id', requireAny, salesController.deleteSale);
 
 // Apply a credit note against an existing sale (post-billing redemption)
 // Body: { creditNoteId: string }

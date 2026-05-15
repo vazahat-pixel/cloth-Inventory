@@ -36,32 +36,68 @@ const {
 /**
  * Generate unique Sale/Invoice Number (INV-YYYY-XXXXX)
  */
-const generateSaleNumber = async (session = null) => {
-    const year = new Date().getFullYear();
-    const prefix = `INV-${year}-`;
-    const counterName = `SALE_${year}`;
+const generateSaleNumber = async (storeId, session = null) => {
+    let storeName = '';
+    let store = null;
+    if (storeId) {
+        const Store = require('../../models/store.model');
+        const Warehouse = require('../../models/warehouse.model');
+        
+        store = await Store.findById(storeId).session(session);
+        if (!store) {
+            store = await Warehouse.findById(storeId).session(session);
+        }
+        if (store && store.name) {
+            storeName = store.name.toUpperCase();
+        }
+    }
+    
+    const storePrefixMap = {
+        'BHOPAL': 'BPL',
+        'BHUCHO MANDI': 'BHU',
+        'GTB NAGAR': 'GTB',
+        'SONIPAT': 'SNP',
+        'MUKTSAR SAHIB': 'MUK',
+        'HANUMANGARH': 'HAN',
+        'PITAMPURA': 'PTM',
+        'SAHIBABAD': 'SAH',
+        'SHAHJAHANPUR': 'SHA'
+    };
+    
+    let prefix = 'INV';
+    for (const [key, val] of Object.entries(storePrefixMap)) {
+        if (storeName.includes(key)) {
+            prefix = val;
+            break;
+        }
+    }
+
+    const finalPrefix = `${store?.invoicePrefix || prefix}-`;
+    const counterName = `SALE_${store?.invoicePrefix || prefix || 'INV'}`;
 
     const seq = await getNextSequence(counterName, session);
-    return `${prefix}${seq.toString().padStart(5, '0')}`;
+    return `${finalPrefix}${seq.toString().padStart(4, '0')}`;
 };
 
 /**
  * Get product by barcode for scanning
  */
 const getProductForSale = async (barcode, storeId) => {
-    // Search in Item collection's sizes array for either barcode or sku or itemCode
+    const regex = new RegExp(`^${barcode}$`, 'i');
     const parentItem = await Item.findOne({ 
         $or: [
-            { itemCode: barcode.toUpperCase() },
-            { "sizes.barcode": barcode }, 
-            { "sizes.sku": barcode }
-        ],
+            { itemCode: regex },
+            { "sizes.barcode": regex }, 
+            { "sizes.sku": regex },
+            mongoose.Types.ObjectId.isValid(barcode) ? { "sizes._id": barcode } : null,
+            mongoose.Types.ObjectId.isValid(barcode) ? { _id: barcode } : null
+        ].filter(Boolean),
         isActive: true 
     }).populate('hsCodeId');
     
     if (!parentItem) throw new Error('Product not found for this identifier: ' + barcode);
 
-    const variant = parentItem.sizes.find(sz => sz.barcode === barcode || sz.sku === barcode) || parentItem.sizes[0];
+    const variant = parentItem.sizes.find(sz => String(sz.barcode || '').toLowerCase() === String(barcode || '').toLowerCase() || String(sz.sku || '').toLowerCase() === String(barcode || '').toLowerCase() || String(sz._id) === String(barcode)) || parentItem.sizes[0];
     if (!variant) throw new Error('Variant not found for this identifier: ' + barcode);
 
     // Check stock from StoreInventory
@@ -70,6 +106,7 @@ const getProductForSale = async (barcode, storeId) => {
         storeId, 
         $or: [
             { barcode }, 
+            { barcode: regex },
             { variantId: String(variant._id) }
         ]
     });
@@ -84,6 +121,7 @@ const getProductForSale = async (barcode, storeId) => {
             warehouseId: storeId, 
             $or: [
                 { barcode }, 
+                { barcode: regex },
                 { variantId: String(variant._id) }
             ]
         });
@@ -169,7 +207,7 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
         const finalCustomerName = customer?.name || customerName || 'Walk-in Customer';
 
         // 1. Generate Sale Number
-        const saleNumber = await generateSaleNumber(session);
+        const saleNumber = await generateSaleNumber(storeId, session);
 
         // 2. Process NEW Products and Update Inventory
         let totalCGST = 0;
@@ -391,6 +429,8 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
 
             item.category = finalCategory;
             item.brand = finalBrand;
+            item.size = item.size || variant?.size || 'N/A';
+            item.color = item.color || variant?.color || parentItem.shade || 'N/A';
             item.promoDiscount = promoDiscount;
             item.discountPercent = discountPercent;
             item.discountAmount = totalDiscountAmt;
@@ -438,9 +478,18 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
                     itemId: matchedSaleItem.itemId,
                     barcode: rItem.barcode,
                     variantId: matchedSaleItem.variantId,
+                    itemName: matchedSaleItem.itemName,
+                    sku: matchedSaleItem.sku,
+                    hsnCode: matchedSaleItem.hsnCode,
+                    category: matchedSaleItem.category,
+                    brand: matchedSaleItem.brand,
+                    size: matchedSaleItem.size,
+                    color: matchedSaleItem.color,
                     quantity: rItem.quantity,
+                    mrp: matchedSaleItem.mrp || matchedSaleItem.rate,
                     rate: matchedSaleItem.rate,
                     taxAmount: itemReturnTax,
+                    taxPercentage: matchedSaleItem.taxPercentage || 0,
                     total: itemReturnValue + itemReturnTax
                 });
 
@@ -500,7 +549,18 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             await creditNote.save({ session });
         }
 
-        const finalGrandTotal = Number(Math.max(0, (calculatedSubTotal || 0) + (totalTax || 0) - (discount || 0) - (loyaltyRedemptionAmount || 0) - (creditNoteAppliedAmount || 0) - (totalReturnValue || 0)).toFixed(2)) || 0;
+        const netDifference = (calculatedSubTotal || 0) + (totalTax || 0) - (discount || 0) - (loyaltyRedemptionAmount || 0) - (creditNoteAppliedAmount || 0) - (totalReturnValue || 0);
+        
+        let surplusAmount = 0;
+        let finalGrandTotal = 0;
+        
+        if (netDifference < 0) {
+            surplusAmount = Math.abs(Number(netDifference.toFixed(2)));
+            finalGrandTotal = 0;
+        } else {
+            finalGrandTotal = Number(netDifference.toFixed(2));
+        }
+
         const exchangeAdjustment = totalReturnValue || 0;
 
         // 3. Create Sale Record
@@ -528,6 +588,8 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
                 hsnCode: p.hsnCode,
                 category: p.category,
                 brand: p.brand,
+                size: p.size,
+                color: p.color,
                 promoDiscount: p.promoDiscount || 0,
                 discountAmount: p.discountAmount || 0,
                 quantity: p.quantity,
@@ -559,10 +621,23 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             customerName: finalCustomerName,
             paymentMode: saleData.paymentMode || 'CASH',
             status: dueAmount > 0 ? SaleStatus.PARTIAL : SaleStatus.COMPLETED,
-            saleDate: Date.now()
+            saleDate: saleData.date ? new Date(saleData.date) : Date.now()
         });
         await sale.save({ session });
-
+        
+        // Generate Credit Note if there's a surplus from exchange
+        if (surplusAmount > 0 && finalCustomerId) {
+            const creditNote = new CreditNote({
+                customerId: finalCustomerId,
+                saleId: sale._id,
+                amount: surplusAmount,
+                remainingAmount: surplusAmount,
+                reason: `Exchange Surplus from Sale ${saleNumber}`,
+                status: CreditNoteStatus.ACTIVE,
+                createdBy: cashierId
+            });
+            await creditNote.save({ session });
+        }
         // 4. Update Stock and Record in Ledger
         for (const mov of stockMovements) {
             if (mov.type === 'SALE') {
@@ -1135,11 +1210,132 @@ const applyCreditNote = async (saleId, creditNoteId, userId) => {
     });
 };
 
+const deleteSale = async (id, userId) => {
+    return await withTransaction(async (session) => {
+        const sale = await Sale.findById(id).session(session);
+        if (!sale) throw new Error('Sale not found');
+        
+        // Only reverse if it wasn't already cancelled
+        if (sale.status !== SaleStatus.CANCELLED) {
+            // 1. Reverse Stock
+            const stockService = require('../../services/stock.service');
+            for (const item of sale.items) {
+                await stockService.addStock({
+                    variantId: item.variantId,
+                    locationId: sale.storeId,
+                    locationType: 'STORE',
+                    qty: item.quantity,
+                    type: 'RETURN',
+                    referenceId: sale._id,
+                    referenceType: 'Sale',
+                    performedBy: userId,
+                    session
+                });
+
+                // Update Store Inventory quantitySold
+                await StoreInventory.findOneAndUpdate(
+                    { storeId: sale.storeId, barcode: item.barcode },
+                    { $inc: { quantitySold: -item.quantity } },
+                    { session }
+                );
+            }
+
+            // 2. Reverse Loyalty Points
+            if (sale.customerId) {
+                const customer = await Customer.findById(sale.customerId).session(session);
+                if (customer) {
+                    const pointsToClawback = Math.floor(sale.grandTotal / LOYALTY_EARNING_RATIO);
+                    if (pointsToClawback > 0) {
+                        customer.loyaltyPoints -= pointsToClawback;
+                        customer.totalEarned -= pointsToClawback;
+                        await LoyaltyTransaction.create([{
+                            customerId: sale.customerId,
+                            saleId: sale._id,
+                            type: LoyaltyType.REDEEM, // Mark as deduction
+                            points: pointsToClawback,
+                            referenceNumber: sale.saleNumber,
+                            createdBy: userId,
+                            notes: 'Clawback due to sale deletion'
+                        }], { session });
+                    }
+
+                    if (sale.loyaltyRedeemed > 0) {
+                        const pointsRestored = sale.loyaltyRedeemed / LOYALTY_POINT_VALUE;
+                        customer.loyaltyPoints += pointsRestored;
+                        customer.totalRedeemed -= pointsRestored;
+                        await LoyaltyTransaction.create([{
+                            customerId: sale.customerId,
+                            saleId: sale._id,
+                            type: LoyaltyType.EARN, // Mark as restoration
+                            points: pointsRestored,
+                            referenceNumber: sale.saleNumber,
+                            createdBy: userId,
+                            notes: 'Restoration due to sale deletion'
+                        }], { session });
+                    }
+                    await customer.save({ session });
+                }
+            }
+
+            // 3. Restore Credit Note
+            if (sale.creditNoteId && sale.creditNoteApplied > 0) {
+                const creditNote = await CreditNote.findById(sale.creditNoteId).session(session);
+                if (creditNote) {
+                    creditNote.remainingAmount += sale.creditNoteApplied;
+                    if (creditNote.status === CreditNoteStatus.USED) {
+                        creditNote.status = CreditNoteStatus.ACTIVE;
+                    }
+                    await creditNote.save({ session });
+                }
+            }
+
+            // 4. Reverse Ledger Entries
+            const salesAccount = await Account.findOne({ name: 'Sales Account' }).session(session);
+            const receivableAccount = await Account.findOne({ name: 'Accounts Receivable' }).session(session);
+            const discountAccount = await Account.findOne({ name: 'Discount Expense' }).session(session);
+            const loyaltyAccount = await Account.findOne({ name: 'Loyalty Expense' }).session(session);
+            const creditNoteAccount = await Account.findOne({ name: 'Credit Note Control' }).session(session);
+            const gstAccount = await Account.findOne({ name: 'GST Payable' }).session(session);
+
+            const reversalEntries = [];
+
+            if (receivableAccount) reversalEntries.push({ voucherType: 'SALE_CANCEL', voucherId: sale._id, accountId: receivableAccount._id, debit: 0, credit: sale.grandTotal, narration: `Delete Sale ${sale.saleNumber}`, createdBy: userId });
+            if (salesAccount) reversalEntries.push({ voucherType: 'SALE_CANCEL', voucherId: sale._id, accountId: salesAccount._id, debit: sale.subTotal, credit: 0, narration: `Delete Sale ${sale.saleNumber}`, createdBy: userId });
+            if (sale.discount > 0 && discountAccount) reversalEntries.push({ voucherType: 'SALE_CANCEL', voucherId: sale._id, accountId: discountAccount._id, debit: 0, credit: sale.discount, narration: `Delete Sale ${sale.saleNumber} discount`, createdBy: userId });
+            if (sale.loyaltyRedeemed > 0 && loyaltyAccount) reversalEntries.push({ voucherType: 'SALE_CANCEL', voucherId: sale._id, accountId: loyaltyAccount._id, debit: 0, credit: sale.loyaltyRedeemed, narration: `Delete Sale ${sale.saleNumber} loyalty restoration`, createdBy: userId });
+            if (sale.creditNoteApplied > 0 && creditNoteAccount) reversalEntries.push({ voucherType: 'SALE_CANCEL', voucherId: sale._id, accountId: creditNoteAccount._id, debit: 0, credit: sale.creditNoteApplied, narration: `Delete Sale ${sale.saleNumber} credit note restoration`, createdBy: userId });
+            if (sale.totalTax > 0 && gstAccount) reversalEntries.push({ voucherType: 'SALE_CANCEL', voucherId: sale._id, accountId: gstAccount._id, debit: sale.totalTax, credit: 0, narration: `Delete Sale ${sale.saleNumber} tax reversal`, createdBy: userId });
+
+            if (reversalEntries.length > 0) {
+                await ledgerService.createJournalEntries(reversalEntries, session);
+            }
+        }
+
+        sale.status = SaleStatus.CANCELLED;
+        sale.isDeleted = true;
+        await sale.save({ session });
+
+        await createAuditLog({
+            performedBy: userId,
+            action: 'DELETE_SALE',
+            module: 'SALES',
+            targetId: sale._id,
+            targetModel: 'Sale',
+            before: { status: sale.status, isDeleted: false },
+            after: { status: SaleStatus.CANCELLED, isDeleted: true },
+            session
+        });
+
+        return sale;
+    });
+};
+
 module.exports = {
     getProductForSale,
     createSale,
     getAllSales,
     getSaleById,
     cancelSale,
-    applyCreditNote
+    applyCreditNote,
+    deleteSale
 };

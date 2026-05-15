@@ -1,10 +1,13 @@
 import MasterFormDialog from '../components/MasterFormDialog';
 
 const storeFields = [
-    { name: 'name', label: 'Store Name', required: true },
-    // { name: 'managerName', label: 'Manager Name', required: true },
-    // { name: 'managerPhone', label: 'Manager Phone', required: true },
-    { name: 'gstNumber', label: 'GST Number', required: false },
+    { name: 'name', label: 'Store Name', required: true, validate: (v) => v.trim().length > 0 || 'Name cannot be empty' },
+    { name: 'storeCode', label: 'Store Code', required: true, validate: (v) => v.trim().length > 0 || 'Code cannot be empty' },
+    { name: 'managerName', label: 'Manager Name' },
+    { name: 'managerPhone', label: 'Phone', required: true, pattern: { value: /^\d{10}$/, message: 'Phone must be exactly 10 digits' } },
+    { name: 'alternatePhone', label: 'Alternate Phone', pattern: { value: /^(?:\d{10})?$/, message: 'Alternate Phone must be exactly 10 digits if provided' } },
+    { name: 'gstNumber', label: 'GST Number', required: false, pattern: { value: /^(?:[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1})?$/, message: 'Invalid 15-char GSTIN format' } },
+    { name: 'panNo', label: 'PAN No', pattern: { value: /^(?:[A-Z]{5}[0-9]{4}[A-Z]{1})?$/, message: 'Invalid 10-char PAN format' } },
     { name: 'email', label: 'Login Email / Username', required: true, type: 'email' },
     { 
         name: 'password', 
@@ -20,8 +23,10 @@ const storeFields = [
         type: 'number',
         helperText: 'Discount applied on Warehouse-to-Store transfers'
     },
-    { name: 'city', label: 'City', required: true },
-    { name: 'state', label: 'State', required: true },
+    { name: 'openingBalance', label: 'Opening Balance', required: false, type: 'number', defaultValue: 0, validate: (v) => Number(v) >= 0 || 'Opening balance cannot be negative' },
+    { name: 'city', label: 'City', required: true, pattern: { value: /^[A-Za-z\s]+$/, message: 'City can only contain alphabets and spaces' } },
+    { name: 'state', label: 'State', required: true, pattern: { value: /^[A-Za-z\s]+$/, message: 'State can only contain alphabets and spaces' } },
+    { name: 'pincode', label: 'Pincode', required: true, pattern: { value: /^\d{6}$/, message: 'Pincode must be exactly 6 digits' } },
     { name: 'address', label: 'Complete Address', required: true, multiline: true },
     {
         name: 'isActive',
@@ -42,8 +47,10 @@ function StoresFormDialog({ open, onClose, onSubmit, initialValues }) {
     const flattenedInitialValues = initialValues ? {
         ...initialValues,
         transferDiscountPct: initialValues.transferDiscountPct || 0,
+        openingBalance: initialValues.openingBalance || 0,
         city: initialValues.location?.city || initialValues.city || '',
         state: initialValues.location?.state || initialValues.state || '',
+        pincode: initialValues.location?.pincode || initialValues.pincode || '',
         address: initialValues.location?.address || initialValues.address || '',
     } : null;
 
@@ -53,11 +60,13 @@ function StoresFormDialog({ open, onClose, onSubmit, initialValues }) {
             location: {
                 city: values.city,
                 state: values.state,
+                pincode: values.pincode,
                 address: values.address,
             }
         };
         delete payload.city;
         delete payload.state;
+        delete payload.pincode;
         delete payload.address;
 
         onSubmit(payload);

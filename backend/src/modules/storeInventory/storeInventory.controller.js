@@ -115,12 +115,34 @@ const clearStoreInventory = async (req, res, next) => {
     }
 };
 
+const clearWarehouseInventory = async (req, res, next) => {
+    try {
+        const warehouseId = req.body.warehouseId || req.query.warehouseId;
+
+        // Ensure user is an admin or head office role, not a store staff
+        const role = (req.user.role || '').toLowerCase();
+        if (role.includes('staff') || role.includes('manager') || role.includes('accountant')) {
+             return sendError(res, 'Only Head Office or Admin can clear warehouse inventory.', 403);
+        }
+
+        if (!warehouseId) {
+            return sendError(res, 'warehouseId is required', 400);
+        }
+
+        const result = await storeInventoryService.clearWarehouseInventory(warehouseId, req.user._id);
+        return sendSuccess(res, result, 'Warehouse inventory cleared successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
 module.exports = {
     getStoreInventory,
     getProductInStore,
     adjustInventory,
     reconcileStock,
     bulkImportOpeningStock,
-    clearStoreInventory
+    clearStoreInventory,
+    clearWarehouseInventory
 };
 

@@ -85,7 +85,7 @@ function DayEndClosurePage() {
     <Box>
       <PageHeader
         title="Day-End Closure (Z-Report)"
-        subtitle="Finalize store sales and reconcile physical cash / दिन की समाप्ति की रिपोर्ट"
+        subtitle="Finalize store sales and reconcile physical cash"
         breadcrumbs={[{ label: 'Reports' }, { label: 'Closure', active: true }]}
       />
 
@@ -159,7 +159,7 @@ function DayEndClosurePage() {
             <Paper sx={{ p: 3, borderRadius: 3, bgcolor: variance === 0 ? '#f0fdf4' : variance > 0 ? '#fffbeb' : '#fef2f2', border: '1px solid', borderColor: variance === 0 ? '#bbf7d0' : variance > 0 ? '#fef3c7' : '#fecaca' }}>
                <Stack direction="row" justifyContent="space-between" alignItems="center">
                   <Box>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>Cash Variance / अंतर</Typography>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>Cash Variance</Typography>
                     <Typography variant="caption">Difference between physical and system cash</Typography>
                   </Box>
                   <Box sx={{ textAlign: 'right' }}>

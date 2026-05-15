@@ -17,8 +17,10 @@ const suppliersExportColumns = [
   { key: 'supplier_type', label: 'Supplier Type', order: 16 },
   { key: 'status', label: 'Status', order: 17 },
   { key: 'notes', label: 'Notes', order: 18 },
-  { key: 'created_at', label: 'Created At', order: 19 },
-  { key: 'updated_at', label: 'Updated At', order: 20 },
+  { key: 'created_at', label: 'Created At Date', order: 19 },
+  { key: 'created_at_time', label: 'Created At Time', order: 20 },
+  { key: 'updated_at', label: 'Updated At Date', order: 21 },
+  { key: 'updated_at_time', label: 'Updated At Time', order: 22 },
 ];
 
 export default suppliersExportColumns;

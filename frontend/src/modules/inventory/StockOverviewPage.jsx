@@ -24,6 +24,8 @@ import {
   DialogActions,
   Snackbar,
   Alert,
+  CircularProgress,
+  LinearProgress,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import TimelineOutlinedIcon from '@mui/icons-material/TimelineOutlined';
@@ -36,7 +38,7 @@ import SummaryCard from '../../components/erp/SummaryCard';
 import { buildSizeLabelLookup, resolveSizeLabel } from '../../common/sizeDisplay';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import stockOverviewExportColumns from '../../config/exportColumns/stockOverview';
-import { fetchStockOverview, clearStoreInventory } from './inventorySlice';
+import { fetchStockOverview, clearStoreInventory, clearWarehouseInventory } from './inventorySlice';
 import { fetchMasters } from '../masters/mastersSlice';
 
 const normalizeStockRows = (rows = []) =>
@@ -79,6 +81,7 @@ function StockOverviewPage() {
   const isStoreStaff = userRole.includes('staff') || userRole.includes('manager') || userRole.includes('accountant');
   const shopId = authUser?.shopId;
   const backendRows = useSelector((state) => state.inventory.stock || []);
+  const loading = useSelector((state) => state.inventory.loading);
   const totalRows = useSelector((state) => state.inventory.total || 0);
   const totalQuantity = useSelector((state) => state.inventory.totalQuantity || 0);
   const sizes = useSelector((state) => state.masters.sizes || []);
@@ -122,11 +125,41 @@ function StockOverviewPage() {
     }
   };
 
+  // Clear Warehouse Inventory States (HO/Admin Only)
+  const [openClearWarehouseDialog, setOpenClearWarehouseDialog] = useState(false);
+  const [clearWarehouseConfirmText, setClearWarehouseConfirmText] = useState('');
+  const [selectedWarehouseToClear, setSelectedWarehouseToClear] = useState('');
+
+  const handleClearWarehouseInventory = async () => {
+    if (clearWarehouseConfirmText !== 'DELETE' || !selectedWarehouseToClear) return;
+    setIsClearing(true);
+    try {
+      const result = await dispatch(clearWarehouseInventory(selectedWarehouseToClear)).unwrap();
+      setSnackbar({
+        open: true,
+        message: `Successfully cleared warehouse inventory! Deleted ${result?.deletedCount || 0} records safely.`,
+        severity: 'success'
+      });
+      setOpenClearWarehouseDialog(false);
+      setClearWarehouseConfirmText('');
+      setSelectedWarehouseToClear('');
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err || 'Failed to clear warehouse inventory.',
+        severity: 'error'
+      });
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
+
   // Debounced effect to fetch from backend when filters change
   useEffect(() => {
     const params = {
       page: 1, // Always fetch first page when limit is high (local pagination)
-      limit: 50000, 
+      limit: 1000, 
       search: searchText,
       type: typeFilter === 'all' ? undefined : typeFilter,
     };
@@ -136,24 +169,8 @@ function StockOverviewPage() {
     dispatch(fetchMasters('sizes'));
   }, [dispatch, searchText, typeFilter]); // Removed page from dependencies
 
-  // Auto-select Head Office warehouse by default (Only for non-store staff)
-  useEffect(() => {
-    if (isStoreStaff) {
-      setWarehouseFilter('all');
-      return;
-    }
-    if (warehouses && warehouses.length > 0 && warehouseFilter === 'all') {
-      const hoWarehouse = warehouses.find(w => 
-        (w.warehouseName || w.name || '').toLowerCase().includes('head office') || 
-        (w.warehouseName || w.name || '').toLowerCase().includes('rebel')
-      );
-      if (hoWarehouse) {
-        setWarehouseFilter(hoWarehouse.warehouseName || hoWarehouse.name);
-      } else {
-        setWarehouseFilter(warehouses[0].warehouseName || warehouses[0].name);
-      }
-    }
-  }, [warehouses, warehouseFilter, isStoreStaff]);
+  // Removed auto-select Head Office logic to prevent empty views when warehouse names don't match exactly.
+  // Users can now see all stock by default and filter as needed.
 
   const sizeLabelLookup = useMemo(() => buildSizeLabelLookup(sizes), [sizes]);
   const getSizeLabel = (value) => resolveSizeLabel(value, sizeLabelLookup);
@@ -241,6 +258,20 @@ function StockOverviewPage() {
               sx={{ fontWeight: 700, bgcolor: '#dc2626', '&:hover': { bgcolor: '#b91c1c' } }}
             >
               Clear Store Inventory
+            </Button>
+          ),
+          !isStoreStaff && (
+            <Button
+              key="clear-warehouse-inventory"
+              variant="contained"
+              color="error"
+              onClick={() => {
+                 setSelectedWarehouseToClear('');
+                 setOpenClearWarehouseDialog(true);
+              }}
+              sx={{ fontWeight: 700, bgcolor: '#dc2626', '&:hover': { bgcolor: '#b91c1c' } }}
+            >
+              Clear Warehouse Inventory
             </Button>
           ),
           <ExportButton key="export" rows={exportRows} columns={stockOverviewExportColumns} filename="stock-overview.xlsx" sheetName="Stock Overview" />,
@@ -346,7 +377,8 @@ function StockOverviewPage() {
       </FilterBar>
 
       <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, overflow: 'hidden' }}>
-        <TableContainer>
+        <TableContainer sx={{ position: 'relative' }}>
+          {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 }} />}
           <Table size="small">
             <TableHead>
               <TableRow>
@@ -412,14 +444,14 @@ function StockOverviewPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {!paginatedRows.length ? (
+              {!loading && !paginatedRows.length ? (
                 <TableRow>
-                  <TableCell colSpan={10} sx={{ py: 6, textAlign: 'center' }}>
+                  <TableCell colSpan={11} sx={{ py: 6, textAlign: 'center' }}>
                     <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0f172a', mb: 0.5 }}>
                       No stock rows available
                     </Typography>
                     <Typography variant="body2" sx={{ color: '#64748b' }}>
-                      Adjust filters to review location-wise stock or inward activity.
+                      Adjust filters or check connection. Total rows in database: {totalRows}
                     </Typography>
                   </TableCell>
                 </TableRow>
@@ -500,6 +532,88 @@ function StockOverviewPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Clear Warehouse Inventory Confirmation Dialog */}
+      <Dialog
+        open={openClearWarehouseDialog}
+        onClose={() => !isClearing && setOpenClearWarehouseDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 800, color: '#dc2626', display: 'flex', alignItems: 'center', gap: 1 }}>
+          ⚠️ CRITICAL ACTION: Clear Warehouse Inventory
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ color: '#1e293b', fontWeight: 600, mb: 2 }}>
+            You are about to delete ALL inventory stock records for a warehouse.
+          </DialogContentText>
+          <DialogContentText sx={{ fontSize: '0.875rem', color: '#64748b', mb: 3 }}>
+            This will completely wipe the warehouse inventory. It will **NOT** delete the item master records, only the stock balances. This action is irreversible.
+          </DialogContentText>
+          
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700, color: '#0f172a' }}>
+              Select Warehouse to Clear
+            </Typography>
+            <TextField
+              select
+              fullWidth
+              size="small"
+              value={selectedWarehouseToClear}
+              onChange={(e) => setSelectedWarehouseToClear(e.target.value)}
+              disabled={isClearing}
+            >
+              <MenuItem value="" disabled>Select a Warehouse</MenuItem>
+              {warehouses.map((w) => (
+                <MenuItem key={w._id || w.id} value={w._id || w.id}>
+                  {w.warehouseName || w.name}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Box>
+
+          <DialogContentText sx={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', mb: 1 }}>
+            Please type <span style={{ color: '#dc2626', fontWeight: 800 }}>DELETE</span> to confirm:
+          </DialogContentText>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="DELETE"
+            value={clearWarehouseConfirmText}
+            onChange={(e) => setClearWarehouseConfirmText(e.target.value)}
+            disabled={isClearing || !selectedWarehouseToClear}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button
+            onClick={() => {
+              setOpenClearWarehouseDialog(false);
+              setClearWarehouseConfirmText('');
+              setSelectedWarehouseToClear('');
+            }}
+            disabled={isClearing}
+            color="inherit"
+            sx={{ fontWeight: 600 }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleClearWarehouseInventory}
+            disabled={clearWarehouseConfirmText !== 'DELETE' || !selectedWarehouseToClear || isClearing}
+            variant="contained"
+            color="error"
+            sx={{
+              fontWeight: 700,
+              bgcolor: '#dc2626',
+              '&:hover': { bgcolor: '#b91c1c' },
+              '&:disabled': { bgcolor: '#f1f5f9', color: '#94a3b8' }
+            }}
+          >
+            {isClearing ? 'Clearing...' : 'Clear All Warehouse Stock'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
 
       {/* Snackbar Alert feedback */}
       <Snackbar

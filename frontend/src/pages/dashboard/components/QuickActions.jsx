@@ -10,7 +10,7 @@ import useRoleBasePath from '../../../hooks/useRoleBasePath';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 
 const allActions = [
-  { label: 'New Sale', path: '/sales/new', icon: AddShoppingCartIcon, color: 'primary' },
+  { label: 'New Sale', path: '/sales/sale-bill/new', icon: AddShoppingCartIcon, color: 'primary' },
   { label: 'Billing & Dispatch Queue', path: '/orders/dispatch-queue', icon: ReceiptIcon, color: 'warning' },
   { label: 'New Purchase', path: '/purchase/new', icon: LocalShippingIcon, color: 'success' },
   { label: 'Stock Overview', path: '/inventory/stock-overview', icon: Inventory2Icon, color: 'info' },

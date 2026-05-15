@@ -29,6 +29,15 @@ export const addSale = createAsyncThunk('sales/add', async (saleData, { rejectWi
   }
 });
 
+export const deleteSale = createAsyncThunk('sales/delete', async (id, { rejectWithValue }) => {
+  try {
+    await api.delete(`/sales/${id}`);
+    return id;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || 'Failed to delete sale');
+  }
+});
+
 export const fetchSalesReturns = createAsyncThunk('sales/fetchReturns', async (_, { rejectWithValue }) => {
   try {
     const response = await api.get('/returns?type=CUSTOMER_RETURN');
@@ -94,6 +103,19 @@ const salesSlice = createSlice({
         state.records.unshift(action.payload);
       })
       .addCase(addSale.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // Delete Sale
+      .addCase(deleteSale.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(deleteSale.fulfilled, (state, action) => {
+        state.loading = false;
+        state.records = state.records.filter((r) => r.id !== action.payload);
+      })
+      .addCase(deleteSale.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })

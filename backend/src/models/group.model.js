@@ -6,6 +6,10 @@ const groupSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  code: {
+    type: String,
+    trim: true
+  },
   parentId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Group',

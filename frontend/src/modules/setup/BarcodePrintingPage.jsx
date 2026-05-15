@@ -156,10 +156,9 @@ function BarcodePrintingPage() {
   const grns = useSelector((state) => state.grn?.records) || [];
 
   const [activeTab, setActiveTab] = useState(0);
-  const [products, setProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [quantity, setQuantity] = useState(1);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResults, setImportResults] = useState([]);
   const [batchLines, setBatchLines] = useState([]);
@@ -179,6 +178,32 @@ function BarcodePrintingPage() {
   // History State
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Flatten allItems (styles) into products (variants) for single print
+  const products = useMemo(() => {
+    if (!allItems.length) return [];
+    const flattened = [];
+    allItems.forEach(p => {
+      // Ensure we don't skip items with empty sizes array
+      const variants = (p.sizes && p.sizes.length > 0) ? p.sizes : (p.variants && p.variants.length > 0) ? p.variants : [{}];
+      
+      const categoryObj = (p.groupIds || []).find(g => g.groupType === 'Category');
+      variants.forEach(v => {
+        flattened.push({
+          id: v._id || p._id,
+          name: p.itemName || p.name,
+          sku: v.sku || v.barcode || p.itemCode || p.sku,
+          barcode: v.barcode || v.sku || p.barcode || p.itemCode,
+          salePrice: v.mrp || v.salePrice || p.salePrice || 0,
+          size: v.size || 'N/A',
+          color: v.color || p.shadeNo || p.color || p.shade || 'N/A',
+          category: categoryObj?.name || categoryObj?.groupName || 'SHIRT',
+          article: p.itemCode || p.sku
+        });
+      });
+    });
+    return flattened;
+  }, [allItems]);
 
   const fetchHistory = async () => {
     setHistoryLoading(true);
@@ -278,7 +303,6 @@ function BarcodePrintingPage() {
   };
 
   useEffect(() => {
-
     if (activeTab === 2) {
       fetchHistory();
     }
@@ -369,43 +393,6 @@ function BarcodePrintingPage() {
 
     loadGrnLabels();
   }, [rawGrnId, shouldAutoPrint]);
-
-  useEffect(() => {
-    const fetchProducts = async () => {
-      setLoading(true);
-      try {
-        const res = await api.get('/items');
-        const apiProducts = res.data?.items || res.data?.data || res.data || [];
-
-        if (apiProducts.length) {
-          const flattened = [];
-          apiProducts.forEach(p => {
-            const variants = p.sizes || p.variants || [{}];
-            const categoryObj = (p.groupIds || []).find(g => g.groupType === 'Category');
-            variants.forEach(v => {
-              flattened.push({
-                id: v._id || p._id,
-                name: p.itemName || p.name,
-                sku: v.sku || v.barcode || p.itemCode || p.sku,
-                barcode: v.barcode || v.sku || p.barcode || p.itemCode,
-                salePrice: v.mrp || v.salePrice || p.salePrice || 0,
-                size: v.size || 'N/A',
-                color: v.color || p.shadeNo || p.color || p.shade || 'N/A',
-                category: categoryObj?.name || categoryObj?.groupName || 'SHIRT',
-                article: p.itemCode || p.sku
-              });
-            });
-          });
-          setProducts(flattened);
-        }
-      } catch (error) {
-        console.error('Fetch failed', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchProducts();
-  }, []);
 
   useEffect(() => {
     const preselectedIds = [...new Set([preselectedItemId, ...preselectedItemIds].filter(Boolean))];
@@ -570,10 +557,11 @@ function BarcodePrintingPage() {
 
                   <Autocomplete
                     options={products}
-                    getOptionLabel={(o) => `${o.sku} - ${o.name} (${o.size})`}
+                    getOptionLabel={(o) => `[${o.article}] ${o.barcode} - ${o.name} (${o.size}/${o.color})`}
+
                     onChange={(_, v) => setSelectedProduct(v)}
                     sx={{ width: '100%', minWidth: { md: 400 } }}
-                    renderInput={(params) => <TextField {...params} label="Select Product Attachment" size="medium" placeholder="Search by SKU or Name..." />}
+                    renderInput={(params) => <TextField {...params} label="Select Product Attachment" size="medium" placeholder="Search by Item Code, SKU or Name..." />}
                   />
 
                   <TextField fullWidth type="number" size="medium" label="Print Quantity" value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} />

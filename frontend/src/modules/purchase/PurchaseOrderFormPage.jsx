@@ -287,7 +287,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
         }
         const updated = {
           ...line,
-          [key]: ['qty', 'rate', 'discountPercent', 'taxPercent'].includes(key) ? Number(value) : value,
+          [key]: ['qty', 'rate', 'discountPercent', 'taxPercent'].includes(key) ? (value === '' ? '' : Number(value)) : value,
         };
         return {
           ...updated,
@@ -637,7 +637,8 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
                         size="small"
                         type="number"
                         value={line.qty}
-                        onChange={(event) => updateLineField(line.id, 'qty', Math.max(1, Number(event.target.value)))}
+                        onChange={(event) => updateLineField(line.id, 'qty', event.target.value)}
+                        onFocus={(e) => e.target.value === '0' && updateLineField(line.id, 'qty', '')}
                         sx={{ width: 88 }}
                       />
                     )}
@@ -650,7 +651,8 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
                         size="small"
                         type="number"
                         value={line.rate}
-                        onChange={(event) => updateLineField(line.id, 'rate', Math.max(0, Number(event.target.value)))}
+                        onChange={(event) => updateLineField(line.id, 'rate', event.target.value)}
+                        onFocus={(e) => e.target.value === '0' && updateLineField(line.id, 'rate', '')}
                         sx={{ width: 104 }}
                       />
                     )}
@@ -663,9 +665,8 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
                         size="small"
                         type="number"
                         value={line.discountPercent}
-                        onChange={(event) =>
-                          updateLineField(line.id, 'discountPercent', Math.min(100, Math.max(0, Number(event.target.value))))
-                        }
+                        onChange={(event) => updateLineField(line.id, 'discountPercent', event.target.value)}
+                        onFocus={(e) => e.target.value === '0' && updateLineField(line.id, 'discountPercent', '')}
                         sx={{ width: 92 }}
                       />
                     )}
@@ -678,9 +679,8 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
                         size="small"
                         type="number"
                         value={line.taxPercent}
-                        onChange={(event) =>
-                          updateLineField(line.id, 'taxPercent', Math.min(100, Math.max(0, Number(event.target.value))))
-                        }
+                        onChange={(event) => updateLineField(line.id, 'taxPercent', event.target.value)}
+                        onFocus={(e) => e.target.value === '0' && updateLineField(line.id, 'taxPercent', '')}
                         sx={{ width: 92 }}
                       />
                     )}

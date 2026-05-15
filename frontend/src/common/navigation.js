@@ -46,7 +46,7 @@ export const purchaseNavigationItems = [
 
 export const salesNavigationItems = [
   { label: "Sale Invoices", path: "/sales" },
-  { label: "New Sale (POS)", path: "/sales/new" },
+  { label: "New Sale (POS)", path: "/sales/sale-bill/new" },
   { label: "Sales Return", path: "/sales/returns" },
 ];
 

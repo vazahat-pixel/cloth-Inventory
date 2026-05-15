@@ -156,8 +156,8 @@ function SchemeFormPage() {
       applicablePromotionGroups: [],
       applicableProducts: [],
       applicableStores: [],
-      minPurchaseAmount: 0,
-      minPurchaseQuantity: 0,
+      minPurchaseAmount: '',
+      minPurchaseQuantity: '',
       startDate: new Date().toISOString().split('T')[0],
       endDate: '',
       isActive: true,
@@ -341,13 +341,13 @@ function SchemeFormPage() {
         value: existing.value ?? '',
         buyQuantity: existing.buyQuantity ?? '',
         getQuantity: existing.getQuantity ?? '',
-        applicableCategories: existing.applicableCategories || [],
-        applicableBrands: existing.applicableBrands || [],
-        applicablePromotionGroups: existing.applicablePromotionGroups || [],
-        applicableProducts: existing.applicableProducts || [],
-        applicableStores: existing.applicableStores || [],
-        minPurchaseAmount: existing.minPurchaseAmount || 0,
-        minPurchaseQuantity: existing.minPurchaseQuantity || 0,
+        applicableCategories: (existing.applicableCategories || []).map(c => c._id || c.id || c),
+        applicableBrands: (existing.applicableBrands || []).map(b => b._id || b.id || b),
+        applicablePromotionGroups: (existing.applicablePromotionGroups || []).map(g => g._id || g.id || g),
+        applicableProducts: (existing.applicableProducts || []).map(p => p._id || p.id || p),
+        applicableStores: (existing.applicableStores || []).map(s => s._id || s.id || s),
+        minPurchaseAmount: existing.minPurchaseAmount ?? '',
+        minPurchaseQuantity: existing.minPurchaseQuantity ?? '',
         startDate: existing.startDate ? new Date(existing.startDate).toISOString().split('T')[0] : '',
         endDate: existing.endDate ? new Date(existing.endDate).toISOString().split('T')[0] : '',
         isActive: existing.isActive ?? true,
@@ -427,6 +427,37 @@ function SchemeFormPage() {
 
   const onSubmit = (values, force = false) => {
     setFormError('');
+
+    if (Number(values.value) < 0) {
+      setFormError('Discount / Price value must be 0 or greater');
+      return;
+    }
+
+    if (Number(values.buyQuantity) < 0 || Number(values.getQuantity) < 0) {
+      setFormError('Quantities must be 0 or greater');
+      return;
+    }
+
+    if (values.startDate) {
+      const start = new Date(values.startDate);
+      start.setHours(0, 0, 0, 0);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (!isEditMode && start < today) {
+        setFormError('Start date cannot be in the past');
+        return;
+      }
+
+      if (values.endDate) {
+        const end = new Date(values.endDate);
+        end.setHours(0, 0, 0, 0);
+        if (end < start) {
+          setFormError('End date cannot be before start date');
+          return;
+        }
+      }
+    }
 
     // Normalizing values
     const payload = {
@@ -543,11 +574,14 @@ function SchemeFormPage() {
                                   'Flat Discount (₹)'
                         }
                         {...register('value', { required: true, min: 0 })}
+                        onFocus={(e) => e.target.value === '0' && setValue('value', '')}
                         InputProps={{
                           startAdornment: (
-                            <Typography sx={{ mr: 1, color: '#94a3b8' }}>
-                              {schemeType === 'PERCENTAGE' ? '%' : '₹'}
-                            </Typography>
+                            <InputAdornment position="start">
+                              <Typography sx={{ mr: 1, color: '#94a3b8' }}>
+                                {schemeType === 'PERCENTAGE' ? '%' : '₹'}
+                              </Typography>
+                            </InputAdornment>
                           )
                         }}
                       />
@@ -562,11 +596,12 @@ function SchemeFormPage() {
                           type="number"
                           label={schemeType === 'FIXED_PRICE' ? 'Bundle Qty (X)' : 'Buy Qty (X)'}
                           {...register('buyQuantity', { required: true, min: 1 })}
+                          onFocus={(e) => e.target.value === '0' && setValue('buyQuantity', '')}
                         />
                       </Grid>
                       {schemeType === 'BUY_X_GET_Y' && (
                         <Grid item xs={12} md={3}>
-                          <TextField fullWidth type="number" label="Get Qty (Y)" {...register('getQuantity', { required: true, min: 1 })} />
+                          <TextField fullWidth type="number" label="Get Qty (Y)" {...register('getQuantity', { required: true, min: 1 })} onFocus={(e) => e.target.value === '0' && setValue('getQuantity', '')} />
                         </Grid>
                       )}
                     </>
@@ -896,6 +931,7 @@ function SchemeFormPage() {
                     type="number"
                     label="Minimum Bill Value (₹)"
                     {...register('minPurchaseAmount')}
+                    onFocus={(e) => e.target.value === '0' && setValue('minPurchaseAmount', '')}
                     helperText="Cart value needed to trigger scheme"
                   />
                   <TextField
@@ -903,6 +939,7 @@ function SchemeFormPage() {
                     type="number"
                     label="Minimum Item Quantity"
                     {...register('minPurchaseQuantity')}
+                    onFocus={(e) => e.target.value === '0' && setValue('minPurchaseQuantity', '')}
                     helperText="Item count needed in cart"
                   />
                 </Stack>
@@ -984,8 +1021,28 @@ function SchemeFormPage() {
                     <MenuItem value={false}>Inactive (Draft/Expired)</MenuItem>
                   </TextField>
 
-                  <TextField label="Start Date" type="date" fullWidth InputLabelProps={{ shrink: true }} {...register('startDate', { required: 'Start Date is required' })} error={!!errors.startDate} helperText={errors.startDate?.message} />
-                  <TextField label="End Date" type="date" fullWidth InputLabelProps={{ shrink: true }} {...register('endDate')} />
+                  <TextField 
+                    label="Start Date" 
+                    type="date" 
+                    fullWidth 
+                    InputLabelProps={{ shrink: true }} 
+                    {...register('startDate', { required: 'Start Date is required' })} 
+                    error={!!errors.startDate} 
+                    helperText={errors.startDate?.message}
+                    inputProps={{ 
+                      min: !isEditMode ? new Date().toISOString().split('T')[0] : undefined 
+                    }}
+                  />
+                  <TextField 
+                    label="End Date" 
+                    type="date" 
+                    fullWidth 
+                    InputLabelProps={{ shrink: true }} 
+                    {...register('endDate')} 
+                    inputProps={{ 
+                      min: watch('startDate') || new Date().toISOString().split('T')[0]
+                    }}
+                  />
                 </Stack>
               </Paper>
 

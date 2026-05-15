@@ -9,7 +9,8 @@ const groupTypeOptions = [
 ];
 
 const itemGroupFields = [
-  { name: 'groupName', label: 'Group Name', required: true },
+  { name: 'groupName', label: 'Group Name', required: true, validate: (v) => v.trim().length > 0 || 'Group Name cannot be empty' },
+  { name: 'groupCode', label: 'Group Code', required: true, validate: (v) => v.trim().length > 0 || 'Group Code cannot be empty' },
   {
     name: 'type',
     label: 'Type',
@@ -18,7 +19,7 @@ const itemGroupFields = [
     defaultValue: 'Category',
     options: groupTypeOptions,
   },
-  { name: 'parentGroup', label: 'Parent Group' },
+  { name: 'parentGroup', label: 'Parent Group', required: true, validate: (v) => Boolean(v) || 'Parent Group selection is required' },
   { name: 'description', label: 'Description', multiline: true, minRows: 2, required: true },
   {
     name: 'status',

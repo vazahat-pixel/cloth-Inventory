@@ -31,7 +31,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
 import KeyboardReturnOutlinedIcon from '@mui/icons-material/KeyboardReturnOutlined';
 import PaymentIcon from '@mui/icons-material/Payment';
-import { addSale, fetchSales } from './salesSlice';
+import { addSale, fetchSales, deleteSale } from './salesSlice';
 import { fetchStockOverview } from '../inventory/inventorySlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchPricingRules, fetchSchemes, fetchCoupons, evaluateOffers } from '../pricing/pricingSlice';
@@ -162,7 +162,7 @@ const calculateTotals = (lines, taxRules, billDiscount, loyaltyRedeemed, couponD
         const lineTaxRate = itemRule.rate;
         const lineRes = calculateLine(l, lineTaxRate, promo?.promoDiscount || 0);
         
-        const hsn = l.hsnCode || 'N/A';
+        const hsn = l.hsnCode || l.itemId?.hsCodeId?.code || l.itemId?.hsnCode || 'N/A';
         const key = `${hsn}-${lineTaxRate}`;
         if (!acc[key]) {
             acc[key] = { hsnCode: hsn, totalQty: 0, gstPercent: lineTaxRate, taxableAmount: 0, cgst: 0, sgst: 0, igst: 0 };
@@ -187,9 +187,11 @@ function BillingPage({
   listLabel = 'Back to Sales List',
   backButtonLabel = 'Back to Sales',
   returnPathBuilder = (saleId) => `/sales/${saleId}/return`,
+  mode = 'new',
 }) {
   const { id } = useParams();
-  const isDetailMode = Boolean(id);
+  const isDetailMode = Boolean(id) && mode !== 'edit';
+  const isEditMode = mode === 'edit';
 
   const dispatch = useDispatch();
   const navigate = useAppNavigate();
@@ -224,14 +226,15 @@ function BillingPage({
   }, [warehouses, stores, isStoreStaff, user?.shopId]);
 
   const existingSale = useMemo(
-    () => (isDetailMode ? sales.find((entry) => entry.id === id) : null),
-    [id, isDetailMode, sales],
+    () => ((isDetailMode || isEditMode) ? sales.find((entry) => entry.id === id) : null),
+    [id, isDetailMode, isEditMode, sales],
   );
 
   const [billDate, setBillDate] = useState(getTodayDate());
   const [storeId, setStoreId] = useState(user?.shopId || warehouses[0]?.id || stores[0]?.id || '');
   const [salesmanId, setSalesmanId] = useState('');
   const [mobileInput, setMobileInput] = useState('');
+  const [customerMobile, setCustomerMobile] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
   const [customerId, setCustomerId] = useState('');
@@ -300,6 +303,9 @@ function BillingPage({
   );
 
   const selectedCustomer = customerId ? customerMap[customerId] : null;
+  const selectedStore = useMemo(() => {
+    return availableLocations.find(l => (l.id || l._id) === storeId);
+  }, [availableLocations, storeId]);
   const availableLoyalty = toNumber(selectedCustomer?.loyaltyPoints);
 
   const availableCreditNotes = useMemo(() => {
@@ -334,8 +340,16 @@ function BillingPage({
 
   const returnTotalCredit = useMemo(() => {
     return exchangeItems.reduce((acc, i) => {
-        const itemTotal = (toNumber(i.rate) * toNumber(i.quantity));
-        const itemTax = (toNumber(i.taxAmount) || 0); // use existing tax for accurate return
+        const rate = toNumber(i.rate);
+        const qty = toNumber(i.quantity);
+        const itemTotal = rate * qty;
+        
+        // If taxAmount is missing, calculate it from percentage (i.tax)
+        let itemTax = toNumber(i.taxAmount);
+        if (!itemTax && i.tax) {
+            itemTax = itemTotal * (toNumber(i.tax) / 100);
+        }
+        
         return acc + itemTotal + itemTax;
     }, 0);
   }, [exchangeItems]);
@@ -373,7 +387,7 @@ function BillingPage({
       return {
         ...basic,
         returnTotalCredit,
-        netPayable: Math.max(0, basic.netPayable - returnTotalCredit),
+        netPayable: saleType === 'exchange' ? basic.netPayable - returnTotalCredit : Math.max(0, basic.netPayable - returnTotalCredit),
       };
     },
     [billDiscount, lines, loyaltyRedeemed, couponDiscountAmount, creditNoteAmount, saleType, returnTotalCredit, promoItems, taxRules, adjustments],
@@ -428,12 +442,44 @@ function BillingPage({
       hsnCode: item.hsnCode || '',
       category: item.category || '',
       brand: item.brand || '',
-      productId: item.productId || item.variantId,
+      productId: item.productId?._id || item.productId || item.variantId,
     }));
     setLines(loaded);
     setSelectedOption(null);
     setBarcodeInput('');
   };
+
+  useEffect(() => {
+    if (isEditMode && existingSale && lines.length === 0) {
+      setCustomerId(existingSale.customerId || '');
+      setCustomerName(existingSale.customerName || '');
+      setCustomerMobile(existingSale.customerMobile || '');
+      setStoreId(existingSale.storeId || existingSale.warehouseId || '');
+      setBillDate(existingSale.saleDate?.slice(0, 10) || existingSale.date?.slice(0, 10) || getTodayDate());
+      setSaleType(existingSale.saleType || 'retail');
+      
+      const loadedLines = (existingSale.items || []).map((item, idx) => ({
+        id: `${item.variantId}-${idx}-${Date.now()}`,
+        itemName: item.itemName,
+        styleCode: item.sku,
+        size: item.size || '',
+        color: item.color || '',
+        sku: item.sku,
+        barcode: item.barcode || item.sku,
+        quantity: toNumber(item.quantity),
+        rate: toNumber(item.rate),
+        discount: toNumber(item.discount),
+        tax: toNumber(item.taxAmount),
+        available: 999, // Allow editing without strict stock limit since it's already in the sale
+        hsnCode: item.hsnCode || '',
+        category: item.category || '',
+        brand: item.brand || '',
+        productId: item.productId?._id || item.productId || item.itemId?._id || item.itemId || item.variantId,
+        variantId: item.variantId || item.productId?._id || item.productId || item.itemId?._id || item.itemId,
+      }));
+      setLines(loadedLines);
+    }
+  }, [isEditMode, existingSale]);
 
   const activeCustomers = useMemo(
     () => customers.filter((customer) => String(customer.status).toLowerCase() === 'active'),
@@ -503,9 +549,9 @@ function BillingPage({
           rate: toNumber(stock.salePrice || (stock.productId && typeof stock.productId === 'object' ? stock.productId.salePrice : 0)),
           mrp: toNumber(stock.mrp || (stock.productId && typeof stock.productId === 'object' ? stock.productId.mrp : 0)),
           tax: 0,
-          hsnCode: stock.productId?.hsnCode || stock.hsnCode || stock.productId?.hsCodeId?.code || stock.hsCodeId?.code || '',
-          category: stock.productId?.categoryName || stock.categoryName || stock.productId?.categoryId || stock.category || '',
-          brand: stock.productId?.brandName || stock.brandName || stock.productId?.brand || stock.brand || '',
+          hsnCode: stock.hsnCode && stock.hsnCode !== 'N/A' ? stock.hsnCode : (stock.productId?.hsnCode || stock.productId?.hsCodeId?.code || ''),
+          category: stock.category && stock.category !== 'GARMENT' ? stock.category : (stock.productId?.categoryName || stock.productId?.categoryId?.name || ''),
+          brand: stock.brand && stock.brand !== 'N/A' ? stock.brand : (stock.productId?.brandName || stock.productId?.brand?.name || ''),
         };
         return option;
       })
@@ -744,15 +790,20 @@ function BillingPage({
       return;
     }
 
-    // Prevent proceeding when nothing is actually payable
+    // Prevent proceeding when nothing is actually payable (except for exchanges)
     const effectiveNet =
       saleType === 'exchange'
         ? totals.netPayable - creditNoteAmount
         : Math.max(0, totals.netPayable - creditNoteAmount);
 
-    if (effectiveNet <= 0) {
+    if (effectiveNet < 0 && saleType !== 'exchange' && !isEditMode) {
       setErrorMessage('Net payable must be greater than 0 to proceed.');
       return;
+    }
+
+    if (effectiveNet === 0 && lines.length === 0 && !isEditMode) {
+        setErrorMessage('Add at least one item to continue.');
+        return;
     }
 
     if (toNumber(loyaltyRedeemed) > availableLoyalty) {
@@ -780,9 +831,9 @@ function BillingPage({
       const lineTaxRate = itemRule.rate;
       const calcs = calculateLine(line, lineTaxRate, promo?.promoDiscount || 0);
       return {
-        productId: line.productId || line.variantId,
-        variantId: line.variantId || line.productId,
-        itemId: line.productId || line.variantId,
+        productId: line.productId?._id || line.productId,
+        variantId: line.variantId?._id || line.variantId || line.productId?._id || line.productId,
+        itemId: line.productId?._id || line.productId,
         barcode: line.barcode || line.sku || '',
         itemName: line.itemName,
         sku: line.sku,
@@ -790,6 +841,7 @@ function BillingPage({
         category: line.category || '',
         brand: line.brand || '',
         quantity: toNumber(line.quantity),
+        mrp: toNumber(line.mrp || line.rate),
         price: toNumber(line.rate),
         discount: toNumber(line.discount),
         discountAmount: calcs.manualDiscount + (promo?.promoDiscount || 0),
@@ -830,26 +882,45 @@ function BillingPage({
           items: exchangeItems.map(i => ({
               barcode: i.barcode,
               quantity: i.quantity,
-              rate: i.rate
+              rate: i.rate,
+              mrp: i.mrp || i.rate
           }))
       } : null,
     };
 
     showLoading('Finalizing transaction and generating invoice...');
-    dispatch(addSale(payload))
-      .unwrap()
-      .then((res) => {
-        setCompletedSaleData(res);
-        setShowPrint(true);
-        showNotification('Sale completed successfully!', 'success');
-      })
-      .catch((err) => {
-        setErrorMessage(err || 'Failed to save sale');
-        showNotification(err || 'Failed to save sale', 'error');
-      })
-      .finally(() => {
-        hideLoading();
-      });
+    
+    const saveNewSale = () => {
+      dispatch(addSale(payload))
+        .unwrap()
+        .then((res) => {
+          setCompletedSaleData(res);
+          setShowPrint(true);
+          showNotification(isEditMode ? 'Sale updated successfully!' : 'Sale completed successfully!', 'success');
+        })
+        .catch((err) => {
+          setErrorMessage(err || 'Failed to save sale');
+          showNotification(err || 'Failed to save sale', 'error');
+        })
+        .finally(() => {
+          hideLoading();
+        });
+    };
+
+    if (isEditMode && existingSale) {
+      dispatch(deleteSale(existingSale.id))
+        .unwrap()
+        .then(() => {
+          saveNewSale();
+        })
+        .catch((err) => {
+          setErrorMessage(err || 'Failed to update sale (could not remove old sale)');
+          showNotification(err || 'Failed to update sale', 'error');
+          hideLoading();
+        });
+    } else {
+      saveNewSale();
+    }
 
     setPaymentOpen(false);
   };
@@ -1052,6 +1123,18 @@ function BillingPage({
                   <MenuItem value="retail">Retail</MenuItem>
                   <MenuItem value="exchange">Exchange</MenuItem>
                 </TextField>
+              </Grid>
+
+              <Grid item xs={12} md={3}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Bill Date"
+                  type="date"
+                  value={billDate}
+                  onChange={(e) => setBillDate(e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                />
               </Grid>
               {!isStoreStaff && (
                 <Grid item xs={12} md={3}>
@@ -1268,13 +1351,13 @@ function BillingPage({
                       <TableCell sx={{ fontWeight: 700 }}>Item Name</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>Variant</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }} align="right">
+                      <TableCell sx={{ fontWeight: 700 }} align="center">
                         Qty
                       </TableCell>
                       <TableCell sx={{ fontWeight: 700 }} align="right">
                         Rate
                       </TableCell>
-                      <TableCell sx={{ fontWeight: 700 }} align="right">
+                      <TableCell sx={{ fontWeight: 700 }} align="center">
                         Disc %
                       </TableCell>
                       {!isStoreStaff && (
@@ -1285,7 +1368,7 @@ function BillingPage({
                       <TableCell sx={{ fontWeight: 700 }} align="right">
                         Amount
                       </TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>Remove</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }} align="center">Remove</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -1297,30 +1380,51 @@ function BillingPage({
 
                         return (
                           <TableRow key={line.id}>
+                            {/* Item Name column */}
                             <TableCell>
                               <Typography variant="body2" sx={{ fontWeight: 600 }}>
                                 {line.itemName}
                               </Typography>
-                              <Stack direction="row" spacing={1} alignItems="center">
-                                <Typography variant="caption" color="textSecondary">
-                                  {line.sku} | {line.size}/{line.color}
-                                </Typography>
-                                {promo?.appliedOffer && (
-                                  <Chip 
-                                    label={`${promo.appliedOfferSource || 'OFFER'} APPLIED`} 
-                                    size="small" 
-                                    color={promo.promoDiscount > 0 ? "success" : "primary"} 
-                                    variant="outlined"
-                                    sx={{ height: 18, fontSize: '0.6rem', fontWeight: 900, borderRadius: 1 }} 
-                                  />
-                                )}
-                              </Stack>
                               {promo?.appliedOffer && (
-                                  <Typography variant="caption" sx={{ color: promo.promoDiscount > 0 ? '#10b981' : '#64748b', display: 'block', mt: 0.5, fontWeight: 700 }}>
-                                    Scheme: {promo.appliedOffer} {promo.appliedOfferValue ? `(${promo.appliedOfferType?.includes('PERCENTAGE') ? `${promo.appliedOfferValue}%` : `₹${promo.appliedOfferValue}`})` : ''} {promo.promoDiscount === 0 ? '(Paid Trigger)' : ''}
-                                  </Typography>
-                                )}
+                                <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
+                                  <Chip
+                                    label={`${promo.appliedOfferSource || 'OFFER'} APPLIED`}
+                                    size="small"
+                                    color={promo.promoDiscount > 0 ? "success" : "primary"}
+                                    variant="outlined"
+                                    sx={{ height: 18, fontSize: '0.6rem', fontWeight: 900, borderRadius: 1 }}
+                                  />
+                                </Stack>
+                              )}
+                              {promo?.appliedOffer && (
+                                <Typography variant="caption" sx={{ color: promo.promoDiscount > 0 ? '#10b981' : '#64748b', display: 'block', mt: 0.5, fontWeight: 700 }}>
+                                  Scheme: {promo.appliedOffer}
+                                </Typography>
+                              )}
                             </TableCell>
+                            {/* Variant column: size / color */}
+                            <TableCell>
+                              <Typography variant="body2" color="textSecondary">
+                                {line.size || '-'} / {line.color || 'N/A'}
+                              </Typography>
+                            </TableCell>
+                            {/* SKU column */}
+                            <TableCell>
+                              <Typography variant="caption" color="textSecondary">
+                                {line.sku}
+                              </Typography>
+                            </TableCell>
+                            {/* Qty column */}
+                            <TableCell align="center">
+                              <TextField
+                                type="number"
+                                size="small"
+                                value={line.quantity}
+                                onChange={(event) => updateLineField(line.id, 'quantity', event.target.value)}
+                                sx={{ width: 70 }}
+                              />
+                            </TableCell>
+                            {/* Rate column */}
                             <TableCell align="right">
                               <Box>
                                 <Typography variant="body2">₹{toNumber(line.rate).toFixed(2)}</Typography>
@@ -1331,15 +1435,7 @@ function BillingPage({
                                 )}
                               </Box>
                             </TableCell>
-                            <TableCell align="center">
-                              <TextField
-                                type="number"
-                                size="small"
-                                value={line.quantity}
-                                onChange={(event) => updateLineField(line.id, 'quantity', event.target.value)}
-                                sx={{ width: 70 }}
-                              />
-                            </TableCell>
+                            {/* Disc % column */}
                             <TableCell align="center">
                               <TextField
                                 type="number"
@@ -1350,15 +1446,18 @@ function BillingPage({
                                 disabled={isStoreStaff}
                               />
                             </TableCell>
+                            {/* GST% admin only */}
                             {!isStoreStaff && (
                               <TableCell align="right" sx={{ fontWeight: 700 }}>
                                 {lineRes.taxRate}%
                               </TableCell>
                             )}
+                            {/* Amount column */}
                             <TableCell align="right" sx={{ fontWeight: 700 }}>
                               {lineRes.amount.toFixed(2)}
                             </TableCell>
-                            <TableCell>
+                            {/* Remove column */}
+                            <TableCell align="center">
                               <IconButton color="error" size="small" onClick={() => removeLine(line.id)}>
                                 <DeleteOutlineIcon fontSize="small" />
                               </IconButton>
@@ -1691,7 +1790,7 @@ function BillingPage({
               sx={{ mt: 2 }}
               onClick={handleProceedPayment}
             >
-              Proceed to Payment
+              {isEditMode ? 'Save & Update Bill' : 'Proceed to Payment'}
             </Button>
           </Paper>
         </Grid>
@@ -1700,9 +1799,11 @@ function BillingPage({
       <PaymentDialog
         open={paymentOpen}
         onClose={() => setPaymentOpen(false)}
-        netAmount={saleType === 'exchange' ? totals.netPayable - creditNoteAmount : Math.max(0, totals.netPayable - creditNoteAmount)}
-        onConfirm={handlePaymentConfirm}
-        vouchers={vouchers}
+        totals={totals}
+        onComplete={handlePaymentConfirm}
+        store={selectedStore}
+        customer={selectedCustomer}
+        isEditMode={isEditMode}
       />
 
       <LoyaltyRedeemDialog

@@ -117,6 +117,8 @@ function HSNCodePage() {
     const nextErrors = {};
     if (!formValues.hsnCode.trim()) {
       nextErrors.hsnCode = 'HSN Code is required.';
+    } else if (!/^[0-9]{4,8}$/.test(formValues.hsnCode)) {
+      nextErrors.hsnCode = 'HSN Code must be 4-8 digits.';
     }
     if (!formValues.description.trim()) {
       nextErrors.description = 'Description is required.';
@@ -310,13 +312,17 @@ function HSNCodePage() {
               <TextField
                 fullWidth
                 size="small"
-                type="number"
+                select
                 label="GST Rate *"
                 value={formValues.gstRate}
                 onChange={(event) => setFormValues((previous) => ({ ...previous, gstRate: event.target.value }))}
                 error={Boolean(formErrors.gstRate)}
                 helperText={formErrors.gstRate || ' '}
-              />
+              >
+                {[0, 5, 12, 18, 28].map(rate => (
+                  <MenuItem key={rate} value={rate}>{rate}%</MenuItem>
+                ))}
+              </TextField>
             </Grid>
             <Grid size={12}>
               <TextField

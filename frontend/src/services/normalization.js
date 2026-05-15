@@ -208,16 +208,16 @@ const normalizeItem = (item, entityType) => {
         case 'inventory':
             if (item.productId && typeof item.productId === 'object') {
                 normalized.productId = item.productId._id || item.productId.id;
-                normalized.itemName = item.productId.name;
-                normalized.sku = item.productId.sku || item.productId.barcode;
-                normalized.barcode = item.productId.barcode;
-                normalized.styleCode = item.productId.sku;
-                normalized.size = item.productId.size;
-                normalized.color = item.productId.color;
-                normalized.brand = item.productId.brand;
-                normalized.category = item.productId.category;
-                normalized.salePrice = item.productId.salePrice;
-                normalized.mrp = item.productId.mrp;
+                normalized.itemName = item.itemName || item.productId.name || item.productId.itemName;
+                normalized.sku = item.sku || item.productId.sku || item.productId.barcode;
+                normalized.barcode = item.barcode || item.productId.barcode;
+                normalized.styleCode = item.styleCode || item.productId.sku;
+                normalized.size = item.size || item.productId.size;
+                normalized.color = item.color || item.productId.color;
+                normalized.brand = item.brand || item.productId.brand;
+                normalized.category = item.category || item.productId.category;
+                normalized.salePrice = item.salePrice || item.productId.salePrice;
+                normalized.mrp = item.mrp || item.productId.mrp;
             }
             // Preserve top-level fields if added by manual population
             if (item.salePrice !== undefined) normalized.salePrice = item.salePrice;
@@ -225,14 +225,17 @@ const normalizeItem = (item, entityType) => {
             const sId = item.storeId?._id || item.storeId?.id || item.storeId || item.warehouseId?._id || item.warehouseId?.id || item.warehouseId;
             normalized.storeId = sId;
             normalized.warehouseId = sId;
-            normalized.locationType = item.storeId ? 'STORE' : (item.warehouseId ? 'WAREHOUSE' : item.locationType || '');
+            normalized.locationType = item.locationType || (item.storeId ? 'STORE' : (item.warehouseId ? 'WAREHOUSE' : ''));
 
-            if (item.storeId && typeof item.storeId === 'object') {
-                normalized.storeName = item.storeId.name;
-                normalized.warehouseName = item.storeId.name;
+            if (item.warehouseName) {
+                normalized.warehouseName = item.warehouseName;
+                normalized.storeName = item.warehouseName;
+            } else if (item.storeId && typeof item.storeId === 'object') {
+                normalized.storeName = `[Store] ${item.storeId.name}`;
+                normalized.warehouseName = `[Store] ${item.storeId.name}`;
             } else if (item.warehouseId && typeof item.warehouseId === 'object') {
-                normalized.storeName = item.warehouseId.name;
-                normalized.warehouseName = item.warehouseId.name;
+                normalized.storeName = `[Warehouse] ${item.warehouseId.name}`;
+                normalized.warehouseName = `[Warehouse] ${item.warehouseId.name}`;
             }
 
             normalized.quantity = item.quantityAvailable ?? item.quantity ?? item.available ?? 0;

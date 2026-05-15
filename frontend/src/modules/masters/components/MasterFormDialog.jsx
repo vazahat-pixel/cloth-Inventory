@@ -34,6 +34,7 @@ function MasterFormDialog({
     formState: { errors },
   } = useForm({
     defaultValues: getDefaultValues(fields, initialValues),
+    mode: 'onBlur',
   });
 
   useEffect(() => {
@@ -65,7 +66,8 @@ function MasterFormDialog({
                   control={control}
                   rules={{
                     required: field.required ? `${field.label} is required.` : false,
-                    pattern: field.type === 'email' ? { value: /\S+@\S+\.\S+/, message: 'Enter a valid email.' } : undefined,
+                    pattern: field.pattern || (field.type === 'email' ? { value: /\S+@\S+\.\S+/, message: 'Enter a valid email.' } : undefined),
+                    validate: field.validate,
                   }}
                   render={({ field: controlledField }) => (
                     <TextField
