@@ -144,6 +144,10 @@ const getStoreInventory = async (query, user) => {
             // Handle separate warehouse filter if passed
             warehouseFilter.warehouseId = warehouseId;
             storeFilter._id = { $exists: false }; 
+        } else {
+            // Default HO view or 'all' selected: Show ONLY Warehouse inventory!
+            // This hides store inventory from the Head Office overview as requested.
+            storeFilter._id = { $in: [] };
         }
     }
 
@@ -301,88 +305,94 @@ const { bulkAddStock } = require('../../services/stock.service');
  * High-performance bulk import for Opening Stock via Excel
  */
 const bulkImportOpeningStock = async (importData, userId) => {
-    return await withTransaction(async (session) => {
-        const { storeId, items } = importData;
-        if (!storeId) throw new Error('Store ID is required for import');
-        if (!items || !items.length) throw new Error('No items provided for import');
+    const { storeId, items } = importData;
+    if (!storeId) throw new Error('Store ID is required for import');
+    if (!items || !items.length) throw new Error('No items provided for import');
 
-        // 1. Resolve all items by barcode in bulk
-        const barcodes = [...new Set(items.map(i => String(i.itemCode || i.barcode || '').trim()).filter(Boolean))];
-        const matchedItems = await Item.find({ 
-            $or: [
-                { itemCode: { $in: barcodes } },
-                { "sizes.barcode": { $in: barcodes } },
-                { "sizes.sku": { $in: barcodes } }
-            ]
-        }).session(session).lean();
+    // 1. Resolve all items by barcode in bulk
+    const barcodes = [...new Set(items.map(i => String(i.itemCode || i.barcode || '').trim()).filter(Boolean))];
+    const matchedItems = await Item.find({ 
+        $or: [
+            { itemCode: { $in: barcodes } },
+            { "sizes.barcode": { $in: barcodes } },
+            { "sizes.sku": { $in: barcodes } }
+        ]
+    }).lean();
 
-        // 2. Create a map for quick lookup
-        const barcodeMap = new Map();
-        matchedItems.forEach(item => {
-            if (item.itemCode) {
-                const defaultVariant = item.sizes?.[0] || { _id: item._id, size: 'UNI' };
-                barcodeMap.set(item.itemCode, { item, variant: defaultVariant });
-            }
-            if (item.sizes) {
-                item.sizes.forEach(sz => {
-                    if (sz.barcode) barcodeMap.set(sz.barcode, { item, variant: sz });
-                    if (sz.sku) barcodeMap.set(sz.sku, { item, variant: sz });
-                });
-            }
-        });
+    // 2. Create a map for quick lookup
+    const barcodeMap = new Map();
+    matchedItems.forEach(item => {
+        if (item.itemCode) {
+            const defaultVariant = item.sizes?.[0] || { _id: item._id, size: 'UNI' };
+            barcodeMap.set(item.itemCode, { item, variant: defaultVariant });
+        }
+        if (item.sizes) {
+            item.sizes.forEach(sz => {
+                if (sz.barcode) barcodeMap.set(sz.barcode, { item, variant: sz });
+                if (sz.sku) barcodeMap.set(sz.sku, { item, variant: sz });
+            });
+        }
+    });
 
-        // 3. Prepare items for bulkAddStock and perform validations
-        const validItems = [];
-        const errors = [];
+    // 3. Prepare items for bulkAddStock and perform validations (Aggregate by barcode)
+    const validItemsMap = new Map();
+    const errors = [];
 
-        items.forEach(row => {
-            const barcode = String(row.itemCode || row.barcode || '').trim();
-            const match = barcodeMap.get(barcode);
-            
-            if (!match) {
-                errors.push({ itemCode: barcode, error: 'Item not found in master' });
-                return;
-            }
+    items.forEach(row => {
+        const barcode = String(row.itemCode || row.barcode || '').trim();
+        const match = barcodeMap.get(barcode);
+        
+        if (!match) {
+            errors.push({ itemCode: barcode, error: 'Item not found in master' });
+            return;
+        }
 
-            const { item, variant } = match;
+        const { item, variant } = match;
 
-            // Optional Attribute Validation (Name mismatch check)
-            const excelName = String(row.itemName || '').trim().toLowerCase();
-            const masterName = String(item.itemName || '').trim().toLowerCase();
-            
-            if (excelName && masterName && !masterName.includes(excelName) && !excelName.includes(masterName)) {
-                errors.push({ itemCode: barcode, error: `Name mismatch: Excel(${excelName}) vs Master(${masterName})` });
-                return;
-            }
+        // Optional Attribute Validation (Name mismatch check)
+        const excelName = String(row.itemName || '').trim().toLowerCase();
+        const masterName = String(item.itemName || '').trim().toLowerCase();
+        
+        if (excelName && masterName && !masterName.includes(excelName) && !excelName.includes(masterName)) {
+            errors.push({ itemCode: barcode, error: `Name mismatch: Excel(${excelName}) vs Master(${masterName})` });
+            return;
+        }
 
-            validItems.push({
+        const qty = Number(row.closingStock || row.quantity || 0);
+
+        if (validItemsMap.has(barcode)) {
+            const existing = validItemsMap.get(barcode);
+            existing.qty += qty; // Sum quantities for duplicate rows in same file
+        } else {
+            validItemsMap.set(barcode, {
                 itemId: item._id,
                 variantId: variant._id,
                 barcode: barcode,
-                qty: Number(row.closingStock || row.quantity || 0)
-            });
-        });
-
-        // 4. Perform bulk insert if we have valid items
-        if (validItems.length > 0) {
-            await bulkAddStock(validItems, {
-                referenceId: new mongoose.Types.ObjectId(),
-                referenceType: 'OpeningBalance',
-                performedBy: userId,
-                locationId: storeId,
-                locationType: 'STORE',
-                session,
-                mode: 'SET'
+                qty: qty
             });
         }
-
-        return {
-            totalProcessed: items.length,
-            successCount: validItems.length,
-            failedCount: errors.length,
-            errors
-        };
     });
+
+    const validItems = Array.from(validItemsMap.values());
+
+    // 4. Perform bulk insert if we have valid items
+    if (validItems.length > 0) {
+        await bulkAddStock(validItems, {
+            referenceId: new mongoose.Types.ObjectId(),
+            referenceType: 'OpeningBalance',
+            performedBy: userId,
+            locationId: storeId,
+            locationType: 'STORE',
+            mode: 'SET'
+        });
+    }
+
+    return {
+        totalProcessed: items.length,
+        successCount: validItems.length,
+        failedCount: errors.length,
+        errors
+    };
 };
 
 /**
@@ -477,13 +487,13 @@ const clearStoreInventory = async (storeId, userId) => {
  * Decrements master stock, adds movement logs, and removes the warehouse inventory records.
  */
 const clearWarehouseInventory = async (warehouseId, userId) => {
-    return await withTransaction(async (session) => {
+    try {
         const WarehouseInventory = require('../../models/warehouseInventory.model');
         const Item = require('../../models/item.model');
         const { StockMovementType } = require('../../core/enums');
 
         // Get all inventory for this warehouse
-        const inventoryItems = await WarehouseInventory.find({ warehouseId }).session(session);
+        const inventoryItems = await WarehouseInventory.find({ warehouseId });
         
         if (inventoryItems.length === 0) {
             return { success: true, deletedCount: 0, message: 'No inventory found to clear.' };
@@ -535,19 +545,19 @@ const clearWarehouseInventory = async (warehouseId, userId) => {
 
         // Execute master updates, movements, and ledger entries in bulk if there are any
         if (itemOps.length > 0) {
-            await Item.bulkWrite(itemOps, { session });
+            await Item.bulkWrite(itemOps);
         }
         if (movements.length > 0) {
             const StockMovement = require('../../models/stockMovement.model');
-            await StockMovement.insertMany(movements, { session, ordered: false });
+            await StockMovement.insertMany(movements, { ordered: false });
         }
         if (ledgerEntries.length > 0) {
             const StockLedger = require('../../models/stockLedger.model');
-            await StockLedger.insertMany(ledgerEntries, { session, ordered: false });
+            await StockLedger.insertMany(ledgerEntries, { ordered: false });
         }
 
         // Delete all Warehouse Inventory records for this warehouse
-        const deleteResult = await WarehouseInventory.deleteMany({ warehouseId }).session(session);
+        const deleteResult = await WarehouseInventory.deleteMany({ warehouseId });
 
         // Record a System Log
         const SystemLog = require('../../models/systemLog.model');
@@ -556,13 +566,16 @@ const clearWarehouseInventory = async (warehouseId, userId) => {
             module: 'Inventory',
             userId,
             details: `Cleared all inventory for warehouse ${warehouseId}. Deleted ${deleteResult.deletedCount} inventory records.`
-        }], { session });
+        }]);
 
         return {
             success: true,
             deletedCount: deleteResult.deletedCount
         };
-    });
+    } catch (err) {
+        console.error('CRITICAL ERROR in clearWarehouseInventory:', err);
+        throw err;
+    }
 };
 
 module.exports = {
