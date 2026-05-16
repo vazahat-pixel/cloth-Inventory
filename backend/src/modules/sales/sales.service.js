@@ -162,6 +162,38 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
         const handle = async (session) => {
         const storeId = saleData.storeId || saleData.warehouseId;
         const products = saleData.products || saleData.items || [];
+        
+        const isUpdate = saleData.id ? true : false;
+        let saleNumber = null;
+        let existingSale = null;
+
+        if (isUpdate) {
+            existingSale = await Sale.findById(saleData.id).session(session);
+            if (!existingSale) throw new Error('Sale not found');
+            saleNumber = existingSale.saleNumber;
+
+            // Reverse stock for old items
+            const stockService = require('../../services/stock.service');
+            for (const item of existingSale.items) {
+                await stockService.addStock({
+                    variantId: item.variantId,
+                    locationId: existingSale.storeId,
+                    locationType: 'STORE',
+                    qty: item.quantity,
+                    type: 'RETURN',
+                    referenceId: existingSale._id,
+                    referenceType: 'Sale',
+                    performedBy: cashierId,
+                    session
+                });
+
+                await StoreInventory.findOneAndUpdate(
+                    { storeId: existingSale.storeId, barcode: item.barcode },
+                    { $inc: { quantitySold: -item.quantity } },
+                    { session }
+                );
+            }
+        }
         const {
             subTotal,
             discount,
@@ -207,7 +239,9 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
         const finalCustomerName = customer?.name || customerName || 'Walk-in Customer';
 
         // 1. Generate Sale Number
-        const saleNumber = await generateSaleNumber(storeId, session);
+        if (!saleNumber) {
+            saleNumber = await generateSaleNumber(storeId, session);
+        }
 
         // 2. Process NEW Products and Update Inventory
         let totalCGST = 0;
@@ -563,13 +597,19 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
 
         const exchangeAdjustment = totalReturnValue || 0;
 
-        // 3. Create Sale Record
         const amountPaid = Number(saleData.amountPaid || 0);
         const dueAmount = Number((finalGrandTotal - amountPaid).toFixed(2)) || 0;
 
+        if (saleData.payments && saleData.payments.length > 0) {
+            const totalPayments = saleData.payments.reduce((sum, p) => sum + Number(p.amount), 0);
+            if (Math.abs(totalPayments - amountPaid) > 0.01) {
+                throw new Error('Sum of payments does not match amount paid');
+            }
+        }
+
         // 5. Save Sale Record
-        const sale = new Sale({
-            saleNumber,
+        let sale;
+        const saleFields = {
             storeId,
             destinationStoreId: saleData.destinationStoreId,
             cashierId: cashierId,
@@ -620,9 +660,20 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             customerId: finalCustomerId,
             customerName: finalCustomerName,
             paymentMode: saleData.paymentMode || 'CASH',
+            payments: saleData.payments || [],
             status: dueAmount > 0 ? SaleStatus.PARTIAL : SaleStatus.COMPLETED,
             saleDate: saleData.date ? new Date(saleData.date) : Date.now()
-        });
+        };
+
+        if (isUpdate) {
+            sale = existingSale;
+            Object.assign(sale, saleFields);
+        } else {
+            sale = new Sale({
+                saleNumber,
+                ...saleFields
+            });
+        }
         await sale.save({ session });
         
         // Generate Credit Note if there's a surplus from exchange
@@ -835,33 +886,42 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
                 const cashAccount = await Account.findOne({ name: 'Cash Account' }).session(session);
                 const bankAccount = await Account.findOne({ name: 'Bank Account' }).session(session);
                 
-                // Determine account based on paymentMode
-                let paymentAccount = cashAccount;
-                if (['CARD', 'UPI'].includes(sale.paymentMode)) {
-                    paymentAccount = bankAccount;
+                const paymentsToProcess = [];
+                if (sale.payments && sale.payments.length > 0) {
+                    paymentsToProcess.push(...sale.payments);
+                } else {
+                    // Fallback for backward compatibility
+                    paymentsToProcess.push({ mode: sale.paymentMode, amount: sale.amountPaid });
                 }
 
-                if (paymentAccount && receivableAccount) {
-                    await ledgerService.createJournalEntries([
-                        {
-                            voucherType: sale.paymentMode === 'CASH' ? 'CASH_RECEIPT' : 'BANK_RECEIPT',
-                            voucherId: sale._id,
-                            accountId: paymentAccount._id,
-                            debit: sale.amountPaid,
-                            credit: 0,
-                            narration: `Payment received for Sale ${sale.saleNumber}`,
-                            createdBy: cashierId
-                        },
-                        {
-                            voucherType: sale.paymentMode === 'CASH' ? 'CASH_RECEIPT' : 'BANK_RECEIPT',
-                            voucherId: sale._id,
-                            accountId: receivableAccount._id,
-                            debit: 0,
-                            credit: sale.amountPaid,
-                            narration: `Payment received for Sale ${sale.saleNumber}`,
-                            createdBy: cashierId
-                        }
-                    ], session);
+                for (const payment of paymentsToProcess) {
+                    let paymentAccount = cashAccount;
+                    if (['CARD', 'UPI'].includes(payment.mode)) {
+                        paymentAccount = bankAccount;
+                    }
+
+                    if (paymentAccount && receivableAccount) {
+                        await ledgerService.createJournalEntries([
+                            {
+                                voucherType: payment.mode === 'CASH' ? 'CASH_RECEIPT' : 'BANK_RECEIPT',
+                                voucherId: sale._id,
+                                accountId: paymentAccount._id,
+                                debit: payment.amount,
+                                credit: 0,
+                                narration: `Payment received (${payment.mode}) for Sale ${sale.saleNumber}`,
+                                createdBy: cashierId
+                            },
+                            {
+                                voucherType: payment.mode === 'CASH' ? 'CASH_RECEIPT' : 'BANK_RECEIPT',
+                                voucherId: sale._id,
+                                accountId: receivableAccount._id,
+                                debit: 0,
+                                credit: payment.amount,
+                                narration: `Payment received (${payment.mode}) for Sale ${sale.saleNumber}`,
+                                createdBy: cashierId
+                            }
+                        ], session);
+                    }
                 }
             }
         } 
@@ -1330,9 +1390,15 @@ const deleteSale = async (id, userId) => {
     });
 };
 
+const updateSale = async (id, saleData, cashierId) => {
+    saleData.id = id;
+    return await createSale(saleData, cashierId);
+};
+
 module.exports = {
     getProductForSale,
     createSale,
+    updateSale,
     getAllSales,
     getSaleById,
     cancelSale,

@@ -15,6 +15,7 @@ router.route('/')
     .get(requireAny, salesController.getAllSales);
 
 router.get('/:id', requireAny, salesController.getSaleById);
+router.put('/:id', requireAny, salesController.updateSale);
 router.patch('/:id/cancel', requireAny, salesController.cancelSale);
 router.delete('/:id', requireAny, salesController.deleteSale);
 

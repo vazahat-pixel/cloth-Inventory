@@ -140,6 +140,19 @@ const saleSchema = new mongoose.Schema(
             enum: Object.values(PaymentMethod),
             default: PaymentMethod.CASH
         },
+        payments: [
+            {
+                mode: {
+                    type: String,
+                    enum: Object.values(PaymentMethod),
+                    required: true
+                },
+                amount: {
+                    type: Number,
+                    required: true
+                }
+            }
+        ],
         amountPaid: {
             type: Number,
             default: 0

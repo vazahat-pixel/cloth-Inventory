@@ -15,8 +15,10 @@ import {
   Typography,
 } from '@mui/material';
 import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import { IconButton } from '@mui/material';
 
-const PAYMENT_MODES = ['Cash', 'Card', 'UPI', 'Gift Voucher', 'Split'];
+const PAYMENT_MODES = ['Cash', 'Card', 'UPI', 'Gift Voucher'];
 
 const toNumber = (value, fallback = 0) => {
   const numeric = Number(value);
@@ -26,23 +28,25 @@ const toNumber = (value, fallback = 0) => {
 function PaymentDialog({ open, onClose, totals, onComplete, store, customer, isEditMode = false }) {
   const netAmount = totals?.netPayable || 0;
   const onConfirm = onComplete; // Alias for internal use
-  const [paymentMode, setPaymentMode] = useState('Cash');
-  const [amountPaid, setAmountPaid] = useState('');
+  const [payments, setPayments] = useState([{ mode: 'Cash', amount: '' }]);
 
   useEffect(() => {
     if (!open) return;
-    setPaymentMode('Cash');
-    setAmountPaid(String(Number(netAmount || 0).toFixed(2)));
+    setPayments([{ mode: 'Cash', amount: String(Number(netAmount || 0).toFixed(2)) }]);
   }, [netAmount, open]);
 
-  const computedAmountPaid = toNumber(amountPaid);
+  const computedAmountPaid = payments.reduce((sum, p) => sum + toNumber(p.amount), 0);
   const dueAmount = Math.max(Number(netAmount) - computedAmountPaid, 0);
   const changeReturned = Math.max(computedAmountPaid - Number(netAmount), 0);
   const paymentStatus = dueAmount > 0 ? 'Partial' : 'Paid';
 
   const handleConfirm = () => {
     onConfirm({
-      method: paymentMode === 'Gift Voucher' ? 'GIFT_VOUCHER' : paymentMode.toUpperCase(), // Map to Backend Enum
+      method: payments[0]?.mode === 'Gift Voucher' ? 'GIFT_VOUCHER' : payments[0]?.mode?.toUpperCase() || 'CASH',
+      payments: payments.map(p => ({
+        mode: p.mode === 'Gift Voucher' ? 'GIFT_VOUCHER' : p.mode.toUpperCase(),
+        amount: toNumber(p.amount)
+      })),
       amountPaid: computedAmountPaid,
       changeReturned,
       dueAmount,
@@ -79,31 +83,57 @@ function PaymentDialog({ open, onClose, totals, onComplete, store, customer, isE
               )}
             </Box>
 
-            <FormControl size="small" sx={{ minWidth: 180 }}>
-              <InputLabel id="payment-mode-label">Payment Mode</InputLabel>
-              <Select
-                labelId="payment-mode-label"
-                value={paymentMode}
-                label="Payment Mode"
-                onChange={(event) => setPaymentMode(event.target.value)}
-              >
-                {PAYMENT_MODES.map((mode) => (
-                  <MenuItem key={mode} value={mode}>
-                    {mode}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            {/* Multi-payment list below */}
           </Stack>
 
-          <TextField
-            fullWidth
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, mt: 1 }}>
+            Payments
+          </Typography>
+          {payments.map((p, index) => (
+            <Stack direction="row" spacing={1} key={index} alignItems="center">
+              <FormControl size="small" sx={{ minWidth: 120 }}>
+                <Select
+                  value={p.mode}
+                  onChange={(e) => {
+                    const next = [...payments];
+                    next[index].mode = e.target.value;
+                    setPayments(next);
+                  }}
+                >
+                  {PAYMENT_MODES.map((mode) => (
+                    <MenuItem key={mode} value={mode}>
+                      {mode}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <TextField
+                size="small"
+                label="Amount"
+                type="number"
+                value={p.amount}
+                onChange={(e) => {
+                  const next = [...payments];
+                  next[index].amount = e.target.value;
+                  setPayments(next);
+                }}
+                sx={{ flexGrow: 1 }}
+              />
+              {payments.length > 1 && (
+                <IconButton color="error" onClick={() => setPayments(payments.filter((_, i) => i !== index))}>
+                  <DeleteOutlineIcon fontSize="small" />
+                </IconButton>
+              )}
+            </Stack>
+          ))}
+          <Button
+            variant="outlined"
             size="small"
-            label="Amount Paid"
-            type="number"
-            value={amountPaid}
-            onChange={(event) => setAmountPaid(event.target.value)}
-          />
+            onClick={() => setPayments([...payments, { mode: 'Cash', amount: '' }])}
+            sx={{ alignSelf: 'flex-start' }}
+          >
+            Add Payment Mode
+          </Button>
 
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
             <InfoCard label="Paid" value={computedAmountPaid.toFixed(2)} />

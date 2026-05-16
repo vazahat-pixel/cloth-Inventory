@@ -31,7 +31,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
 import KeyboardReturnOutlinedIcon from '@mui/icons-material/KeyboardReturnOutlined';
 import PaymentIcon from '@mui/icons-material/Payment';
-import { addSale, fetchSales, deleteSale } from './salesSlice';
+import { addSale, fetchSales, deleteSale, updateSale } from './salesSlice';
 import { fetchStockOverview } from '../inventory/inventorySlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchPricingRules, fetchSchemes, fetchCoupons, evaluateOffers } from '../pricing/pricingSlice';
@@ -870,6 +870,7 @@ function BillingPage({
       amountPaid: payment.amountPaid,
       dueAmount: payment.dueAmount,
       paymentMode: payment.method || 'CASH',
+      payments: payment.payments || [{ mode: payment.method || 'CASH', amount: payment.amountPaid }],
       redeemPoints: Math.max(0, toNumber(loyaltyRedeemed)),
       creditNoteId: creditNoteId || null,
       schemeId: selectedScheme?._id || null,
@@ -908,14 +909,18 @@ function BillingPage({
     };
 
     if (isEditMode && existingSale) {
-      dispatch(deleteSale(existingSale.id))
+      dispatch(updateSale({ id: existingSale.id, saleData: payload }))
         .unwrap()
-        .then(() => {
-          saveNewSale();
+        .then((res) => {
+          setCompletedSaleData(res);
+          setShowPrint(true);
+          showNotification('Sale updated successfully!', 'success');
         })
         .catch((err) => {
-          setErrorMessage(err || 'Failed to update sale (could not remove old sale)');
+          setErrorMessage(err || 'Failed to update sale');
           showNotification(err || 'Failed to update sale', 'error');
+        })
+        .finally(() => {
           hideLoading();
         });
     } else {
@@ -1454,7 +1459,7 @@ function BillingPage({
                             )}
                             {/* Amount column */}
                             <TableCell align="right" sx={{ fontWeight: 700 }}>
-                              {lineRes.amount.toFixed(2)}
+                              ₹{lineRes.amount.toFixed(2)}
                             </TableCell>
                             {/* Remove column */}
                             <TableCell align="center">

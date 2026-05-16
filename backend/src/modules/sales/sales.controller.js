@@ -112,9 +112,35 @@ const deleteSale = async (req, res, next) => {
     }
 };
 
+const updateSale = async (req, res, next) => {
+    try {
+        if (!req.body.products?.length && !req.body.items?.length) {
+            return sendError(res, 'Cannot update invoice/sale with empty items', 400);
+        }
+
+        if (req.user.role === 'store_staff') {
+            if (!req.user.shopId) {
+                return sendError(res, 'User is not linked to any store. Please contact administrator.', 400);
+            }
+
+            if (req.body.storeId && req.body.storeId.toString() !== req.user.shopId.toString()) {
+                return sendError(res, 'You can only update sales for your own store.', 403);
+            }
+
+            req.body.storeId = req.user.shopId;
+        }
+
+        const sale = await salesService.updateSale(req.params.id, req.body, req.user._id);
+        return sendSuccess(res, { sale }, 'Sale updated successfully');
+    } catch (err) {
+        return sendError(res, err.message, 400);
+    }
+};
+
 module.exports = {
     getProductByBarcode,
     createSale,
+    updateSale,
     getAllSales,
     getSaleById,
     cancelSale,

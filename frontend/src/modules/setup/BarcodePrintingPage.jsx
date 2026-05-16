@@ -60,79 +60,80 @@ const VerticalTag = ({ label, mfgLine1, mfgLine2, type, design }) => {
 
   return (
     <Box sx={{ 
-      width: '50mm', 
-      minHeight: '135mm', 
+      width: '42mm', 
+      minHeight: '85mm', 
       bgcolor: 'white', 
       color: 'black', 
       display: 'flex', 
       flexDirection: 'column', 
-      border: '1.5px solid black', 
-      p: '4mm',
-      pt: '3mm',
+      border: '1px solid black', 
+      p: '2mm',
+      pt: '1mm',
       boxSizing: 'border-box',
       fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
       boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-      position: 'relative'
+      position: 'relative',
+      overflow: 'hidden'
     }}>
       {/* Barcode Section */}
-      <Box sx={{ textAlign: 'center', mb: 1.5 }}>
-        <img src={barcodeImg} style={{ width: '100%', height: '14mm', objectFit: 'contain' }} alt="barcode" />
-        <Typography sx={{ fontSize: '9pt', fontWeight: 600, mt: 0.2, letterSpacing: '0.8mm' }}>{label.barcode}</Typography>
+      <Box sx={{ textAlign: 'center', mb: 1 }}>
+        <img src={barcodeImg} style={{ width: '100%', height: '10mm', objectFit: 'contain' }} alt="barcode" />
+        <Typography sx={{ fontSize: '7pt', fontWeight: 600, mt: 0.1, letterSpacing: '0.5mm' }}>{label.barcode}</Typography>
       </Box>
 
       {/* Product Details Section */}
-      <Stack spacing={0.5} sx={{ px: 0.5, flex: 1 }}>
+      <Stack spacing={0.3} sx={{ px: 0.2, flex: 1 }}>
         {[
           { label: 'Article :', val: label.article },
           { label: 'Group', val: label.category || 'SHIRT' },
           { label: 'Type:', val: type },
           { label: 'DESIGN :', val: design || 'COLLAR' },
         ].map((item, i) => (
-          <Box key={i} sx={{ display: 'grid', gridTemplateColumns: '22mm 1fr', fontSize: '9.2pt', lineHeight: 1.1, alignItems: 'start' }}>
+          <Box key={i} sx={{ display: 'grid', gridTemplateColumns: '15mm 1fr', fontSize: '8pt', lineHeight: 1.1, alignItems: 'start' }}>
             <Typography sx={{ fontWeight: 800, fontSize: 'inherit' }}>{item.label}</Typography>
             <Typography sx={{ fontWeight: 700, fontSize: 'inherit', textTransform: 'uppercase' }}>{item.val}</Typography>
           </Box>
         ))}
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: '22mm 1fr', fontSize: '9.5pt', mt: 0.2, alignItems: 'center' }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: '15mm 1fr', fontSize: '8pt', mt: 0.1, alignItems: 'center' }}>
           <Typography sx={{ fontWeight: 700, fontSize: 'inherit' }}>Size :</Typography>
-          <Typography sx={{ fontWeight: 900, fontSize: '11pt', textTransform: 'uppercase' }}>{label.size}</Typography>
+          <Typography sx={{ fontWeight: 900, fontSize: '9pt', textTransform: 'uppercase' }}>{label.size}</Typography>
         </Box>
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: '22mm 1fr', fontSize: '9pt', alignItems: 'center' }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: '15mm 1fr', fontSize: '8pt', alignItems: 'center' }}>
           <Typography sx={{ fontWeight: 700, fontSize: 'inherit' }}>Qty: 1N</Typography>
           <Typography sx={{ fontWeight: 700, fontSize: 'inherit', textTransform: 'uppercase' }}>F/S</Typography>
         </Box>
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: '22mm 1fr', fontSize: '9pt', alignItems: 'center' }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: '15mm 1fr', fontSize: '8pt', alignItems: 'center' }}>
           <Typography sx={{ fontWeight: 700, fontSize: 'inherit' }}>Colour :</Typography>
           <Typography sx={{ fontWeight: 700, fontSize: 'inherit', textTransform: 'uppercase' }}>{label.color}</Typography>
         </Box>
 
-        <Box sx={{ mt: 1 }}>
-          <Box sx={{ display: 'grid', gridTemplateColumns: '22mm 1fr', alignItems: 'center' }}>
-            <Typography sx={{ fontWeight: 800, fontSize: '10pt' }}>MRP :</Typography>
-            <Typography sx={{ fontWeight: 900, fontSize: '14pt', textAlign: 'left' }}>
+        <Box sx={{ mt: 0.5 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '15mm 1fr', alignItems: 'center' }}>
+            <Typography sx={{ fontWeight: 800, fontSize: '9pt' }}>MRP :</Typography>
+            <Typography sx={{ fontWeight: 900, fontSize: '11pt', textAlign: 'left' }}>
               {Number(label.mrp || 0).toFixed(0)}
             </Typography>
           </Box>
-          <Box sx={{ textAlign: 'left', pl: '22mm', mt: -0.5 }}>
-            <Typography sx={{ fontSize: '7.5pt', fontWeight: 700 }}>(Incl of all taxes)</Typography>
+          <Box sx={{ textAlign: 'left', pl: '15mm', mt: -0.2 }}>
+            <Typography sx={{ fontSize: '6pt', fontWeight: 700 }}>(Incl of all taxes)</Typography>
           </Box>
         </Box>
       </Stack>
 
       {/* Manufacturing Section */}
-      <Box sx={{ mt: 'auto', borderTop: '1px solid black', pt: 1.8, px: 0.5 }}>
-        <Typography sx={{ fontSize: '7.5pt', fontWeight: 900, mb: 0.1 }}>MFG:</Typography>
-        <Typography sx={{ fontSize: '7.5pt', fontWeight: 800 }}>Mfg. & Marketed By</Typography>
-        <Typography sx={{ fontSize: '7.5pt', fontWeight: 700 }}>Rebel Mass Export Pvt. Ltd</Typography>
-        <Typography sx={{ fontSize: '7pt', fontWeight: 600 }}>{mfgLine1}</Typography>
-        <Typography sx={{ fontSize: '7pt', fontWeight: 600 }}>{mfgLine2}</Typography>
+      <Box sx={{ mt: 'auto', borderTop: '1px solid black', pt: 0.5, px: 0.2 }}>
+        <Typography sx={{ fontSize: '6pt', fontWeight: 900, mb: 0.1 }}>MFG:</Typography>
+        <Typography sx={{ fontSize: '6pt', fontWeight: 800 }}>Mfg. & Marketed By</Typography>
+        <Typography sx={{ fontSize: '6pt', fontWeight: 700 }}>Rebel Mass Export Pvt. Ltd</Typography>
+        <Typography sx={{ fontSize: '6pt', fontWeight: 600 }}>{mfgLine1}</Typography>
+        <Typography sx={{ fontSize: '6pt', fontWeight: 600 }}>{mfgLine2}</Typography>
         
-        <Box sx={{ mt: 0.8 }}>
-          <Typography sx={{ fontSize: '7.5pt', fontWeight: 800 }}>Customer Care:</Typography>
-          <Typography sx={{ fontSize: '7pt', fontWeight: 600 }}>Email: info.dapolo@gmail.com</Typography>
+        <Box sx={{ mt: 0.3 }}>
+          <Typography sx={{ fontSize: '6pt', fontWeight: 800 }}>Customer Care:</Typography>
+          <Typography sx={{ fontSize: '6pt', fontWeight: 600 }}>Email: info.dapolo@gmail.com</Typography>
         </Box>
       </Box>
     </Box>
@@ -419,32 +420,32 @@ function BarcodePrintingPage() {
     const printWindow = window.open('', '_blank');
     const styles = `
       <style>
-        @page { size: 50mm 135mm; margin: 0; }
+        @page { size: 42mm 85mm; margin: 0; }
         * { box-sizing: border-box; }
         body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background: #fff; color: #000; }
         .label { 
-          width: 50mm; height: 135mm; box-sizing: border-box;
-          padding: 4.5mm; overflow: hidden; page-break-after: always;
+          width: 42mm; height: 85mm; box-sizing: border-box;
+          padding: 2mm; overflow: hidden; page-break-after: always;
           display: flex; flex-direction: column; justify-content: flex-start;
           border-bottom: 0.2mm solid #eee;
         }
-        .barcode-container { width: 100%; text-align: center; margin-bottom: 4mm; }
-        .barcode-img { width: 100%; height: 14mm; display: block; margin: 0 auto; object-fit: contain; }
-        .barcode-text { font-size: 9pt; font-weight: 600; letter-spacing: 0.8mm; margin-top: 1mm; text-align: center; }
+        .barcode-container { width: 100%; text-align: center; margin-bottom: 2mm; }
+        .barcode-img { width: 100%; height: 10mm; display: block; margin: 0 auto; object-fit: contain; }
+        .barcode-text { font-size: 7pt; font-weight: 600; letter-spacing: 0.5mm; margin-top: 0.5mm; text-align: center; }
         
-        .spec-container { display: flex; flex-direction: column; gap: 1.2mm; flex: 1; padding: 0 0.5mm; }
-        .row { display: grid; grid-template-columns: 22mm 1fr; font-size: 9.2pt; line-height: 1.1; align-items: start; }
+        .spec-container { display: flex; flex-direction: column; gap: 0.5mm; flex: 1; padding: 0 0.2mm; }
+        .row { display: grid; grid-template-columns: 15mm 1fr; font-size: 8pt; line-height: 1.1; align-items: start; }
         .key { font-weight: 800; }
         .val { font-weight: 700; text-transform: uppercase; }
 
-        .mrp-section { margin-top: 2mm; }
-        .mrp-row { display: grid; grid-template-columns: 22mm 1fr; font-size: 10pt; align-items: center; font-weight: 800; }
-        .mrp-val { font-size: 14pt; font-weight: 900; }
-        .tax-text { font-size: 7.5pt; font-weight: 700; margin-left: 22mm; margin-top: -0.5mm; }
+        .mrp-section { margin-top: 1mm; }
+        .mrp-row { display: grid; grid-template-columns: 15mm 1fr; font-size: 9pt; align-items: center; font-weight: 800; }
+        .mrp-val { font-size: 11pt; font-weight: 900; }
+        .tax-text { font-size: 6pt; font-weight: 700; margin-left: 15mm; margin-top: -0.2mm; }
 
-        .footer { font-size: 7.2pt; font-weight: 700; line-height: 1.3; border-top: 1px solid #000; padding-top: 2.5mm; margin-top: auto; padding-left: 0.5mm; }
-        .mfg-title { font-size: 7.5pt; font-weight: 900; margin-bottom: 0.5mm; }
-        .mf-line { font-size: 7pt; font-weight: 600; }
+        .footer { font-size: 6pt; font-weight: 700; line-height: 1.2; border-top: 1px solid #000; padding-top: 1mm; margin-top: auto; padding-left: 0.2mm; }
+        .mfg-title { font-size: 6pt; font-weight: 900; margin-bottom: 0.2mm; }
+        .mf-line { font-size: 6pt; font-weight: 600; }
       </style>
     `;
 
@@ -468,8 +469,8 @@ function BarcodePrintingPage() {
           <div class="row">
             <span class="key">DESIGN :</span> <span class="val">${design}</span>
           </div>
-          <div class="row" style="align-items: center; margin-top: 0.5mm;">
-            <span class="key">Size :</span> <span class="val" style="font-size: 11pt; font-weight: 900;">${label.size}</span>
+          <div class="row" style="align-items: center; margin-top: 0.2mm;">
+            <span class="key">Size :</span> <span class="val" style="font-size: 9pt; font-weight: 900;">${label.size}</span>
           </div>
           <div class="row" style="align-items: center;">
             <span class="key">Qty: 1N</span> <span class="val">F/S</span>
@@ -492,7 +493,7 @@ function BarcodePrintingPage() {
           <div>Rebel Mass Export Pvt. Ltd</div>
           <div class="mf-line">${mfgLine1}</div>
           <div class="mf-line">${mfgLine2}</div>
-          <div style="margin-top: 2mm;">
+          <div style="margin-top: 1mm;">
             <b>Customer Care:</b><br/>
             Email: info.dapolo@gmail.com
           </div>

@@ -29,6 +29,21 @@ export const addSale = createAsyncThunk('sales/add', async (saleData, { rejectWi
   }
 });
 
+export const updateSale = createAsyncThunk('sales/update', async ({ id, saleData }, { rejectWithValue }) => {
+  try {
+    const payload = {
+      ...saleData,
+      storeId: saleData.storeId || saleData.warehouseId,
+      paymentMode: saleData.paymentMode?.toUpperCase() || 'CASH',
+    };
+    const response = await api.put(`/sales/${id}`, payload);
+    const raw = response.data.sale || response.data.data;
+    return normalizeResponse(raw, 'sale');
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || 'Failed to update sale');
+  }
+});
+
 export const deleteSale = createAsyncThunk('sales/delete', async (id, { rejectWithValue }) => {
   try {
     await api.delete(`/sales/${id}`);
@@ -103,6 +118,22 @@ const salesSlice = createSlice({
         state.records.unshift(action.payload);
       })
       .addCase(addSale.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // Update Sale
+      .addCase(updateSale.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updateSale.fulfilled, (state, action) => {
+        state.loading = false;
+        const index = state.records.findIndex((r) => r.id === action.payload.id);
+        if (index !== -1) {
+          state.records[index] = action.payload;
+        }
+      })
+      .addCase(updateSale.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
