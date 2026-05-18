@@ -251,8 +251,10 @@ function DeliveryChallanForm({
                             itemName: item.itemName,
                             itemCode: item.itemCode,
                             itemType: item.type,
-                            sku: sz.sku || sz.barcode || item.itemCode,
-                            barcode: sz.barcode || sz.sku || '',
+                            // SKU = itemCode only (no size suffix) — matches user's master format
+                            sku: item.itemCode,
+                            // Keep full barcode internally for accurate matching
+                            barcode: sz.barcode || sz.sku || item.itemCode,
                             size: sz.size || '-',
                             color: item.shade || sz.color || '-',
                             available: Number(sz.stock),
@@ -273,30 +275,42 @@ function DeliveryChallanForm({
 
     const handleScanner = async (code) => {
         if (!code) return;
-        const normalizedCode = String(code).trim().toLowerCase();
 
+        // 1. Clean barcode — strip scanner quantity suffixes like ":1", ":2"
+        let cleaned = String(code).trim().replace(/:(\d+)$/, '').trim();
+        const normalizedCode = cleaned.toLowerCase();
+
+        // 2. Receive mode — just match against existing lines
         if (isReceiveMode) {
-            const match = lines.find(l => 
-                String(l.sku).toLowerCase() === normalizedCode || 
+            const match = lines.find(l =>
+                String(l.sku).toLowerCase() === normalizedCode ||
                 String(l.barcode).toLowerCase() === normalizedCode
             );
             if (match) {
                 updateReceivedQuantity(match.variantId, (match.receivedQty || 0) + 1);
                 setError('');
             } else {
-                setError(`Item ${code} not found in this dispatch.`);
+                setError(`Item "${cleaned}" not found in this dispatch.`);
             }
             return;
         }
 
-        const localMatch = variantOptions.find(o => 
-            String(o.sku).toLowerCase() === normalizedCode || 
-            String(o.barcode).toLowerCase() === normalizedCode ||
-            String(o.variantId).toLowerCase() === normalizedCode
-        );
-
         const selectedStore = stores.find(s => (s.id || s._id) === storeId);
         const storeDiscount = selectedStore?.transferDiscountPct || 0;
+
+        // 3. Local match from preloaded warehouse stock (exact barcode/sku match first, then itemCode prefix match)
+        const localMatch =
+            // Exact match on sku or barcode
+            variantOptions.find(o =>
+                String(o.sku || '').toLowerCase() === normalizedCode ||
+                String(o.barcode || '').toLowerCase() === normalizedCode
+            ) ||
+            // itemCode-only scan: "DA2139" matches sku "DA2139-M"
+            variantOptions.find(o =>
+                String(o.sku || '').toLowerCase().startsWith(normalizedCode + '-') ||
+                String(o.barcode || '').toLowerCase().startsWith(normalizedCode + '-') ||
+                String(o.itemCode || '').toLowerCase() === normalizedCode
+            );
 
         if (localMatch) {
             const existing = lines.find(l => l.variantId === localMatch.variantId);
@@ -304,10 +318,10 @@ function DeliveryChallanForm({
                 updateQuantity(existing.variantId, existing.quantity + 1);
             } else {
                 const baseMrp = localMatch.mrp || localMatch.rate || 0;
-                setLines(prev => [...prev, { 
-                    ...localMatch, 
-                    quantity: 1, 
-                    barcode: localMatch.sku,
+                setLines(prev => [...prev, {
+                    ...localMatch,
+                    quantity: 1,
+                    barcode: localMatch.barcode || localMatch.sku,
                     discountPercent: storeDiscount,
                     rate: Number((baseMrp * (1 - storeDiscount / 100)).toFixed(2))
                 }]);
@@ -316,42 +330,42 @@ function DeliveryChallanForm({
             return;
         }
 
+        // 4. Fallback — call backend scan API with cleaned code
         if (!sourceId) {
             setError("Please select a source warehouse before scanning.");
             return;
         }
 
         try {
-            const res = await api.get(`/inventory/warehouse/${sourceId}/scan/${code}`);
+            const res = await api.get(`/inventory/warehouse/${sourceId}/scan/${encodeURIComponent(cleaned)}`);
             const item = res.data.data || res.data;
             if (item) {
-                const selectedStore = stores.find(s => (s.id || s._id) === storeId);
-                const storeDiscount = selectedStore?.transferDiscountPct || 0;
-                const baseMrp = item.rate || item.mrp || 0;
-
+                const baseMrp = item.mrp || item.rate || 0;
+                const resolvedItemCode = item.itemCode || item.itemId?.itemCode || '';
                 const newLine = {
                     itemId: item.itemId?._id || item.itemId,
                     variantId: item.variantId,
                     barcode: item.barcode,
-                    itemName: item.itemId?.itemName || 'Item',
-                    itemCode: item.itemId?.itemCode || '',
-                    sku: item.barcode,
-                    size: item.size || item.variantId?.size || '-',
-                    color: item.color || item.variantId?.color || '-',
+                    itemName: item.itemName || item.itemId?.itemName || 'Item',
+                    itemCode: resolvedItemCode,
+                    // SKU = itemCode only (no size suffix)
+                    sku: resolvedItemCode || item.sku || item.barcode,
+                    size: item.size || '-',
+                    color: item.color || '-',
                     available: item.quantity,
                     quantity: 1,
                     rate: Number((baseMrp * (1 - storeDiscount / 100)).toFixed(2)),
                     mrp: baseMrp,
                     discountPercent: storeDiscount,
-                    gstPercent: Number(item.gstPercent || item.itemId?.hsCodeId?.gstPercent || 0),
-                    hsnCode: item.itemId?.hsnCode || item.hsnCode || '',
-                    category: item.itemId?.categoryName || item.categoryName || item.itemId?.type || ''
+                    gstPercent: Number(item.gstPercent || 0),
+                    hsnCode: item.hsnCode || '',
+                    category: item.itemId?.categoryName || item.categoryName || item.type || ''
                 };
                 setLines(prev => [...prev, newLine]);
                 setError('');
             }
         } catch (err) {
-            setError("Item not found in source warehouse or invalid barcode");
+            setError(`"${cleaned}" warehouse mein nahi mila. Sahi barcode scan karein.`);
         }
     };
 
@@ -408,7 +422,7 @@ function DeliveryChallanForm({
                                     String(sz?.sku || '').toLowerCase() === String(item.barcode || '').toLowerCase()
                                 )
                                 : null;
-                            const derivedSku = v.sku || v.barcode || variantDoc?.sku || variantDoc?.barcode || item.barcode || itemDoc.itemCode || '-';
+                            const derivedSku = itemDoc.itemCode || v.sku || v.barcode || variantDoc?.sku || variantDoc?.barcode || item.barcode || '-';
                             const derivedBarcode = v.barcode || v.sku || variantDoc?.barcode || variantDoc?.sku || item.barcode || '-';
                             return {
                                 variantId: v._id || variantDoc?._id || item.variantId,

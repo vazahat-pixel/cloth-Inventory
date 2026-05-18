@@ -229,38 +229,134 @@ class InventoryController {
     try {
       const { warehouseId, barcode } = req.params;
       const WarehouseInventory = require('../../models/warehouseInventory.model');
+      const Item = require('../../models/item.model');
 
-      const stock = await WarehouseInventory.findOne({
+      const code = barcode.trim();
+      console.log(`[SCAN] warehouseId=${warehouseId}, code="${code}"`);
+
+      // Case-insensitive regex
+      const codeRegex = new RegExp(`^${code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+
+      // ─── STRATEGY 1: Exact match on WarehouseInventory barcode (most common case) ───
+      let stock = await WarehouseInventory.findOne({
         warehouseId,
-        $or: [{ barcode: barcode }, { variantId: barcode }]
-      })
-        .populate({ path: 'itemId', populate: { path: 'hsCodeId' } });
+        barcode: codeRegex
+      }).populate({ path: 'itemId', populate: { path: 'hsCodeId' } });
 
-      if (!stock) {
-        return sendNotFound(res, 'Item not found in this warehouse stock');
+      if (stock) {
+        const item = stock.itemId;
+        const variant = item?.sizes?.find(sz =>
+          (sz.barcode && sz.barcode.toLowerCase() === code.toLowerCase()) ||
+          (sz.sku && sz.sku.toLowerCase() === code.toLowerCase()) ||
+          sz._id.toString() === stock.variantId
+        );
+        console.log(`[SCAN] STRATEGY 1 matched: barcode=${stock.barcode}, qty=${stock.quantity}`);
+        return sendSuccess(res, {
+          ...stock.toObject(),
+          itemName: item?.itemName || 'Unknown',
+          itemCode: item?.itemCode || '',
+          type: item?.type || 'GARMENT',
+          sku: variant?.sku || variant?.barcode || code,
+          size: variant?.size || '-',
+          color: variant?.color || item?.shade || '-',
+          rate: variant?.mrp || item?.mrp || item?.salePrice || 0,
+          mrp: variant?.mrp || item?.mrp || item?.salePrice || 0,
+          gstPercent: item?.gstPercent || item?.hsCodeId?.gstPercent || 0,
+          hsnCode: item?.hsCodeId?.code || item?.hsnCode || ''
+        }, 'Item scanned successfully');
       }
 
-      // Find the specific variant to get the price
-      const item = stock.itemId;
-      const variant = item.sizes.find(sz => sz.barcode === barcode || sz._id.toString() === stock.variantId || sz.sku === barcode);
+      // ─── STRATEGY 2: Match on sizes.sku or sizes.barcode in Item, then find stock ───
+      let item = await Item.findOne({
+        $or: [
+          { "sizes.barcode": codeRegex },
+          { "sizes.sku": codeRegex }
+        ]
+      }).populate('hsCodeId');
 
-      const responseData = {
-        ...stock.toObject(),
-        itemName: item.itemName,
-        itemCode: item.itemCode,
-        type: item.type,
-        size: variant?.size || '-',
-        color: variant?.color || item.shade || '-',
-        rate: variant?.mrp || item.salePrice || 0,
-        gstPercent: item.gstTax || 0,
-        hsnCode: item.hsCodeId?.code || item.hsnCode || ''
-      };
+      if (item) {
+        const variant = item.sizes.find(sz =>
+          (sz.barcode && sz.barcode.toLowerCase() === code.toLowerCase()) ||
+          (sz.sku && sz.sku.toLowerCase() === code.toLowerCase())
+        );
+        const variantId = variant?._id?.toString();
 
-      return sendSuccess(res, responseData, 'Item scanned successfully');
+        stock = await WarehouseInventory.findOne({
+          warehouseId,
+          $or: [
+            ...(variantId ? [{ variantId }] : []),
+            { barcode: codeRegex }
+          ]
+        }).populate({ path: 'itemId', populate: { path: 'hsCodeId' } });
+
+        if (stock) {
+          console.log(`[SCAN] STRATEGY 2 matched via Item sizes: qty=${stock.quantity}`);
+          return sendSuccess(res, {
+            ...stock.toObject(),
+            itemName: item.itemName,
+            itemCode: item.itemCode,
+            type: item.type,
+            sku: variant?.sku || variant?.barcode || code,
+            size: variant?.size || '-',
+            color: variant?.color || item.shade || '-',
+            rate: variant?.mrp || item.mrp || item.salePrice || 0,
+            mrp: variant?.mrp || item.mrp || item.salePrice || 0,
+            gstPercent: item.gstPercent || item.hsCodeId?.gstPercent || 0,
+            hsnCode: item.hsCodeId?.code || item.hsnCode || ''
+          }, 'Item scanned successfully');
+        }
+      }
+
+      // ─── STRATEGY 3: itemCode only (no size specified) — return first available variant ───
+      item = await Item.findOne({ itemCode: codeRegex }).populate('hsCodeId');
+      console.log(`[SCAN] STRATEGY 3 (itemCode scan): item=${item ? item.itemName : 'NOT FOUND'}`);
+
+      if (item) {
+        // Get all warehouse stock records for this item
+        const allStocks = await WarehouseInventory.find({
+          warehouseId,
+          itemId: item._id
+        }).lean();
+
+        console.log(`[SCAN] Found ${allStocks.length} stock records for item ${item.itemCode}`);
+
+        if (allStocks.length === 0) {
+          return sendNotFound(res, `Item "${code}" hai lekin is warehouse mein stock nahi hai.`);
+        }
+
+        // Pick the first available stock
+        const firstStock = allStocks[0];
+        const variant = item.sizes?.find(sz =>
+          sz._id.toString() === firstStock.variantId ||
+          (sz.barcode && sz.barcode === firstStock.barcode) ||
+          (sz.sku && sz.sku === firstStock.barcode)
+        );
+
+        return sendSuccess(res, {
+          ...firstStock,
+          itemId: item,
+          itemName: item.itemName,
+          itemCode: item.itemCode,
+          type: item.type,
+          sku: variant?.sku || firstStock.barcode,
+          size: variant?.size || '-',
+          color: variant?.color || item.shade || '-',
+          rate: variant?.mrp || item.mrp || item.salePrice || 0,
+          mrp: variant?.mrp || item.mrp || item.salePrice || 0,
+          gstPercent: item.gstPercent || item.hsCodeId?.gstPercent || 0,
+          hsnCode: item.hsCodeId?.code || item.hsnCode || ''
+        }, 'Item scanned successfully');
+      }
+
+      // ─── Not found anywhere ───
+      console.log(`[SCAN] NOT FOUND: code="${code}", warehouseId=${warehouseId}`);
+      return sendNotFound(res, `Item "${code}" warehouse mein nahi mila. Sahi barcode scan karein.`);
+
     } catch (e) {
+      console.error('[SCAN ERROR]', e);
       return sendError(res, e.message);
     }
-  };;
+  };
 
   /**
    * CLIENT DEMO DASHBOARD High-Level Stats

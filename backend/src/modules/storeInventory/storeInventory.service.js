@@ -150,7 +150,6 @@ const getStoreInventory = async (query, user) => {
             storeFilter._id = { $in: [] };
         }
     }
-
     if (lowStock === 'true') {
         storeFilter.$expr = { $lte: ['$quantityAvailable', '$minStockLevel'] };
         warehouseFilter.$expr = { $lte: ['$quantity', '$reorderLevel'] };
