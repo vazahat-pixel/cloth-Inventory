@@ -185,12 +185,12 @@ function DeliveryChallanForm({
     const hsnSummary = useMemo(() => {
         const summary = {};
         lines.forEach(l => {
-            const hsn = l.hsnCode || 'N/A';
+            const hsn = l.hsnCode || '6109';
             const taxableValue = Number(l.rate || 0) * l.quantity;
             
-            // Determine GST slab for this item
-            const totalTaxable = lines.reduce((acc, x) => acc + (Number(x.rate || x.mrp || 0) * x.quantity), 0);
-            const slab = calculateGST(totalTaxable, null, null, taxRules);
+            // Determine GST slab for this item based on individual unit price
+            const unitPrice = Number(l.rate || l.mrp || 0);
+            const slab = calculateGST(unitPrice, null, null, taxRules);
             const itemRule = calculateGST(0, l.sku || l.barcode, l.category, taxRules);
             const actualGstRate = (itemRule.type === 'FLAT') ? itemRule.rate : slab.rate;
             const displayGstRate = isSameEntity ? 0 : actualGstRate;
@@ -262,7 +262,7 @@ function DeliveryChallanForm({
                             mrp: baseRate,
                             discountPercent: 0,
                             gstPercent: gstPct,
-                            hsnCode: item.hsnCode || item.hsCodeId?.code || item.hsCodeId?.hsnCode || '',
+                            hsnCode: item.hsnCode || item.hsCodeId?.code || item.hsCodeId?.hsnCode || '6109',
                             category: item.categoryName || item.type || ''
                         });
                     }
@@ -358,7 +358,7 @@ function DeliveryChallanForm({
                     mrp: baseMrp,
                     discountPercent: storeDiscount,
                     gstPercent: Number(item.gstPercent || 0),
-                    hsnCode: item.hsnCode || '',
+                    hsnCode: item.hsnCode || '6109',
                     category: item.itemId?.categoryName || item.categoryName || item.type || ''
                 };
                 setLines(prev => [...prev, newLine]);
@@ -439,7 +439,7 @@ function DeliveryChallanForm({
                                 mrp: Number(item.mrp || item.rate || 0),
                                 discountPercent: Number(item.discountPercent || 0),
                                 gstPercent: Number(item.taxPercentage || 0),
-                                hsnCode: item.hsnCode || itemDoc.hsnCode || itemDoc.hsCodeId?.code || itemDoc.hsCodeId?.hsnCode || '',
+                                hsnCode: item.hsnCode || itemDoc.hsnCode || itemDoc.hsCodeId?.code || itemDoc.hsCodeId?.hsnCode || '6109',
                                 category: itemDoc.categoryName || itemDoc.type || ''
                             };
                         });
@@ -711,9 +711,8 @@ function DeliveryChallanForm({
                                 const billRate = Number(l.rate || l.mrp || 0);
                                 const taxableValue = billRate * (l.quantity || 0);
                                 
-                                // Determine GST slab
-                                const totalTaxableForSlab = lines.reduce((acc, line) => acc + (Number(line.rate || line.mrp || 0) * line.quantity), 0);
-                                const slabInfo = calculateGST(totalTaxableForSlab, null, null, taxRules);
+                                // Determine GST slab based on individual unit price
+                                const slabInfo = calculateGST(billRate, null, null, taxRules);
                                 const itemRule = calculateGST(0, l.sku || l.barcode, l.category, taxRules);
                                 const lineTaxRate = (itemRule.type === 'FLAT') ? itemRule.rate : slabInfo.rate;
                                 
@@ -857,8 +856,8 @@ function DeliveryChallanForm({
                             )}
                             <Divider />
                             {(() => {
-                                const totalTaxable = lines.reduce((acc, l) => acc + ((Number(l.rate || 0)) * l.quantity), 0);
-                                const slabInfo = calculateGST(totalTaxable, null, null, taxRules);
+                                const representativeRate = lines[0] ? Number(lines[0].rate || lines[0].mrp || 0) : 0;
+                                const slabInfo = calculateGST(representativeRate, null, null, taxRules);
                                 return slabInfo.message && (
                                     <Box sx={{ py: 1, px: 1.5, mb: 1, bgcolor: isSameEntity ? '#eff6ff' : '#f0fdf4', borderRadius: 1.5, border: `1px solid ${isSameEntity ? '#bfdbfe' : '#bbf7d0'}` }}>
                                         <Typography variant="caption" sx={{ fontWeight: 800, color: isSameEntity ? '#1e40af' : '#166534' }}>

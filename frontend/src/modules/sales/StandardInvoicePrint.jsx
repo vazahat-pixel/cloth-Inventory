@@ -44,41 +44,38 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
         const qty = Number(item.quantity ?? item.qty ?? 0);
         const rate = Number(item.rate ?? item.price ?? 0);
         const mrp = Number(item.mrp ?? rate);
-        // Manual discount + Promo/Scheme discount
-        const manualDiscountAmt = (rate * qty * Number(item.discountPercent ?? item.discount ?? 0)) / 100;
-        const promoDiscountAmt = Number(item.promoDiscount ?? item.schemeDiscount ?? 0);
-        const totalDiscountAmt = item.discountAmount !== undefined ? Number(item.discountAmount) : (manualDiscountAmt + promoDiscountAmt);
-        
         const taxPercentage = Number(item.taxPercentage ?? item.gstPercent ?? 5);
-        const lineTotal = Number(item.total ?? (rate * qty - totalDiscountAmt));
         
         // Determine if the original source was inclusive or exclusive
         const isInclusiveSource = sale.type === 'RETAIL' && !sale.dispatchNumber;
         
-        // Back-calculate taxable from lineTotal
-        const taxable = lineTotal / (1 + (taxPercentage / 100));
-        const taxAmount = lineTotal - taxable;
-        
-        // Mathematically consistent display values (Exclusive of Tax)
-        let displayGross, displayDiscount, displayRate;
+        let taxable, taxAmount, lineTotal, displayGross, displayDiscount, displayRate;
         
         if (isInclusiveSource) {
-            // MRP/Rate was inclusive of tax
-            const baseInclusive = Math.max(mrp, rate);
-            const grossInclusive = baseInclusive * qty;
-            const discountInclusive = Math.max(0, grossInclusive - lineTotal);
+            // Manual discount + Promo/Scheme discount
+            const manualDiscountAmt = (rate * qty * Number(item.discountPercent ?? item.discount ?? 0)) / 100;
+            const promoDiscountAmt = Number(item.promoDiscount ?? item.schemeDiscount ?? 0);
+            const totalDiscountAmt = item.discountAmount !== undefined ? Number(item.discountAmount) : (manualDiscountAmt + promoDiscountAmt);
             
-            // For Retail/B2C, show inclusive values to match the POS screen exactly
-            displayGross = grossInclusive;
-            displayDiscount = discountInclusive;
+            lineTotal = Number(item.total ?? (rate * qty - totalDiscountAmt));
+            taxable = lineTotal / (1 + (taxPercentage / 100));
+            taxAmount = lineTotal - taxable;
+            
+            const baseInclusive = Math.max(mrp, rate);
+            displayGross = baseInclusive * qty;
+            displayDiscount = Math.max(0, displayGross - lineTotal);
             displayRate = baseInclusive;
         } else {
-            // MRP/Rate was exclusive of tax (Dispatch/B2B)
+            // B2B Dispatch / Stock Transfer
             // In dispatch, 'mrp' is saved as the base rate, 'rate' is the discounted rate
-            const baseExclusive = Math.max(mrp, rate); 
-            displayGross = baseExclusive * qty;
-            displayDiscount = Math.max(0, displayGross - taxable);
-            displayRate = baseExclusive;
+            taxable = rate * qty;
+            const effectiveTaxRate = isStockTransfer ? 0 : taxPercentage;
+            taxAmount = (taxable * effectiveTaxRate) / 100;
+            lineTotal = taxable + taxAmount;
+            
+            displayGross = mrp * qty;
+            displayDiscount = Math.max(0, (mrp - rate) * qty);
+            displayRate = mrp;
         }
 
         return {
@@ -89,7 +86,7 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
             discountAmount: displayDiscount,
             grossLine: displayGross,
             taxable,
-            taxPercentage,
+            taxPercentage: isStockTransfer ? 0 : taxPercentage,
             taxAmount,
             lineTotal,
             itemName: item.itemName || item.variantId?.itemName || item.itemId?.itemName || item.name || 'Item',

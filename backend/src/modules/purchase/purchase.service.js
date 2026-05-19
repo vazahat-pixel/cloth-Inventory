@@ -416,7 +416,9 @@ const cancelPurchase = async (purchaseId, userId) => {
 };
 
 const getAllPurchases = async (query) => {
-    const { page = 1, limit = 10, supplierId, storeId, status } = query;
+    const page = parseInt(query.page) || 1;
+    const limit = query.limit ? parseInt(query.limit) : 50000;
+    const { supplierId, storeId, status } = query;
     const filter = {};
     if (supplierId) filter.supplierId = supplierId;
     if (storeId) filter.storeId = storeId;

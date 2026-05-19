@@ -953,7 +953,9 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
  * List Sales
  */
 const getAllSales = async (query, user) => {
-    const { page = 1, limit = 10, storeId, startDate, endDate } = query;
+    const page = parseInt(query.page) || 1;
+    const limit = query.limit ? parseInt(query.limit) : 50000;
+    const { storeId, startDate, endDate } = query;
     const filter = { isDeleted: false };
 
     // If store staff, enforce their own store only
