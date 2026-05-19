@@ -87,6 +87,7 @@ const SalesReturnPage = lazy(() => import('../modules/sales/SalesReturnPage'));
 import DeliveryChallanPage from '../modules/dispatch/DeliveryChallanPage';
 import DeliveryChallanForm from '../modules/dispatch/DeliveryChallanForm';
 import DispatchQueuePage from '../modules/dispatch/DispatchQueuePage';
+import CombineReviewForm from '../modules/dispatch/CombineReviewForm';
 
 // Purchase
 const PurchaseListPage = lazy(() => import('../modules/purchase/PurchaseListPage'));
@@ -263,6 +264,7 @@ function AppRoutes() {
                <Route path="delivery-challan" element={<DeliveryChallanPage />} />
                <Route path="dispatch-queue" element={<DispatchQueuePage />} />
                <Route path="delivery-challan/new" element={<DeliveryChallanForm />} />
+                <Route path="delivery-challan/combine-review" element={<CombineReviewForm />} />
                <Route path="delivery-challan/:id" element={<DeliveryChallanForm mode="view" />} />
                <Route path="delivery-challan/:id/edit" element={<DeliveryChallanForm mode="edit" />} />
                <Route path="delivery-challan/:id/receive" element={<DeliveryChallanForm mode="receive" />} />

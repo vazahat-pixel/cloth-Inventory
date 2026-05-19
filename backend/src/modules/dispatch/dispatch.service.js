@@ -19,21 +19,27 @@ const stockService = require('../../services/stock.service');
    Works with both lean objects and Mongoose docs
 ───────────────────────────────────────────── */
 const populateDispatchItemsManual = async (dispatches) => {
+    if (!dispatches) return dispatches;
     const isSingle = !Array.isArray(dispatches);
     const docs = isSingle ? [dispatches] : dispatches;
+    const plainDocs = [];
 
     for (const doc of docs) {
-        if (!doc.items || doc.items.length === 0) continue;
+        if (!doc) continue;
+        const plainDoc = doc.toObject ? doc.toObject() : JSON.parse(JSON.stringify(doc));
+        plainDocs.push(plainDoc);
 
-        const variantIds = doc.items.map(i => {
+        if (!plainDoc.items || plainDoc.items.length === 0) continue;
+
+        const variantIds = plainDoc.items.map(i => {
             const v = i.variantId?._id || i.variantId;
             return v ? String(v) : null;
         }).filter(Boolean);
-        const itemIds = doc.items.map(i => {
+        const itemIds = plainDoc.items.map(i => {
             const itm = i.itemId?._id || i.itemId;
             return itm ? String(itm) : null;
         }).filter(Boolean);
-        const barcodes = doc.items.map(i => {
+        const barcodes = plainDoc.items.map(i => {
             const b = i.barcode;
             return b ? String(b).trim() : null;
         }).filter(Boolean);
@@ -47,10 +53,12 @@ const populateDispatchItemsManual = async (dispatches) => {
             ]
         })
             .populate('brand', 'name brandName')
+            .populate('hsCodeId')
+            .populate('categoryId', 'name')
             .populate('groupIds', 'name groupType groupName')
             .lean();
 
-        doc.items = (doc.items || []).map(di => {
+        plainDoc.items = (plainDoc.items || []).map(di => {
             const vid = String(di.variantId?._id || di.variantId);
             const iid = String(di.itemId?._id || di.itemId || '');
             let parentItem = items.find(it => (it.sizes || []).some(sz => String(sz._id) === vid));
@@ -65,8 +73,13 @@ const populateDispatchItemsManual = async (dispatches) => {
             }
             if (parentItem) {
                 const variant = (parentItem.sizes || []).find(sz => String(sz._id) === vid);
+                const finalCategory = parentItem.categoryName || parentItem.category || (parentItem.categoryId && (parentItem.categoryId.name || parentItem.categoryId.itemName)) || 'OTHERS';
+                const finalHsn = parentItem.hsCodeId?.code || parentItem.hsnCode || '';
                 return {
-                    ...di.toObject ? di.toObject() : di,
+                    ...di,
+                    category: finalCategory,
+                    hsnCode: finalHsn,
+                    brand: parentItem.brandName || (parentItem.brand && (parentItem.brand.name || parentItem.brand.brandName)) || '',
                     variantId: {
                         _id: variant?._id || (di.variantId?._id || di.variantId),
                         itemId: parentItem._id,
@@ -83,7 +96,7 @@ const populateDispatchItemsManual = async (dispatches) => {
         });
     }
 
-    return isSingle ? docs[0] : docs;
+    return isSingle ? plainDocs[0] : plainDocs;
 };
 
 /* ─────────────────────────────────────────────
@@ -707,6 +720,273 @@ const confirmDispatch = async (id, userId) => {
    CANCEL DISPATCH (PENDING only)
    Releases any reservations if applicable
 ───────────────────────────────────────────── */
+const combineAndConfirmDispatch = async ({ dispatchIds, notes, date, vehicleNumber, driverName }, userId) => {
+    return await withTransaction(async (session) => {
+        if (!Array.isArray(dispatchIds) || dispatchIds.length < 2) {
+            throw new Error('Please select at least two dispatches to combine');
+        }
+
+        // 1. Fetch and validate all dispatches
+        const dispatches = [];
+        for (const id of dispatchIds) {
+            const disp = await Dispatch.findById(id).session(session);
+            if (!disp) throw new Error(`Dispatch record not found: ${id}`);
+            if (!['PENDING', 'PACKED'].includes(disp.status)) {
+                throw new Error(`Only pending or packed dispatches can be combined. Dispatch ${disp.dispatchNumber} is ${disp.status}`);
+            }
+            dispatches.push(disp);
+        }
+
+        // 2. Validate same source and destination
+        const firstDisp = dispatches[0];
+        const sourceWarehouseId = firstDisp.sourceWarehouseId.toString();
+        const destinationStoreId = firstDisp.destinationStoreId.toString();
+
+        for (const disp of dispatches) {
+            if (disp.sourceWarehouseId.toString() !== sourceWarehouseId) {
+                throw new Error('All selected dispatches must have the same source warehouse/store');
+            }
+            if (disp.destinationStoreId.toString() !== destinationStoreId) {
+                throw new Error('All selected dispatches must have the same destination store');
+            }
+        }
+
+        const source = await Warehouse.findById(sourceWarehouseId).session(session)
+            || await Store.findById(sourceWarehouseId).session(session);
+        const destination = await Store.findById(destinationStoreId).session(session);
+
+        if (!source) throw new Error('Source warehouse/store not found');
+        if (!destination) throw new Error('Destination store not found');
+
+        const sourceGst = (source.gstNumber || '').trim().toUpperCase();
+        const destGst = (destination.gstNumber || '').trim().toUpperCase();
+        const isSameEntity = sourceGst !== '' && sourceGst === destGst;
+
+        // 3. Group and merge items
+        const itemMap = new Map(); // key: variantId
+        for (const disp of dispatches) {
+            for (const item of disp.items) {
+                const varIdStr = item.variantId.toString();
+                if (itemMap.has(varIdStr)) {
+                    const existing = itemMap.get(varIdStr);
+                    existing.qty += Number(item.qty || 0);
+                } else {
+                    itemMap.set(varIdStr, {
+                        itemId: item.itemId,
+                        variantId: item.variantId,
+                        barcode: item.barcode,
+                        qty: Number(item.qty || 0),
+                        rate: Number(item.rate || 0),
+                        mrp: Number(item.mrp || 0),
+                        discountPercent: Number(item.discountPercent || 0),
+                        taxPercentage: Number(item.taxPercentage || 0)
+                    });
+                }
+            }
+        }
+
+        const mergedItems = Array.from(itemMap.values());
+        if (mergedItems.length === 0) {
+            throw new Error('No items found in selected dispatches to combine');
+        }
+
+        // 4. Calculate detailed items and totals
+        const detailedItems = [];
+        let totalSubTotal = 0;
+        let totalTaxAmount = 0;
+        let totalCGST = 0;
+        let totalSGST = 0;
+        let totalIGST = 0;
+        const { calculateGST } = require('../../services/gst.service');
+
+        for (const item of mergedItems) {
+            const itemDoc = await Item.findById(item.itemId).session(session);
+            if (!itemDoc) throw new Error(`Item not found: ${item.itemId}`);
+
+            const variant = itemDoc.sizes.id(item.variantId);
+            if (!variant) throw new Error(`Variant not found in item master: ${item.variantId}`);
+
+            const qty = item.qty;
+            const rate = Number(item.rate || variant.mrp || itemDoc.mrp || 0);
+            const baseMrp = Number(item.mrp || variant.mrp || rate);
+            const lineSubTotal = rate * qty;
+            const gstPct = Number(item.taxPercentage ?? itemDoc.gstPercent ?? 0);
+
+            let taxData = { cgst: 0, sgst: 0, igst: 0, totalTax: 0 };
+            if (!isSameEntity && gstPct > 0) {
+                const isIntraState = (source.location?.state || source.state || '').toLowerCase() === (destination.location?.state || destination.state || '').toLowerCase();
+                taxData = calculateGST(lineSubTotal, gstPct, isIntraState ? 'CGST_SGST' : 'IGST');
+            }
+
+            detailedItems.push({
+                itemId: itemDoc._id,
+                variantId: variant._id,
+                barcode: item.barcode || variant.sku || variant.barcode || itemDoc.itemCode,
+                qty,
+                rate,
+                mrp: baseMrp,
+                discountPercent: Number(item.discountPercent || 0),
+                taxPercentage: isSameEntity ? 0 : gstPct,
+                taxAmount: taxData.totalTax,
+                total: lineSubTotal + taxData.totalTax,
+                cgst: taxData.cgst,
+                sgst: taxData.sgst,
+                igst: taxData.igst,
+                sku: item.barcode || variant.sku || variant.barcode || itemDoc.itemCode,
+                category: itemDoc.categoryName || itemDoc.category || 'OTHERS',
+                brand: itemDoc.brandName || itemDoc.brand || '',
+                hsnCode: itemDoc.hsnCode || ''
+            });
+
+            totalSubTotal += lineSubTotal;
+            totalTaxAmount += taxData.totalTax;
+            totalCGST += taxData.cgst;
+            totalSGST += taxData.sgst;
+            totalIGST += taxData.igst;
+        }
+
+        // 5. Generate Billing Document
+        let referenceId;
+        let referenceType;
+
+        const combinedNotes = notes || `Combined dispatch of dispatches: ${dispatches.map(d => d.dispatchNumber).join(', ')}`;
+
+        if (isSameEntity) {
+            const challan = await challanService.createChallan({
+                destinationStoreId,
+                sourceId: sourceWarehouseId,
+                items: detailedItems.map((ei) => ({
+                    itemId: ei.itemId,
+                    variantId: ei.variantId,
+                    barcode: ei.barcode,
+                    quantity: ei.qty,
+                    rate: ei.rate
+                })),
+                type: 'WAREHOUSE_TO_STORE',
+                totalValue: totalSubTotal,
+                notes: combinedNotes,
+                vehicleNumber,
+                driverName
+            }, userId, session);
+
+            referenceId = challan._id;
+            referenceType = 'DeliveryChallan';
+        } else {
+            const sale = await salesService.createSale({
+                storeId: sourceWarehouseId,
+                destinationStoreId,
+                products: detailedItems.map((ei) => ({
+                    barcode: ei.sku,
+                    productId: ei.variantId,
+                    itemId: ei.itemId,
+                    quantity: ei.qty,
+                    rate: ei.rate,
+                    mrp: ei.mrp,
+                    taxAmount: ei.taxAmount,
+                    taxPercentage: ei.taxPercentage,
+                    total: ei.total,
+                    cgst: ei.cgst,
+                    sgst: ei.sgst,
+                    igst: ei.igst,
+                    category: ei.category,
+                    brand: ei.brand,
+                    hsnCode: ei.hsnCode
+                })),
+                type: 'INTERNAL_SALE',
+                subTotal: Number(totalSubTotal || 0),
+                totalTax: Number(totalTaxAmount || 0),
+                grandTotal: Number((totalSubTotal + totalTaxAmount) || 0),
+                amountPaid: 0,
+                dueAmount: Number((totalSubTotal + totalTaxAmount) || 0),
+                paymentMode: 'CREDIT',
+                notes: combinedNotes,
+                vehicleNumber,
+                driverName
+            }, userId, session);
+
+            referenceId = sale._id;
+            referenceType = 'Sale';
+        }
+
+        // 6. Generate the Master Combined Dispatch record
+        const nextSeqNum = await getNextSequence('DSP', session);
+        const finalDspNumber = `DSP-${nextSeqNum.toString().padStart(5, '0')}`;
+
+        const combinedDispatch = new Dispatch({
+            dispatchNumber: finalDspNumber,
+            sourceWarehouseId,
+            destinationStoreId,
+            items: detailedItems,
+            status: 'DISPATCHED',
+            referenceId,
+            referenceType,
+            dispatchedAt: new Date(),
+            notes: combinedNotes,
+            vehicleNumber,
+            driverName,
+            createdBy: userId
+        });
+        await combinedDispatch.save({ session });
+
+        // 7. Update original dispatches and handle stock movement
+        for (const disp of dispatches) {
+            // Update draft status
+            disp.status = 'DISPATCHED';
+            disp.dispatchedAt = new Date();
+            disp.referenceId = referenceId;
+            disp.referenceType = referenceType;
+            disp.notes = `${disp.notes || ''} [Combined into ${finalDspNumber}]`.trim();
+            await disp.save({ session });
+
+            // Process Stock
+            for (const item of disp.items) {
+                let itmId = item.itemId;
+                let bcode = item.barcode;
+
+                if (!itmId || !bcode) {
+                    const parent = await Item.findOne({ "sizes._id": item.variantId }).session(session);
+                    if (parent) {
+                        itmId = itmId || parent._id;
+                        const variant = parent.sizes.id(item.variantId);
+                        bcode = bcode || (variant ? (variant.sku || variant.barcode || parent.itemCode) : 'UNKNOWN');
+                    }
+                }
+
+                // Release original draft's logical reservation
+                await stockService.releaseStock({
+                    variantId: item.variantId,
+                    locationId: sourceWarehouseId,
+                    locationType: 'WAREHOUSE',
+                    qty: item.qty,
+                    session
+                });
+            }
+        }
+
+        // 8. Add all merged items to the in-transit pool at destination store
+        for (const item of detailedItems) {
+            await stockService.addInTransit({
+                itemId: item.itemId,
+                barcode: item.barcode,
+                variantId: item.variantId,
+                locationId: destinationStoreId,
+                locationType: 'STORE',
+                qty: item.qty,
+                session
+            });
+        }
+
+        // 9. Update related billing document if exists
+        if (referenceType === 'DeliveryChallan') {
+            await DeliveryChallan.findByIdAndUpdate(referenceId, { status: 'DISPATCHED' }, { session });
+        } else if (referenceType === 'Sale') {
+            await Sale.findByIdAndUpdate(referenceId, { deliveryStatus: 'DISPATCHED' }, { session });
+        }
+
+        return combinedDispatch;
+    });
+};
+
 const cancelDispatch = async (id, userId) => {
     return await withTransaction(async (session) => {
         const dispatch = await Dispatch.findById(id).session(session);
@@ -1009,6 +1289,7 @@ module.exports = {
     packDispatch,
     confirmDispatch,
     cancelDispatch,
+    combineAndConfirmDispatch,
     getDispatches,
     getDispatchById,
     receiveDispatch,

@@ -97,13 +97,41 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
         };
     });
 
-    // Group items by category for the new format
-    const groupedItems = normalizedItems.reduce((acc, item) => {
+    // Aggregate items by Category, HSN, and Rate
+    const aggregatedItems = [];
+    normalizedItems.forEach((item) => {
         const cat = (item.category || item.itemId?.categoryId?.name || item.categoryId?.name || item.itemId?.category || 'OTHERS').toUpperCase();
-        if (!acc[cat]) acc[cat] = [];
-        acc[cat].push(item);
-        return acc;
-    }, {});
+        const hsn = item.hsnCode || 'N/A';
+        const rate = Number(item.rate || 0);
+        const gst = Number(item.taxPercentage || 0);
+
+        // Find existing aggregated item with same category, hsn, rate, and gst
+        const existing = aggregatedItems.find(
+            (x) => x.category === cat && x.hsnCode === hsn && Math.abs(x.rate - rate) < 0.01 && Math.abs(x.taxPercentage - gst) < 0.01
+        );
+
+        if (existing) {
+            existing.quantity += item.quantity;
+            existing.grossLine += item.grossLine;
+            existing.discountAmount += item.discountAmount;
+            existing.taxable += item.taxable;
+            existing.taxAmount += item.taxAmount;
+            existing.lineTotal += item.lineTotal;
+        } else {
+            aggregatedItems.push({
+                category: cat,
+                hsnCode: hsn,
+                rate,
+                quantity: item.quantity,
+                grossLine: item.grossLine,
+                discountAmount: item.discountAmount,
+                taxable: item.taxable,
+                taxPercentage: gst,
+                taxAmount: item.taxAmount,
+                lineTotal: item.lineTotal
+            });
+        }
+    });
 
     const hsnSummaryMap = sale.hsnSummary && sale.hsnSummary.length > 0 
         ? sale.hsnSummary.reduce((acc, h) => {
@@ -355,64 +383,51 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
                 </Grid>
             </Grid>
 
-            {/* professional Category-wise Table */}
-            {Object.keys(groupedItems).map((category, catIndex) => {
-                const catItems = groupedItems[category];
-                const catQty = catItems.reduce((sum, i) => sum + i.quantity, 0);
-                const catGross = catItems.reduce((sum, i) => sum + i.grossLine, 0);
-                const catDisc = catItems.reduce((sum, i) => sum + i.discountAmount, 0);
-                const catNet = catItems.reduce((sum, i) => sum + i.lineTotal, 0);
-
-                return (
-                    <TableContainer key={category} component={Box} sx={{ border: '1px solid #000', mb: 1, borderRadius: 0 }}>
-                        <Table size="small" sx={{ borderCollapse: 'collapse' }}>
-                            <TableHead sx={tableHeaderStyle}>
-                                <TableRow>
-                                    <TableCell width="30">S.N</TableCell>
-                                    <TableCell width="90">CATEGORY</TableCell>
-                                    <TableCell width="50">HSN</TableCell>
-                                    <TableCell width="40">QTY</TableCell>
-                                    <TableCell width="55">RATE</TableCell>
-                                    <TableCell width="60">GROSS</TableCell>
-                                    <TableCell width="50">DISC</TableCell>
-                                    <TableCell width="75">TAXABLE VAL</TableCell>
-                                    <TableCell width="45">GST%</TableCell>
-                                    <TableCell width="75">NET AMT</TableCell>
+            {/* Professional Single Table */}
+            <TableContainer component={Box} sx={{ border: '1px solid #000', mb: 1, borderRadius: 0 }}>
+                <Table size="small" sx={{ borderCollapse: 'collapse' }}>
+                    <TableHead sx={tableHeaderStyle}>
+                        <TableRow>
+                            <TableCell width="30">S.N</TableCell>
+                            <TableCell width="120">CATEGORY</TableCell>
+                            <TableCell width="70">HSN CODE</TableCell>
+                            <TableCell width="50">TOTAL QTY</TableCell>
+                            <TableCell width="70">RATE</TableCell>
+                            <TableCell width="80">GROSS AMOUNT</TableCell>
+                            <TableCell width="70">DISC</TableCell>
+                            <TableCell width="50">GST(%)</TableCell>
+                            <TableCell width="80">NET AMOUNT</TableCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {aggregatedItems.map((item, index) => {
+                            return (
+                                <TableRow key={index} sx={{ '& .MuiTableCell-root': tableCellStyle }}>
+                                    <TableCell>{index + 1}</TableCell>
+                                    <TableCell sx={{ textAlign: 'left !important', pl: 1 }}>{item.category}</TableCell>
+                                    <TableCell>{item.hsnCode}</TableCell>
+                                    <TableCell>{item.quantity}</TableCell>
+                                    <TableCell>{item.rate.toFixed(2)}</TableCell>
+                                    <TableCell>{item.grossLine.toFixed(2)}</TableCell>
+                                    <TableCell>{item.discountAmount.toFixed(2)}</TableCell>
+                                    <TableCell>{item.taxPercentage.toFixed(2)}%</TableCell>
+                                    <TableCell sx={{ fontWeight: 900 }}>{item.lineTotal.toFixed(2)}</TableCell>
                                 </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {catItems.map((item, index) => {
-                                    return (
-                                        <TableRow key={index} sx={{ '& .MuiTableCell-root': tableCellStyle }}>
-                                            <TableCell>{index + 1}</TableCell>
-                                            <TableCell>{category}</TableCell>
-                                            <TableCell>{item.hsnCode}</TableCell>
-                                            <TableCell>{item.quantity}</TableCell>
-                                            <TableCell>{item.rate.toFixed(2)}</TableCell>
-                                            <TableCell>{item.grossLine.toFixed(2)}</TableCell>
-                                            <TableCell>{item.discountAmount.toFixed(2)}</TableCell>
-                                            <TableCell sx={{ fontWeight: 700 }}>{item.taxable.toFixed(2)}</TableCell>
-                                            <TableCell>{item.taxPercentage}%</TableCell>
-                                            <TableCell sx={{ fontWeight: 900 }}>{item.lineTotal.toFixed(2)}</TableCell>
-                                        </TableRow>
-                                    );
-                                })}
-                                {/* Category Totals Row */}
-                                <TableRow sx={categoryRowStyle}>
-                                    <TableCell colSpan={3} align="left" sx={{ textAlign: 'left !important', pl: 2 }}>TOTALS</TableCell>
-                                    <TableCell>{catQty}</TableCell>
-                                    <TableCell>-</TableCell>
-                                    <TableCell>{catGross.toFixed(2)}</TableCell>
-                                    <TableCell>{catDisc.toFixed(2)}</TableCell>
-                                    <TableCell sx={{ fontWeight: 900 }}>{catItems.reduce((sum, i) => sum + i.taxable, 0).toFixed(2)}</TableCell>
-                                    <TableCell>-</TableCell>
-                                    <TableCell sx={{ fontWeight: 900 }}>{catNet.toFixed(2)}</TableCell>
-                                </TableRow>
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-                );
-            })}
+                            );
+                        })}
+                        {/* Totals Row */}
+                        <TableRow sx={categoryRowStyle}>
+                            <TableCell colSpan={3} align="left" sx={{ textAlign: 'left !important', pl: 2, fontWeight: 900 }}>TOTALS</TableCell>
+                            <TableCell sx={{ fontWeight: 900 }}>{aggregatedItems.reduce((sum, i) => sum + i.quantity, 0)}</TableCell>
+                            <TableCell>-</TableCell>
+                            <TableCell sx={{ fontWeight: 900 }}>{aggregatedItems.reduce((sum, i) => sum + i.grossLine, 0).toFixed(2)}</TableCell>
+                            <TableCell sx={{ fontWeight: 900 }}>{aggregatedItems.reduce((sum, i) => sum + i.discountAmount, 0).toFixed(2)}</TableCell>
+                            <TableCell>-</TableCell>
+                            <TableCell sx={{ fontWeight: 900 }}>{aggregatedItems.reduce((sum, i) => sum + i.lineTotal, 0).toFixed(2)}</TableCell>
+                        </TableRow>
+                    </TableBody>
+                </Table>
+            </TableContainer>
 
             {/* Calculations & Summary */}
             <Box sx={{ mt: 1, border: '1px solid #000' }}>

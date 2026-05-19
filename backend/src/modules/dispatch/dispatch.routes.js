@@ -12,6 +12,9 @@ router.get('/', dispatchController.get);
 router.get('/:id', dispatchController.getById);
 router.put('/:id', dispatchController.update);
 
+// Combine multiple dispatches into one and confirm
+router.post('/combine-dispatch', dispatchController.combineAndConfirm);
+
 // Mark as PACKED (from DRAFT / Sale Challan)
 router.post('/:id/pack', dispatchController.pack);
 

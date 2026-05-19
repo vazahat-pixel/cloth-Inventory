@@ -41,6 +41,18 @@ export const confirmChallan = createAsyncThunk(
         }
     }
 );
+export const combineAndConfirmDispatch = createAsyncThunk(
+    'dispatch/combineAndConfirmDispatch',
+    async (combineData, { rejectWithValue }) => {
+        try {
+            const response = await api.post('/dispatch/combine-dispatch', combineData);
+            const raw = response.data.dispatch || response.data.data;
+            return normalizeResponse(raw, 'dispatch');
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to combine and dispatch challans');
+        }
+    }
+);
 export const deleteChallan = createAsyncThunk(
     'dispatch/deleteChallan',
     async (id, { rejectWithValue }) => {
@@ -153,6 +165,20 @@ const dispatchSlice = createSlice({
                 state.records = state.records.filter((r) => r.id !== action.payload && r._id !== action.payload);
             })
             .addCase(deleteChallan.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.payload;
+            })
+            .addCase(combineAndConfirmDispatch.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
+            .addCase(combineAndConfirmDispatch.fulfilled, (state, action) => {
+                state.loading = false;
+                if (action.payload) {
+                    state.records.unshift(action.payload);
+                }
+            })
+            .addCase(combineAndConfirmDispatch.rejected, (state, action) => {
                 state.loading = false;
                 state.error = action.payload;
             });

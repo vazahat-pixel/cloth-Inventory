@@ -146,13 +146,27 @@ const _updateInventory = async ({ itemId, barcode, variantId, locationId, locati
     
     console.log(`[INVENTORY-UPDATE] Location: ${locationId} (${locationType}), Barcode: ${barcode}, Balance: ${inventory.quantity} (Change: ${delta})`);
     
-    // MASTER STOCK UPDATE: Sync with Item model for global/master view
-    // Note: We use variantId for Item subdoc update
-    await Item.updateOne(
-        { "sizes._id": variantId },
-        { $inc: { "sizes.$.stock": delta } },
-        { session }
-    );
+    // MASTER STOCK UPDATE: Sync with Item model for global/master view denormalized cache.
+    // To prevent WiredTiger array positional locks ($ positional update in parallel) from aborting the transaction,
+    // we perform this denormalized sync in the background (outside the transaction session) if a session is present.
+    if (session) {
+        setImmediate(async () => {
+            try {
+                const ItemModel = require('../models/item.model');
+                await ItemModel.updateOne(
+                    { "sizes._id": variantId },
+                    { $inc: { "sizes.$.stock": delta } }
+                );
+            } catch (err) {
+                console.warn(`[BG-STOCK-WARN] Background master stock sync failed for variant ${variantId}:`, err.message);
+            }
+        });
+    } else {
+        await Item.updateOne(
+            { "sizes._id": variantId },
+            { $inc: { "sizes.$.stock": delta } }
+        );
+    }
     
     return inventory;
 };

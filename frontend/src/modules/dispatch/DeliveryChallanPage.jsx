@@ -16,6 +16,7 @@ import {
     TableRow,
     Typography,
     IconButton,
+    Checkbox,
 } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
@@ -46,6 +47,32 @@ function DeliveryChallanPage({
     const isStoreUser = normalizedRole.includes('staff') || normalizedRole.includes('manager') || normalizedRole.includes('accountant');
 
     const [printTarget, setPrintTarget] = useState(null);
+    const [selectedChallanIds, setSelectedChallanIds] = useState([]);
+
+    const handleSelectRow = (e, row) => {
+        const rowId = row.id || row._id;
+        const checked = e.target.checked;
+        
+        if (checked) {
+            if (selectedChallanIds.length > 0) {
+                const firstSelected = challans.find(c => (c.id || c._id) === selectedChallanIds[0]);
+                if (firstSelected) {
+                    const firstSrc = firstSelected.sourceWarehouseId?._id || firstSelected.sourceWarehouseId;
+                    const firstDest = firstSelected.destinationStoreId?._id || firstSelected.destinationStoreId;
+                    const currentSrc = row.sourceWarehouseId?._id || row.sourceWarehouseId;
+                    const currentDest = row.destinationStoreId?._id || row.destinationStoreId;
+
+                    if (String(firstSrc) !== String(currentSrc) || String(firstDest) !== String(currentDest)) {
+                        showNotification('You can only combine dispatches with the same source warehouse and destination store!', 'warning');
+                        return;
+                    }
+                }
+            }
+            setSelectedChallanIds(prev => [...prev, rowId]);
+        } else {
+            setSelectedChallanIds(prev => prev.filter(id => id !== rowId));
+        }
+    };
 
     useEffect(() => {
         dispatch(fetchChallans());
@@ -136,13 +163,25 @@ function DeliveryChallanPage({
                         </Box>
 
                         {!isStoreUser && (
-                            <Button
-                                variant="contained"
-                                startIcon={<AddCircleOutlineIcon />}
-                                onClick={() => navigate(createPath)}
-                            >
-                                {createLabel}
-                            </Button>
+                            <Stack direction="row" spacing={2}>
+                                {selectedChallanIds.length >= 2 && (
+                                    <Button
+                                        variant="contained"
+                                        color="secondary"
+                                        sx={{ fontWeight: 700 }}
+                                        onClick={() => navigate('/orders/delivery-challan/combine-review', { state: { selectedIds: selectedChallanIds } })}
+                                    >
+                                        Combine & Billing Review ({selectedChallanIds.length})
+                                    </Button>
+                                )}
+                                <Button
+                                    variant="contained"
+                                    startIcon={<AddCircleOutlineIcon />}
+                                    onClick={() => navigate(createPath)}
+                                >
+                                    {createLabel}
+                                </Button>
+                            </Stack>
                         )}
                     </Stack>
 
@@ -158,6 +197,7 @@ function DeliveryChallanPage({
                         <Table size="small">
                             <TableHead>
                                 <TableRow>
+                                    {!isStoreUser && <TableCell width="50" sx={{ fontWeight: 700 }}></TableCell>}
                                     <TableCell sx={{ fontWeight: 700 }}>Challan No</TableCell>
                                     <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
                                     <TableCell sx={{ fontWeight: 700 }}>To Store</TableCell>
@@ -172,6 +212,17 @@ function DeliveryChallanPage({
                                     const status = row.status || 'PENDING';
                                     return (
                                         <TableRow key={row.id || row._id} hover>
+                                            {!isStoreUser && (
+                                                <TableCell>
+                                                    {['PENDING', 'PACKED'].includes(status) && (
+                                                        <Checkbox
+                                                            size="small"
+                                                            checked={selectedChallanIds.includes(row.id || row._id)}
+                                                            onChange={(e) => handleSelectRow(e, row)}
+                                                        />
+                                                    )}
+                                                </TableCell>
+                                            )}
                                             <TableCell sx={{ fontWeight: 700 }}>
                                                 {row.challanNumber || row.dispatchNumber}
                                             </TableCell>

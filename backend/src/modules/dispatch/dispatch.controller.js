@@ -14,7 +14,6 @@ const create = async (req, res, next) => {
         next(error);
     }
 };
-
 const receive = async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -89,7 +88,27 @@ const remove = async (req, res, next) => {
     }
 };
 
+const combineAndConfirm = async (req, res, next) => {
+    try {
+        const { dispatchIds, notes, date, vehicleNumber, driverName } = req.body;
+        if (!Array.isArray(dispatchIds) || dispatchIds.length < 2) {
+            return sendError(res, 'Please select at least two dispatches to combine', 400);
+        }
+        const dispatch = await dispatchService.combineAndConfirmDispatch({
+            dispatchIds,
+            notes,
+            date,
+            vehicleNumber,
+            driverName
+        }, req.user._id);
+        return sendSuccess(res, { dispatch }, 'Combined dispatch confirmed and billing completed successfully');
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
+    combineAndConfirm,
     create,
     update,
     receive,
