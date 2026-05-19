@@ -39,6 +39,8 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
     const company = config?.company || {};
     const invoicing = config?.invoicing || {};
     
+    const isStockTransfer = isTransfer || sale.isTransfer || sale.type === 'TRANSFER' || sale.type === 'STOCK_TRANSFER' || sale.saleType === 'TRANSFER' || sale.saleType === 'STOCK_TRANSFER';
+
     const saleItems = sale.items || sale.products || [];
     const normalizedItems = saleItems.map((item) => {
         const qty = Number(item.quantity ?? item.qty ?? 0);
@@ -185,7 +187,6 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
     const isInclusiveSource = sale.type === 'RETAIL' && !sale.dispatchNumber;
     
     const isB2B = Boolean(destinationGstin !== 'N/A' || sale.customerGst || sale.consigneeGst);
-    const isStockTransfer = isTransfer || sale.isTransfer || sale.type === 'TRANSFER' || sale.type === 'STOCK_TRANSFER' || sale.saleType === 'TRANSFER' || sale.saleType === 'STOCK_TRANSFER';
     const displayTitle = providedTitle || (isStockTransfer ? 'STOCK TRANSFER INVOICE' : 'TAX INVOICE');
 
     const finalNetPayable = Number(sale.totals?.netPayable ?? sale.netPayable ?? sale.grandTotal ?? grandTotal);
