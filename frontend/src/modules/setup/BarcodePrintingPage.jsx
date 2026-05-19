@@ -78,13 +78,13 @@ const VerticalTag = ({ label, mfgLine1, mfgLine2, type, design }) => {
       {/* Barcode Section */}
       <Box sx={{ textAlign: 'center', mb: 1 }}>
         <img src={barcodeImg} style={{ width: '100%', height: '10mm', objectFit: 'contain' }} alt="barcode" />
-        <Typography sx={{ fontSize: '7pt', fontWeight: 600, mt: 0.1, letterSpacing: '0.5mm' }}>{label.barcode}</Typography>
+        <Typography sx={{ fontSize: '7pt', fontWeight: 600, mt: 0.1, letterSpacing: '0.5mm' }}>{label.article}</Typography>
       </Box>
 
       {/* Product Details Section */}
       <Stack spacing={0.3} sx={{ px: 0.2, flex: 1 }}>
         {[
-          { label: 'Article :', val: label.article },
+          { label: 'Article :', val: label.name || label.itemName || label.article },
           { label: 'Group', val: label.category || 'SHIRT' },
           { label: 'Type:', val: type },
           { label: 'DESIGN :', val: design || 'COLLAR' },
@@ -282,6 +282,7 @@ function BarcodePrintingPage() {
             mrp: Number(row.MRP || row.mrp || row.Price || row.price || 0),
             color: String(row.Color || row.color || 'N/A'),
             category: String(row.Category || row.category || 'GARMENT'),
+            name: String(row.Name || row.name || row.ItemName || row.itemName || '')
           })).filter(item => item.barcode);
 
           setImportResults(formatted);
@@ -353,7 +354,8 @@ function BarcodePrintingPage() {
           size: line.size,
           mrp: line.mrp,
           color: line.color,
-          category: line.category
+          category: line.category,
+          name: line.itemName || line.name || ''
         });
       }
     });
@@ -453,12 +455,12 @@ function BarcodePrintingPage() {
       <div class="label">
         <div class="barcode-container">
           <img src="${generateBarcodeDataUrl(label.barcode)}" class="barcode-img" />
-          <div class="barcode-text">${label.barcode}</div>
+          <div class="barcode-text">${label.article}</div>
         </div>
         
         <div class="spec-container">
           <div class="row">
-            <span class="key">Article :</span> <span class="val">${label.article || ''}</span>
+            <span class="key">Article :</span> <span class="val">${label.name || label.itemName || label.article || ''}</span>
           </div>
           <div class="row">
             <span class="key">Group</span> <span class="val">${label.category || 'SHIRT'}</span>

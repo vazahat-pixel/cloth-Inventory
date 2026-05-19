@@ -109,9 +109,40 @@ function SalesReportPage() {
     });
   }, [sales, filters, searchText, itemGroups, itemGroupMap]);
 
+  const groupedAndSortedRows = useMemo(() => {
+    const salesByStore = {};
+    filteredRows.forEach((sale) => {
+      const storeName = warehouseMap[sale.warehouseId || sale.storeId] || 'Main Office';
+      if (!salesByStore[storeName]) {
+        salesByStore[storeName] = [];
+      }
+      salesByStore[storeName].push(sale);
+    });
+
+    const sortedStoreNames = Object.keys(salesByStore).sort();
+    const result = [];
+    sortedStoreNames.forEach((storeName) => {
+      const storeSales = salesByStore[storeName];
+      storeSales.sort((a, b) => {
+        const dateA = a.date || '';
+        const dateB = b.date || '';
+        if (dateB !== dateA) return dateB.localeCompare(dateA);
+        return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '');
+      });
+      storeSales.forEach((sale, idx) => {
+        result.push({
+          ...sale,
+          storeGroupName: storeName,
+          isFirstInStoreGroup: idx === 0,
+        });
+      });
+    });
+    return result;
+  }, [filteredRows, warehouseMap]);
+
   const paginatedRows = useMemo(
-    () => filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
-    [filteredRows, page, rowsPerPage],
+    () => groupedAndSortedRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [groupedAndSortedRows, page, rowsPerPage],
   );
 
   const summary = useMemo(() => {
@@ -159,6 +190,7 @@ function SalesReportPage() {
           discount: toNum(line.discount),
           amount: toNum(line.amount),
           isReturn: false,
+          warehouseId: sale.warehouseId || sale.storeId,
         });
       });
     });
@@ -185,16 +217,47 @@ function SalesReportPage() {
           discount: toNum(line.discount),
           amount: -(toNum(line.amount) * (qty / (toNum(line.quantity) || 1))),
           isReturn: true,
+          warehouseId: ret.warehouseId || sale?.warehouseId || ret.storeId || sale?.storeId,
         });
       });
     });
-    out.sort((a, b) => a.date.localeCompare(b.date) || (a.invoiceNumber || '').localeCompare(b.invoiceNumber || ''));
     return out;
   }, [filteredRows, salesReturns, sales, filters.dateFrom, filters.dateTo]);
 
+  const groupedAndSortedDetailRows = useMemo(() => {
+    const detailsByStore = {};
+    detailRows.forEach((row) => {
+      const storeName = warehouseMap[row.warehouseId] || 'Main Office';
+      if (!detailsByStore[storeName]) {
+        detailsByStore[storeName] = [];
+      }
+      detailsByStore[storeName].push(row);
+    });
+
+    const sortedStoreNames = Object.keys(detailsByStore).sort();
+    const result = [];
+    sortedStoreNames.forEach((storeName) => {
+      const storeDetails = detailsByStore[storeName];
+      storeDetails.sort((a, b) => {
+        const dateA = a.date || '';
+        const dateB = b.date || '';
+        if (dateB !== dateA) return dateB.localeCompare(dateA);
+        return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '');
+      });
+      storeDetails.forEach((row, idx) => {
+        result.push({
+          ...row,
+          storeGroupName: storeName,
+          isFirstInStoreGroup: idx === 0,
+        });
+      });
+    });
+    return result;
+  }, [detailRows, warehouseMap]);
+
   const paginatedDetailRows = useMemo(
-    () => detailRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
-    [detailRows, page, rowsPerPage],
+    () => groupedAndSortedDetailRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [groupedAndSortedDetailRows, page, rowsPerPage],
   );
 
   const accountWiseRows = useMemo(() => {
@@ -258,7 +321,7 @@ function SalesReportPage() {
 
   const exportSummaryRows = useMemo(
     () =>
-      filteredRows.map((row) => {
+      groupedAndSortedRows.map((row) => {
         const t = row.totals || {};
         return {
           Invoice: row.invoiceNumber,
@@ -274,12 +337,12 @@ function SalesReportPage() {
           Payment: row.payment?.mode || '-',
         };
       }),
-    [filteredRows, warehouseMap],
+    [groupedAndSortedRows, warehouseMap],
   );
 
   const exportDetailRows = useMemo(
     () =>
-      detailRows.map((r) => ({
+      groupedAndSortedDetailRows.map((r) => ({
         Date: r.date,
         Invoice: r.invoiceNumber,
         Customer: r.customerName,
@@ -294,7 +357,7 @@ function SalesReportPage() {
         Amount: r.amount,
         'Return': r.isReturn ? 'Yes' : '',
       })),
-    [detailRows],
+    [groupedAndSortedDetailRows],
   );
 
   return (
@@ -488,22 +551,32 @@ function SalesReportPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {paginatedRows.map((row) => {
+                  {paginatedRows.map((row, idx) => {
                     const t = row.totals || {};
+                    const showStoreHeader = !isStoreStaff && (idx === 0 || row.storeGroupName !== paginatedRows[idx - 1]?.storeGroupName);
                     return (
-                      <TableRow key={row.id} hover>
-                        <TableCell sx={{ fontWeight: 600 }}>{row.invoiceNumber}</TableCell>
-                        <TableCell>{row.date}</TableCell>
-                        <TableCell>{warehouseMap[row.warehouseId || row.storeId] || 'Main Office'}</TableCell>
-                        <TableCell>{row.customerName || 'Walk-in'}</TableCell>
-                        <TableCell>{row.items?.length || 0}</TableCell>
-                        <TableCell align="right">{toNum(t.totalQuantity)}</TableCell>
-                        <TableCell align="right">₹{toNum(t.grossAmount).toFixed(2)}</TableCell>
-                        <TableCell align="right">₹{toNum(t.discount).toFixed(2)}</TableCell>
-                        <TableCell align="right">₹{toNum(t.taxAmount).toFixed(2)}</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 700 }}>₹{toNum(t.netPayable).toFixed(2)}</TableCell>
-                        <TableCell>{row.payment?.mode || '-'}</TableCell>
-                      </TableRow>
+                      <>
+                        {showStoreHeader && (
+                          <TableRow sx={{ bgcolor: '#eff6ff' }}>
+                            <TableCell colSpan={11} sx={{ fontWeight: 800, py: 1.2, color: '#1e3a8a', fontSize: '0.85rem' }}>
+                              🏢 {row.storeGroupName}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        <TableRow key={row.id || row._id} hover>
+                          <TableCell sx={{ fontWeight: 600 }}>{row.invoiceNumber}</TableCell>
+                          <TableCell>{row.date}</TableCell>
+                          <TableCell>{warehouseMap[row.warehouseId || row.storeId] || 'Main Office'}</TableCell>
+                          <TableCell>{row.customerName || 'Walk-in'}</TableCell>
+                          <TableCell>{row.items?.length || 0}</TableCell>
+                          <TableCell align="right">{toNum(t.totalQuantity)}</TableCell>
+                          <TableCell align="right">₹{toNum(t.grossAmount).toFixed(2)}</TableCell>
+                          <TableCell align="right">₹{toNum(t.discount).toFixed(2)}</TableCell>
+                          <TableCell align="right">₹{toNum(t.taxAmount).toFixed(2)}</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 700 }}>₹{toNum(t.netPayable).toFixed(2)}</TableCell>
+                          <TableCell>{row.payment?.mode || '-'}</TableCell>
+                        </TableRow>
+                      </>
                     );
                   })}
                 </TableBody>
@@ -526,27 +599,39 @@ function SalesReportPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {paginatedDetailRows.map((row, i) => (
-                    <TableRow
-                      key={`${row.invoiceNumber}-${row.sku}-${i}`}
-                      hover
-                      sx={{ bgcolor: row.isReturn ? 'rgba(254, 226, 226, 0.5)' : undefined }}
-                    >
-                      <TableCell>{row.date}</TableCell>
-                      <TableCell>{row.invoiceNumber}</TableCell>
-                      <TableCell>{row.customerName}</TableCell>
-                      <TableCell>{row.itemName}</TableCell>
-                      <TableCell>{row.size} / {row.color}</TableCell>
-                      <TableCell>{row.sku}</TableCell>
-                      <TableCell>{row.lot}</TableCell>
-                      <TableCell align="right" sx={{ color: row.isReturn ? '#b91c1c' : undefined }}>{row.quantity}</TableCell>
-                      <TableCell align="right">₹{row.rate.toFixed(2)}</TableCell>
-                      <TableCell align="right">{row.discount}%</TableCell>
-                      <TableCell align="right" sx={{ color: row.isReturn ? '#b91c1c' : undefined, fontWeight: 600 }}>
-                        ₹{row.amount.toFixed(2)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {paginatedDetailRows.map((row, i) => {
+                    const showStoreHeader = !isStoreStaff && (i === 0 || row.storeGroupName !== paginatedDetailRows[i - 1]?.storeGroupName);
+                    return (
+                      <>
+                        {showStoreHeader && (
+                          <TableRow sx={{ bgcolor: '#eff6ff' }}>
+                            <TableCell colSpan={11} sx={{ fontWeight: 800, py: 1.2, color: '#1e3a8a', fontSize: '0.85rem' }}>
+                              🏢 {row.storeGroupName}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        <TableRow
+                          key={`${row.invoiceNumber}-${row.sku}-${i}`}
+                          hover
+                          sx={{ bgcolor: row.isReturn ? 'rgba(254, 226, 226, 0.5)' : undefined }}
+                        >
+                          <TableCell>{row.date}</TableCell>
+                          <TableCell>{row.invoiceNumber}</TableCell>
+                          <TableCell>{row.customerName}</TableCell>
+                          <TableCell>{row.itemName}</TableCell>
+                          <TableCell>{row.size} / {row.color}</TableCell>
+                          <TableCell>{row.sku}</TableCell>
+                          <TableCell>{row.lot}</TableCell>
+                          <TableCell align="right" sx={{ color: row.isReturn ? '#b91c1c' : undefined }}>{row.quantity}</TableCell>
+                          <TableCell align="right">₹{row.rate.toFixed(2)}</TableCell>
+                          <TableCell align="right">{row.discount}%</TableCell>
+                          <TableCell align="right" sx={{ color: row.isReturn ? '#b91c1c' : undefined, fontWeight: 600 }}>
+                            ₹{row.amount.toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                      </>
+                    );
+                  })}
                 </TableBody>
               </>
             )}

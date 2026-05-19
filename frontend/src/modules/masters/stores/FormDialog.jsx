@@ -28,6 +28,21 @@ const storeFields = [
     { name: 'state', label: 'State', required: true, pattern: { value: /^[A-Za-z\s]+$/, message: 'State can only contain alphabets and spaces' } },
     { name: 'pincode', label: 'Pincode', required: true, pattern: { value: /^\d{6}$/, message: 'Pincode must be exactly 6 digits' } },
     { name: 'address', label: 'Complete Address', required: true, multiline: true },
+    { 
+        name: 'invoicePrefix', 
+        label: 'Invoice Prefix (e.g. BPL, GTB)', 
+        required: true, 
+        validate: (v) => (v && v.trim().length > 0) || 'Invoice Prefix is mandatory for store billing',
+        pattern: { value: /^[A-Z0-9]+$/i, message: 'Prefix can only contain alphanumeric characters' },
+        helperText: 'Required. Must be unique for each store to avoid invoice numbering conflict'
+    },
+    { 
+        name: 'invoiceFooterText', 
+        label: 'Invoice Footer Text', 
+        required: false, 
+        multiline: true,
+        helperText: 'Custom greeting/terms printed at the bottom of the invoice'
+    },
     {
         name: 'isActive',
         label: 'Status',

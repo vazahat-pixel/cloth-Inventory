@@ -160,7 +160,11 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
     const isInclusiveSource = sale.type === 'RETAIL' && !sale.dispatchNumber;
     
     const isB2B = Boolean(destinationGstin !== 'N/A' || sale.customerGst || sale.consigneeGst);
-    const displayTitle = providedTitle || (isTransfer ? 'STOCK TRANSFER NOTE' : (isB2B ? (isInterState ? 'TAX INVOICE (INTER-STATE)' : 'RETAIL INVOICE') : 'RETAIL INVOICE'));
+    const isStockTransfer = isTransfer || sale.isTransfer || sale.type === 'TRANSFER' || sale.type === 'STOCK_TRANSFER' || sale.saleType === 'TRANSFER' || sale.saleType === 'STOCK_TRANSFER';
+    const displayTitle = providedTitle || (isStockTransfer ? 'STOCK TRANSFER INVOICE' : 'TAX INVOICE');
+
+    const finalNetPayable = Number(sale.totals?.netPayable ?? sale.netPayable ?? sale.grandTotal ?? grandTotal);
+    const roundOff = finalNetPayable - grandTotal;
 
     const tableHeaderStyle = { 
         bgcolor: '#E5E7EB', 
@@ -256,34 +260,36 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
             <style>
                 {`
                 @media print {
-                    /* Completely hide the main application UI so it takes 0 space */
-                    #root { display: none !important; }
+                    /* Bulletproof isolation: hide everything in body */
+                    body * {
+                        visibility: hidden !important;
+                    }
+                    /* Show only the printable container and its children */
+                    .printable-invoice-container, .printable-invoice-container * {
+                        visibility: visible !important;
+                    }
+                    /* Position printable container absolutely at the top-left */
+                    .printable-invoice-container {
+                        position: absolute !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        width: 100% !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        border: none !important;
+                        box-shadow: none !important;
+                        page-break-inside: avoid !important;
+                    }
                     
-                    /* Hide dialog backdrops and our own toolbar */
-                    .MuiBackdrop-root { display: none !important; }
-                    .no-print { display: none !important; }
-                    
-                    /* Reset body */
+                    /* Reset body styles for print */
                     body {
                         background: white !important;
                         margin: 0 !important;
                         padding: 0 !important;
+                        width: 100% !important;
                     }
                     
-                    /* Force printable container to top-left, let it size naturally */
-                    .printable-invoice-container {
-                        position: relative !important;
-                        margin: 0 auto !important;
-                        padding: 0 !important;
-                        box-shadow: none !important;
-                        border: 1px solid #000 !important;
-                        width: 100% !important;
-                        height: auto !important;
-                        min-height: 0 !important;
-                        page-break-after: avoid !important;
-                    }
-
-                    /* Tell printer to use standard margins */
+                    /* Page breaks */
                     @page {
                         size: A4 portrait;
                         margin: 10mm;
@@ -366,14 +372,15 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
                             <TableHead sx={tableHeaderStyle}>
                                 <TableRow>
                                     <TableCell width="30">S.N</TableCell>
-                                    <TableCell width="100">CATEGORY</TableCell>
-                                    <TableCell width="70">HSN</TableCell>
-                                    <TableCell width="50">QTY</TableCell>
-                                    <TableCell width="60">RATE</TableCell>
-                                    <TableCell width="70">GROSS</TableCell>
+                                    <TableCell width="90">CATEGORY</TableCell>
+                                    <TableCell width="50">HSN</TableCell>
+                                    <TableCell width="40">QTY</TableCell>
+                                    <TableCell width="55">RATE</TableCell>
+                                    <TableCell width="60">GROSS</TableCell>
                                     <TableCell width="50">DISC</TableCell>
-                                    <TableCell width="40">GST%</TableCell>
-                                    <TableCell width="80">NET AMT</TableCell>
+                                    <TableCell width="75">TAXABLE VAL</TableCell>
+                                    <TableCell width="45">GST%</TableCell>
+                                    <TableCell width="75">NET AMT</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -387,6 +394,7 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
                                             <TableCell>{item.rate.toFixed(2)}</TableCell>
                                             <TableCell>{item.grossLine.toFixed(2)}</TableCell>
                                             <TableCell>{item.discountAmount.toFixed(2)}</TableCell>
+                                            <TableCell sx={{ fontWeight: 700 }}>{item.taxable.toFixed(2)}</TableCell>
                                             <TableCell>{item.taxPercentage}%</TableCell>
                                             <TableCell sx={{ fontWeight: 900 }}>{item.lineTotal.toFixed(2)}</TableCell>
                                         </TableRow>
@@ -399,6 +407,7 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
                                     <TableCell>-</TableCell>
                                     <TableCell>{catGross.toFixed(2)}</TableCell>
                                     <TableCell>{catDisc.toFixed(2)}</TableCell>
+                                    <TableCell sx={{ fontWeight: 900 }}>{catItems.reduce((sum, i) => sum + i.taxable, 0).toFixed(2)}</TableCell>
                                     <TableCell>-</TableCell>
                                     <TableCell sx={{ fontWeight: 900 }}>{catNet.toFixed(2)}</TableCell>
                                 </TableRow>
@@ -416,7 +425,7 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
                         <Box sx={{ mt: 1 }}>
                             <Typography sx={{ fontSize: '9px', fontWeight: 800 }}>Amount Chargeable (in words):</Typography>
                             <Typography sx={{ fontSize: '10px', fontWeight: 950, textTransform: 'uppercase' }}>
-                                INR {numberToWords(grandTotal)} ONLY
+                                INR {numberToWords(finalNetPayable)} ONLY
                             </Typography>
                         </Box>
 
@@ -443,6 +452,22 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
                                 </TableBody>
                             </Table>
                         </Box>
+
+                        {sale.payment && (
+                            <Box sx={{ mt: 1, p: 0.8, border: '1px dashed #cbd5e1', borderRadius: 1, bgcolor: '#f8fafc' }}>
+                                <Typography sx={{ fontSize: '10px', fontWeight: 900 }}>PAYMENT METHOD: <Box component="span" sx={{ color: '#1e3a8a', textTransform: 'uppercase' }}>{sale.payment.mode || 'N/A'}</Box></Typography>
+                                {sale.payment.mode === 'Split' && sale.payment.splitValues && (
+                                    <Typography sx={{ fontSize: '9px', fontWeight: 700, mt: 0.2 }}>
+                                        Cash: ₹{Number(sale.payment.splitValues.cash || 0).toFixed(2)} | 
+                                        Card: ₹{Number(sale.payment.splitValues.card || 0).toFixed(2)} | 
+                                        UPI: ₹{Number(sale.payment.splitValues.upi || 0).toFixed(2)}
+                                    </Typography>
+                                )}
+                                {sale.payment.referenceNo && (
+                                    <Typography sx={{ fontSize: '9px', fontWeight: 700 }}>Ref No: {sale.payment.referenceNo}</Typography>
+                                )}
+                            </Box>
+                        )}
                     </Grid>
                     
                     <Grid item xs={4.5} sx={{ p: 1 }}>
@@ -472,8 +497,15 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>Tax Included:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>₹{totalTax.toFixed(2)}</Typography></Box>
                             )}
 
+                            {Math.abs(roundOff) > 0.01 && (
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <Typography sx={{ fontSize: '10px', fontWeight: 700 }}>Round Off:</Typography>
+                                    <Typography sx={{ fontSize: '10px', fontWeight: 900 }}>{roundOff > 0 ? '+' : ''}₹{roundOff.toFixed(2)}</Typography>
+                                </Box>
+                            )}
+ 
                             <Divider sx={{ my: 0.5, borderBottomWidth: 1, borderColor: '#000' }} />
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', bgcolor: '#f8fafc', p: 0.5 }}><Typography sx={{ fontSize: '12px', fontWeight: 950 }}>NET PAYABLE:</Typography><Typography sx={{ fontSize: '13px', fontWeight: 950 }}>₹{grandTotal.toFixed(2)}</Typography></Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', bgcolor: '#f8fafc', p: 0.5 }}><Typography sx={{ fontSize: '12px', fontWeight: 950 }}>NET PAYABLE:</Typography><Typography sx={{ fontSize: '13px', fontWeight: 950 }}>₹{finalNetPayable.toFixed(2)}</Typography></Box>
                         </Stack>
                     </Grid>
                 </Grid>
@@ -481,16 +513,27 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
 
             {/* Footer / Declarations */}
             <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
-                <Box sx={{ flex: 1, border: '1px solid #000', p: 1 }}>
-                    <Typography sx={{ fontSize: '9px', fontWeight: 900, mb: 0.5, textDecoration: 'underline' }}>Terms & Conditions / Exchange Policy:</Typography>
-                    <Typography sx={{ fontSize: '8px', fontWeight: 700, whiteSpace: 'pre-line', lineHeight: 1.2 }}>
-                        {`1. Goods once sold can be EXCHANGED within 7 DAYS only if in original condition and with this invoice.
+                {!isStockTransfer && (
+                    <Box sx={{ flex: 1, border: '1px solid #000', p: 1 }}>
+                        <Typography sx={{ fontSize: '9px', fontWeight: 900, mb: 0.5, textDecoration: 'underline' }}>Terms & Conditions / Exchange Policy:</Typography>
+                        <Typography sx={{ fontSize: '8px', fontWeight: 700, whiteSpace: 'pre-line', lineHeight: 1.2 }}>
+                            {`1. Goods once sold can be EXCHANGED within 7 DAYS only if in original condition and with this invoice.
 2. No refund will be provided; credit note will be issued for future purchases.
 3. Items without tags or having signs of wear will not be accepted for exchange.
 4. All disputes are subject to local jurisdiction.`}
-                    </Typography>
-                </Box>
-                <Box sx={{ width: '35%', textAlign: 'center', p: 1, border: '1px solid #000', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                        </Typography>
+                    </Box>
+                )}
+                <Box sx={{ 
+                    width: isStockTransfer ? '100%' : '35%', 
+                    textAlign: 'center', 
+                    p: 1, 
+                    border: '1px solid #000', 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    justifyContent: 'space-between',
+                    minHeight: isStockTransfer ? '80px' : 'auto'
+                }}>
                     <Typography sx={{ fontSize: '9px', fontWeight: 900 }}>For {company.legalName || 'REBEL MASS EXPORT PVT LTD'}</Typography>
                     <Box sx={{ mt: 3 }}>
                         <Typography sx={{ fontSize: '9px', fontWeight: 950, borderTop: '1px solid #000', pt: 0.5 }}>Authorised Signatory</Typography>

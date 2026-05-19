@@ -8,7 +8,7 @@ const { sendSuccess, sendError } = require('../../utils/response.handler');
 exports.getGrnBarcodes = async (req, res) => {
     try {
         const { id } = req.params;
-        const grn = await GRN.findById(id).populate('items.itemId', 'itemCode groupIds');
+        const grn = await GRN.findById(id).populate('items.itemId', 'itemName itemCode groupIds');
         
         if (!grn) {
             return res.status(404).json({ success: false, message: 'GRN not found' });
@@ -26,7 +26,8 @@ exports.getGrnBarcodes = async (req, res) => {
                 size: item.size || 'N/A',
                 color: item.color || 'N/A',
                 mrp: item.costPrice || 0,
-                category: 'GARMENT'
+                category: 'GARMENT',
+                name: item.itemName || item.itemId?.itemName || ''
             };
 
             for (let i = 0; i < qty; i++) {
