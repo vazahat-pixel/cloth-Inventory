@@ -17,14 +17,29 @@ const createAuditLog = async ({ action, module, performedBy, details, req, sessi
             v => v.toUpperCase() === (module || '').toUpperCase()
         ) || 'ERP_SYSTEM';
 
-        await SystemLog.create([{
-            action,
-            module: normalizedModule,
-            userId: performedBy,
-            details,
-            ipAddress: req?.ip,
-            userAgent: req?.headers?.['user-agent']
-        }], { session });
+        const writeLog = async () => {
+            await SystemLog.create([{
+                action,
+                module: normalizedModule,
+                userId: performedBy,
+                details,
+                ipAddress: req?.ip,
+                userAgent: req?.headers?.['user-agent']
+            }]);
+        };
+
+        if (session && session.postCommitCallbacks) {
+            session.postCommitCallbacks.push(writeLog);
+        } else {
+            await SystemLog.create([{
+                action,
+                module: normalizedModule,
+                userId: performedBy,
+                details,
+                ipAddress: req?.ip,
+                userAgent: req?.headers?.['user-agent']
+            }], { session });
+        }
     } catch (err) {
         // IMPORTANT: Audit log failure must NEVER fail the main business transaction.
         // Log the error but do not re-throw — the purchase/GRN must still save.

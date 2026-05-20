@@ -8,7 +8,11 @@ import {
     Autocomplete,
     Box,
     Button,
+    Card,
+    CardContent,
+    Chip,
     FormControl,
+    Grid,
     IconButton,
     InputLabel,
     MenuItem,
@@ -35,6 +39,7 @@ import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import BillPrintDialog from '../../components/BillPrintDialog';
 import StandardInvoicePrint from '../sales/StandardInvoicePrint';
 import SaleChallanPrint from '../sales/SaleChallanPrint';
+import ReportExportButton from '../reports/ReportExportButton';
 import { useNotification } from '../../context/NotificationProvider';
 import { useLoading } from '../../context/LoadingProvider';
 import { useConfirm } from '../../context/ConfirmProvider';
@@ -671,6 +676,113 @@ function DeliveryChallanForm({
                         <Typography variant="caption">Scan garments to verify received quantity. Mismatches will be logged.</Typography>
                     </Box>
                 )}
+                {/* Stats Summary Dashboard Panel */}
+                <Grid container spacing={2} sx={{ mb: 2 }}>
+                    <Grid item xs={12} sm={6} md={3}>
+                        <Card elevation={0} sx={{ 
+                            border: '1px solid #cbd5e1', 
+                            bgcolor: '#f8fafc',
+                            borderRadius: '12px',
+                            transition: 'all 0.2s ease-in-out',
+                            '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }
+                        }}>
+                            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                                <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
+                                    <Box>
+                                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                            Total Lines
+                                        </Typography>
+                                        <Typography variant="h5" sx={{ fontWeight: 900, color: '#0f172a', mt: 0.5 }}>
+                                            {lines.length}
+                                        </Typography>
+                                    </Box>
+                                    <Chip label="Variants" size="small" sx={{ bgcolor: '#e2e8f0', color: '#334155', fontWeight: 700, fontSize: '0.7rem' }} />
+                                </Stack>
+                            </CardContent>
+                        </Card>
+                    </Grid>
+
+                    <Grid item xs={12} sm={6} md={3}>
+                        <Card elevation={0} sx={{ 
+                            border: '1px solid #bfdbfe', 
+                            bgcolor: '#eff6ff',
+                            borderRadius: '12px',
+                            transition: 'all 0.2s ease-in-out',
+                            '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }
+                        }}>
+                            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                                <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
+                                    <Box>
+                                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                            Total Quantity
+                                        </Typography>
+                                        <Typography variant="h5" sx={{ fontWeight: 900, color: '#1d4ed8', mt: 0.5 }}>
+                                            {lines.reduce((acc, l) => acc + (l.quantity || 0), 0)}
+                                        </Typography>
+                                    </Box>
+                                    <Chip label="Items" size="small" sx={{ bgcolor: '#dbeafe', color: '#1e40af', fontWeight: 700, fontSize: '0.7rem' }} />
+                                </Stack>
+                            </CardContent>
+                        </Card>
+                    </Grid>
+
+                    <Grid item xs={12} sm={6} md={3}>
+                        <Card elevation={0} sx={{ 
+                            border: '1px solid #e9d5ff', 
+                            bgcolor: '#faf5ff',
+                            borderRadius: '12px',
+                            transition: 'all 0.2s ease-in-out',
+                            '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }
+                        }}>
+                            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                                <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
+                                    <Box>
+                                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#6b21a8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                            Taxable Value
+                                        </Typography>
+                                        <Typography variant="h5" sx={{ fontWeight: 900, color: '#7e22ce', mt: 0.5 }}>
+                                            ₹{lines.reduce((acc, l) => acc + (Number(l.rate || 0) * (l.quantity || 0)), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </Typography>
+                                    </Box>
+                                    <Chip label="Excl. Tax" size="small" sx={{ bgcolor: '#f3e8ff', color: '#6b21a8', fontWeight: 700, fontSize: '0.7rem' }} />
+                                </Stack>
+                            </CardContent>
+                        </Card>
+                    </Grid>
+
+                    <Grid item xs={12} sm={6} md={3}>
+                        <Card elevation={0} sx={{ 
+                            border: '1px solid #a7f3d0', 
+                            bgcolor: '#ecfdf5',
+                            borderRadius: '12px',
+                            transition: 'all 0.2s ease-in-out',
+                            '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }
+                        }}>
+                            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                                <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
+                                    <Box>
+                                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                            Net Payable
+                                        </Typography>
+                                        <Typography variant="h5" sx={{ fontWeight: 900, color: '#047857', mt: 0.5 }}>
+                                            ₹{(lines.reduce((acc, l) => acc + (Number(l.rate || 0) * (l.quantity || 0)), 0) + (isSameEntity ? 0 : hsnSummary.reduce((acc, h) => acc + h.totalTax, 0))).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </Typography>
+                                    </Box>
+                                    <Chip 
+                                        label={isSameEntity ? "Stock Transfer" : "Incl. Tax"} 
+                                        size="small" 
+                                        sx={{ 
+                                            bgcolor: isSameEntity ? '#dbeafe' : '#d1fae5', 
+                                            color: isSameEntity ? '#1e40af' : '#065f46', 
+                                            fontWeight: 700, 
+                                            fontSize: '0.7rem' 
+                                        }} 
+                                    />
+                                </Stack>
+                            </CardContent>
+                        </Card>
+                    </Grid>
+                </Grid>
 
                 <TextField 
                     fullWidth size="small"
@@ -686,23 +798,46 @@ function DeliveryChallanForm({
                     sx={{ bgcolor: '#f8fafc' }}
                 />
 
-                <TableContainer component={Paper} elevation={0} variant="outlined">
-                    <Table size="small">
-                        <TableHead sx={{ bgcolor: '#f8fafc' }}>
+                <TableContainer 
+                    component={Paper} 
+                    elevation={0} 
+                    variant="outlined" 
+                    sx={{ 
+                        maxHeight: 350, 
+                        overflowY: 'auto',
+                        '&::-webkit-scrollbar': {
+                            width: '8px',
+                            height: '8px',
+                        },
+                        '&::-webkit-scrollbar-track': {
+                            background: '#f1f5f9',
+                            borderRadius: '4px',
+                        },
+                        '&::-webkit-scrollbar-thumb': {
+                            background: '#cbd5e1',
+                            borderRadius: '4px',
+                            '&:hover': {
+                                background: '#94a3b8',
+                            }
+                        }
+                    }}
+                >
+                    <Table size="small" stickyHeader>
+                        <TableHead>
                             <TableRow>
-                                <TableCell sx={{ fontWeight: 700 }}>Garment Variant</TableCell>
-                                <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 700 }}>{isBillingMode ? 'Base MRP' : 'MRP'}</TableCell>
-                                {isBillingMode && <TableCell align="right" sx={{ fontWeight: 700 }}>Discount %</TableCell>}
-                                {isBillingMode && <TableCell align="right" sx={{ fontWeight: 700 }}>Bill Rate</TableCell>}
-                                <TableCell align="right" sx={{ fontWeight: 700 }}>Expected Qty</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 700 }}>Taxable Value</TableCell>
-                                {!isSameEntity && !isStoreStaff && <TableCell align="right" sx={{ fontWeight: 700 }}>GST%</TableCell>}
-                                {!isSameEntity && !isStoreStaff && <TableCell align="right" sx={{ fontWeight: 700 }}>Tax</TableCell>}
-                                {isBillingMode && <TableCell align="right" sx={{ fontWeight: 700 }}>Line Total</TableCell>}
-                                {isReceiveMode && <TableCell align="right" sx={{ fontWeight: 700, color: '#166534' }}>Received Qty</TableCell>}
-                                {!isReceiveMode && <TableCell align="right" sx={{ fontWeight: 700 }}>Dispatch Qty</TableCell>}
-                                {!isLocked && <TableCell align="center">Action</TableCell>}
+                                <TableCell sx={{ fontWeight: 700, bgcolor: '#f8fafc', zIndex: 1 }}>Garment Variant</TableCell>
+                                <TableCell sx={{ fontWeight: 700, bgcolor: '#f8fafc', zIndex: 1 }}>SKU</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 700, bgcolor: '#f8fafc', zIndex: 1 }}>{isBillingMode ? 'Base MRP' : 'MRP'}</TableCell>
+                                {isBillingMode && <TableCell align="right" sx={{ fontWeight: 700, bgcolor: '#f8fafc', zIndex: 1 }}>Discount %</TableCell>}
+                                {isBillingMode && <TableCell align="right" sx={{ fontWeight: 700, bgcolor: '#f8fafc', zIndex: 1 }}>Bill Rate</TableCell>}
+                                <TableCell align="right" sx={{ fontWeight: 700, bgcolor: '#f8fafc', zIndex: 1 }}>Expected Qty</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 700, bgcolor: '#f8fafc', zIndex: 1 }}>Taxable Value</TableCell>
+                                {!isSameEntity && !isStoreStaff && <TableCell align="right" sx={{ fontWeight: 700, bgcolor: '#f8fafc', zIndex: 1 }}>GST%</TableCell>}
+                                {!isSameEntity && !isStoreStaff && <TableCell align="right" sx={{ fontWeight: 700, bgcolor: '#f8fafc', zIndex: 1 }}>Tax</TableCell>}
+                                {isBillingMode && <TableCell align="right" sx={{ fontWeight: 700, bgcolor: '#f8fafc', zIndex: 1 }}>Line Total</TableCell>}
+                                {isReceiveMode && <TableCell align="right" sx={{ fontWeight: 700, color: '#166534', bgcolor: '#f8fafc', zIndex: 1 }}>Received Qty</TableCell>}
+                                {!isReceiveMode && <TableCell align="right" sx={{ fontWeight: 700, bgcolor: '#f8fafc', zIndex: 1 }}>Dispatch Qty</TableCell>}
+                                {!isLocked && <TableCell align="center" sx={{ bgcolor: '#f8fafc', zIndex: 1 }}>Action</TableCell>}
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -878,6 +1013,24 @@ function DeliveryChallanForm({
 
                 <Stack direction="row" spacing={2} justifyContent="flex-end">
                     <Button variant="outlined" onClick={() => navigate(listPath)}>Cancel</Button>
+                    <ReportExportButton
+                        headers={['Barcode/SKU', 'Item Name', 'Color', 'Size', 'Category', 'Quantity', 'Rate', 'MRP', 'Tax %', 'Subtotal']}
+                        headerKeys={['Barcode/SKU', 'Item Name', 'Color', 'Size', 'Category', 'Quantity', 'Rate', 'MRP', 'Tax %', 'Subtotal']}
+                        rows={lines.map(row => ({
+                            'Barcode/SKU': row.barcode || row.sku,
+                            'Item Name': row.itemName,
+                            'Color': row.color,
+                            'Size': row.size,
+                            'Category': row.category,
+                            'Quantity': row.quantity,
+                            'Rate': Number(row.rate || 0).toFixed(2),
+                            'MRP': Number(row.mrp || 0).toFixed(2),
+                            'Tax %': row.taxPercentage || 0,
+                            'Subtotal': (Number(row.rate || 0) * (row.quantity || 0)).toFixed(2)
+                        }))}
+                        filename={`Delivery_Challan_Export.csv`}
+                        variant="outlined"
+                    />
                     {isReceiveMode && (
                         <Button variant="contained" color="success" onClick={() => handleSave()} disabled={isSubmitting}>
                             Confirm Verified Stock-In
@@ -887,6 +1040,9 @@ function DeliveryChallanForm({
                       <>
                         <Button variant="outlined" color="primary" onClick={() => handleSave()} disabled={isSubmitting}>
                             Save Billing Review
+                        </Button>
+                        <Button variant="outlined" color="warning" onClick={() => setShowPrint(true)} disabled={isSubmitting}>
+                            Preview Invoice
                         </Button>
                         <Button variant="contained" color="primary" onClick={handleBillingDispatch} disabled={isSubmitting}>
                             Generate Bill & Dispatch
@@ -913,7 +1069,17 @@ function DeliveryChallanForm({
             <BillPrintDialog open={showPrint} onClose={() => setShowPrint(false)}>
                 {status === 'DISPATCHED' || status === 'RECEIVED' || isBillingMode ? (
                     <StandardInvoicePrint 
-                        sale={{ ...challanRawData, items: lines }} 
+                        sale={{
+                            ...challanRawData,
+                            storeId: sourceDoc,
+                            sourceWarehouseId: sourceDoc,
+                            destinationStoreId: destDoc,
+                            items: lines,
+                            hsnSummary: hsnSummary,
+                            type: isSameEntity ? 'INTERNAL_SALE' : 'INTERNAL_SALE',
+                            isTransfer: isSameEntity,
+                            grandTotal: lines.reduce((acc, l) => acc + (Number(l.rate || 0) * l.quantity), 0) + (isSameEntity ? 0 : hsnSummary.reduce((acc, h) => acc + h.totalTax, 0))
+                        }} 
                         isTransfer={isSameEntity} 
                         title={isSameEntity ? 'STOCK TRANSFER NOTE' : 'TAX INVOICE'}
                     />

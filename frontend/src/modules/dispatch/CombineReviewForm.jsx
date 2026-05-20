@@ -34,6 +34,7 @@ import { useNotification } from '../../context/NotificationProvider';
 import { useLoading } from '../../context/LoadingProvider';
 import BillPrintDialog from '../../components/BillPrintDialog';
 import StandardInvoicePrint from '../sales/StandardInvoicePrint';
+import ReportExportButton from '../reports/ReportExportButton';
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
 
@@ -60,6 +61,7 @@ function CombineReviewForm({ listPath = '/orders/delivery-challan' }) {
     // Combined result for printing
     const [combinedResult, setCombinedResult] = useState(null);
     const [showPrint, setShowPrint] = useState(false);
+    const [showPreview, setShowPreview] = useState(false);
 
     // Fetch details of all selected dispatches
     useEffect(() => {
@@ -128,22 +130,33 @@ function CombineReviewForm({ listPath = '/orders/delivery-challan' }) {
         const itemMap = new Map();
         for (const disp of sourceDispatches) {
             for (const item of disp.items) {
-                const varIdStr = String(item.variantId?._id || item.variantId);
+                const varId = item.variantId || {};
+                const varIdStr = String(varId._id || item.variantId);
                 const qty = Number(item.qty || 0);
 
                 if (itemMap.has(varIdStr)) {
                     const existing = itemMap.get(varIdStr);
                     existing.quantity += qty;
                 } else {
+                    const resolvedSku = item.sku || varId.sku || item.barcode || '-';
+                    const resolvedBarcode = item.barcode || varId.barcode || resolvedSku;
+                    const resolvedName = item.itemName || varId.itemName || item.itemId?.itemName || item.name || 'Product Name';
+                    const resolvedColor = item.color || varId.color || item.itemId?.shade || '-';
+                    const resolvedSize = item.size || varId.size || '-';
+                    const resolvedCategory = item.category || item.itemId?.categoryId?.name || item.itemId?.categoryName || item.itemId?.category || 'OTHERS';
+                    const resolvedHsn = item.hsnCode || item.itemId?.hsCodeId?.code || item.itemId?.hsnCode || '6109';
+
                     itemMap.set(varIdStr, {
                         itemId: item.itemId?._id || item.itemId,
-                        variantId: item.variantId?._id || item.variantId,
-                        barcode: item.barcode,
-                        sku: item.sku || item.barcode,
-                        name: item.itemId?.name || item.name || 'Product Name',
-                        color: item.variantId?.color || item.color || '-',
-                        size: item.variantId?.size || item.size || '-',
-                        category: item.category || 'OTHERS',
+                        variantId: varIdStr,
+                        barcode: resolvedBarcode,
+                        sku: resolvedSku,
+                        itemName: resolvedName,
+                        name: resolvedName,
+                        color: resolvedColor,
+                        size: resolvedSize,
+                        category: resolvedCategory,
+                        hsnCode: resolvedHsn,
                         quantity: qty,
                         rate: Number(item.rate || 0),
                         mrp: Number(item.mrp || 0),
@@ -322,7 +335,7 @@ function CombineReviewForm({ listPath = '/orders/delivery-challan' }) {
                                     </Typography>
                                 </Stack>
                                 <Grid container spacing={2}>
-                                    <Grid item xs={12} sm={6}>
+                                    <Grid item xs={12} sm={6} md={4}>
                                         <TextField
                                             label="Combined Dispatch Date"
                                             type="date"
@@ -333,40 +346,117 @@ function CombineReviewForm({ listPath = '/orders/delivery-challan' }) {
                                             InputLabelProps={{ shrink: true }}
                                         />
                                     </Grid>
-                                    <Grid item xs={12} sm={6}>
-                                        <TextField
-                                            label="Vehicle Number"
-                                            placeholder="e.g. MH-12-GQ-1234"
-                                            fullWidth
-                                            size="small"
-                                            value={vehicleNumber}
-                                            onChange={(e) => setVehicleNumber(e.target.value)}
-                                        />
-                                    </Grid>
-                                    <Grid item xs={12} sm={6}>
-                                        <TextField
-                                            label="Driver Name"
-                                            placeholder="e.g. Ramesh Kumar"
-                                            fullWidth
-                                            size="small"
-                                            value={driverName}
-                                            onChange={(e) => setDriverName(e.target.value)}
-                                        />
-                                    </Grid>
-                                    <Grid item xs={12}>
-                                        <TextField
-                                            label="Overall Dispatch Notes"
-                                            placeholder="Enter combined shipping, logistical, or billing instructions..."
-                                            fullWidth
-                                            multiline
-                                            rows={2}
-                                            value={notes}
-                                            onChange={(e) => setNotes(e.target.value)}
-                                        />
-                                    </Grid>
                                 </Grid>
                             </CardContent>
                         </Card>
+
+                        {/* Stats Summary Dashboard Panel */}
+                        <Grid container spacing={2} sx={{ mb: 2 }}>
+                            <Grid item xs={12} sm={6} md={3}>
+                                <Card elevation={0} sx={{ 
+                                    border: '1px solid #cbd5e1', 
+                                    bgcolor: '#f8fafc',
+                                    borderRadius: '12px',
+                                    transition: 'all 0.2s ease-in-out',
+                                    '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }
+                                }}>
+                                    <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                                        <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
+                                            <Box>
+                                                <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                    Total Lines
+                                                </Typography>
+                                                <Typography variant="h5" sx={{ fontWeight: 900, color: '#0f172a', mt: 0.5 }}>
+                                                    {mergedLines.length}
+                                                </Typography>
+                                            </Box>
+                                            <Chip label="Variants" size="small" sx={{ bgcolor: '#e2e8f0', color: '#334155', fontWeight: 700, fontSize: '0.7rem' }} />
+                                        </Stack>
+                                    </CardContent>
+                                </Card>
+                            </Grid>
+
+                            <Grid item xs={12} sm={6} md={3}>
+                                <Card elevation={0} sx={{ 
+                                    border: '1px solid #bfdbfe', 
+                                    bgcolor: '#eff6ff',
+                                    borderRadius: '12px',
+                                    transition: 'all 0.2s ease-in-out',
+                                    '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }
+                                }}>
+                                    <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                                        <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
+                                            <Box>
+                                                <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                    Total Quantity
+                                                </Typography>
+                                                <Typography variant="h5" sx={{ fontWeight: 900, color: '#1d4ed8', mt: 0.5 }}>
+                                                    {mergedLines.reduce((acc, l) => acc + (l.quantity || 0), 0)}
+                                                </Typography>
+                                            </Box>
+                                            <Chip label="Items" size="small" sx={{ bgcolor: '#dbeafe', color: '#1e40af', fontWeight: 700, fontSize: '0.7rem' }} />
+                                        </Stack>
+                                    </CardContent>
+                                </Card>
+                            </Grid>
+
+                            <Grid item xs={12} sm={6} md={3}>
+                                <Card elevation={0} sx={{ 
+                                    border: '1px solid #e9d5ff', 
+                                    bgcolor: '#faf5ff',
+                                    borderRadius: '12px',
+                                    transition: 'all 0.2s ease-in-out',
+                                    '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }
+                                }}>
+                                    <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                                        <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
+                                            <Box>
+                                                <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#6b21a8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                    Taxable Value
+                                                </Typography>
+                                                <Typography variant="h5" sx={{ fontWeight: 900, color: '#7e22ce', mt: 0.5 }}>
+                                                    ₹{totals.subTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </Typography>
+                                            </Box>
+                                            <Chip label="Excl. Tax" size="small" sx={{ bgcolor: '#f3e8ff', color: '#6b21a8', fontWeight: 700, fontSize: '0.7rem' }} />
+                                        </Stack>
+                                    </CardContent>
+                                </Card>
+                            </Grid>
+
+                            <Grid item xs={12} sm={6} md={3}>
+                                <Card elevation={0} sx={{ 
+                                    border: '1px solid #a7f3d0', 
+                                    bgcolor: '#ecfdf5',
+                                    borderRadius: '12px',
+                                    transition: 'all 0.2s ease-in-out',
+                                    '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }
+                                }}>
+                                    <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                                        <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
+                                            <Box>
+                                                <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                    Net Payable
+                                                </Typography>
+                                                <Typography variant="h5" sx={{ fontWeight: 900, color: '#047857', mt: 0.5 }}>
+                                                    ₹{totals.grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </Typography>
+                                            </Box>
+                                            <Chip 
+                                                label={isSameGSTEntity ? "Stock Transfer" : "Incl. Tax"} 
+                                                size="small" 
+                                                sx={{ 
+                                                    bgcolor: isSameGSTEntity ? '#dbeafe' : '#d1fae5', 
+                                                    color: isSameGSTEntity ? '#1e40af' : '#065f46', 
+                                                    fontWeight: 700, 
+                                                    fontSize: '0.7rem' 
+                                                }} 
+                                            />
+                                        </Stack>
+                                    </CardContent>
+                                </Card>
+                            </Grid>
+                        </Grid>
 
                         {/* Merged Items Preview Table */}
                         <Card elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2 }}>
@@ -379,16 +469,36 @@ function CombineReviewForm({ listPath = '/orders/delivery-challan' }) {
                                         Duplicate variants across selected challans are consolidated with summed quantities.
                                     </Typography>
                                 </Box>
-                                <TableContainer>
-                                    <Table size="small">
-                                        <TableHead sx={{ backgroundColor: '#f8fafc' }}>
+                                <TableContainer 
+                                    sx={{ 
+                                        maxHeight: 350, 
+                                        overflowY: 'auto',
+                                        '&::-webkit-scrollbar': {
+                                            width: '8px',
+                                            height: '8px',
+                                        },
+                                        '&::-webkit-scrollbar-track': {
+                                            background: '#f1f5f9',
+                                            borderRadius: '4px',
+                                        },
+                                        '&::-webkit-scrollbar-thumb': {
+                                            background: '#cbd5e1',
+                                            borderRadius: '4px',
+                                            '&:hover': {
+                                                background: '#94a3b8',
+                                            }
+                                        }
+                                    }}
+                                >
+                                    <Table size="small" stickyHeader>
+                                        <TableHead>
                                             <TableRow>
-                                                <TableCell sx={{ fontWeight: 700 }}>Barcode / SKU</TableCell>
-                                                <TableCell sx={{ fontWeight: 700 }}>Category</TableCell>
-                                                <TableCell sx={{ fontWeight: 700 }} align="right">MRP</TableCell>
-                                                <TableCell sx={{ fontWeight: 700 }} align="right">Unit Rate</TableCell>
-                                                <TableCell sx={{ fontWeight: 700 }} align="right">Consolidated Qty</TableCell>
-                                                <TableCell sx={{ fontWeight: 700 }} align="right">Estimated Subtotal</TableCell>
+                                                <TableCell sx={{ fontWeight: 700, bgcolor: '#f8fafc', zIndex: 1 }}>Barcode / SKU</TableCell>
+                                                <TableCell sx={{ fontWeight: 700, bgcolor: '#f8fafc', zIndex: 1 }}>Category</TableCell>
+                                                <TableCell sx={{ fontWeight: 700, bgcolor: '#f8fafc', zIndex: 1 }} align="right">MRP</TableCell>
+                                                <TableCell sx={{ fontWeight: 700, bgcolor: '#f8fafc', zIndex: 1 }} align="right">Unit Rate</TableCell>
+                                                <TableCell sx={{ fontWeight: 700, bgcolor: '#f8fafc', zIndex: 1 }} align="right">Consolidated Qty</TableCell>
+                                                <TableCell sx={{ fontWeight: 700, bgcolor: '#f8fafc', zIndex: 1 }} align="right">Estimated Subtotal</TableCell>
                                             </TableRow>
                                         </TableHead>
                                         <TableBody>
@@ -498,6 +608,34 @@ function CombineReviewForm({ listPath = '/orders/delivery-challan' }) {
                                     </Button>
                                     <Button
                                         variant="outlined"
+                                        color="warning"
+                                        fullWidth
+                                        disabled={Boolean(validationError)}
+                                        onClick={() => setShowPreview(true)}
+                                    >
+                                        Preview Invoice
+                                    </Button>
+                                    <ReportExportButton
+                                        headers={['Barcode/SKU', 'Item Name', 'Color', 'Size', 'Category', 'Quantity', 'Rate', 'MRP', 'Tax %', 'Subtotal']}
+                                        headerKeys={['Barcode/SKU', 'Item Name', 'Color', 'Size', 'Category', 'Quantity', 'Rate', 'MRP', 'Tax %', 'Subtotal']}
+                                        rows={mergedLines.map(row => ({
+                                            'Barcode/SKU': row.barcode || row.sku,
+                                            'Item Name': row.itemName,
+                                            'Color': row.color,
+                                            'Size': row.size,
+                                            'Category': row.category,
+                                            'Quantity': row.quantity,
+                                            'Rate': row.rate.toFixed(2),
+                                            'MRP': row.mrp.toFixed(2),
+                                            'Tax %': row.taxPercentage,
+                                            'Subtotal': (row.rate * row.quantity).toFixed(2)
+                                        }))}
+                                        filename={`Combined_Dispatch_Export.csv`}
+                                        variant="outlined"
+                                        fullWidth
+                                    />
+                                    <Button
+                                        variant="outlined"
                                         color="secondary"
                                         fullWidth
                                         onClick={() => navigate(listPath)}
@@ -541,6 +679,29 @@ function CombineReviewForm({ listPath = '/orders/delivery-challan' }) {
                             isTransfer={isSameGSTEntity}
                         />
                     </Box>
+                )}
+            </BillPrintDialog>
+
+            <BillPrintDialog open={showPreview} onClose={() => setShowPreview(false)}>
+                {firstDispatch && (
+                    <StandardInvoicePrint
+                        sale={{
+                            storeId: firstDispatch.sourceWarehouseId,
+                            sourceWarehouseId: firstDispatch.sourceWarehouseId,
+                            destinationStoreId: firstDispatch.destinationStoreId,
+                            items: mergedLines,
+                            type: isSameGSTEntity ? 'INTERNAL_SALE' : 'INTERNAL_SALE',
+                            isTransfer: isSameGSTEntity,
+                            grandTotal: totals.grandTotal,
+                            subTotal: totals.subTotal,
+                            totalTax: totals.totalTax,
+                            invoiceNumber: 'PROFORMA',
+                            saleDate: date,
+                            createdAt: date
+                        }}
+                        isTransfer={isSameGSTEntity}
+                        title={isSameGSTEntity ? 'STOCK TRANSFER NOTE' : 'TAX INVOICE'}
+                    />
                 )}
             </BillPrintDialog>
         </Box>

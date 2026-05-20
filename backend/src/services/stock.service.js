@@ -22,6 +22,14 @@ const toFiniteNumber = (value, label = 'quantity') => {
 
 const _getItemMetadata = async (variantId, barcode, session) => {
     try {
+        if (session) {
+            session.itemMetadataCache = session.itemMetadataCache || new Map();
+            const cacheKey = variantId ? String(variantId) : String(barcode);
+            if (session.itemMetadataCache.has(cacheKey)) {
+                return session.itemMetadataCache.get(cacheKey);
+            }
+        }
+
         const item = await Item.findOne({
             $or: [
                 { "sizes._id": variantId },
@@ -39,12 +47,19 @@ const _getItemMetadata = async (variantId, barcode, session) => {
             s.sku === barcode
         ) || item.sizes?.[0] || {};
 
-        return {
+        const metadata = {
             itemName: item.itemName,
             sku: variant.sku || item.itemCode,
             barcode: variant.barcode || variant.sku || item.itemCode,
             color: variant.color || item.color
         };
+
+        if (session) {
+            const cacheKey = variantId ? String(variantId) : String(barcode);
+            session.itemMetadataCache.set(cacheKey, metadata);
+        }
+
+        return metadata;
     } catch (err) {
         console.error('Error fetching item metadata for movement:', err);
         return {};
@@ -57,15 +72,32 @@ const _getItemMetadata = async (variantId, barcode, session) => {
 const _updateInventory = async ({ itemId, barcode, variantId, locationId, locationType, qty, session }) => {
     const delta = toFiniteNumber(qty);
 
-    // 1. Strict ID Validation
-    if (locationType === 'STORE') {
-        const storeExists = await Store.exists({ _id: locationId });
-        if (!storeExists) throw new Error(`Invalid Store ID: ${locationId}`);
-    } else if (locationType === 'WAREHOUSE') {
-        const warehouseExists = await Warehouse.exists({ _id: locationId });
-        if (!warehouseExists) throw new Error(`Invalid Warehouse ID: ${locationId}`);
+    // 1. Strict ID Validation (With caching on transactional session for massive performance speedup)
+    if (session) {
+        session.locationExistsCache = session.locationExistsCache || new Set();
+        const cacheKey = `${locationType}_${locationId}`;
+        if (!session.locationExistsCache.has(cacheKey)) {
+            if (locationType === 'STORE') {
+                const storeExists = await Store.exists({ _id: locationId });
+                if (!storeExists) throw new Error(`Invalid Store ID: ${locationId}`);
+            } else if (locationType === 'WAREHOUSE') {
+                const warehouseExists = await Warehouse.exists({ _id: locationId });
+                if (!warehouseExists) throw new Error(`Invalid Warehouse ID: ${locationId}`);
+            } else {
+                throw new Error('Invalid location type: ' + locationType);
+            }
+            session.locationExistsCache.add(cacheKey);
+        }
     } else {
-        throw new Error('Invalid location type: ' + locationType);
+        if (locationType === 'STORE') {
+            const storeExists = await Store.exists({ _id: locationId });
+            if (!storeExists) throw new Error(`Invalid Store ID: ${locationId}`);
+        } else if (locationType === 'WAREHOUSE') {
+            const warehouseExists = await Warehouse.exists({ _id: locationId });
+            if (!warehouseExists) throw new Error(`Invalid Warehouse ID: ${locationId}`);
+        } else {
+            throw new Error('Invalid location type: ' + locationType);
+        }
     }
 
     let InventoryModel;
@@ -147,25 +179,24 @@ const _updateInventory = async ({ itemId, barcode, variantId, locationId, locati
     console.log(`[INVENTORY-UPDATE] Location: ${locationId} (${locationType}), Barcode: ${barcode}, Balance: ${inventory.quantity} (Change: ${delta})`);
     
     // MASTER STOCK UPDATE: Sync with Item model for global/master view denormalized cache.
-    // To prevent WiredTiger array positional locks ($ positional update in parallel) from aborting the transaction,
-    // we perform this denormalized sync in the background (outside the transaction session) if a session is present.
-    if (session) {
-        setImmediate(async () => {
-            try {
-                const ItemModel = require('../models/item.model');
-                await ItemModel.updateOne(
-                    { "sizes._id": variantId },
-                    { $inc: { "sizes.$.stock": delta } }
-                );
-            } catch (err) {
-                console.warn(`[BG-STOCK-WARN] Background master stock sync failed for variant ${variantId}:`, err.message);
-            }
-        });
+    const syncMasterStock = async () => {
+        try {
+            const ItemModel = require('../models/item.model');
+            await ItemModel.updateOne(
+                { "sizes._id": variantId },
+                { $inc: { "sizes.$.stock": delta } }
+            );
+        } catch (err) {
+            console.warn(`[BG-STOCK-WARN] Background master stock sync failed for variant ${variantId}:`, err.message);
+        }
+    };
+
+    if (session && session.postCommitCallbacks) {
+        // Safe: Queue update and run ONLY after the transaction commits successfully
+        session.postCommitCallbacks.push(syncMasterStock);
     } else {
-        await Item.updateOne(
-            { "sizes._id": variantId },
-            { $inc: { "sizes.$.stock": delta } }
-        );
+        // Not in a transaction context, run on next tick
+        setImmediate(syncMasterStock);
     }
     
     return inventory;
@@ -552,7 +583,7 @@ const reserveStock = async ({ variantId, locationId, locationType, qty, session 
     const delta = toFiniteNumber(qty);
     if (delta <= 0) throw new Error('Reservation quantity must be positive');
 
-    const filter = { productId: variantId };
+    const filter = { variantId: String(variantId) };
     let InventoryModel;
 
     if (locationType === 'STORE') {
@@ -618,7 +649,7 @@ const reserveStock = async ({ variantId, locationId, locationType, qty, session 
 const releaseStock = async ({ variantId, locationId, locationType, qty, session }) => {
     const delta = toFiniteNumber(qty);
     
-    const filter = { productId: variantId };
+    const filter = { variantId: String(variantId) };
     let InventoryModel = locationType === 'STORE' ? StoreInventory : WarehouseInventory;
     if (locationType === 'STORE') filter.storeId = locationId;
     else filter.warehouseId = locationId;

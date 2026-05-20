@@ -9,6 +9,8 @@ const { getNextSequence } = require('../../services/sequence.service');
 const workflowService = require('../workflow/workflow.service.js');
 const stockLedgerService = require('../inventory/stockLedger.service');
 
+const activeGrnLocks = new Set();
+
 // ─── Number Generators ────────────────────────────────────────────────────────
 
 const generateGrnNumber = async (session = null) => {
@@ -195,140 +197,172 @@ const _createOpeningBalanceGRN = async (grnData, userId) => {
 // ─── Step 1: Create GRN (Draft) ───────────────────────────────────────────────
 
 const createGRN = async (grnData, userId) => {
-    // For Opening Balance with 9000+ items, we handle transactions internally per batch
-    // to avoid MongoDB 'transactionLifetimeLimitSeconds' (60s) timeout.
-    if (grnData.grnType === 'OPENING_BALANCE') {
-        return await _createOpeningBalanceGRN(grnData, userId);
+    // Calculate totalQty and totalValue from input items
+    const inputItems = grnData.items || [];
+    const totalQty = inputItems.reduce((s, i) => s + Number(i.receivedQty || i.qty || 0), 0);
+    const totalValue = inputItems.reduce((s, i) => s + (Number(i.costPrice || i.rate || 0) * Number(i.receivedQty || i.qty || 0)), 0);
+
+    const lockKey = `${String(grnData.warehouseId || '')}_${String(grnData.grnType || 'FABRIC')}_${totalQty}_${totalValue}`;
+
+    if (activeGrnLocks.has(lockKey)) {
+        throw new Error('A similar GRN is currently being processed. Please wait.');
     }
 
-    return await withTransaction(async (session) => {
-        const {
-            grnType = 'FABRIC',
-            purchaseId, purchaseOrderId,
-            supplierId, warehouseId,
-            invoiceNumber, invoiceDate,
-            remarks, items,
-            jobWorkId,
-            consumptionDetails
-        } = grnData;
+    activeGrnLocks.add(lockKey);
 
-        // 1. Validate Parent Document (Optional for Direct GRN)
-        let parentDoc = null;
-        if (purchaseOrderId) {
-            const PurchaseOrder = require('../../models/purchaseOrder.model');
-            parentDoc = await PurchaseOrder.findById(purchaseOrderId).session(session);
-            if (!parentDoc) throw new Error('Purchase Order not found');
-        } else if (purchaseId) {
-            parentDoc = await Purchase.findById(purchaseId).session(session);
-            if (!parentDoc) throw new Error('Purchase document not found');
+    try {
+        // For Opening Balance with 9000+ items, we handle transactions internally per batch
+        // to avoid MongoDB 'transactionLifetimeLimitSeconds' (60s) timeout.
+        if (grnData.grnType === 'OPENING_BALANCE') {
+            return await _createOpeningBalanceGRN(grnData, userId);
         }
 
-        // 2. For GARMENT GRN, Job Work Reference is recommended
-        if (grnType === 'GARMENT' && !jobWorkId) {
-            console.warn('[GRN-CREATE] Garment GRN created without Job Work Reference. Consumption will be manual-only.');
-        }
+        return await withTransaction(async (session) => {
+            const {
+                grnType = 'FABRIC',
+                purchaseId, purchaseOrderId,
+                supplierId, warehouseId,
+                invoiceNumber, invoiceDate,
+                remarks, items,
+                jobWorkId,
+                consumptionDetails
+            } = grnData;
 
-        // 3. Process line items
-        const processedItems = [];
+            // Check database for similar GRN created in last 60s
+            const sixtySecondsAgo = new Date(Date.now() - 60000);
+            const duplicateGrn = await GRN.findOne({
+                warehouseId,
+                grnType,
+                totalQty,
+                totalValue,
+                createdAt: { $gte: sixtySecondsAgo },
+                isDeleted: false
+            }).session(session);
 
-        for (const item of items) {
-            const itemId = item.itemId || item.productId;
-            let variantId = item.variantId;
-            let sku = item.sku;
+            if (duplicateGrn) {
+                throw new Error(`A similar GRN (${duplicateGrn.grnNumber}) was already created in the last 60 seconds.`);
+            }
 
-            // 1. FAIL-SAFE: Recover SKU + itemName + uom from Item Master if missing
-            let masterItem = await Item.findById(itemId).session(session);
-            if (!masterItem) throw new Error(`Item ${itemId} not found in master`);
+            // 1. Validate Parent Document (Optional for Direct GRN)
+            let parentDoc = null;
+            if (purchaseOrderId) {
+                const PurchaseOrder = require('../../models/purchaseOrder.model');
+                parentDoc = await PurchaseOrder.findById(purchaseOrderId).session(session);
+                if (!parentDoc) throw new Error('Purchase Order not found');
+            } else if (purchaseId) {
+                parentDoc = await Purchase.findById(purchaseId).session(session);
+                if (!parentDoc) throw new Error('Purchase document not found');
+            }
 
-            // 2. Handle missing variantId for non-garment items
-            if (!variantId || variantId === 'undefined') {
-                // If garment, we need a variant. If not, we use the itemId as variantId
-                if (masterItem.type === 'GARMENT') {
-                    throw new Error(`Variant ID is required for Garment item: ${masterItem.itemName}`);
+            // 2. For GARMENT GRN, Job Work Reference is recommended
+            if (grnType === 'GARMENT' && !jobWorkId) {
+                console.warn('[GRN-CREATE] Garment GRN created without Job Work Reference. Consumption will be manual-only.');
+            }
+
+            // 3. Process line items
+            const processedItems = [];
+
+            for (const item of items) {
+                const itemId = item.itemId || item.productId;
+                let variantId = item.variantId;
+                let sku = item.sku;
+
+                // 1. FAIL-SAFE: Recover SKU + itemName + uom from Item Master if missing
+                let masterItem = await Item.findById(itemId).session(session);
+                if (!masterItem) throw new Error(`Item ${itemId} not found in master`);
+
+                // 2. Handle missing variantId for non-garment items
+                if (!variantId || variantId === 'undefined') {
+                    // If garment, we need a variant. If not, we use the itemId as variantId
+                    if (masterItem.type === 'GARMENT') {
+                        throw new Error(`Variant ID is required for Garment item: ${masterItem.itemName}`);
+                    }
+                    variantId = itemId.toString(); // Use itemId as surrogate variantId
                 }
-                variantId = itemId.toString(); // Use itemId as surrogate variantId
-            }
 
-            // 3. Handle missing SKU
-            if (!sku || sku === 'N/A' || sku === 'undefined') {
-                if (masterItem.sizes && variantId) {
-                    const variant = masterItem.sizes.find(v => (v._id || v.id).toString() === variantId.toString());
-                    sku = variant?.sku || variant?.barcode;
+                // 3. Handle missing SKU
+                if (!sku || sku === 'N/A' || sku === 'undefined') {
+                    if (masterItem.sizes && variantId) {
+                        const variant = masterItem.sizes.find(v => (v._id || v.id).toString() === variantId.toString());
+                        sku = variant?.sku || variant?.barcode;
+                    }
+                    if (!sku) sku = masterItem.sku || masterItem.itemCode || 'DIRECT';
                 }
-                if (!sku) sku = masterItem.sku || masterItem.itemCode || 'DIRECT';
+
+                // Tax logic: Only compute for FABRIC and ACCESSORY
+                let taxPercent = 0;
+                let taxAmount = 0;
+                let totalWithTax = 0;
+
+                if (grnType !== 'GARMENT') {
+                    taxPercent = Number(item.taxPercent || item.tax || 0);
+                    const baseValue = Number(item.costPrice || 0) * Number(item.receivedQty || 0);
+                    taxAmount = (baseValue * taxPercent) / 100;
+                    totalWithTax = baseValue + taxAmount;
+                }
+
+                processedItems.push({
+                    itemId,
+                    variantId,
+                    sku: sku || 'N/A',
+                    itemName: item.itemName || masterItem?.itemName || '',
+                    size: item.size || '',
+                    color: item.color || '',
+                    uom: item.uom || masterItem?.uom || 'PCS',
+                    receivedQty: Number(item.receivedQty || 0),
+                    costPrice: Number(item.costPrice || 0),
+                    taxPercent,
+                    taxAmount,
+                    totalWithTax,
+                    discount: Number(item.discount || 0),
+                    batchNumber: item.batchNumber || `B-${Date.now().toString().slice(-6)}`
+                });
             }
 
-            // Tax logic: Only compute for FABRIC and ACCESSORY
-            let taxPercent = 0;
-            let taxAmount = 0;
-            let totalWithTax = 0;
+            // 4. Compute invoice-level totals
+            const computedTotalQty = processedItems.reduce((s, i) => s + i.receivedQty, 0);
+            const computedTotalValue = processedItems.reduce((s, i) => s + (i.costPrice * i.receivedQty), 0);
+            const totalTaxAmount = processedItems.reduce((s, i) => s + i.taxAmount, 0);
+            const grandTotal = computedTotalValue + totalTaxAmount;
 
-            if (grnType !== 'GARMENT') {
-                taxPercent = Number(item.taxPercent || item.tax || 0);
-                const baseValue = Number(item.costPrice || 0) * Number(item.receivedQty || 0);
-                taxAmount = (baseValue * taxPercent) / 100;
-                totalWithTax = baseValue + taxAmount;
-            }
+            const grnNumber = await generateGrnNumber(session);
 
-            processedItems.push({
-                itemId,
-                variantId,
-                sku: sku || 'N/A',
-                itemName: item.itemName || masterItem?.itemName || '',
-                size: item.size || '',
-                color: item.color || '',
-                uom: item.uom || masterItem?.uom || 'PCS',
-                receivedQty: Number(item.receivedQty || 0),
-                costPrice: Number(item.costPrice || 0),
-                taxPercent,
-                taxAmount,
-                totalWithTax,
-                discount: Number(item.discount || 0),
-                batchNumber: item.batchNumber || `B-${Date.now().toString().slice(-6)}`
+            const grn = new GRN({
+                grnNumber,
+                grnType,
+                purchaseId: purchaseId || null,
+                purchaseOrderId: purchaseOrderId || null,
+                jobWorkId: jobWorkId || null,
+                supplierId,
+                warehouseId,
+                invoiceNumber,
+                invoiceDate,
+                remarks,
+                items: processedItems,
+                consumptionDetails: consumptionDetails || [],
+                totalQty: computedTotalQty,
+                totalValue: computedTotalValue,
+                totalTaxAmount,
+                grandTotal,
+                receivedBy: userId,
+                status: GrnStatus.DRAFT
             });
-        }
 
-        // 4. Compute invoice-level totals
-        const totalQty = processedItems.reduce((s, i) => s + i.receivedQty, 0);
-        const totalValue = processedItems.reduce((s, i) => s + (i.costPrice * i.receivedQty), 0);
-        const totalTaxAmount = processedItems.reduce((s, i) => s + i.taxAmount, 0);
-        const grandTotal = totalValue + totalTaxAmount;
+            await grn.save({ session });
 
-        const grnNumber = await generateGrnNumber(session);
+            // Link to workflow if parent doc exists
+            if (purchaseOrderId || purchaseId) {
+                const parentId = purchaseOrderId || purchaseId;
+                const parentType = purchaseOrderId ? DocumentType.PO : DocumentType.PURCHASE;
+                await workflowService.linkDocuments(parentId, grn._id, parentType, DocumentType.GRN);
+            }
+            await workflowService.updateStatus(grn._id, DocumentType.GRN, null, GrnStatus.DRAFT, userId, `Created ${grnType} GRN ${grnNumber}`);
 
-        const grn = new GRN({
-            grnNumber,
-            grnType,
-            purchaseId: purchaseId || null,
-            purchaseOrderId: purchaseOrderId || null,
-            jobWorkId: jobWorkId || null,
-            supplierId,
-            warehouseId,
-            invoiceNumber,
-            invoiceDate,
-            remarks,
-            items: processedItems,
-            consumptionDetails: consumptionDetails || [],
-            totalQty,
-            totalValue,
-            totalTaxAmount,
-            grandTotal,
-            receivedBy: userId,
-            status: GrnStatus.DRAFT
+            return grn;
         });
-
-        await grn.save({ session });
-
-        // Link to workflow if parent doc exists
-        if (purchaseOrderId || purchaseId) {
-            const parentId = purchaseOrderId || purchaseId;
-            const parentType = purchaseOrderId ? DocumentType.PO : DocumentType.PURCHASE;
-            await workflowService.linkDocuments(parentId, grn._id, parentType, DocumentType.GRN);
-        }
-        await workflowService.updateStatus(grn._id, DocumentType.GRN, null, GrnStatus.DRAFT, userId, `Created ${grnType} GRN ${grnNumber}`);
-
-        return grn;
-    });
+    } finally {
+        activeGrnLocks.delete(lockKey);
+    }
 };
 
 // ─── Step 2: Approve GRN & Post Stock ────────────────────────────────────────

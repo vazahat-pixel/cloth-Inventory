@@ -8,9 +8,18 @@ const mongoose = require('mongoose');
 const withTransaction = async (fn) => {
     const session = await mongoose.startSession();
     session.startTransaction();
+    session.postCommitCallbacks = [];
     try {
         const result = await fn(session);
         await session.commitTransaction();
+
+        // Run deferred post-commit callbacks after transaction successfully commits
+        if (session.postCommitCallbacks && session.postCommitCallbacks.length > 0) {
+            for (const cb of session.postCommitCallbacks) {
+                cb().catch(err => console.error('[POST-COMMIT-WARN] Deferred post-commit callback failed:', err.message));
+            }
+        }
+        
         return result;
     } catch (error) {
         await session.abortTransaction();

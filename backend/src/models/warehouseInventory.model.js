@@ -7,6 +7,7 @@ const warehouseInventorySchema = new mongoose.Schema(
         variantId: { type: String, required: true }, // Stores variant._id or SKU
         barcode: { type: String, required: true, index: true },
         quantity: { type: Number, default: 0 },
+        reservedQuantity: { type: Number, default: 0 },
         damagedQuantity: { type: Number, default: 0 },
         quantityInTransit: { type: Number, default: 0 },
         reorderLevel: { type: Number, default: 0 },

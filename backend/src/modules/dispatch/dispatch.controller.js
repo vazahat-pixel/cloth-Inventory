@@ -3,6 +3,7 @@ const { sendSuccess, sendError } = require('../../utils/response.handler');
 
 const create = async (req, res, next) => {
     try {
+        if (req.user && req.user.role === 'store_staff') return sendError(res, 'Access denied: Store staff can only receive dispatches.', 403);
         const { items, products } = req.body;
         const finalItems = items || products || [];
         if (!finalItems || finalItems.length === 0) {
@@ -45,6 +46,7 @@ const getById = async (req, res, next) => {
 
 const update = async (req, res, next) => {
     try {
+        if (req.user && req.user.role === 'store_staff') return sendError(res, 'Access denied: Store staff can only receive dispatches.', 403);
         const dispatch = await dispatchService.updateDispatch(req.params.id, req.body, req.user._id);
         return sendSuccess(res, { dispatch }, 'Dispatch updated successfully');
     } catch (error) {
@@ -54,6 +56,7 @@ const update = async (req, res, next) => {
 
 const confirm = async (req, res, next) => {
     try {
+        if (req.user && req.user.role === 'store_staff') return sendError(res, 'Access denied: Store staff can only receive dispatches.', 403);
         const dispatch = await dispatchService.confirmDispatch(req.params.id, req.user._id);
         return sendSuccess(res, { dispatch }, 'Dispatch confirmed and stock deducted');
     } catch (error) {
@@ -63,6 +66,7 @@ const confirm = async (req, res, next) => {
 
 const pack = async (req, res, next) => {
     try {
+        if (req.user && req.user.role === 'store_staff') return sendError(res, 'Access denied: Store staff can only receive dispatches.', 403);
         const dispatch = await dispatchService.packDispatch(req.params.id, req.user._id);
         return sendSuccess(res, { dispatch }, 'Challan marked as packed');
     } catch (error) {
@@ -72,6 +76,7 @@ const pack = async (req, res, next) => {
 
 const cancel = async (req, res, next) => {
     try {
+        if (req.user && req.user.role === 'store_staff') return sendError(res, 'Access denied: Store staff can only receive dispatches.', 403);
         const dispatch = await dispatchService.cancelDispatch(req.params.id, req.user._id);
         return sendSuccess(res, { dispatch }, 'Dispatch cancelled and stock released');
     } catch (error) {
@@ -81,6 +86,7 @@ const cancel = async (req, res, next) => {
 
 const remove = async (req, res, next) => {
     try {
+        if (req.user && req.user.role === 'store_staff') return sendError(res, 'Access denied: Store staff can only receive dispatches.', 403);
         const result = await dispatchService.deleteDispatch(req.params.id, req.user._id);
         return sendSuccess(res, result, 'Dispatch deleted successfully');
     } catch (error) {
@@ -90,6 +96,7 @@ const remove = async (req, res, next) => {
 
 const combineAndConfirm = async (req, res, next) => {
     try {
+        if (req.user && req.user.role === 'store_staff') return sendError(res, 'Access denied: Store staff can only receive dispatches.', 403);
         const { dispatchIds, notes, date, vehicleNumber, driverName } = req.body;
         if (!Array.isArray(dispatchIds) || dispatchIds.length < 2) {
             return sendError(res, 'Please select at least two dispatches to combine', 400);

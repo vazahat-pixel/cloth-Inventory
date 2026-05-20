@@ -28,6 +28,7 @@ import SaleChallanPrint from '../sales/SaleChallanPrint';
 import { useNotification } from '../../context/NotificationProvider';
 import { useLoading } from '../../context/LoadingProvider';
 import { useConfirm } from '../../context/ConfirmProvider';
+import ReportExportButton from '../reports/ReportExportButton';
 
 function DeliveryChallanPage({
     pageTitle = 'Delivery Challans',
@@ -162,27 +163,40 @@ function DeliveryChallanPage({
                             </Typography>
                         </Box>
 
-                        {!isStoreUser && (
-                            <Stack direction="row" spacing={2}>
-                                {selectedChallanIds.length >= 2 && (
+                        <Stack direction="row" spacing={2} alignItems="center">
+                            <ReportExportButton
+                                headers={['Challan No', 'Date', 'To Store', 'Status']}
+                                headerKeys={['Challan No', 'Date', 'To Store', 'Status']}
+                                rows={challans.map(row => ({
+                                    'Challan No': row.challanNumber || row.dispatchNumber,
+                                    'Date': row.dispatchedAt ? new Date(row.dispatchedAt).toLocaleDateString() : (row.date || row.dispatchDate || '-'),
+                                    'To Store': row.destinationStoreId?.name || row.storeName || row.destination?.name || 'Store',
+                                    'Status': row.status || 'PENDING'
+                                }))}
+                                filename="Delivery_Challans.csv"
+                            />
+                            {!isStoreUser && (
+                                <>
+                                    {selectedChallanIds.length >= 2 && (
+                                        <Button
+                                            variant="contained"
+                                            color="secondary"
+                                            sx={{ fontWeight: 700 }}
+                                            onClick={() => navigate('/orders/delivery-challan/combine-review', { state: { selectedIds: selectedChallanIds } })}
+                                        >
+                                            Combine & Billing Review ({selectedChallanIds.length})
+                                        </Button>
+                                    )}
                                     <Button
                                         variant="contained"
-                                        color="secondary"
-                                        sx={{ fontWeight: 700 }}
-                                        onClick={() => navigate('/orders/delivery-challan/combine-review', { state: { selectedIds: selectedChallanIds } })}
+                                        startIcon={<AddCircleOutlineIcon />}
+                                        onClick={() => navigate(createPath)}
                                     >
-                                        Combine & Billing Review ({selectedChallanIds.length})
+                                        {createLabel}
                                     </Button>
-                                )}
-                                <Button
-                                    variant="contained"
-                                    startIcon={<AddCircleOutlineIcon />}
-                                    onClick={() => navigate(createPath)}
-                                >
-                                    {createLabel}
-                                </Button>
-                            </Stack>
-                        )}
+                                </>
+                            )}
+                        </Stack>
                     </Stack>
 
                     {error && (

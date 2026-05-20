@@ -31,9 +31,9 @@ const createChallan = async (challanData, userId, sessionOuter = null) => {
 
         await challan.save({ session });
 
-        // 1. DEDUCT PHYSICAL STOCK FROM SOURCE (Warehouse)
+        // 1. DEDUCT PHYSICAL STOCK FROM SOURCE (Warehouse) in parallel
         const stockService = require('../../services/stock.service');
-        for (const item of challanData.items) {
+        await Promise.all(challanData.items.map(async (item) => {
             await stockService.removeStock({
                 itemId: item.itemId,
                 barcode: item.barcode,
@@ -47,7 +47,7 @@ const createChallan = async (challanData, userId, sessionOuter = null) => {
                 performedBy: userId,
                 session
             });
-        }
+        }));
         
         return challan;
     };
@@ -57,11 +57,29 @@ const createChallan = async (challanData, userId, sessionOuter = null) => {
 };
 
 const getChallans = async (filter = {}) => {
-    return await DeliveryChallan.find(filter)
+    const challans = await DeliveryChallan.find(filter)
         .sort({ createdAt: -1 })
         .populate('sourceId', 'name')
         .populate('destinationStoreId', 'name')
-        .populate('items.itemId', 'itemName itemCode');
+        .populate({
+            path: 'items.itemId',
+            select: 'itemName itemCode shade sizes categoryId hsCodeId hsnCode brandName brand',
+            populate: [
+                { path: 'categoryId', select: 'name' },
+                { path: 'hsCodeId', select: 'code gstPercent' }
+            ]
+        });
+    challans.forEach(challan => {
+        if (challan.items) {
+            challan.items.forEach(item => {
+                const hsn = item.hsnCode || item.itemId?.hsCodeId?.code || item.itemId?.hsnCode;
+                if (!hsn) {
+                    console.warn(`[HSN_VALIDATION_WARNING] Challan item "${item.itemId?.itemName || 'Item'}" (ID: ${item.itemId?._id || item.itemId}) is missing HSN code configuration.`);
+                }
+            });
+        }
+    });
+    return challans;
 };
 
 const receiveChallan = async (challanId, userId) => {
@@ -98,10 +116,26 @@ const receiveChallan = async (challanId, userId) => {
 };
 
 const getChallanById = async (id) => {
-    return await DeliveryChallan.findById(id)
+    const challan = await DeliveryChallan.findById(id)
         .populate('sourceId', 'name')
         .populate('destinationStoreId', 'name')
-        .populate('items.itemId', 'itemName itemCode');
+        .populate({
+            path: 'items.itemId',
+            select: 'itemName itemCode shade sizes categoryId hsCodeId hsnCode brandName brand',
+            populate: [
+                { path: 'categoryId', select: 'name' },
+                { path: 'hsCodeId', select: 'code gstPercent' }
+            ]
+        });
+    if (challan && challan.items) {
+        challan.items.forEach(item => {
+            const hsn = item.hsnCode || item.itemId?.hsCodeId?.code || item.itemId?.hsnCode;
+            if (!hsn) {
+                console.warn(`[HSN_VALIDATION_WARNING] Challan item "${item.itemId?.itemName || 'Item'}" (ID: ${item.itemId?._id || item.itemId}) is missing HSN code configuration.`);
+            }
+        });
+    }
+    return challan;
 };
 
 module.exports = {

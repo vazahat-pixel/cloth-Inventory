@@ -70,8 +70,10 @@ function StockReportPage() {
   const movementBuckets = useMemo(() => {
     const buckets = {};
 
-    const ensureBucket = (locationId) => {
-      const key = String(locationId);
+    const ensureBucket = (variantId, locationId) => {
+      const vKey = String(variantId || '').trim();
+      const lKey = String(locationId || '').trim();
+      const key = `${vKey}_${lKey}`;
       if (!buckets[key]) {
         buckets[key] = {
           purchaseIn: 0,
@@ -91,13 +93,16 @@ function StockReportPage() {
     movements.forEach((movement) => {
       const qty = Math.abs(toNum(movement.qty));
       const type = String(movement.type || '').toUpperCase();
+      const variantId = movement.variantId?._id || movement.variantId?.id || movement.variantId || movement.productId?._id || movement.productId?.id || movement.productId || '';
+      if (!variantId) return;
+
       const fromId = movement.fromLocation?._id || movement.fromLocation?.id || movement.fromLocation || '';
       const toId = movement.toLocation?._id || movement.toLocation?.id || movement.toLocation || '';
 
       if (type === 'DAMAGED') return;
 
       if (toId) {
-        const bucket = ensureBucket(toId);
+        const bucket = ensureBucket(variantId, toId);
         if (type === 'PURCHASE') bucket.purchaseIn += qty;
         if (type === 'QC_APPROVED') bucket.qcIn += qty;
         if (type === 'RETURN') bucket.returnIn += qty;
@@ -106,7 +111,7 @@ function StockReportPage() {
       }
 
       if (fromId) {
-        const bucket = ensureBucket(fromId);
+        const bucket = ensureBucket(variantId, fromId);
         if (type === 'SALE') bucket.saleOut += qty;
         if (type === 'RETURN') bucket.returnOut += qty;
         if (type === 'TRANSFER') bucket.transferOut += qty;
@@ -124,7 +129,13 @@ function StockReportPage() {
       const unitPrice = prices.cost || prices.selling || toNum(s.salePrice || s.mrp || 0);
       const value = closingStock * unitPrice;
       const locationId = s.storeId || s.warehouseId || s.id;
-      const mov = movementBuckets[String(locationId)] || {
+      const variantId = s.productId || s.variantId || '';
+      
+      const vKey = String(variantId?._id || variantId?.id || variantId || '').trim();
+      const lKey = String(locationId || '').trim();
+      const key = `${vKey}_${lKey}`;
+
+      const mov = movementBuckets[key] || {
         purchaseIn: 0,
         qcIn: 0,
         saleOut: 0,
@@ -136,22 +147,16 @@ function StockReportPage() {
         adjustmentOut: 0,
       };
 
-      const added = mov.purchaseIn + mov.qcIn + mov.returnIn;
-      const removed = mov.saleOut + mov.returnOut;
-      const transferNet = mov.transferIn - mov.transferOut;
-      const adjustmentNet = mov.adjustmentIn - mov.adjustmentOut;
-      const movementNet = added - removed + transferNet + adjustmentNet;
-      const openingStock = Math.max(0, closingStock - movementNet);
+      const inwardQty = mov.purchaseIn + mov.qcIn + mov.returnIn + mov.transferIn + mov.adjustmentIn;
+      const outwardQty = mov.saleOut + mov.returnOut + mov.transferOut + mov.adjustmentOut;
+      const openingStock = Math.max(0, closingStock - inwardQty + outwardQty);
       return {
         ...s,
         warehouseName: locationMap[s.warehouseId] || locationMap[s.storeId] || 'Unknown Location',
         locationType: s.storeId ? 'Store' : 'Warehouse',
         openingStock,
-        added,
-        removed,
-        transferNet,
-        adjustmentNet,
-        damaged: toNum(s.damagedQuantity || 0),
+        inwardQty,
+        outwardQty,
         closingStock,
         value,
         isLowStock: closingStock <= LOW_STOCK_THRESHOLD,
@@ -201,7 +206,7 @@ function StockReportPage() {
     });
     return {
       totalVariants: filteredRows.length,
-      totalClosingStock: totalClosing,
+      totalClosingStock: Number(totalClosing.toFixed(2)),
       totalValue,
       lowStockCount: filteredRows.filter((r) => r.isLowStock).length,
     };
@@ -335,19 +340,16 @@ function StockReportPage() {
             />
           ) : (
             <ReportExportButton
-              headers={['Item Name', 'Variant', 'SKU', 'Warehouse', 'Opening', 'Added', 'Removed', 'Transfer', 'Adjustment', 'Damaged', 'Closing', 'Value']}
-              headerKeys={['itemName', 'variant', 'sku', 'warehouseName', 'openingStock', 'added', 'removed', 'transferNet', 'adjustmentNet', 'damaged', 'closingStock', 'value']}
+              headers={['Item Name', 'Variant', 'SKU', 'Warehouse', 'Opening Stock', 'Inward Qty', 'Outward Qty', 'Closing Stock', 'Value']}
+              headerKeys={['itemName', 'variant', 'sku', 'warehouseName', 'openingStock', 'inwardQty', 'outwardQty', 'closingStock', 'value']}
               rows={filteredRows.map(r => ({
                   itemName: r.itemName,
                   variant: `${r.size} / ${r.color}`,
                   sku: r.sku,
                   warehouseName: r.warehouseName,
                   openingStock: r.openingStock,
-                  added: r.added,
-                  removed: r.removed,
-                  transferNet: r.transferNet,
-                  adjustmentNet: r.adjustmentNet,
-                  damaged: r.damaged,
+                  inwardQty: r.inwardQty,
+                  outwardQty: r.outwardQty,
                   closingStock: r.closingStock,
                   value: r.value.toFixed(2)
               }))}
@@ -409,13 +411,10 @@ function StockReportPage() {
                     <TableCell sx={{ fontWeight: 700 }}>Variant</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Warehouse</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }} align="right">Opening</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }} align="right">Added</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }} align="right">Removed</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }} align="right">Transfer</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }} align="right">Adjust</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }} align="right">Damaged</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }} align="right">Closing</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">Opening Stock</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">Inward Qty</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">Outward Qty</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">Closing Stock</TableCell>
                     <TableCell sx={{ fontWeight: 700 }} align="right">Value</TableCell>
                   </TableRow>
                 </TableHead>
@@ -433,11 +432,8 @@ function StockReportPage() {
                       <TableCell sx={{ fontFamily: 'monospace' }}>{row.sku}</TableCell>
                       <TableCell>{row.warehouseName}</TableCell>
                       <TableCell align="right">{row.openingStock}</TableCell>
-                      <TableCell align="right">{row.added}</TableCell>
-                      <TableCell align="right">{row.removed}</TableCell>
-                      <TableCell align="right">{row.transferNet}</TableCell>
-                      <TableCell align="right">{row.adjustmentNet}</TableCell>
-                      <TableCell align="right">{row.damaged}</TableCell>
+                      <TableCell align="right">{row.inwardQty}</TableCell>
+                      <TableCell align="right">{row.outwardQty}</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700 }}>
                         {row.closingStock}
                         {row.isLowStock && ' ⚠'}

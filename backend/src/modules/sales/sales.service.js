@@ -690,8 +690,8 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             });
             await creditNote.save({ session });
         }
-        // 4. Update Stock and Record in Ledger
-        for (const mov of stockMovements) {
+        // 4. Update Stock and Record in Ledger in parallel
+        await Promise.all(stockMovements.map(async (mov) => {
             if (mov.type === 'SALE') {
                 await stockService.removeStock({
                     itemId: mov.itemId,
@@ -721,7 +721,7 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
                     session
                 });
             }
-        }
+        }));
 
         // Record Loyalty Transactions (both Redeem and Earn)
         if (finalCustomerId) {
@@ -1005,6 +1005,7 @@ const getAllSales = async (query, user) => {
 const getSaleById = async (id, user = null) => {
     const sale = await Sale.findOne({ _id: id, isDeleted: false })
         .populate('storeId')
+        .populate('destinationStoreId')
         .populate('cashierId', 'name')
         .populate('customerId', 'customerName mobileNumber loyaltyPoints')
         .populate({
@@ -1018,12 +1019,36 @@ const getSaleById = async (id, user = null) => {
     
     if (!sale) throw new Error('Sale not found');
 
+    // Convert to plain object to safely modify/decorate populated fields
+    const saleObj = sale.toObject();
+
+    const Warehouse = require('../../models/warehouse.model');
+
+    // Fallback storeId populate if it's a Warehouse
+    const rawStoreId = sale.populated('storeId') || sale._doc.storeId;
+    if (!sale.storeId && rawStoreId) {
+        const warehouse = await Warehouse.findById(rawStoreId).lean();
+        if (warehouse) {
+            saleObj.storeId = warehouse;
+        }
+    }
+
+    // Fallback destinationStoreId populate if it's a Warehouse
+    const rawDestStoreId = sale.populated('destinationStoreId') || sale._doc.destinationStoreId;
+    if (!sale.destinationStoreId && rawDestStoreId) {
+        const warehouse = await Warehouse.findById(rawDestStoreId).lean();
+        if (warehouse) {
+            saleObj.destinationStoreId = warehouse;
+        }
+    }
+
     // Security check: Only allow access if user is Admin or belongs to this store
-    if (user && user.role === 'store_staff' && sale.storeId && String(sale.storeId._id || sale.storeId) !== String(user.shopId)) {
+    const checkStoreId = saleObj.storeId?._id || saleObj.storeId;
+    if (user && user.role === 'store_staff' && checkStoreId && String(checkStoreId) !== String(user.shopId)) {
         throw new Error('Access denied to this sale record');
     }
 
-    return sale;
+    return saleObj;
 };
 
 /**

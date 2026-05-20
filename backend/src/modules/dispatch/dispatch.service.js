@@ -227,6 +227,10 @@ const createDispatch = async (dispatchData, userId) => {
             }
 
             const barcode = variant.sku || variant.barcode || itemDoc.itemCode;
+            const finalHsn = itemDoc.hsCodeId?.code || itemDoc.hsnCode || '';
+            if (!finalHsn) {
+                console.warn(`[HSN_VALIDATION_WARNING] Item "${itemDoc.itemName}" (ID: ${itemDoc._id}) is missing HSN code configuration.`);
+            }
 
             enrichedItems.push({
                 itemId: itemDoc._id,
@@ -242,7 +246,8 @@ const createDispatch = async (dispatchData, userId) => {
                 cgst: taxData.cgst,
                 sgst: taxData.sgst,
                 igst: taxData.igst,
-                sku: barcode
+                sku: barcode,
+                hsnCode: finalHsn
             });
 
             totalSubTotal += lineSubTotal;
@@ -264,7 +269,8 @@ const createDispatch = async (dispatchData, userId) => {
                         variantId: ei.variantId,
                         barcode: ei.barcode,
                         quantity: ei.qty,
-                        rate: ei.rate
+                        rate: ei.rate,
+                        hsnCode: ei.hsnCode
                     })),
                     type: 'WAREHOUSE_TO_STORE',
                     totalValue: totalSubTotal,
@@ -428,6 +434,10 @@ const updateDispatch = async (id, dispatchData, userId) => {
             }
 
             const barcode = variant.sku || variant.barcode || itemDoc.itemCode;
+            const finalHsn = itemDoc.hsCodeId?.code || itemDoc.hsnCode || '';
+            if (!finalHsn) {
+                console.warn(`[HSN_VALIDATION_WARNING] Item "${itemDoc.itemName}" (ID: ${itemDoc._id}) is missing HSN code configuration.`);
+            }
 
             enrichedItems.push({
                 itemId: itemDoc._id,
@@ -441,7 +451,8 @@ const updateDispatch = async (id, dispatchData, userId) => {
                 taxAmount: taxData.totalTax,
                 total: lineSubTotal + taxData.totalTax,
                 cgst: taxData.cgst, sgst: taxData.sgst, igst: taxData.igst,
-                sku: barcode
+                sku: barcode,
+                hsnCode: finalHsn
             });
 
             totalSubTotal += lineSubTotal;
@@ -570,7 +581,7 @@ const confirmDispatch = async (id, userId) => {
             const { calculateGST } = require('../../services/gst.service');
 
             for (const item of dispatch.items) {
-                const itemDoc = await Item.findById(item.itemId).populate('hsCodeId').session(session);
+                const itemDoc = await Item.findById(item.itemId).populate('hsCodeId').populate('categoryId').session(session);
                 if (!itemDoc) throw new Error(`Item not found: ${item.itemId}`);
 
                 const variant = itemDoc.sizes.id(item.variantId);
@@ -602,7 +613,10 @@ const confirmDispatch = async (id, userId) => {
                     cgst: taxData.cgst,
                     sgst: taxData.sgst,
                     igst: taxData.igst,
-                    sku: item.barcode || variant.sku || variant.barcode || itemDoc.itemCode
+                    sku: item.barcode || variant.sku || variant.barcode || itemDoc.itemCode,
+                    category: itemDoc.categoryId?.name || itemDoc.categoryName || itemDoc.category || 'OTHERS',
+                    brand: itemDoc.brandName || itemDoc.brand || '',
+                    hsnCode: itemDoc.hsCodeId?.code || itemDoc.hsnCode || ''
                 });
 
                 totalSubTotal += lineSubTotal;
@@ -621,7 +635,8 @@ const confirmDispatch = async (id, userId) => {
                         variantId: ei.variantId,
                         barcode: ei.barcode,
                         quantity: ei.qty,
-                        rate: ei.rate
+                        rate: ei.rate,
+                        hsnCode: ei.hsnCode
                     })),
                     type: 'WAREHOUSE_TO_STORE',
                     totalValue: totalSubTotal,
@@ -637,6 +652,7 @@ const confirmDispatch = async (id, userId) => {
                     products: detailedItems.map((ei) => ({
                         barcode: ei.sku,
                         productId: ei.variantId,
+                        itemId: ei.itemId,
                         quantity: ei.qty,
                         rate: ei.rate,
                         mrp: ei.mrp,
@@ -645,7 +661,10 @@ const confirmDispatch = async (id, userId) => {
                         total: ei.total,
                         cgst: ei.cgst,
                         sgst: ei.sgst,
-                        igst: ei.igst
+                        igst: ei.igst,
+                        category: ei.category,
+                        brand: ei.brand,
+                        hsnCode: ei.hsnCode
                     })),
                     type: 'INTERNAL_SALE',
                     subTotal: Number(totalSubTotal || 0),
@@ -799,8 +818,13 @@ const combineAndConfirmDispatch = async ({ dispatchIds, notes, date, vehicleNumb
         let totalIGST = 0;
         const { calculateGST } = require('../../services/gst.service');
 
+        // Fetch all item docs in bulk to avoid serial findById queries inside the loop
+        const itemIds = [...new Set(mergedItems.map(i => i.itemId).filter(Boolean))];
+        const itemDocs = await Item.find({ _id: { $in: itemIds } }).populate('categoryId').populate('hsCodeId').session(session);
+        const itemDocsMap = new Map(itemDocs.map(doc => [doc._id.toString(), doc]));
+
         for (const item of mergedItems) {
-            const itemDoc = await Item.findById(item.itemId).session(session);
+            const itemDoc = itemDocsMap.get(item.itemId.toString());
             if (!itemDoc) throw new Error(`Item not found: ${item.itemId}`);
 
             const variant = itemDoc.sizes.id(item.variantId);
@@ -810,7 +834,7 @@ const combineAndConfirmDispatch = async ({ dispatchIds, notes, date, vehicleNumb
             const rate = Number(item.rate || variant.mrp || itemDoc.mrp || 0);
             const baseMrp = Number(item.mrp || variant.mrp || rate);
             const lineSubTotal = rate * qty;
-            const gstPct = Number(item.taxPercentage ?? itemDoc.gstPercent ?? 0);
+            const gstPct = Number(item.taxPercentage ?? itemDoc.gstPercent ?? itemDoc.hsCodeId?.gstPercent ?? 0);
 
             let taxData = { cgst: 0, sgst: 0, igst: 0, totalTax: 0 };
             if (!isSameEntity && gstPct > 0) {
@@ -833,9 +857,9 @@ const combineAndConfirmDispatch = async ({ dispatchIds, notes, date, vehicleNumb
                 sgst: taxData.sgst,
                 igst: taxData.igst,
                 sku: item.barcode || variant.sku || variant.barcode || itemDoc.itemCode,
-                category: itemDoc.categoryName || itemDoc.category || 'OTHERS',
+                category: itemDoc.categoryId?.name || itemDoc.categoryName || itemDoc.category || 'OTHERS',
                 brand: itemDoc.brandName || itemDoc.brand || '',
-                hsnCode: itemDoc.hsnCode || ''
+                hsnCode: itemDoc.hsCodeId?.code || itemDoc.hsnCode || ''
             });
 
             totalSubTotal += lineSubTotal;
@@ -860,7 +884,8 @@ const combineAndConfirmDispatch = async ({ dispatchIds, notes, date, vehicleNumb
                     variantId: ei.variantId,
                     barcode: ei.barcode,
                     quantity: ei.qty,
-                    rate: ei.rate
+                    rate: ei.rate,
+                    hsnCode: ei.hsnCode
                 })),
                 type: 'WAREHOUSE_TO_STORE',
                 totalValue: totalSubTotal,
@@ -929,42 +954,29 @@ const combineAndConfirmDispatch = async ({ dispatchIds, notes, date, vehicleNumb
         await combinedDispatch.save({ session });
 
         // 7. Update original dispatches and handle stock movement
-        for (const disp of dispatches) {
-            // Update draft status
+        // 7. Update original dispatches and handle stock movement in parallel
+        await Promise.all(dispatches.map(async (disp) => {
             disp.status = 'DISPATCHED';
             disp.dispatchedAt = new Date();
             disp.referenceId = referenceId;
             disp.referenceType = referenceType;
             disp.notes = `${disp.notes || ''} [Combined into ${finalDspNumber}]`.trim();
             await disp.save({ session });
+        }));
 
-            // Process Stock
-            for (const item of disp.items) {
-                let itmId = item.itemId;
-                let bcode = item.barcode;
+        // 8. Release original draft's logical reservation for each unique variant in parallel
+        await Promise.all(mergedItems.map(async (item) => {
+            await stockService.releaseStock({
+                variantId: item.variantId,
+                locationId: sourceWarehouseId,
+                locationType: 'WAREHOUSE',
+                qty: item.qty,
+                session
+            });
+        }));
 
-                if (!itmId || !bcode) {
-                    const parent = await Item.findOne({ "sizes._id": item.variantId }).session(session);
-                    if (parent) {
-                        itmId = itmId || parent._id;
-                        const variant = parent.sizes.id(item.variantId);
-                        bcode = bcode || (variant ? (variant.sku || variant.barcode || parent.itemCode) : 'UNKNOWN');
-                    }
-                }
-
-                // Release original draft's logical reservation
-                await stockService.releaseStock({
-                    variantId: item.variantId,
-                    locationId: sourceWarehouseId,
-                    locationType: 'WAREHOUSE',
-                    qty: item.qty,
-                    session
-                });
-            }
-        }
-
-        // 8. Add all merged items to the in-transit pool at destination store
-        for (const item of detailedItems) {
+        // 9. Add all merged items to the in-transit pool at destination store in parallel
+        await Promise.all(detailedItems.map(async (item) => {
             await stockService.addInTransit({
                 itemId: item.itemId,
                 barcode: item.barcode,
@@ -974,7 +986,7 @@ const combineAndConfirmDispatch = async ({ dispatchIds, notes, date, vehicleNumb
                 qty: item.qty,
                 session
             });
-        }
+        }));
 
         // 9. Update related billing document if exists
         if (referenceType === 'DeliveryChallan') {

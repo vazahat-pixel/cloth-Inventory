@@ -135,6 +135,16 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
         }
     });
 
+    // Group aggregated items by Category for separate tables
+    const categoryGroups = {};
+    aggregatedItems.forEach((item) => {
+        const cat = item.category || 'OTHERS';
+        if (!categoryGroups[cat]) {
+            categoryGroups[cat] = [];
+        }
+        categoryGroups[cat].push(item);
+    });
+
     const hsnSummaryMap = sale.hsnSummary && sale.hsnSummary.length > 0 
         ? sale.hsnSummary.reduce((acc, h) => {
             acc[h.hsnCode] = { hsn: h.hsnCode, gst: h.gstPercent, qty: h.totalQty, taxable: h.taxableAmount, tax: (h.cgst + h.sgst + h.igst) };
@@ -286,16 +296,51 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
             <style>
                 {`
                 @media print {
-                    /* Bulletproof isolation: hide everything in body */
-                    body * {
-                        visibility: hidden !important;
+                    /* Hide the entire background React application */
+                    #root, header, nav, footer, sidebar, aside, button, .MuiDialogActions-root, .MuiButton-root, .no-print {
+                        display: none !important;
                     }
-                    /* Show only the printable container and its children */
-                    .printable-invoice-container, .printable-invoice-container * {
-                        visibility: visible !important;
+                    
+                    /* Hide dialog backdrops and eliminate container spacing/shadows */
+                    .MuiBackdrop-root, .MuiDialog-backdrop {
+                        display: none !important;
+                        background: transparent !important;
+                        background-color: transparent !important;
                     }
+                    
+                    .MuiDialog-container {
+                        display: block !important;
+                        position: static !important;
+                        background: transparent !important;
+                        padding: 0 !important;
+                        margin: 0 !important;
+                    }
+                    
+                    .MuiDialog-paper, .MuiPaper-root {
+                        box-shadow: none !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        max-width: none !important;
+                        max-height: none !important;
+                        width: 100% !important;
+                        position: static !important;
+                        background: transparent !important;
+                        overflow: visible !important;
+                        border: none !important;
+                    }
+                    
+                    /* Reset body styles for print */
+                    body {
+                        background: white !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        width: 100% !important;
+                    }
+                    
                     /* Position printable container absolutely at the top-left */
                     .printable-invoice-container {
+                        display: block !important;
+                        visibility: visible !important;
                         position: absolute !important;
                         left: 0 !important;
                         top: 0 !important;
@@ -307,12 +352,8 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
                         page-break-inside: avoid !important;
                     }
                     
-                    /* Reset body styles for print */
-                    body {
-                        background: white !important;
-                        margin: 0 !important;
-                        padding: 0 !important;
-                        width: 100% !important;
+                    .printable-invoice-container * {
+                        visibility: visible !important;
                     }
                     
                     /* Page breaks */
@@ -325,14 +366,14 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
             </style>
 
             {/* Invoice Meta info Bar */}
-            <Grid container sx={{ mb: 1, border: '1px solid #000', bgcolor: '#f1f5f9' }}>
-                <Grid item xs={3} sx={{ p: 0.5, borderRight: '1px solid #000' }}>
+            <Grid container sx={{ mb: 1, border: '1px solid #000' }}>
+                <Grid item xs={3} sx={{ p: 0.5, borderRight: '1px solid #000', bgcolor: '#00FFFF' }}>
                     <Typography sx={{ fontSize: '11px', fontWeight: 900, color: '#000' }}>INVOICE NO.</Typography>
                 </Grid>
                 <Grid item xs={3} sx={{ p: 0.5, borderRight: '1px solid #000', bgcolor: '#fff' }}>
                     <Typography sx={{ fontSize: '11px', fontWeight: 900, color: '#000' }}>{invoicing.invoicePrefix}{sale.invoiceNumber || sale.saleNumber || sale.dispatchNumber || '25-26/DAP-1'}</Typography>
                 </Grid>
-                <Grid item xs={3} sx={{ p: 0.5, borderRight: '1px solid #000' }}>
+                <Grid item xs={3} sx={{ p: 0.5, borderRight: '1px solid #000', bgcolor: '#00FFFF' }}>
                     <Typography sx={{ fontSize: '11px', fontWeight: 900, color: '#000' }}>INVOICE DATE</Typography>
                 </Grid>
                 <Grid item xs={3} sx={{ p: 0.5, bgcolor: '#fff' }}>
@@ -341,90 +382,121 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
             </Grid>
 
             <Grid container sx={{ mb: 1, border: '1px solid #000' }}>
-                <Grid item xs={6} sx={{ p: 0.5, borderRight: '1px solid #000' }}>
-                    <Typography sx={{ fontSize: '11px' }}><strong>ORDER NO.</strong> {sale.orderNo || '-'}</Typography>
+                <Grid item xs={4} sx={{ p: 0.5, borderRight: '1px solid #000' }}>
+                    <Typography sx={{ fontSize: '10px' }}><strong>ORDER NO.</strong> {sale.orderNo || '-'}</Typography>
                 </Grid>
-                <Grid item xs={6} sx={{ p: 0.5 }}>
-                    <Typography sx={{ fontSize: '11px' }}><strong>Transport-</strong> {sale.transportName || 'BY ROAD'}</Typography>
+                <Grid item xs={4} sx={{ p: 0.5, borderRight: '1px solid #000' }}>
+                    <Typography sx={{ fontSize: '10px' }}><strong>Transport:</strong> {sale.transportName || 'BY ROAD'}</Typography>
+                </Grid>
+                <Grid item xs={4} sx={{ p: 0.5 }}>
+                    <Typography sx={{ fontSize: '10px' }}><strong>Vehicle No:</strong> {sale.vehicleNo || '-'}</Typography>
                 </Grid>
             </Grid>
 
             {/* Customer & Store Details side-by-side */}
             <Grid container sx={{ border: '1px solid #000', mb: 1 }}>
                 <Grid item xs={6} sx={{ p: 0.5, borderRight: '1px solid #000' }}>
-                    <Typography variant="caption" sx={{ fontWeight: 900, display: 'block', borderBottom: '1px solid #000', mb: 0.5, fontSize: '10px', bgcolor: '#f3f4f6' }}>
-                        Customer Details (Billed to)
+                    <Typography variant="caption" sx={{ fontWeight: 900, display: 'block', borderBottom: '1px solid #000', mb: 0.5, fontSize: '10px', bgcolor: '#00FFFF', color: '#000', px: 0.5 }}>
+                        Details Of Receiver (Billed to)
                     </Typography>
-                    <Box sx={{ minHeight: 70 }}>
-                        <Typography sx={{ fontSize: '12px', fontWeight: 900 }}>{destinationStore.name || destinationStore.storeName || sale.customerName || 'Walk-in Customer'}</Typography>
+                    <Box sx={{ minHeight: 80, px: 0.5 }}>
+                        <Typography sx={{ fontSize: '11px', fontWeight: 900 }}>{destinationStore.name || destinationStore.storeName || sale.customerName || 'Walk-in Customer'}</Typography>
                         <Typography sx={{ fontSize: '10px' }}>{destinationAddress || sale.consigneeAddress || sale.customerAddress || 'N/A'}</Typography>
-                        <Box sx={{ mt: 0.5, p: 0.5, bgcolor: '#f1f5f9', border: '1px dashed #cbd5e1', borderRadius: 1 }}>
-                            <Typography sx={{ fontSize: '11px', fontWeight: 900 }}>
-                                Mobile: {sale.customerMobile || '-'}
-                            </Typography>
-                        </Box>
-                        <Typography sx={{ fontSize: '10px', mt: 0.5 }}><strong>GSTIN:</strong> {sale.customerGst || 'N/A'}</Typography>
+                        <Typography sx={{ fontSize: '10px', mt: 0.5 }}><strong>GSTIN:</strong> {destinationGstin}</Typography>
+                        <Typography sx={{ fontSize: '10px' }}><strong>State Name:</strong> {customerState}</Typography>
+                        <Typography sx={{ fontSize: '10px' }}><strong>State Code:</strong> {destinationStateCode}</Typography>
                     </Box>
                 </Grid>
                 <Grid item xs={6} sx={{ p: 0.5 }}>
-                    <Typography variant="caption" sx={{ fontWeight: 900, display: 'block', borderBottom: '1px solid #000', mb: 0.5, fontSize: '10px', bgcolor: '#f3f4f6' }}>
-                        Billing Branch / Store Location
+                    <Typography variant="caption" sx={{ fontWeight: 900, display: 'block', borderBottom: '1px solid #000', mb: 0.5, fontSize: '10px', bgcolor: '#00FFFF', color: '#000', px: 0.5 }}>
+                        Details Of Consignee (Shipped to)
                     </Typography>
-                    <Box sx={{ minHeight: 70 }}>
-                        <Typography sx={{ fontSize: '11px', fontWeight: 900 }}>{store.name || 'Store Location'}</Typography>
-                        <Typography sx={{ fontSize: '10px', lineHeight: 1.2 }}>
-                            {store.location?.address || store.address || 'N/A'}<br />
-                            {store.location?.city || store.city || ''}, {store.location?.state || store.state || ''} - {store.location?.pincode || store.pincode || ''}
-                        </Typography>
-                        <Typography sx={{ fontSize: '10px', mt: 1 }}>
-                            <strong>GSTIN:</strong> {store.gstNumber || store.gstin || '-'}<br />
-                            <strong>Contact:</strong> {store.phone || store.managerPhone || '-'}
-                        </Typography>
+                    <Box sx={{ minHeight: 80, px: 0.5 }}>
+                        <Typography sx={{ fontSize: '11px', fontWeight: 900 }}>{destinationStore.name || destinationStore.storeName || sale.customerName || 'Walk-in Customer'}</Typography>
+                        <Typography sx={{ fontSize: '10px' }}>{destinationAddress || sale.consigneeAddress || sale.customerAddress || 'N/A'}</Typography>
+                        <Typography sx={{ fontSize: '10px', mt: 0.5 }}><strong>GSTIN:</strong> {destinationGstin}</Typography>
+                        <Typography sx={{ fontSize: '10px' }}><strong>State Name:</strong> {customerState}</Typography>
+                        <Typography sx={{ fontSize: '10px' }}><strong>State Code:</strong> {destinationStateCode}</Typography>
                     </Box>
                 </Grid>
             </Grid>
 
-            {/* Professional Single Table */}
+            {/* Category-wise Grouped Tables */}
+            {Object.keys(categoryGroups).map((catName) => {
+                const groupItems = categoryGroups[catName];
+                const catQty = groupItems.reduce((sum, i) => sum + i.quantity, 0);
+                const catGross = groupItems.reduce((sum, i) => sum + i.grossLine, 0);
+                const catDisc = groupItems.reduce((sum, i) => sum + i.discountAmount, 0);
+                const catNet = groupItems.reduce((sum, i) => sum + i.lineTotal, 0);
+
+                return (
+                    <TableContainer component={Box} key={catName} sx={{ border: '1px solid #000', mb: 1, borderRadius: 0 }}>
+                        <Table size="small" sx={{ borderCollapse: 'collapse' }}>
+                            <TableHead sx={tableHeaderStyle}>
+                                <TableRow>
+                                    <TableCell width="30">S.No</TableCell>
+                                    <TableCell width="120">CATEGORY</TableCell>
+                                    <TableCell width="70">HSN CODE</TableCell>
+                                    <TableCell width="50">TOTAL QTY</TableCell>
+                                    <TableCell width="70">RATE</TableCell>
+                                    <TableCell width="80">GROSS AMOUNT</TableCell>
+                                    <TableCell width="70">DISC</TableCell>
+                                    <TableCell width="50">GST(%)</TableCell>
+                                    <TableCell width="80">NET AMOUNT</TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {groupItems.map((item, index) => (
+                                    <TableRow key={index} sx={{ '& .MuiTableCell-root': tableCellStyle }}>
+                                        <TableCell width="30">{index + 1}</TableCell>
+                                        <TableCell width="120" sx={{ textAlign: 'left !important', pl: 1 }}>{item.category}</TableCell>
+                                        <TableCell width="70">{item.hsnCode}</TableCell>
+                                        <TableCell width="50">{item.quantity}</TableCell>
+                                        <TableCell width="70">{item.rate.toFixed(2)}</TableCell>
+                                        <TableCell width="80">{item.grossLine.toFixed(2)}</TableCell>
+                                        <TableCell width="70">{item.discountAmount.toFixed(2)}</TableCell>
+                                        <TableCell width="50">{item.taxPercentage.toFixed(2)}%</TableCell>
+                                        <TableCell width="80" sx={{ fontWeight: 900 }}>{item.lineTotal.toFixed(2)}</TableCell>
+                                    </TableRow>
+                                ))}
+                                {/* Category Totals Row */}
+                                <TableRow sx={categoryRowStyle}>
+                                    <TableCell colSpan={3} align="left" sx={{ textAlign: 'left !important', pl: 2, fontWeight: 900 }}>TOTALS</TableCell>
+                                    <TableCell width="50" sx={{ fontWeight: 900 }}>{catQty}</TableCell>
+                                    <TableCell width="70">-</TableCell>
+                                    <TableCell width="80" sx={{ fontWeight: 900 }}>{catGross.toFixed(2)}</TableCell>
+                                    <TableCell width="70" sx={{ fontWeight: 900 }}>{catDisc.toFixed(2)}</TableCell>
+                                    <TableCell width="50">-</TableCell>
+                                    <TableCell width="80" sx={{ fontWeight: 900 }}>{catNet.toFixed(2)}</TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                );
+            })}
+
+            {/* Grand Total Table */}
             <TableContainer component={Box} sx={{ border: '1px solid #000', mb: 1, borderRadius: 0 }}>
                 <Table size="small" sx={{ borderCollapse: 'collapse' }}>
-                    <TableHead sx={tableHeaderStyle}>
-                        <TableRow>
-                            <TableCell width="30">S.N</TableCell>
-                            <TableCell width="120">CATEGORY</TableCell>
-                            <TableCell width="70">HSN CODE</TableCell>
-                            <TableCell width="50">TOTAL QTY</TableCell>
-                            <TableCell width="70">RATE</TableCell>
-                            <TableCell width="80">GROSS AMOUNT</TableCell>
-                            <TableCell width="70">DISC</TableCell>
-                            <TableCell width="50">GST(%)</TableCell>
-                            <TableCell width="80">NET AMOUNT</TableCell>
-                        </TableRow>
-                    </TableHead>
                     <TableBody>
-                        {aggregatedItems.map((item, index) => {
-                            return (
-                                <TableRow key={index} sx={{ '& .MuiTableCell-root': tableCellStyle }}>
-                                    <TableCell>{index + 1}</TableCell>
-                                    <TableCell sx={{ textAlign: 'left !important', pl: 1 }}>{item.category}</TableCell>
-                                    <TableCell>{item.hsnCode}</TableCell>
-                                    <TableCell>{item.quantity}</TableCell>
-                                    <TableCell>{item.rate.toFixed(2)}</TableCell>
-                                    <TableCell>{item.grossLine.toFixed(2)}</TableCell>
-                                    <TableCell>{item.discountAmount.toFixed(2)}</TableCell>
-                                    <TableCell>{item.taxPercentage.toFixed(2)}%</TableCell>
-                                    <TableCell sx={{ fontWeight: 900 }}>{item.lineTotal.toFixed(2)}</TableCell>
-                                </TableRow>
-                            );
-                        })}
-                        {/* Totals Row */}
-                        <TableRow sx={categoryRowStyle}>
-                            <TableCell colSpan={3} align="left" sx={{ textAlign: 'left !important', pl: 2, fontWeight: 900 }}>TOTALS</TableCell>
-                            <TableCell sx={{ fontWeight: 900 }}>{aggregatedItems.reduce((sum, i) => sum + i.quantity, 0)}</TableCell>
-                            <TableCell>-</TableCell>
-                            <TableCell sx={{ fontWeight: 900 }}>{aggregatedItems.reduce((sum, i) => sum + i.grossLine, 0).toFixed(2)}</TableCell>
-                            <TableCell sx={{ fontWeight: 900 }}>{aggregatedItems.reduce((sum, i) => sum + i.discountAmount, 0).toFixed(2)}</TableCell>
-                            <TableCell>-</TableCell>
-                            <TableCell sx={{ fontWeight: 900 }}>{aggregatedItems.reduce((sum, i) => sum + i.lineTotal, 0).toFixed(2)}</TableCell>
+                        <TableRow sx={{ 
+                            bgcolor: '#cbd5e1', 
+                            '& .MuiTableCell-root': {
+                                fontWeight: 950,
+                                fontSize: '10px',
+                                border: '1px solid #000',
+                                py: 0.5,
+                                textAlign: 'center',
+                                color: '#000'
+                            }
+                        }}>
+                            <TableCell colSpan={3} align="left" sx={{ textAlign: 'left !important', pl: 2, fontWeight: 950 }}>GRAND TOTAL</TableCell>
+                            <TableCell width="50" sx={{ fontWeight: 950 }}>{aggregatedItems.reduce((sum, i) => sum + i.quantity, 0)}</TableCell>
+                            <TableCell width="70">-</TableCell>
+                            <TableCell width="80" sx={{ fontWeight: 950 }}>{aggregatedItems.reduce((sum, i) => sum + i.grossLine, 0).toFixed(2)}</TableCell>
+                            <TableCell width="70" sx={{ fontWeight: 950 }}>{aggregatedItems.reduce((sum, i) => sum + i.discountAmount, 0).toFixed(2)}</TableCell>
+                            <TableCell width="50">-</TableCell>
+                            <TableCell width="80" sx={{ fontWeight: 950 }}>{aggregatedItems.reduce((sum, i) => sum + i.lineTotal, 0).toFixed(2)}</TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>
@@ -433,29 +505,34 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
             {/* Calculations & Summary */}
             <Box sx={{ mt: 1, border: '1px solid #000' }}>
                 <Grid container>
-                    <Grid item xs={7.5} sx={{ p: 1, borderRight: '1px solid #000' }}>
-                        <Typography sx={{ fontSize: '10px', fontWeight: 900 }}>TOTAL QTY: {normalizedItems.reduce((acc, i) => acc + i.quantity, 0)} Nos.</Typography>
-                        <Box sx={{ mt: 1 }}>
-                            <Typography sx={{ fontSize: '9px', fontWeight: 800 }}>Amount Chargeable (in words):</Typography>
-                            <Typography sx={{ fontSize: '10px', fontWeight: 950, textTransform: 'uppercase' }}>
-                                INR {numberToWords(finalNetPayable)} ONLY
-                            </Typography>
+                    {/* Left box: Total Qty, Word Amount, Tax Summary */}
+                    <Grid item xs={7.5} sx={{ p: 1, borderRight: '1px solid #000', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                        <Box>
+                            <Typography sx={{ fontSize: '10px', fontWeight: 900 }}>TOTAL QTY: {normalizedItems.reduce((acc, i) => acc + i.quantity, 0)} Nos.</Typography>
+                            <Box sx={{ mt: 1 }}>
+                                <Typography sx={{ fontSize: '9px', fontWeight: 800 }}>Amount Chargeable (in words):</Typography>
+                                <Typography sx={{ fontSize: '10px', fontWeight: 950, textTransform: 'uppercase' }}>
+                                    INR {numberToWords(finalNetPayable)} ONLY
+                                </Typography>
+                            </Box>
                         </Box>
 
-                        <Box sx={{ mt: 1.5 }}>
+                        {/* TAX SUMMARY */}
+                        <Box sx={{ mt: 2 }}>
+                            <Typography sx={{ fontSize: '9.5px', fontWeight: 950, mb: 0.5 }}>TAX SUMMARY:</Typography>
                             <Table size="small" sx={{ border: '1px solid #000', borderCollapse: 'collapse' }}>
-                                <TableHead sx={{ bgcolor: '#f3f4f6' }}>
-                                    <TableRow sx={{ '& .MuiTableCell-root': { fontSize: '8px', fontWeight: 900, border: '1px solid #000', py: 0.2, textAlign: 'center' } }}>
-                                        <TableCell>HSN/SAC</TableCell>
+                                <TableHead sx={{ bgcolor: '#00FFFF' }}>
+                                    <TableRow sx={{ '& .MuiTableCell-root': { fontSize: '8px', fontWeight: 900, border: '1px solid #000', py: 0.2, textAlign: 'center', color: '#000' } }}>
+                                        <TableCell>Tax Rate</TableCell>
                                         <TableCell>Taxable Val</TableCell>
                                         {isInterState ? <TableCell>IGST</TableCell> : <><TableCell>CGST</TableCell><TableCell>SGST</TableCell></>}
                                         <TableCell>Total Tax</TableCell>
                                     </TableRow>
                                 </TableHead>
-                                <TableBody>
+                                <TableBody sx={{ '& .MuiTableCell-root': { fontSize: '8px', border: '1px solid #000', py: 0.2, textAlign: 'center', color: '#000', fontWeight: 700 } }}>
                                     {Object.values(hsnSummaryMap).map((h, i) => (
-                                        <TableRow key={i} sx={{ '& .MuiTableCell-root': { fontSize: '8px', border: '1px solid #000', py: 0.2, textAlign: 'center' } }}>
-                                            <TableCell>{h.hsn} ({h.gst}%)</TableCell>
+                                        <TableRow key={i}>
+                                            <TableCell>{h.gst}%</TableCell>
                                             <TableCell>{h.taxable.toFixed(2)}</TableCell>
                                             {isInterState ? <TableCell>{h.tax.toFixed(2)}</TableCell> : 
                                             <><TableCell>{(h.tax/2).toFixed(2)}</TableCell><TableCell>{(h.tax/2).toFixed(2)}</TableCell></>}
@@ -483,6 +560,7 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
                         )}
                     </Grid>
                     
+                    {/* Right box: Calculations */}
                     <Grid item xs={4.5} sx={{ p: 1 }}>
                         <Stack spacing={0.5}>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}><Typography sx={{ fontSize: '10px', fontWeight: 700 }}>Gross Total:</Typography><Typography sx={{ fontSize: '10px', fontWeight: 900 }}>₹{normalizedItems.reduce((acc, i) => acc + i.grossLine, 0).toFixed(2)}</Typography></Box>
@@ -518,43 +596,111 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
                             )}
  
                             <Divider sx={{ my: 0.5, borderBottomWidth: 1, borderColor: '#000' }} />
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', bgcolor: '#f8fafc', p: 0.5 }}><Typography sx={{ fontSize: '12px', fontWeight: 950 }}>NET PAYABLE:</Typography><Typography sx={{ fontSize: '13px', fontWeight: 950 }}>₹{finalNetPayable.toFixed(2)}</Typography></Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', bgcolor: '#00FFFF', p: 0.5 }}><Typography sx={{ fontSize: '11px', fontWeight: 950, color: '#000' }}>NET PAYABLE:</Typography><Typography sx={{ fontSize: '12px', fontWeight: 950, color: '#000' }}>₹{finalNetPayable.toFixed(2)}</Typography></Box>
                         </Stack>
                     </Grid>
                 </Grid>
             </Box>
 
-            {/* Footer / Declarations */}
-            <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
-                {!isStockTransfer && (
-                    <Box sx={{ flex: 1, border: '1px solid #000', p: 1 }}>
-                        <Typography sx={{ fontSize: '9px', fontWeight: 900, mb: 0.5, textDecoration: 'underline' }}>Terms & Conditions / Exchange Policy:</Typography>
-                        <Typography sx={{ fontSize: '8px', fontWeight: 700, whiteSpace: 'pre-line', lineHeight: 1.2 }}>
-                            {`1. Goods once sold can be EXCHANGED within 7 DAYS only if in original condition and with this invoice.
-2. No refund will be provided; credit note will be issued for future purchases.
-3. Items without tags or having signs of wear will not be accepted for exchange.
-4. All disputes are subject to local jurisdiction.`}
-                        </Typography>
-                    </Box>
-                )}
-                <Box sx={{ 
-                    width: isStockTransfer ? '100%' : '35%', 
-                    textAlign: 'center', 
-                    p: 1, 
-                    border: '1px solid #000', 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    justifyContent: 'space-between',
-                    minHeight: isStockTransfer ? '80px' : 'auto'
-                }}>
-                    <Typography sx={{ fontSize: '9px', fontWeight: 900 }}>For {company.legalName || 'REBEL MASS EXPORT PVT LTD'}</Typography>
-                    <Box sx={{ mt: 3 }}>
+            {/* Declarations & Signature Block */}
+            <Grid container sx={{ mt: 1, border: '1px solid #000' }}>
+                <Grid item xs={7.5} sx={{ p: 1, borderRight: '1px solid #000' }}>
+                    <Typography sx={{ fontSize: '9px', fontWeight: 900, textDecoration: 'underline', mb: 0.5 }}>Declaration:</Typography>
+                    <Typography sx={{ fontSize: '8.5px', fontWeight: 700, lineHeight: 1.3, color: '#000' }}>
+                        We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct. All disputes are subject to <strong>SONIPAT (HARYANA)</strong> jurisdiction.
+                    </Typography>
+                    {!isStockTransfer && (
+                        <Box sx={{ mt: 1 }}>
+                            <Typography sx={{ fontSize: '8.5px', fontWeight: 800, textDecoration: 'underline' }}>Terms & Conditions:</Typography>
+                            <Typography sx={{ fontSize: '7.5px', fontWeight: 600, lineHeight: 1.2 }}>
+                                1. Goods once sold can be exchanged within 7 days only in original condition and with tag/invoice.<br/>
+                                2. No cash refund will be provided; store credit note will be issued for future purchases.<br/>
+                                3. All disputes are subject to SONIPAT (HARYANA) jurisdiction.
+                            </Typography>
+                        </Box>
+                    )}
+                </Grid>
+                <Grid item xs={4.5} sx={{ p: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '90px', textAlign: 'center' }}>
+                    <Typography sx={{ fontSize: '9px', fontWeight: 900 }}>For <strong>{company.legalName || 'REBEL MASS EXPORT PVT LTD'}</strong></Typography>
+                    <Box sx={{ mt: 'auto' }}>
                         <Typography sx={{ fontSize: '9px', fontWeight: 950, borderTop: '1px solid #000', pt: 0.5 }}>Authorised Signatory</Typography>
                     </Box>
-                </Box>
+                </Grid>
+            </Grid>
+
+            {/* Full-width HSN WISE SUMMARY */}
+            <Box sx={{ mt: 2 }}>
+                <Typography sx={{ fontSize: '10px', fontWeight: 950, mb: 0.5 }}>HSN WISE SUMMARY</Typography>
+                <TableContainer component={Box} sx={{ border: '1px solid #000', borderRadius: 0 }}>
+                    <Table size="small" sx={{ borderCollapse: 'collapse' }}>
+                        <TableHead sx={{ bgcolor: '#00FFFF', '& .MuiTableCell-root': { fontSize: '8px', fontWeight: 900, border: '1px solid #000', py: 0.2, textAlign: 'center', color: '#000' } }}>
+                            <TableRow>
+                                <TableCell rowSpan={2}>HSN/SAC</TableCell>
+                                <TableCell rowSpan={2}>Taxable Value (₹)</TableCell>
+                                <TableCell colSpan={2}>Central Tax</TableCell>
+                                <TableCell colSpan={2}>State Tax</TableCell>
+                                <TableCell colSpan={2}>Integrated Tax</TableCell>
+                                <TableCell rowSpan={2}>Total Tax Amount (₹)</TableCell>
+                            </TableRow>
+                            <TableRow>
+                                <TableCell>Rate (%)</TableCell>
+                                <TableCell>Amount (₹)</TableCell>
+                                <TableCell>Rate (%)</TableCell>
+                                <TableCell>Amount (₹)</TableCell>
+                                <TableCell>Rate (%)</TableCell>
+                                <TableCell>Amount (₹)</TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody sx={{ '& .MuiTableCell-root': { fontSize: '8.5px', border: '1px solid #000', py: 0.3, textAlign: 'center', color: '#000', fontWeight: 700 } }}>
+                            {Object.values(hsnSummaryMap).map((h, i) => {
+                                const taxableVal = Number(h.taxable || 0);
+                                const totalTaxVal = Number(h.tax || 0);
+                                const gstRate = Number(h.gst || 0);
+                                const halfRate = gstRate / 2;
+                                const halfTax = totalTaxVal / 2;
+                                
+                                return (
+                                    <TableRow key={i}>
+                                        <TableCell>{h.hsn}</TableCell>
+                                        <TableCell>{taxableVal.toFixed(2)}</TableCell>
+                                        <TableCell>{isInterState ? '0.00' : halfRate.toFixed(2)}</TableCell>
+                                        <TableCell>{isInterState ? '0.00' : halfTax.toFixed(2)}</TableCell>
+                                        <TableCell>{isInterState ? '0.00' : halfRate.toFixed(2)}</TableCell>
+                                        <TableCell>{isInterState ? '0.00' : halfTax.toFixed(2)}</TableCell>
+                                        <TableCell>{isInterState ? gstRate.toFixed(2) : '0.00'}</TableCell>
+                                        <TableCell>{isInterState ? totalTaxVal.toFixed(2) : '0.00'}</TableCell>
+                                        <TableCell>{totalTaxVal.toFixed(2)}</TableCell>
+                                    </TableRow>
+                                );
+                            })}
+                            {/* Totals Row */}
+                            <TableRow sx={{ bgcolor: '#f3f4f6', '& .MuiTableCell-root': { fontWeight: 900 } }}>
+                                <TableCell>Total</TableCell>
+                                <TableCell>
+                                    {Object.values(hsnSummaryMap).reduce((sum, h) => sum + Number(h.taxable || 0), 0).toFixed(2)}
+                                </TableCell>
+                                <TableCell>-</TableCell>
+                                <TableCell>
+                                    {isInterState ? '0.00' : (Object.values(hsnSummaryMap).reduce((sum, h) => sum + Number(h.tax || 0), 0) / 2).toFixed(2)}
+                                </TableCell>
+                                <TableCell>-</TableCell>
+                                <TableCell>
+                                    {isInterState ? '0.00' : (Object.values(hsnSummaryMap).reduce((sum, h) => sum + Number(h.tax || 0), 0) / 2).toFixed(2)}
+                                </TableCell>
+                                <TableCell>-</TableCell>
+                                <TableCell>
+                                    {isInterState ? Object.values(hsnSummaryMap).reduce((sum, h) => sum + Number(h.tax || 0), 0).toFixed(2) : '0.00'}
+                                </TableCell>
+                                <TableCell>
+                                    {Object.values(hsnSummaryMap).reduce((sum, h) => sum + Number(h.tax || 0), 0).toFixed(2)}
+                                </TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
+                </TableContainer>
             </Box>
 
-            <Typography align="center" sx={{ fontSize: '8px', mt: 0.5, fontWeight: 700, opacity: 0.7 }}>
+            <Typography align="center" sx={{ fontSize: '8px', mt: 1, fontWeight: 700, opacity: 0.7 }}>
                 This is a computer generated document and does not require a physical signature.
             </Typography>
         </Paper>
