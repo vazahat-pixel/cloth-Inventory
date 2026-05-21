@@ -697,12 +697,18 @@ const confirmDispatch = async (id, userId) => {
                 }
             }
 
-            // First release the logical reservation
-            await stockService.releaseStock({
+            // A. Deduct physical stock from source warehouse
+            await stockService.removeStock({
+                itemId: itmId,
+                barcode: bcode,
                 variantId: item.variantId,
                 locationId: dispatch.sourceWarehouseId,
                 locationType: 'WAREHOUSE',
                 qty: item.qty,
+                type: 'TRANSFER',
+                referenceId: dispatch._id,
+                referenceType: 'Dispatch',
+                performedBy: userId,
                 session
             });
 
@@ -964,13 +970,19 @@ const combineAndConfirmDispatch = async ({ dispatchIds, notes, date, vehicleNumb
             await disp.save({ session });
         }));
 
-        // 8. Release original draft's logical reservation for each unique variant in parallel
+        // 8. Deduct physical stock from source warehouse for each unique variant in parallel
         await Promise.all(mergedItems.map(async (item) => {
-            await stockService.releaseStock({
+            await stockService.removeStock({
+                itemId: item.itemId,
+                barcode: item.barcode,
                 variantId: item.variantId,
                 locationId: sourceWarehouseId,
                 locationType: 'WAREHOUSE',
                 qty: item.qty,
+                type: 'TRANSFER',
+                referenceId: combinedDispatch._id,
+                referenceType: 'Dispatch',
+                performedBy: userId,
                 session
             });
         }));

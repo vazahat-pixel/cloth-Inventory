@@ -1,0 +1,1066 @@
+[
+  {
+    "variantId": "6a0477d7cbe1886f6da47f1b",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 94,
+    "calculatedQty": 60,
+    "difference": 34
+  },
+  {
+    "variantId": "6a0477d7cbe1886f6da47f19",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 94,
+    "calculatedQty": 42,
+    "difference": 52
+  },
+  {
+    "variantId": "6a0477d9cbe1886f6da493cf",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 8,
+    "difference": 90
+  },
+  {
+    "variantId": "6a0477d9cbe1886f6da493d5",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 11,
+    "difference": 87
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da49836",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 15,
+    "difference": 83
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da49834",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 9,
+    "difference": 89
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da49802",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 4,
+    "difference": 94
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da49782",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 15,
+    "difference": 83
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da49786",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 26,
+    "difference": 72
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da497c2",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 19,
+    "difference": 79
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da4976c",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 96,
+    "calculatedQty": 23,
+    "difference": 73
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da4976a",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 14,
+    "difference": 84
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da4976e",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 28,
+    "difference": 70
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da49772",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 7,
+    "difference": 91
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da4980a",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 22,
+    "difference": 76
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da4982e",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 22,
+    "difference": 76
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da4981e",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 96,
+    "calculatedQty": 7,
+    "difference": 89
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da49822",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 96,
+    "calculatedQty": 21,
+    "difference": 75
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da497b2",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 17,
+    "difference": 81
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da497b0",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 7,
+    "difference": 91
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da497d8",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 24,
+    "difference": 74
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da497d6",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 7,
+    "difference": 91
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da497d4",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 7,
+    "difference": 91
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da497da",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 21,
+    "difference": 77
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da497dc",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 2,
+    "difference": 96
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da497a8",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 22,
+    "difference": 76
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da497ca",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 96,
+    "calculatedQty": 2,
+    "difference": 94
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da497c8",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 96,
+    "calculatedQty": -2,
+    "difference": 98
+  },
+  {
+    "variantId": "6a0477d6cbe1886f6da47dea",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 27,
+    "difference": 71
+  },
+  {
+    "variantId": "6a0477d6cbe1886f6da47dec",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 48,
+    "difference": 50
+  },
+  {
+    "variantId": "6a0477d6cbe1886f6da47dee",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 30,
+    "difference": 68
+  },
+  {
+    "variantId": "6a0477d6cbe1886f6da47e04",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 96,
+    "calculatedQty": 11,
+    "difference": 85
+  },
+  {
+    "variantId": "6a0477d9cbe1886f6da4906d",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 9,
+    "difference": 89
+  },
+  {
+    "variantId": "6a0477d9cbe1886f6da4951d",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 6,
+    "difference": 92
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da49732",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 96,
+    "calculatedQty": 307,
+    "difference": -211
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da49736",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 160,
+    "difference": -62
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da4972a",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 94,
+    "calculatedQty": 218,
+    "difference": -124
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da4972e",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 96,
+    "calculatedQty": 165,
+    "difference": -69
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da4998e",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 96,
+    "calculatedQty": 3,
+    "difference": 93
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da499ae",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 14,
+    "difference": 84
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da499ac",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 4,
+    "difference": 94
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da499b0",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 15,
+    "difference": 83
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da499b2",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 4,
+    "difference": 94
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da499f4",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 73,
+    "difference": 25
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da499f8",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 148,
+    "difference": -50
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da499ce",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 12,
+    "difference": 86
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da496b6",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 3,
+    "difference": 95
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da496ba",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 8,
+    "difference": 90
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da496bc",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 5,
+    "difference": 93
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da49708",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 1,
+    "difference": 97
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da4970a",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 5,
+    "difference": 93
+  },
+  {
+    "variantId": "6a0477d8cbe1886f6da48e6e",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 189.6,
+    "calculatedQty": 189.5999999999999,
+    "difference": 8.526512829121202e-14
+  },
+  {
+    "variantId": "6a0477d8cbe1886f6da48e6c",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 116.3,
+    "calculatedQty": 116.29999999999995,
+    "difference": 4.263256414560601e-14
+  },
+  {
+    "variantId": "6a0477d8cbe1886f6da48e70",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 96.8,
+    "calculatedQty": 96.79999999999995,
+    "difference": 4.263256414560601e-14
+  },
+  {
+    "variantId": "6a0477d9cbe1886f6da48f39",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 79,
+    "difference": 19
+  },
+  {
+    "variantId": "6a0477d6cbe1886f6da47dcc",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 7,
+    "difference": 91
+  },
+  {
+    "variantId": "6a0477d6cbe1886f6da47dd2",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 2,
+    "difference": 96
+  },
+  {
+    "variantId": "6a0477d3cbe1886f6da46978",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 10,
+    "difference": 88
+  },
+  {
+    "variantId": "6a0477d3cbe1886f6da4697a",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 6,
+    "difference": 92
+  },
+  {
+    "variantId": "6a0477d3cbe1886f6da4697c",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 1,
+    "difference": 97
+  },
+  {
+    "variantId": "6a0477d1cbe1886f6da45e80",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 32,
+    "difference": 66
+  },
+  {
+    "variantId": "6a0477d2cbe1886f6da46491",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 3,
+    "difference": 95
+  },
+  {
+    "variantId": "6a0477cecbe1886f6da4500b",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 8,
+    "difference": 90
+  },
+  {
+    "variantId": "6a0477cecbe1886f6da4500f",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 13,
+    "difference": 85
+  },
+  {
+    "variantId": "6a0477cfcbe1886f6da453f5",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 2,
+    "difference": 96
+  },
+  {
+    "variantId": "6a0477cfcbe1886f6da456af",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 2,
+    "difference": 96
+  },
+  {
+    "variantId": "6a0477cfcbe1886f6da456b9",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 2,
+    "difference": 96
+  },
+  {
+    "variantId": "6a0477cfcbe1886f6da4578b",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 2,
+    "difference": 96
+  },
+  {
+    "variantId": "6a0477cfcbe1886f6da4578f",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 3,
+    "difference": 95
+  },
+  {
+    "variantId": "6a0477d2cbe1886f6da463f5",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 15,
+    "difference": 83
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da46fb7",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 11,
+    "difference": 87
+  },
+  {
+    "variantId": "6a0477d3cbe1886f6da46b80",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 13,
+    "difference": 85
+  },
+  {
+    "variantId": "6a0477d4cbe1886f6da46bd6",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 17,
+    "difference": 81
+  },
+  {
+    "variantId": "6a0477d7cbe1886f6da480e9",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 7,
+    "difference": 91
+  },
+  {
+    "variantId": "6a0477d7cbe1886f6da480eb",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 4,
+    "difference": 94
+  },
+  {
+    "variantId": "6a0477d7cbe1886f6da480ed",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 5,
+    "difference": 93
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da49868",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 2,
+    "difference": 96
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da4986a",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 6,
+    "difference": 92
+  },
+  {
+    "variantId": "6a0477d9cbe1886f6da4925f",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 12,
+    "difference": 86
+  },
+  {
+    "variantId": "6a0477d9cbe1886f6da49261",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 3,
+    "difference": 95
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da49870",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 1,
+    "difference": 97
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da49872",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": -1,
+    "difference": 99
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da49874",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 4,
+    "difference": 94
+  },
+  {
+    "variantId": "6a0477d9cbe1886f6da49269",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 5,
+    "difference": 93
+  },
+  {
+    "variantId": "6a0477d9cbe1886f6da4926b",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 8,
+    "difference": 90
+  },
+  {
+    "variantId": "6a0477d9cbe1886f6da49187",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 49,
+    "difference": 49
+  },
+  {
+    "variantId": "6a0477d9cbe1886f6da49189",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 52,
+    "difference": 46
+  },
+  {
+    "variantId": "6a0477d7cbe1886f6da48021",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 3,
+    "difference": 95
+  },
+  {
+    "variantId": "6a0477d7cbe1886f6da48017",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 18,
+    "difference": 80
+  },
+  {
+    "variantId": "6a0477d7cbe1886f6da48019",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 24,
+    "difference": 74
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da4764f",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 13,
+    "difference": 85
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da47651",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 27,
+    "difference": 71
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da47653",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 18,
+    "difference": 80
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da47657",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 12,
+    "difference": 86
+  },
+  {
+    "variantId": "6a0477d8cbe1886f6da48dea",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 3,
+    "difference": 95
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da476c1",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 22,
+    "difference": 76
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da476c9",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 1,
+    "difference": 97
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da476cb",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 18,
+    "difference": 80
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da476d3",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 7,
+    "difference": 91
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da476d5",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 7,
+    "difference": 91
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da476d7",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 11,
+    "difference": 87
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da4973c",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 17,
+    "difference": 81
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da4973e",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 30,
+    "difference": 68
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da49740",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 20,
+    "difference": 78
+  },
+  {
+    "variantId": "6a0477dacbe1886f6da49742",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 23,
+    "difference": 75
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da476e9",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 14,
+    "difference": 84
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da476f7",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 13,
+    "difference": 85
+  },
+  {
+    "variantId": "6a0477d6cbe1886f6da478e0",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 35,
+    "difference": 63
+  },
+  {
+    "variantId": "6a0477d6cbe1886f6da478e4",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 16,
+    "difference": 82
+  },
+  {
+    "variantId": "6a0477d6cbe1886f6da47930",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 7,
+    "difference": 91
+  },
+  {
+    "variantId": "6a0477d6cbe1886f6da47934",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 19,
+    "difference": 79
+  },
+  {
+    "variantId": "6a0477d6cbe1886f6da4793a",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 8,
+    "difference": 90
+  },
+  {
+    "variantId": "6a0477d8cbe1886f6da488aa",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 7,
+    "difference": 91
+  },
+  {
+    "variantId": "6a0477d8cbe1886f6da488ae",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 25,
+    "difference": 73
+  },
+  {
+    "variantId": "6a0477d8cbe1886f6da48894",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 121,
+    "difference": -23
+  },
+  {
+    "variantId": "6a0477d8cbe1886f6da48896",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 125,
+    "difference": -27
+  },
+  {
+    "variantId": "6a0477d8cbe1886f6da48898",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 50,
+    "difference": 48
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da471a3",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 16,
+    "difference": 82
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da471ab",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 87,
+    "difference": 11
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da471ad",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 41,
+    "difference": 57
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da47241",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 19,
+    "difference": 79
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da47243",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 42,
+    "difference": 56
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da47245",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 42,
+    "difference": 56
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da47247",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 17,
+    "difference": 81
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da4726d",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 1,
+    "difference": 97
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da4726f",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": -2,
+    "difference": 100
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da47275",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 58,
+    "difference": 40
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da47277",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 15,
+    "difference": 83
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da4727d",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 28,
+    "difference": 70
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da47291",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 9,
+    "difference": 89
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da47293",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 29,
+    "difference": 69
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da47295",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 32,
+    "difference": 66
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da47297",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 15,
+    "difference": 83
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da472b5",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 96,
+    "calculatedQty": 44,
+    "difference": 52
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da472b9",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 18,
+    "difference": 80
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da472bb",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 96,
+    "calculatedQty": 50,
+    "difference": 46
+  },
+  {
+    "variantId": "6a0477d8cbe1886f6da48c3e",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 15,
+    "difference": 83
+  },
+  {
+    "variantId": "6a0477d8cbe1886f6da48c40",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 15,
+    "difference": 83
+  },
+  {
+    "variantId": "6a0477d8cbe1886f6da48ca8",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 16,
+    "difference": 82
+  },
+  {
+    "variantId": "6a0477d6cbe1886f6da47a3a",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 8,
+    "difference": 90
+  },
+  {
+    "variantId": "6a0477d6cbe1886f6da47a4a",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 96,
+    "calculatedQty": 7,
+    "difference": 89
+  },
+  {
+    "variantId": "6a0477d6cbe1886f6da47a4c",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 17,
+    "difference": 81
+  },
+  {
+    "variantId": "6a0477d6cbe1886f6da47a60",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 10,
+    "difference": 88
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da470e7",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 10,
+    "difference": 88
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da475f3",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 5,
+    "difference": 93
+  },
+  {
+    "variantId": "6a0477d5cbe1886f6da475fd",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 3,
+    "difference": 95
+  },
+  {
+    "variantId": "6a0477d8cbe1886f6da48a24",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 3,
+    "difference": 95
+  },
+  {
+    "variantId": "6a0477d8cbe1886f6da48a28",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 0,
+    "difference": 98
+  },
+  {
+    "variantId": "6a0477cacbe1886f6da44187",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 0,
+    "difference": 98
+  },
+  {
+    "variantId": "6a0477d7cbe1886f6da48669",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 96,
+    "calculatedQty": 20,
+    "difference": 76
+  },
+  {
+    "variantId": "6a0477d8cbe1886f6da487e4",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 28,
+    "difference": 70
+  },
+  {
+    "variantId": "6a0477d8cbe1886f6da48b96",
+    "warehouseId": "69eb555c91c611d4d6fc50fb",
+    "currentQty": 98,
+    "calculatedQty": 29,
+    "difference": 69
+  }
+]
