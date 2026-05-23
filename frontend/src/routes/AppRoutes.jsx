@@ -261,7 +261,8 @@ function AppRoutes() {
             <Route path="sales/sale-challan/:id/edit" element={<PlaceholderPage title="Edit Sale Challan" />} />
              <Route path="orders">
                <Route index element={<Navigate to="delivery-challan" replace />} />
-               <Route path="delivery-challan" element={<DeliveryChallanPage />} />
+               <Route path="delivery-challan" element={<DeliveryChallanPage isTransferBill={false} />} />
+               <Route path="transfer-bill" element={<DeliveryChallanPage pageTitle="Transfer Bills & Tax Invoices" pageDescription="Manage consolidated dispatches and internal tax invoices." isTransferBill={true} />} />
                <Route path="dispatch-queue" element={<DispatchQueuePage />} />
                <Route path="delivery-challan/new" element={<DeliveryChallanForm />} />
                 <Route path="delivery-challan/combine-review" element={<CombineReviewForm />} />

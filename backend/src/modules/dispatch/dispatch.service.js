@@ -1056,8 +1056,8 @@ const getDispatches = async (query, user) => {
 
     const dispatches = await Dispatch.find(filter)
         .sort({ createdAt: -1 })
-        .populate('sourceWarehouseId', 'name')
-        .populate('destinationStoreId', 'name')
+        .populate('sourceWarehouseId')
+        .populate('destinationStoreId')
         .populate('createdBy', 'name');
 
     return await populateDispatchItemsManual(dispatches);
@@ -1081,7 +1081,25 @@ const getDispatchById = async (id) => {
         }
     }
 
-    return await populateDispatchItemsManual(dispatch);
+    const plainDispatch = await populateDispatchItemsManual(dispatch);
+
+    if (plainDispatch && plainDispatch.referenceId && plainDispatch.referenceType) {
+        if (plainDispatch.referenceType === 'Sale') {
+            const Sale = require('../../models/sale.model');
+            const sale = await Sale.findById(plainDispatch.referenceId).populate('storeId').populate('destinationStoreId').lean();
+            if (sale) {
+                plainDispatch.referenceId = sale;
+            }
+        } else if (plainDispatch.referenceType === 'DeliveryChallan') {
+            const DeliveryChallan = require('../../models/deliveryChallan.model');
+            const challan = await DeliveryChallan.findById(plainDispatch.referenceId).populate('sourceId').populate('destinationStoreId').lean();
+            if (challan) {
+                plainDispatch.referenceId = challan;
+            }
+        }
+    }
+
+    return plainDispatch;
 };
 
 /* ─────────────────────────────────────────────

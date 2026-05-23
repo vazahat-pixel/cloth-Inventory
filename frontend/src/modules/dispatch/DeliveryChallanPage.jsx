@@ -35,10 +35,11 @@ function DeliveryChallanPage({
     pageDescription = 'Manage dispatches from warehouse to store and confirm receipts.',
     createPath = '/orders/delivery-challan/new',
     createLabel = 'Create Challan',
+    isTransferBill = false,
 }) {
     const navigate = useAppNavigate();
     const dispatch = useDispatch();
-    const { records: challans = [], loading, error } = useSelector((state) => state.dispatch);
+    const { records: rawChallans = [], loading, error } = useSelector((state) => state.dispatch);
     const { user } = useSelector((state) => state.auth);
     const { showNotification } = useNotification();
     const { showLoading, hideLoading } = useLoading();
@@ -46,6 +47,12 @@ function DeliveryChallanPage({
 
     const normalizedRole = String(user?.role || '').toLowerCase();
     const isStoreUser = normalizedRole.includes('staff') || normalizedRole.includes('manager') || normalizedRole.includes('accountant');
+
+    const challans = isStoreUser 
+        ? rawChallans 
+        : (isTransferBill 
+            ? rawChallans.filter(c => (c.dispatchNumber || c.challanNumber || '').startsWith('DSP-'))
+            : rawChallans.filter(c => !(c.dispatchNumber || c.challanNumber || '').startsWith('DSP-')));
 
     const [printTarget, setPrintTarget] = useState(null);
     const [selectedChallanIds, setSelectedChallanIds] = useState([]);
@@ -175,7 +182,7 @@ function DeliveryChallanPage({
                                 }))}
                                 filename="Delivery_Challans.csv"
                             />
-                            {!isStoreUser && (
+                            {!isStoreUser && !isTransferBill && (
                                 <>
                                     {selectedChallanIds.length >= 2 && (
                                         <Button
@@ -211,7 +218,7 @@ function DeliveryChallanPage({
                         <Table size="small">
                             <TableHead>
                                 <TableRow>
-                                    {!isStoreUser && <TableCell width="50" sx={{ fontWeight: 700 }}></TableCell>}
+                                    {!isStoreUser && !isTransferBill && <TableCell width="50" sx={{ fontWeight: 700 }}></TableCell>}
                                     <TableCell sx={{ fontWeight: 700 }}>Challan No</TableCell>
                                     <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
                                     <TableCell sx={{ fontWeight: 700 }}>To Store</TableCell>
@@ -226,7 +233,7 @@ function DeliveryChallanPage({
                                     const status = row.status || 'PENDING';
                                     return (
                                         <TableRow key={row.id || row._id} hover>
-                                            {!isStoreUser && (
+                                            {!isStoreUser && !isTransferBill && (
                                                 <TableCell>
                                                     {['PENDING', 'PACKED'].includes(status) && (
                                                         <Checkbox

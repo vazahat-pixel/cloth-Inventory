@@ -1,28 +1,39 @@
+require('dotenv').config({ path: '../.env' });
 const mongoose = require('mongoose');
-const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
-const connectDB = require('../src/config/db');
-const Item = require('../src/models/item.model');
+const mongoURI = process.env.MONGODB_URI;
+
+const Item = mongoose.model('Item', new mongoose.Schema({
+    itemName: String,
+    itemCode: String,
+    hsCodeId: { type: mongoose.Schema.Types.ObjectId, ref: 'HsnCode' },
+    hsnCode: String,
+    sizes: [{
+        size: String,
+        barcode: String,
+        stock: Number
+    }]
+}));
+
+const HsnCode = mongoose.model('HsnCode', new mongoose.Schema({
+    code: String,
+    gstPercent: Number
+}));
 
 async function check() {
-    await connectDB();
     try {
-        console.log("Checking database for items with DA prefix...");
-        const items = await Item.find({ itemCode: { $regex: '^DA', $options: 'i' } }).limit(5).lean();
-        console.log(`Found ${items.length} items starting with DA:`);
-        console.log(JSON.stringify(items, null, 2));
+        await mongoose.connect(mongoURI);
+        console.log('Connected to DB');
 
-        const totalItems = await Item.countDocuments({});
-        console.log(`Total items in master database: ${totalItems}`);
+        const items = await Item.find({}).limit(5).populate('hsCodeId');
+        console.log('--- ITEMS ---');
+        items.forEach(i => {
+            console.log(`ID: ${i._id}, Name: ${i.itemName}, HSN Ref: ${i.hsCodeId ? i.hsCodeId.code : 'None'}, HSN Plain: ${i.hsnCode}`);
+        });
 
-        // Check if there's any item matching DA2472 specifically
-        const specificItem = await Item.findOne({ itemCode: 'DA2472' }).lean();
-        console.log(`DA2472 search result:`, specificItem);
-    } catch (e) {
-        console.error(e);
-    } finally {
-        await mongoose.connection.close();
+        await mongoose.disconnect();
+    } catch (err) {
+        console.error(err);
     }
 }
 

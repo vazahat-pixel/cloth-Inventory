@@ -41,7 +41,8 @@ function DispatchQueuePage() {
 
     // Keep challans visible after dispatch so invoice stays downloadable
     const queueChallans = challans.filter(row => 
-        ['PENDING', 'PACKED', 'DISPATCHED'].includes(row.status || 'PENDING')
+        ['PENDING', 'PACKED', 'DISPATCHED'].includes(row.status || 'PENDING') &&
+        !(row.dispatchNumber || row.challanNumber || '').startsWith('DSP-')
     ).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     const renderStatusChip = (status) => {

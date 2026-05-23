@@ -2,6 +2,15 @@ import { useState, useEffect } from 'react';
 import { Box, Divider, Grid, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography, Stack, CircularProgress } from '@mui/material';
 import api from '../../services/api';
 
+const getFallbackHsn = (category = '') => {
+    const cat = String(category).toUpperCase().trim();
+    if (cat.includes('T-SHIRT') || cat.includes('T SHIRT') || cat.includes('TSHIRT')) return '6109';
+    if (cat.includes('SHORT SET') || cat.includes('SHORTSET')) return '6204';
+    if (cat.includes('SHIRT')) return '6205';
+    if (cat.includes('JEANS') || cat.includes('DENIM') || cat.includes('TROUSER')) return '6203';
+    return '6203'; // Default fallback for garments
+};
+
 const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle, isTransfer = false }) => {
     const [config, setConfig] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -95,7 +104,7 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
             sku: item.sku || item.variantId?.sku || item.barcode || '-',
             size: item.size || item.variantId?.size || '-',
             color: item.color || item.variantId?.color || '-',
-            hsnCode: item.hsnCode || item.itemId?.hsCodeId?.code || item.itemId?.hsnCode || 'N/A'
+            hsnCode: item.hsnCode || item.itemId?.hsCodeId?.code || item.itemId?.hsnCode || getFallbackHsn(item.category || item.itemId?.categoryId?.name || item.itemId?.category || item.name || '')
         };
     });
 

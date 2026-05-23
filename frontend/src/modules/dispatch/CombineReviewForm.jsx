@@ -78,7 +78,7 @@ function CombineReviewForm({ listPath = '/orders/delivery-challan' }) {
                 const fetched = [];
                 for (const id of selectedIds) {
                     const response = await api.get(`/dispatch/${id}`);
-                    const dispatchRecord = response.data.dispatch || response.data.data;
+                    const dispatchRecord = response.data.data?.dispatch || response.data.dispatch || response.data.data;
                     if (!dispatchRecord) {
                         throw new Error(`Failed to load details for challan ID: ${id}`);
                     }
@@ -222,7 +222,7 @@ function CombineReviewForm({ listPath = '/orders/delivery-challan' }) {
             
             // Reload the combined dispatch details so printing has fully populated fields
             const reloadResp = await api.get(`/dispatch/${result.id || result._id}`);
-            const fullyPopulatedDispatch = reloadResp.data.dispatch || reloadResp.data.data;
+            const fullyPopulatedDispatch = reloadResp.data.data?.dispatch || reloadResp.data.dispatch || reloadResp.data.data;
             
             setCombinedResult(fullyPopulatedDispatch || result);
             showNotification('Challans combined and Billing finalized successfully!', 'success');
@@ -675,7 +675,7 @@ function CombineReviewForm({ listPath = '/orders/delivery-challan' }) {
                         </Stack>
                         <Divider sx={{ mb: 4 }} className="no-print" />
                         <StandardInvoicePrint
-                            sale={combinedResult.referenceId || combinedResult}
+                            sale={combinedResult.referenceId && typeof combinedResult.referenceId === 'object' ? combinedResult.referenceId : combinedResult}
                             isTransfer={isSameGSTEntity}
                         />
                     </Box>

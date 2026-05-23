@@ -84,6 +84,7 @@ export const adminNavConfig = {
       {label: 'Scan-to-Receipt (GRN)', path: '/ho/inventory/grn'},
       {label: '📦 Opening Stock Entry', path: '/inventory/opening-stock'},
       {label: 'Sale Challan / Bill (Dispatch)', path: '/ho/orders/delivery-challan'},
+      {label: 'Transfer Bills & Tax Invoices', path: '/ho/orders/transfer-bill'},
       {label: 'Billing & Dispatch Queue', path: '/ho/orders/dispatch-queue'},
       {label: 'Item Groups (Hierarchy)', path: '/ho/setup/groups'},
       { label: 'HSN Masters', path: '/ho/setup/hsn-codes' },
