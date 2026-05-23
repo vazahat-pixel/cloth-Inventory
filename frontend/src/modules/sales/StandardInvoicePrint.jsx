@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { useSelector } from 'react-redux';
 import { Box, Divider, Grid, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography, Stack, CircularProgress } from '@mui/material';
 import api from '../../services/api';
+import { calculateGST } from '../../utils/taxCalculator';
 
 const getFallbackHsn = (category = '') => {
     const cat = String(category).toUpperCase().trim();
@@ -14,6 +16,7 @@ const getFallbackHsn = (category = '') => {
 const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle, isTransfer = false }) => {
     const [config, setConfig] = useState(null);
     const [loading, setLoading] = useState(true);
+    const taxRules = useSelector((state) => state.masters.taxRules || []);
 
     useEffect(() => {
         const fetchPrintConfig = async () => {
@@ -55,7 +58,17 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
         const qty = Number(item.quantity ?? item.qty ?? 0);
         const rate = Number(item.rate ?? item.price ?? 0);
         const mrp = Number(item.mrp ?? rate);
-        const taxPercentage = Number(item.taxPercentage ?? item.gstPercent ?? 5);
+        
+        const sku = item.sku || item.variantId?.sku || item.barcode || '-';
+        const barcode = item.barcode || item.variantId?.barcode || sku;
+        const category = item.category || item.itemId?.categoryId?.name || item.itemId?.category || item.name || '';
+        
+        let taxPercentage = Number(item.taxPercentage ?? item.gstPercent ?? 5);
+        if (!isStockTransfer) {
+            const slabInfo = calculateGST(rate, sku || barcode, category, taxRules);
+            const itemRule = calculateGST(0, sku || barcode, category, taxRules);
+            taxPercentage = (itemRule.type === 'FLAT') ? itemRule.rate : slabInfo.rate;
+        }
         
         // Determine if the original source was inclusive or exclusive
         const isInclusiveSource = sale.type === 'RETAIL' && !sale.dispatchNumber;
