@@ -317,23 +317,20 @@ const addStock = async ({ itemId, barcode, variantId, locationId, locationType, 
     });
 
     // New: Record in Stock Ledger (Logic ERP Style)
-    try {
-        await stockLedgerService.recordMovement({
-            itemId: itemId,
-            variantId,
-            barcode: barcode,
-            type: 'IN',
-            quantity: movementQty,
-            source: resolveReferenceType(referenceType).toUpperCase(),
-            referenceId: referenceId.toString(),
-            userId: performedBy,
-            locationId,
-            locationType,
-            batchNo: 'DEFAULT'
-        });
-    } catch (err) {
-        console.error('Stock Ledger Recording Error (ADD):', err.message);
-    }
+    await stockLedgerService.recordMovement({
+        itemId: itemId,
+        variantId,
+        barcode: barcode,
+        type: 'IN',
+        quantity: movementQty,
+        source: resolveReferenceType(referenceType).toUpperCase(),
+        referenceId: referenceId.toString(),
+        userId: performedBy,
+        locationId,
+        locationType,
+        batchNo: 'DEFAULT',
+        session
+    });
 
     return inventory;
 };
@@ -437,7 +434,8 @@ const transferStock = async ({ itemId, barcode, variantId, fromLocationId, fromL
         referenceId: referenceId.toString(),
         userId: performedBy,
         locationId: fromLocationId,
-        locationType: fromLocationType
+        locationType: fromLocationType,
+        session
     });
 
     await stockLedgerService.recordMovement({
@@ -450,7 +448,8 @@ const transferStock = async ({ itemId, barcode, variantId, fromLocationId, fromL
         referenceId: referenceId.toString(),
         userId: performedBy,
         locationId: toLocationId,
-        locationType: toLocationType
+        locationType: toLocationType,
+        session
     });
 
     return true;
@@ -709,10 +708,23 @@ const bulkAddStock = async (items, { referenceId, referenceType, performedBy, lo
     const movements = [];
     const ledgerEntries = [];
 
+    // PRE-AGGREGATE ITEMS TO PREVENT DUPLICATE KEY ERRORS IN SAME BATCH
+    const aggregatedItemsMap = new Map();
     for (const item of items) {
+        const barcode = item.barcode || item.sku;
         const qty = Number(item.qty || item.receivedQty || 0);
         if (qty <= 0) continue;
+        
+        if (aggregatedItemsMap.has(barcode)) {
+            aggregatedItemsMap.get(barcode).qty += qty;
+        } else {
+            aggregatedItemsMap.set(barcode, { ...item, qty });
+        }
+    }
+    const aggregatedItems = Array.from(aggregatedItemsMap.values());
 
+    for (const item of aggregatedItems) {
+        const qty = item.qty;
         const barcode = item.barcode || item.sku;
         const currentInv = invMap.get(barcode);
         const currentBalance = balanceMap.get(barcode) || 0;

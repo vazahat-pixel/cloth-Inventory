@@ -490,11 +490,20 @@ const getAllGrns = async (filters = {}) => {
     if (filters.supplierId) query.supplierId = filters.supplierId;
     if (filters.status) query.status = filters.status;
 
-    return await GRN.find(query)
+    const grns = await GRN.find(query)
         .populate('supplierId', 'name supplierName')
         .populate('warehouseId', 'name')
         .populate('items.itemId', 'itemName itemCode uom')
         .sort({ createdAt: -1 });
+
+    // Deduplicate by grnNumber (safety net — each grnNumber must be unique)
+    const seen = new Set();
+    return grns.filter(grn => {
+        const key = grn.grnNumber;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
 };
 
 const getNextSuggestedNumber = async () => {
@@ -558,5 +567,4 @@ module.exports = {
     getGrnsByPurchase,
     getAllGrns,
     getNextSuggestedNumber,
-    updateGRN
 };

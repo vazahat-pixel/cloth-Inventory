@@ -258,6 +258,11 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
         const Warehouse = require('../../models/warehouse.model');
         const isWarehouseSource = await Warehouse.exists({ _id: storeId }).session(session);
 
+        // Rule: Block direct customer sales from Head Office (Warehouse)
+        if (isWarehouseSource && type !== 'INTERNAL_SALE') {
+            throw new Error('Head office (Warehouse) se direct sale allowed nahi hai. Yahan se sirf stores ko dispatch kiya ja sakta hai.');
+        }
+
         for (const item of products) {
             const barcode = item.barcode;
             const variantIdStr = item.variantId || item.productId;

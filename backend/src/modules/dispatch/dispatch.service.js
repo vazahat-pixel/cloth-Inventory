@@ -1235,7 +1235,7 @@ const deleteDispatch = async (id, userId) => {
                     qty: item.qty,
                     type: 'ADJUSTMENT',
                     referenceId: dispatch._id,
-                    referenceType: 'Dispatch_Deletion',
+                    referenceType: 'Dispatch',
                     performedBy: userId,
                     session
                 });
@@ -1250,7 +1250,7 @@ const deleteDispatch = async (id, userId) => {
                     qty: item.qty,
                     type: 'ADJUSTMENT',
                     referenceId: dispatch._id,
-                    referenceType: 'Dispatch_Deletion',
+                    referenceType: 'Dispatch',
                     performedBy: userId,
                     session
                 });
@@ -1283,7 +1283,7 @@ const deleteDispatch = async (id, userId) => {
                     qty: item.qty,
                     type: 'ADJUSTMENT',
                     referenceId: dispatch._id,
-                    referenceType: 'Dispatch_Deletion',
+                    referenceType: 'Dispatch',
                     performedBy: userId,
                     session
                 });

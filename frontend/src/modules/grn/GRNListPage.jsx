@@ -43,14 +43,18 @@ const GRNListPage = () => {
   const fetchGrns = async () => {
     try {
       const res = await api.get('/grn');
-      setGrns(res.data.grns || res.data.data || []);
+      const raw = res.data.grns || res.data.data || [];
+      // Deduplicate by _id (safety net against any backend duplicates)
+      const seen = new Set();
+      const unique = raw.filter(grn => {
+        const key = grn._id?.toString();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      setGrns(unique);
     } catch (err) {
       console.error('Fetch GRNs failed', err);
-      // Fallback: search in purchases to show something if /all isn't ready
-      try {
-        const fallback = await api.get('/purchase');
-        // Mock some status for demo if needed
-      } catch (e) { }
     } finally {
       setLoading(false);
     }

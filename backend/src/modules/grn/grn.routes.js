@@ -15,7 +15,6 @@ router.route('/')
     .get(grnController.getAll)
     .post(createGRNValidation, validate, grnController.create);
 
-router.get('/all', grnController.getAll);
 router.get('/suggested-number', grnController.getNextNumber);
 router.get('/purchase/:purchaseId', grnController.getByPurchase);
 
