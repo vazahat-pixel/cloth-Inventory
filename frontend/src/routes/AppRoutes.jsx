@@ -88,6 +88,7 @@ import DeliveryChallanPage from '../modules/dispatch/DeliveryChallanPage';
 import DeliveryChallanForm from '../modules/dispatch/DeliveryChallanForm';
 import DispatchQueuePage from '../modules/dispatch/DispatchQueuePage';
 import CombineReviewForm from '../modules/dispatch/CombineReviewForm';
+import TransferBillsListPage from '../modules/dispatch/TransferBillsListPage';
 
 // Purchase
 const PurchaseListPage = lazy(() => import('../modules/purchase/PurchaseListPage'));
@@ -262,7 +263,7 @@ function AppRoutes() {
              <Route path="orders">
                <Route index element={<Navigate to="delivery-challan" replace />} />
                <Route path="delivery-challan" element={<DeliveryChallanPage isTransferBill={false} />} />
-               <Route path="transfer-bill" element={<DeliveryChallanPage pageTitle="Transfer Bills & Tax Invoices" pageDescription="Manage consolidated dispatches and internal tax invoices." isTransferBill={true} />} />
+               <Route path="transfer-bill" element={<TransferBillsListPage />} />
                <Route path="dispatch-queue" element={<DispatchQueuePage />} />
                <Route path="delivery-challan/new" element={<DeliveryChallanForm />} />
                 <Route path="delivery-challan/combine-review" element={<CombineReviewForm />} />
