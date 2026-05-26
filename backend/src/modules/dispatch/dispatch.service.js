@@ -1031,6 +1031,66 @@ const cancelDispatch = async (id, userId) => {
 };
 
 /* ─────────────────────────────────────────────
+   Helper: Attach billing document metadata for unified lists
+───────────────────────────────────────────── */
+const enrichDispatchesWithBillingMeta = async (plainDocs) => {
+    if (!plainDocs || plainDocs.length === 0) return plainDocs;
+
+    const saleIds = [];
+    const dcIds = [];
+    for (const d of plainDocs) {
+        const refId = d.referenceId?._id || d.referenceId;
+        if (!refId) continue;
+        if (d.referenceType === 'Sale') saleIds.push(refId);
+        else if (d.referenceType === 'DeliveryChallan') dcIds.push(refId);
+    }
+
+    const [sales, challans] = await Promise.all([
+        saleIds.length
+            ? Sale.find({ _id: { $in: saleIds } }).select('saleNumber grandTotal').lean()
+            : [],
+        dcIds.length
+            ? DeliveryChallan.find({ _id: { $in: dcIds } }).select('dcNumber totalValue').lean()
+            : [],
+    ]);
+
+    const saleMap = new Map(sales.map((s) => [String(s._id), s]));
+    const dcMap = new Map(challans.map((c) => [String(c._id), c]));
+
+    return plainDocs.map((d) => {
+        const refId = d.referenceId?._id || d.referenceId;
+        const notes = String(d.notes || '');
+        const dispatchNumber = String(d.dispatchNumber || '');
+        const isCombinedChild = notes.includes('[Combined into');
+        const isCombinedMaster = dispatchNumber.startsWith('DSP-');
+
+        let billingDocType = null;
+        let billingDocNumber = null;
+
+        if (d.referenceType === 'Sale' && refId) {
+            billingDocType = 'TAX_INVOICE';
+            billingDocNumber = saleMap.get(String(refId))?.saleNumber || null;
+        } else if (d.referenceType === 'DeliveryChallan' && refId) {
+            billingDocType = 'TRANSFER_BILL';
+            billingDocNumber = dcMap.get(String(refId))?.dcNumber || null;
+        } else if (d.sourceWarehouseId && d.destinationStoreId && ['DISPATCHED', 'RECEIVED'].includes(d.status)) {
+            const sourceGst = (d.sourceWarehouseId.gstNumber || '').trim().toUpperCase();
+            const destGst = (d.destinationStoreId.gstNumber || '').trim().toUpperCase();
+            if (sourceGst && sourceGst === destGst) billingDocType = 'TRANSFER_BILL';
+            else billingDocType = 'TAX_INVOICE';
+        }
+
+        return {
+            ...d,
+            billingDocType,
+            billingDocNumber,
+            isCombinedChild,
+            isCombinedMaster,
+        };
+    });
+};
+
+/* ─────────────────────────────────────────────
    GET DISPATCHES (list)
 ───────────────────────────────────────────── */
 const getDispatches = async (query, user) => {
@@ -1060,7 +1120,9 @@ const getDispatches = async (query, user) => {
         .populate('destinationStoreId')
         .populate('createdBy', 'name');
 
-    return await populateDispatchItemsManual(dispatches);
+    const populated = await populateDispatchItemsManual(dispatches);
+    const plainList = Array.isArray(populated) ? populated : [];
+    return await enrichDispatchesWithBillingMeta(plainList);
 };
 
 /* ─────────────────────────────────────────────

@@ -176,7 +176,7 @@ function DeliveryChallanPage({
                                 headerKeys={['Challan No', 'Date', 'To Store', 'Status']}
                                 rows={challans.map(row => ({
                                     'Challan No': row.challanNumber || row.dispatchNumber,
-                                    'Date': row.dispatchedAt ? new Date(row.dispatchedAt).toLocaleDateString() : (row.date || row.dispatchDate || '-'),
+                                    'Date': row.dispatchedAt ? new Date(row.dispatchedAt).toLocaleDateString() : (row.createdAt ? new Date(row.createdAt).toLocaleDateString() : (row.date || row.dispatchDate || '-')),
                                     'To Store': row.destinationStoreId?.name || row.storeName || row.destination?.name || 'Store',
                                     'Status': row.status || 'PENDING'
                                 }))}
@@ -248,7 +248,11 @@ function DeliveryChallanPage({
                                                 {row.challanNumber || row.dispatchNumber}
                                             </TableCell>
                                             <TableCell>
-                                                {row.dispatchedAt ? new Date(row.dispatchedAt).toLocaleDateString() : (row.date || row.dispatchDate || '-')}
+                                                {row.dispatchedAt
+                                                    ? new Date(row.dispatchedAt).toLocaleDateString()
+                                                    : (row.createdAt
+                                                        ? new Date(row.createdAt).toLocaleDateString()
+                                                        : (row.date || row.dispatchDate || '-'))}
                                             </TableCell>
                                             <TableCell>
                                                 {row.destinationStoreId?.name || row.storeName || row.destination?.name || 'Store'}
