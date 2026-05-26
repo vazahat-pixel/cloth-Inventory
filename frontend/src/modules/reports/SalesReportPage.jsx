@@ -574,7 +574,19 @@ function SalesReportPage() {
                           <TableCell align="right">₹{toNum(t.discount).toFixed(2)}</TableCell>
                           <TableCell align="right">₹{toNum(t.taxAmount).toFixed(2)}</TableCell>
                           <TableCell align="right" sx={{ fontWeight: 700 }}>₹{toNum(t.netPayable).toFixed(2)}</TableCell>
-                          <TableCell>{row.payment?.mode || '-'}</TableCell>
+                          <TableCell>
+                            {row.payment?.mode || '-'}
+                            {row.payment?.mode === 'Split' && row.payment?.splitValues && (
+                              <Box sx={{ fontSize: '10px', color: '#64748b', mt: 0.5, whiteSpace: 'nowrap' }}>
+                                {[
+                                  toNum(row.payment.splitValues.cash) > 0 && `Cash: ₹${toNum(row.payment.splitValues.cash).toFixed(2)}`,
+                                  toNum(row.payment.splitValues.card) > 0 && `Card: ₹${toNum(row.payment.splitValues.card).toFixed(2)}`,
+                                  toNum(row.payment.splitValues.upi) > 0 && `UPI: ₹${toNum(row.payment.splitValues.upi).toFixed(2)}`,
+                                  toNum(row.payment.splitValues['gift voucher']) > 0 && `Voucher: ₹${toNum(row.payment.splitValues['gift voucher']).toFixed(2)}`
+                                ].filter(Boolean).join(' | ')}
+                              </Box>
+                            )}
+                          </TableCell>
                         </TableRow>
                       </>
                     );

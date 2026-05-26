@@ -119,6 +119,23 @@ function SalesDetailDialog({
               <SummaryField label="Change" value={sale.payment?.changeReturned} />
               <SummaryField label="Mode" value={sale.payment?.mode || '-'} text />
             </Stack>
+
+            {sale.payment?.mode === 'Split' && sale.payment?.splitValues && (
+              <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="flex-end" sx={{ mt: 1 }}>
+                {Number(sale.payment.splitValues.cash || 0) > 0 && (
+                  <SummaryField label="Paid (Cash)" value={sale.payment.splitValues.cash} />
+                )}
+                {Number(sale.payment.splitValues.card || 0) > 0 && (
+                  <SummaryField label="Paid (Card)" value={sale.payment.splitValues.card} />
+                )}
+                {Number(sale.payment.splitValues.upi || 0) > 0 && (
+                  <SummaryField label="Paid (UPI)" value={sale.payment.splitValues.upi} />
+                )}
+                {Number(sale.payment.splitValues['gift voucher'] || 0) > 0 && (
+                  <SummaryField label="Paid (Voucher)" value={sale.payment.splitValues['gift voucher']} />
+                )}
+              </Stack>
+            )}
           </Stack>
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>

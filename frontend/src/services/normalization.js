@@ -141,12 +141,40 @@ const normalizeItem = (item, entityType) => {
             normalized.saleType = (item.type || 'RETAIL').toLowerCase();
 
             // Payment object for list and detail view
+            const rawMode = item.paymentMode || 'CASH';
+            let normalizedMode = 'Other';
+            if (rawMode === 'CASH') normalizedMode = 'Cash';
+            else if (rawMode === 'CARD') normalizedMode = 'Card';
+            else if (rawMode === 'UPI') normalizedMode = 'UPI';
+            else if (rawMode === 'GIFT_VOUCHER') normalizedMode = 'Gift Voucher';
+            else if (rawMode === 'SPLIT') normalizedMode = 'Split';
+            else if (rawMode === 'CREDIT') normalizedMode = 'Credit';
+
+            const splitValues = { cash: 0, card: 0, upi: 0, 'gift voucher': 0 };
+            if (Array.isArray(item.payments) && item.payments.length > 0) {
+                item.payments.forEach(p => {
+                    const m = String(p.mode || '').toLowerCase();
+                    if (m === 'cash') splitValues.cash = p.amount || 0;
+                    else if (m === 'card') splitValues.card = p.amount || 0;
+                    else if (m === 'upi') splitValues.upi = p.amount || 0;
+                    else if (m === 'gift_voucher' || m === 'gift voucher') splitValues['gift voucher'] = p.amount || 0;
+                });
+            } else if (normalizedMode !== 'Split' && normalizedMode !== 'Other') {
+                const m = normalizedMode.toLowerCase();
+                const amt = item.amountPaid || item.grandTotal || 0;
+                if (m === 'cash') splitValues.cash = amt;
+                else if (m === 'card') splitValues.card = amt;
+                else if (m === 'upi') splitValues.upi = amt;
+                else if (m === 'gift voucher') splitValues['gift voucher'] = amt;
+            }
+
             normalized.payment = {
                 status: item.status === 'COMPLETED' ? 'Paid' : (item.status || 'Pending'),
                 amountPaid: item.amountPaid || item.grandTotal || 0,
                 dueAmount: item.dueAmount || 0,
                 changeReturned: 0,
-                mode: item.paymentMode || 'CASH'
+                mode: normalizedMode,
+                splitValues
             };
 
             normalized.cashierName = item.cashierId?.name || '';

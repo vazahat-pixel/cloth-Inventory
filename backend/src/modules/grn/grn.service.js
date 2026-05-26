@@ -518,6 +518,11 @@ const updateGRN = async (id, updateData, userId) => {
         if (!grn) throw new Error('GRN not found');
         if (grn.status !== GrnStatus.DRAFT) throw new Error('Only DRAFT GRNs can be updated');
 
+        // Clean empty string object references to prevent CastError in MongoDB
+        if (updateData.purchaseOrderId === '') updateData.purchaseOrderId = null;
+        if (updateData.purchaseId === '') updateData.purchaseId = null;
+        if (updateData.jobWorkId === '') updateData.jobWorkId = null;
+
         // Re-compute tax if items changed and not GARMENT type
         if (updateData.items) {
             const grnType = updateData.grnType || grn.grnType;

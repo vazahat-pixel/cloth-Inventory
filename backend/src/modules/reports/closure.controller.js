@@ -23,23 +23,12 @@ const getClosurePreview = async (req, res, next) => {
         
         const openingCash = prevClosure ? prevClosure.physicalCash : 0;
 
-        // 2. Aggregate Sales by Payment Mode
-        const salesStats = await Sale.aggregate([
-            {
-                $match: {
-                    storeId: new mongoose.Types.ObjectId(storeId),
-                    saleDate: { $gte: targetDate, $lt: nextDay },
-                    status: 'COMPLETED'
-                }
-            },
-            {
-                $group: {
-                    _id: '$paymentMode',
-                    total: { $sum: '$amountPaid' },
-                    count: { $sum: 1 }
-                }
-            }
-        ]);
+        // 2. Aggregate Sales by Payment Mode (Including Split Payments)
+        const sales = await Sale.find({
+            storeId: new mongoose.Types.ObjectId(storeId),
+            saleDate: { $gte: targetDate, $lt: nextDay },
+            status: 'COMPLETED'
+        });
 
         const stats = {
             CASH: 0,
@@ -47,9 +36,26 @@ const getClosurePreview = async (req, res, next) => {
             UPI: 0,
             OTHER: 0
         };
-        salesStats.forEach(s => {
-            if (stats.hasOwnProperty(s._id)) stats[s._id] = s.total;
-            else stats.OTHER += s.total;
+
+        sales.forEach(sale => {
+            if (sale.paymentMode === 'SPLIT' && Array.isArray(sale.payments) && sale.payments.length > 0) {
+                sale.payments.forEach(p => {
+                    const m = String(p.mode || '').toUpperCase();
+                    if (stats.hasOwnProperty(m)) {
+                        stats[m] += Number(p.amount || 0);
+                    } else {
+                        stats.OTHER += Number(p.amount || 0);
+                    }
+                });
+            } else {
+                const m = String(sale.paymentMode || 'CASH').toUpperCase();
+                const amt = Number(sale.amountPaid || sale.grandTotal || 0);
+                if (stats.hasOwnProperty(m)) {
+                    stats[m] += amt;
+                } else {
+                    stats.OTHER += amt;
+                }
+            }
         });
 
         // 3. TODO: Subtract Expenses (If expense mode exists)
