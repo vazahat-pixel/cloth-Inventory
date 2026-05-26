@@ -300,6 +300,14 @@ function GRNFormPage({ mode = 'edit' }) {
     }, { received: 0, totalValue: 0, totalTax: 0, generalRate: 5 });
   }, [lines, taxRules]);
 
+  const summaryData = useMemo(() => {
+    const totalLines = lines.length;
+    const totalQty = totals.received;
+    const taxableValue = lines.reduce((acc, curr) => acc + (Number(curr.costPrice || 0) * Number(curr.receivedQty || 0)), 0);
+    const netPayable = totals.totalValue;
+    return { totalLines, totalQty, taxableValue, netPayable };
+  }, [lines, totals]);
+
   const updateLine = (idx, field, val) => {
     const newLines = [...lines];
     newLines[idx] = { ...newLines[idx], [field]: val };
@@ -485,6 +493,177 @@ function GRNFormPage({ mode = 'edit' }) {
       {errorMessage && <Alert severity="error" sx={{ mb: 2 }}>{errorMessage}</Alert>}
       {successMessage && <Alert severity="success" sx={{ mb: 2 }}>{successMessage}</Alert>}
 
+      {/* 4 Summary Cards Row */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper
+            sx={{
+              p: 2.5,
+              borderRadius: 4,
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05)',
+              bgcolor: 'white',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              height: '110px',
+              transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
+              }
+            }}
+          >
+            <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+              <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Total Lines
+              </Typography>
+              <Chip
+                label="Variants"
+                size="small"
+                sx={{
+                  bgcolor: '#eff6ff',
+                  color: '#2563eb',
+                  fontWeight: 700,
+                  fontSize: '0.75rem',
+                  borderRadius: '6px',
+                  height: '24px'
+                }}
+              />
+            </Stack>
+            <Typography variant="h4" sx={{ fontWeight: 800, color: '#1e293b', mt: 'auto' }}>
+              {summaryData.totalLines}
+            </Typography>
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper
+            sx={{
+              p: 2.5,
+              borderRadius: 4,
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05)',
+              bgcolor: 'white',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              height: '110px',
+              transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
+              }
+            }}
+          >
+            <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+              <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Total Quantity
+              </Typography>
+              <Chip
+                label="Items"
+                size="small"
+                sx={{
+                  bgcolor: '#e0f2fe',
+                  color: '#0284c7',
+                  fontWeight: 700,
+                  fontSize: '0.75rem',
+                  borderRadius: '6px',
+                  height: '24px'
+                }}
+              />
+            </Stack>
+            <Typography variant="h4" sx={{ fontWeight: 800, color: '#1e293b', mt: 'auto' }}>
+              {summaryData.totalQty}
+            </Typography>
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper
+            sx={{
+              p: 2.5,
+              borderRadius: 4,
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05)',
+              bgcolor: 'white',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              height: '110px',
+              transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
+              }
+            }}
+          >
+            <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+              <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Taxable Value
+              </Typography>
+              <Chip
+                label="Excl. Tax"
+                size="small"
+                sx={{
+                  bgcolor: '#fdf2f8',
+                  color: '#db2777',
+                  fontWeight: 700,
+                  fontSize: '0.75rem',
+                  borderRadius: '6px',
+                  height: '24px'
+                }}
+              />
+            </Stack>
+            <Typography variant="h4" sx={{ fontWeight: 800, color: '#db2777', mt: 'auto' }}>
+              ₹{summaryData.taxableValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </Typography>
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper
+            sx={{
+              p: 2.5,
+              borderRadius: 4,
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05)',
+              bgcolor: 'white',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              height: '110px',
+              transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
+              }
+            }}
+          >
+            <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+              <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Net Payable
+              </Typography>
+              <Chip
+                label="Incl. Tax"
+                size="small"
+                sx={{
+                  bgcolor: '#f0fdf4',
+                  color: '#16a34a',
+                  fontWeight: 700,
+                  fontSize: '0.75rem',
+                  borderRadius: '6px',
+                  height: '24px'
+                }}
+              />
+            </Stack>
+            <Typography variant="h4" sx={{ fontWeight: 800, color: '#16a34a', mt: 'auto' }}>
+              ₹{summaryData.netPayable.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </Typography>
+          </Paper>
+        </Grid>
+      </Grid>
+
       {!isLocked && (
         <Box sx={{ mb: 3 }}>
           <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>Select Receipt Type</Typography>
@@ -645,16 +824,16 @@ function GRNFormPage({ mode = 'edit' }) {
             <Box component="span" sx={{ width: 12, height: 12, bgcolor: '#3b82f6', borderRadius: '50%' }} />
             STEP 1: ADD FINISHED GARMENTS RECEIVED (SHIRTS/PANTS)
           </Typography>
-          <TableContainer component={Paper} sx={{ mb: 4, border: '1px solid #e2e8f0' }}>
-            <Table size="small">
-              <TableHead sx={{ bgcolor: '#f8fafc' }}>
+          <TableContainer component={Paper} sx={{ mb: 4, border: '1px solid #e2e8f0', maxHeight: '400px', overflowY: 'auto' }}>
+            <Table size="small" stickyHeader>
+              <TableHead>
                 <TableRow>
-                  <TableCell sx={{ fontWeight: 700 }}>ITEM / STYLE</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>SIZE</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700 }}>RECEIVED</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700 }}>MRP</TableCell>
-                  {!isLocked && <TableCell align="center" sx={{ fontWeight: 700 }}>ACTION</TableCell>}
+                  <TableCell sx={{ fontWeight: 700, bgcolor: '#f8fafc' }}>ITEM / STYLE</TableCell>
+                  <TableCell sx={{ fontWeight: 700, bgcolor: '#f8fafc' }}>SIZE</TableCell>
+                  <TableCell sx={{ fontWeight: 700, bgcolor: '#f8fafc' }}>SKU</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700, bgcolor: '#f8fafc' }}>RECEIVED</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700, bgcolor: '#f8fafc' }}>MRP</TableCell>
+                  {!isLocked && <TableCell align="center" sx={{ fontWeight: 700, bgcolor: '#f8fafc' }}>ACTION</TableCell>}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -700,15 +879,15 @@ function GRNFormPage({ mode = 'edit' }) {
                 <Box component="span" sx={{ width: 12, height: 12, bgcolor: '#ec4899', borderRadius: '50%' }} />
                 STEP 2: SETTLE MATERIAL CONSUMPTION (SETTLE FABRIC ACCOUNT)
               </Typography>
-              <TableContainer component={Paper} sx={{ borderRadius: 2, border: '1px solid #fce7f3' }}>
-                <Table size="small">
-                  <TableHead sx={{ bgcolor: '#fff1f2' }}>
+              <TableContainer component={Paper} sx={{ borderRadius: 2, border: '1px solid #fce7f3', maxHeight: '300px', overflowY: 'auto' }}>
+                <Table size="small" stickyHeader>
+                  <TableHead>
                     <TableRow>
-                      <TableCell sx={{ fontWeight: 700 }}>MATERIAL / FABRIC</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>AVAILABLE</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 700 }}>USED QTY</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 700 }}>WASTAGE</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 700 }}>PENDING</TableCell>
+                      <TableCell sx={{ fontWeight: 700, bgcolor: '#fff1f2' }}>MATERIAL / FABRIC</TableCell>
+                      <TableCell sx={{ fontWeight: 700, bgcolor: '#fff1f2' }}>AVAILABLE</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700, bgcolor: '#fff1f2' }}>USED QTY</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700, bgcolor: '#fff1f2' }}>WASTAGE</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700, bgcolor: '#fff1f2' }}>PENDING</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
