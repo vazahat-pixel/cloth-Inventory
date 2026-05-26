@@ -510,13 +510,78 @@ const getNextSuggestedNumber = async () => {
     return await generateGrnNumber();
 };
 
-// ─── Update GRN (Draft only) ──────────────────────────────────────────────────
+// ─── Update GRN (Draft or Approved with stock adjustment) ──────────────────────
 
 const updateGRN = async (id, updateData, userId) => {
     return await withTransaction(async (session) => {
         const grn = await GRN.findOne({ _id: id, isDeleted: false }).session(session);
         if (!grn) throw new Error('GRN not found');
-        if (grn.status !== GrnStatus.DRAFT) throw new Error('Only DRAFT GRNs can be updated');
+        
+        if (grn.status !== GrnStatus.DRAFT && grn.status !== GrnStatus.APPROVED) {
+            throw new Error(`GRN cannot be updated in ${grn.status} status`);
+        }
+
+        // 1. If GRN was already APPROVED, revert the stock movements and consumption details of the old state
+        if (grn.status === GrnStatus.APPROVED) {
+            console.log(`[GRN-UPDATE] Reverting old APPROVED GRN stock/consumption movements for GRN: ${grn.grnNumber}`);
+            const stockService = require('../../services/stock.service');
+
+            // Revert physical stock for each old item
+            for (const item of grn.items) {
+                await stockService.removeStock({
+                    itemId: item.itemId,
+                    barcode: item.sku,
+                    variantId: item.variantId || item.itemId,
+                    locationId: grn.warehouseId,
+                    locationType: 'WAREHOUSE',
+                    qty: item.receivedQty,
+                    type: 'GRN_REVERSAL',
+                    referenceId: grn._id,
+                    referenceType: 'GRN',
+                    performedBy: userId,
+                    session
+                });
+            }
+
+            // Revert Job Work fabric consumption if GARMENT type
+            if (grn.grnType === 'GARMENT' && grn.consumptionDetails && grn.consumptionDetails.length > 0) {
+                for (const detail of grn.consumptionDetails) {
+                    const totalConsumption = Number(detail.usedQty || 0) + Number(detail.wasteQty || 0);
+                    if (totalConsumption > 0 && detail.barcode && grn.warehouseId) {
+                        await stockService.addStock({
+                            itemId: detail.itemId,
+                            barcode: detail.barcode,
+                            variantId: detail.variantId || detail.itemId,
+                            locationId: grn.warehouseId,
+                            locationType: 'WAREHOUSE',
+                            qty: totalConsumption,
+                            type: 'MANUFACTURING_CONSUMPTION_REVERSAL',
+                            referenceId: grn._id,
+                            referenceType: 'GRN',
+                            performedBy: userId,
+                            session
+                        });
+                    }
+                }
+                // Delete old MaterialConsumption records linked to this GRN so they can be re-created
+                await MaterialConsumption.deleteMany({ grnId: grn._id }).session(session);
+            }
+
+            // Revert Purchase Order quantities if PO is linked
+            if (grn.purchaseOrderId) {
+                const PurchaseOrder = require('../../models/purchaseOrder.model');
+                const po = await PurchaseOrder.findById(grn.purchaseOrderId).session(session);
+                if (po) {
+                    for (const item of grn.items) {
+                        const poItem = po.items.find(i => i.variantId?.toString() === item.variantId?.toString());
+                        if (poItem) {
+                            poItem.receivedQty = Math.max(0, (poItem.receivedQty || 0) - item.receivedQty);
+                        }
+                    }
+                    await po.save({ session });
+                }
+            }
+        }
 
         // Clean empty string object references to prevent CastError in MongoDB
         if (updateData.purchaseOrderId === '') updateData.purchaseOrderId = null;
@@ -550,8 +615,72 @@ const updateGRN = async (id, updateData, userId) => {
             updateData.grandTotal = updateData.totalValue + updateData.totalTaxAmount;
         }
 
+        // 2. Save the updated details to the GRN document
         Object.assign(grn, updateData);
         await grn.save({ session });
+
+        // 3. If APPROVED, post the new stock levels, consumption details, and update PO fulfillment
+        if (grn.status === GrnStatus.APPROVED) {
+            console.log(`[GRN-UPDATE] Posting new APPROVED GRN stock/consumption movements for GRN: ${grn.grnNumber}`);
+            const stockService = require('../../services/stock.service');
+
+            // Post physical stock to warehouse
+            for (const item of grn.items) {
+                await stockService.addStock({
+                    itemId: item.itemId,
+                    barcode: item.sku,
+                    variantId: item.variantId || item.itemId,
+                    locationId: grn.warehouseId,
+                    locationType: 'WAREHOUSE',
+                    qty: item.receivedQty,
+                    type: 'GRN_RECEIPT',
+                    referenceId: grn._id,
+                    referenceType: 'GRN',
+                    performedBy: userId,
+                    session
+                });
+            }
+
+            // Post new Job Work consumption details if GARMENT type
+            if (grn.grnType === 'GARMENT' && grn.consumptionDetails && grn.consumptionDetails.length > 0) {
+                await settleConsumption({
+                    grnId: grn._id,
+                    supplierId: grn.supplierId,
+                    warehouseId: grn.warehouseId,
+                    userId,
+                    jobWorkId: grn.jobWorkId,
+                    consumptionDetails: grn.consumptionDetails,
+                }, session);
+            }
+
+            // Update Purchase Order fulfillment if linked
+            if (grn.purchaseOrderId) {
+                const PurchaseOrder = require('../../models/purchaseOrder.model');
+                const po = await PurchaseOrder.findById(grn.purchaseOrderId).session(session);
+                if (po) {
+                    for (const item of grn.items) {
+                        const poItem = po.items.find(i => i.variantId?.toString() === item.variantId?.toString());
+                        if (poItem) {
+                            poItem.receivedQty = (poItem.receivedQty || 0) + item.receivedQty;
+                        }
+                    }
+
+                    let isFullyFulfilled = true;
+                    let hasAnyReceiving = false;
+                    for (const poItem of po.items) {
+                        if ((poItem.receivedQty || 0) < poItem.qty) isFullyFulfilled = false;
+                        if ((poItem.receivedQty || 0) > 0) hasAnyReceiving = true;
+                    }
+
+                    const { PurchaseOrderStatus } = require('../../core/enums');
+                    if (isFullyFulfilled) po.status = PurchaseOrderStatus.COMPLETED;
+                    else if (hasAnyReceiving) po.status = PurchaseOrderStatus.PARTIALLY_RECEIVED;
+                    else po.status = PurchaseOrderStatus.APPROVED;
+                    await po.save({ session });
+                }
+            }
+        }
+
         return grn;
     });
 };

@@ -26,7 +26,10 @@ import {
   Typography,
   TableHead,
   ToggleButtonGroup,
-  ToggleButton
+  ToggleButton,
+  Accordion,
+  AccordionDetails,
+  AccordionSummary
 } from '@mui/material';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
@@ -34,6 +37,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import SearchIcon from '@mui/icons-material/Search';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import PageHeader from '../../components/erp/PageHeader';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchItems } from '../items/itemsSlice';
@@ -319,24 +323,42 @@ function GRNFormPage({ mode = 'edit' }) {
   };
 
   const addLineItem = (item, variant) => {
-    const newLine = {
-      id: `scan-${Date.now()}-${Math.random()}`,
-      itemId: item._id || item.id,
-      variantId: variant._id || variant.id,
-      itemName: item.itemName,
-      itemCode: item.itemCode,
-      size: variant.size,
-      color: item.shade || '',
-      sku: variant.sku || variant.barcode,
-      receivedQty: 1,
-      uom: item.uom || 'PCS',
-      costPrice: variant.mrp || 0,
-      taxPercent: item?.gstPercent || 0,
-      hsnCode: item?.hsnCode || '',
-      category: item?.categoryName || item?.type || '',
-      batchNumber: `B-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`
-    };
-    setLines(prev => [newLine, ...prev]);
+    const targetSku = variant.sku || variant.barcode;
+    const targetVariantId = variant._id || variant.id;
+
+    // Check if the item already exists in the list
+    const existingIndex = lines.findIndex(l => 
+      (l.variantId && l.variantId.toString() === targetVariantId?.toString()) ||
+      (l.sku && targetSku && l.sku.toLowerCase() === targetSku.toLowerCase())
+    );
+
+    if (existingIndex > -1) {
+      const updatedLines = [...lines];
+      updatedLines[existingIndex] = {
+        ...updatedLines[existingIndex],
+        receivedQty: Number(updatedLines[existingIndex].receivedQty || 0) + 1
+      };
+      setLines(updatedLines);
+    } else {
+      const newLine = {
+        id: `scan-${Date.now()}-${Math.random()}`,
+        itemId: item._id || item.id,
+        variantId: targetVariantId,
+        itemName: item.itemName,
+        itemCode: item.itemCode,
+        size: variant.size,
+        color: item.shade || '',
+        sku: targetSku,
+        receivedQty: 1,
+        uom: item.uom || 'PCS',
+        costPrice: variant.mrp || 0,
+        taxPercent: item?.gstPercent || 0,
+        hsnCode: item?.hsnCode || '',
+        category: item?.categoryName || item?.type || '',
+        batchNumber: `B-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`
+      };
+      setLines(prev => [newLine, ...prev]);
+    }
   };
 
   const addItemToLines = (item) => {
@@ -444,20 +466,24 @@ function GRNFormPage({ mode = 'edit' }) {
       let result;
       if (id) {
         result = await dispatch(updateGrn({ id, updateData: payload })).unwrap();
+        // Only approve if it was not already approved
+        if (existingGrn?.status !== 'APPROVED' && !isDraft) {
+          await dispatch(approveGrn(result._id || result.id)).unwrap();
+        }
       } else {
         result = await dispatch(addGrn(payload)).unwrap();
+        if (!isDraft) {
+          await dispatch(approveGrn(result._id || result.id)).unwrap();
+        }
       }
-      if (!isDraft) {
-        await dispatch(approveGrn(result._id || result.id)).unwrap();
-      }
-      setSuccessMessage(isDraft ? 'GRN saved as draft.' : 'GRN approved successfully.');
+      setSuccessMessage('GRN saved and warehouse stock updated successfully.');
       setTimeout(() => navigate('/ho/inventory/grn'), 1500);
     } catch (err) {
       setErrorMessage(err || 'Failed to save GRN');
     }
   };
 
-  const isLocked = isViewMode || (id && existingGrn?.status === 'APPROVED');
+  const isLocked = isViewMode;
   if (grnLoading && id) return <Box sx={{ p: 4, textAlign: 'center' }}><CircularProgress /></Box>;
 
   return (
@@ -476,10 +502,7 @@ function GRNFormPage({ mode = 'edit' }) {
             <Button key="bulk-upload" variant="contained" color="info" sx={{ bgcolor: '#0284c7' }} startIcon={<FileUploadIcon />} onClick={() => setIsBulkUploadOpen(true)}>Bulk Excel Upload</Button>
           ) : null,
           !isLocked ? (
-            <Button key="draft" variant="contained" color="primary" sx={{ bgcolor: '#2563eb' }} startIcon={<SaveOutlinedIcon />} onClick={() => handleSave(true)}>Save Draft</Button>
-          ) : null,
-          !isLocked ? (
-            <Button key="approve" variant="contained" color="success" sx={{ bgcolor: '#16a34a' }} startIcon={<CheckCircleOutlinedIcon />} onClick={() => setConfirmOpen(true)}>Approve & Post</Button>
+            <Button key="save-grn" variant="contained" color="success" sx={{ bgcolor: '#16a34a' }} startIcon={<CheckCircleOutlinedIcon />} onClick={() => handleSave(false)}>Save GRN</Button>
           ) : null
         ]}
       />
@@ -683,102 +706,140 @@ function GRNFormPage({ mode = 'edit' }) {
 
       <Grid container spacing={3}>
         <Grid item xs={12}>
-          <Paper sx={{ p: 4, borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-            <Grid container spacing={4}>
-              <Grid item xs={12} md={4}>
-                <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>Link Purchase Order</Typography>
-                <TextField
-                  select
-                  fullWidth
+          <Accordion
+            defaultExpanded={!id}
+            sx={{
+              border: '1px solid #e2e8f0',
+              borderRadius: '12px !important',
+              boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05)',
+              overflow: 'hidden',
+              '&:before': { display: 'none' }
+            }}
+          >
+            <AccordionSummary
+              expandIcon={<ExpandMoreIcon sx={{ color: '#2563eb' }} />}
+              sx={{
+                px: 4,
+                py: 0.5,
+                bgcolor: '#f8fafc',
+                borderBottom: '1px solid #e2e8f0',
+                '& .MuiAccordionSummary-content': { alignItems: 'center' }
+              }}
+            >
+              <Stack direction="row" spacing={1.5} alignItems="center">
+                <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#1e293b' }}>
+                  📝 GRN Header / Metadata Details
+                </Typography>
+                <Chip
+                  label={formValues.invoiceNumber || 'No Invoice Number'}
                   size="small"
-                  value={formValues.purchaseOrderId || ''}
-                  onChange={e => setFormValues({ ...formValues, purchaseOrderId: e.target.value })}
-                  disabled={!!id}
-                  SelectProps={{ displayEmpty: true }}
-                >
-                  <MenuItem value="">
-                    <Typography variant="body2" sx={{ color: '#64748b', fontStyle: 'italic' }}>Direct Receipt (No PO)</Typography>
-                  </MenuItem>
-                  {filteredPurchaseOrders.map(po => (
-                    <MenuItem key={po._id || po.id} value={po._id || po.id}>{po.poNumber}</MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>Supplier / Vendor</Typography>
-                <TextField
-                  select
-                  fullWidth
-                  size="small"
-                  value={formValues.supplierId || ''}
-                  onChange={e => setFormValues({ ...formValues, supplierId: e.target.value })}
-                  disabled={!!id || !!formValues.purchaseOrderId}
-                >
-                  {suppliers.map(s => (
-                    <MenuItem key={s._id || s.id} value={s._id || s.id}>{s.name || s.supplierName}</MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>Target Warehouse</Typography>
-                <TextField
-                  select
-                  fullWidth
-                  size="small"
-                  value={formValues.warehouseId || ''}
-                  onChange={e => setFormValues({ ...formValues, warehouseId: e.target.value })}
-                  disabled={isLocked || (warehouses.length === 1 && !id)}
-                >
-                  {warehouses.map(w => (
-                    <MenuItem key={w._id || w.id} value={w._id || w.id}>{w.name}</MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-              {formValues.grnType === 'GARMENT' && (
+                  sx={{
+                    bgcolor: '#eff6ff',
+                    color: '#2563eb',
+                    fontWeight: 700,
+                    fontSize: '0.75rem',
+                    borderRadius: '6px'
+                  }}
+                />
+              </Stack>
+            </AccordionSummary>
+            <AccordionDetails sx={{ p: 4, bgcolor: 'white' }}>
+              <Grid container spacing={4}>
                 <Grid item xs={12} md={4}>
-                  <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>Job Work Reference</Typography>
+                  <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>Link Purchase Order</Typography>
                   <TextField
                     select
                     fullWidth
                     size="small"
-                    value={formValues.jobWorkId || ''}
-                    onChange={e => setFormValues({ ...formValues, jobWorkId: e.target.value })}
-                    disabled={isLocked}
+                    value={formValues.purchaseOrderId || ''}
+                    onChange={e => setFormValues({ ...formValues, purchaseOrderId: e.target.value })}
+                    disabled={!!id}
                     SelectProps={{ displayEmpty: true }}
                   >
                     <MenuItem value="">
-                      <Typography variant="body2" sx={{ color: '#64748b', fontStyle: 'italic' }}>Direct (No Job Work)</Typography>
+                      <Typography variant="body2" sx={{ color: '#64748b', fontStyle: 'italic' }}>Direct Receipt (No PO)</Typography>
                     </MenuItem>
-                    {supplierOutwards.map(so => (
-                      <MenuItem key={so._id || so.id} value={so._id || so.id}>{so.outwardNumber}</MenuItem>
+                    {filteredPurchaseOrders.map(po => (
+                      <MenuItem key={po._id || po.id} value={po._id || po.id}>{po.poNumber}</MenuItem>
                     ))}
                   </TextField>
                 </Grid>
-              )}
-              <Grid item xs={12} md={formValues.grnType === 'GARMENT' ? 4 : 6}>
-                <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>Supplier Bill / Challan #</Typography>
-                <TextField
-                  fullWidth
-                  size="small"
-                  value={formValues.invoiceNumber}
-                  onChange={e => setFormValues({ ...formValues, invoiceNumber: e.target.value })}
-                  disabled={isLocked}
-                  placeholder="Enter invoice number"
-                />
+                <Grid item xs={12} md={4}>
+                  <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>Supplier / Vendor</Typography>
+                  <TextField
+                    select
+                    fullWidth
+                    size="small"
+                    value={formValues.supplierId || ''}
+                    onChange={e => setFormValues({ ...formValues, supplierId: e.target.value })}
+                    disabled={!!id || !!formValues.purchaseOrderId}
+                  >
+                    {suppliers.map(s => (
+                      <MenuItem key={s._id || s.id} value={s._id || s.id}>{s.name || s.supplierName}</MenuItem>
+                    ))}
+                  </TextField>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>Target Warehouse</Typography>
+                  <TextField
+                    select
+                    fullWidth
+                    size="small"
+                    value={formValues.warehouseId || ''}
+                    onChange={e => setFormValues({ ...formValues, warehouseId: e.target.value })}
+                    disabled={isLocked || (warehouses.length === 1 && !id)}
+                  >
+                    {warehouses.map(w => (
+                      <MenuItem key={w._id || w.id} value={w._id || w.id}>{w.name}</MenuItem>
+                    ))}
+                  </TextField>
+                </Grid>
+                {formValues.grnType === 'GARMENT' && (
+                  <Grid item xs={12} md={4}>
+                    <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>Job Work Reference</Typography>
+                    <TextField
+                      select
+                      fullWidth
+                      size="small"
+                      value={formValues.jobWorkId || ''}
+                      onChange={e => setFormValues({ ...formValues, jobWorkId: e.target.value })}
+                      disabled={isLocked}
+                      SelectProps={{ displayEmpty: true }}
+                    >
+                      <MenuItem value="">
+                        <Typography variant="body2" sx={{ color: '#64748b', fontStyle: 'italic' }}>Direct (No Job Work)</Typography>
+                      </MenuItem>
+                      {supplierOutwards.map(so => (
+                        <MenuItem key={so._id || so.id} value={so._id || so.id}>{so.outwardNumber}</MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                )}
+                <Grid item xs={12} md={formValues.grnType === 'GARMENT' ? 4 : 6}>
+                  <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>Supplier Bill / Challan #</Typography>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    value={formValues.invoiceNumber}
+                    onChange={e => setFormValues({ ...formValues, invoiceNumber: e.target.value })}
+                    disabled={isLocked}
+                    placeholder="Enter invoice number"
+                  />
+                </Grid>
+                <Grid item xs={12} md={formValues.grnType === 'GARMENT' ? 4 : 6}>
+                  <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>Receipt Date</Typography>
+                  <TextField
+                    fullWidth
+                    type="date"
+                    size="small"
+                    value={(formValues.invoiceDate || formValues.grnDate)?.slice(0, 10)}
+                    onChange={e => setFormValues({ ...formValues, invoiceDate: e.target.value, grnDate: e.target.value })}
+                    disabled={isLocked}
+                  />
+                </Grid>
               </Grid>
-              <Grid item xs={12} md={formValues.grnType === 'GARMENT' ? 4 : 6}>
-                <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>Receipt Date</Typography>
-                <TextField
-                  fullWidth
-                  type="date"
-                  size="small"
-                  value={(formValues.invoiceDate || formValues.grnDate)?.slice(0, 10)}
-                  onChange={e => setFormValues({ ...formValues, invoiceDate: e.target.value, grnDate: e.target.value })}
-                  disabled={isLocked}
-                />
-              </Grid>
-            </Grid>
-          </Paper>
+            </AccordionDetails>
+          </Accordion>
         </Grid>
 
         <Grid item xs={12}>

@@ -164,19 +164,19 @@ const GRNListPage = () => {
                           <VisibilityIcon sx={{ fontSize: 18 }} />
                         </IconButton>
                       </Tooltip>
+                      {(grn.status === 'DRAFT' || grn.status === 'APPROVED') && (
+                        <Tooltip title="Edit GRN">
+                          <IconButton size="small" color="primary" onClick={() => navigate(`/ho/inventory/grn/edit/${grn._id}`)}>
+                            <ReceiptLongIcon sx={{ fontSize: 18 }} />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                       {grn.status === 'DRAFT' && (
-                        <>
-                          <Tooltip title="Edit Draft">
-                            <IconButton size="small" color="primary" onClick={() => navigate(`/ho/inventory/grn/edit/${grn._id}`)}>
-                              <ReceiptLongIcon sx={{ fontSize: 18 }} />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Approve & Post Stock">
-                            <IconButton size="small" color="success" onClick={() => handleApprove(grn._id)}>
-                              <CheckCircleOutlineIcon sx={{ fontSize: 18 }} />
-                            </IconButton>
-                          </Tooltip>
-                        </>
+                        <Tooltip title="Approve & Post Stock">
+                          <IconButton size="small" color="success" onClick={() => handleApprove(grn._id)}>
+                            <CheckCircleOutlineIcon sx={{ fontSize: 18 }} />
+                          </IconButton>
+                        </Tooltip>
                       )}
 
                       {(grn.status === 'APPROVED' || grn.status === 'INVOICED') && (
