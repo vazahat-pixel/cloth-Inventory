@@ -11,8 +11,8 @@ const seed = async () => {
         console.log('Cleared existing tax rules');
 
         const defaultRules = [
-            { name: 'Apparel Low Slab', min: 0, max: 2499, gst: 5, type: 'SLAB' },
-            { name: 'Apparel High Slab', min: 2500, max: null, gst: 18, type: 'SLAB' },
+            { name: 'Apparel Low Slab', min: 0, max: 2249, gst: 5, type: 'SLAB' },
+            { name: 'Apparel High Slab', min: 2250, max: null, gst: 18, type: 'SLAB' },
             { name: 'Belt Flat', gst: 18, type: 'FLAT', hsnCode: '42033000' }
         ];
 

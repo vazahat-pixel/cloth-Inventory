@@ -27,6 +27,11 @@ import SearchIcon from '@mui/icons-material/Search';
 import InputAdornment from '@mui/material/InputAdornment';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchMasters, addMasterRecord, updateMasterRecord, deleteMasterRecord } from '../masters/mastersSlice';
+import {
+  buildGstRateOptionsFromTaxRules,
+  getGstRateLabel,
+  GST_SLAB_INFO_MESSAGE,
+} from '../../utils/gstRateOptions';
 import PageHeader from '../../components/erp/PageHeader';
 import FilterBar from '../../components/erp/FilterBar';
 import ExportButton from '../../components/erp/ExportButton';
@@ -55,6 +60,7 @@ const toExportRows = (rows) =>
 function HSNCodePage() {
   const dispatch = useDispatch();
   const hsnFromRedux = useSelector((state) => state.masters.hsnCodes);
+  const taxRules = useSelector((state) => state.masters.taxRules || []);
   const { loading } = useSelector((state) => state.masters);
 
   const rows = useMemo(() => {
@@ -71,12 +77,21 @@ function HSNCodePage() {
 
   useEffect(() => {
     dispatch(fetchMasters('hsnCodes'));
+    dispatch(fetchMasters('taxRules'));
   }, [dispatch]);
 
-  const gstOptions = useMemo(
-    () => Array.from(new Set(rows.map((row) => Number(row.gstRate)).filter((value) => !Number.isNaN(value)))),
-    [rows],
+  const gstRateOptions = useMemo(
+    () => buildGstRateOptionsFromTaxRules(taxRules),
+    [taxRules],
   );
+
+  const gstFilterOptions = useMemo(() => {
+    const fromRows = rows
+      .map((row) => Number(row.gstRate))
+      .filter((value) => !Number.isNaN(value));
+    const fromOptions = gstRateOptions.map((o) => o.value);
+    return Array.from(new Set([...fromOptions, ...fromRows])).sort((a, b) => a - b);
+  }, [rows, gstRateOptions]);
 
   const filteredRows = useMemo(() => {
     const query = searchText.trim().toLowerCase();
@@ -179,7 +194,7 @@ function HSNCodePage() {
     <Box>
       <PageHeader
         title="HSN Codes"
-        subtitle="Manage HSN code mapping, GST slabs, and export-ready tax master data for garment transactions."
+        subtitle="HSN codes for GST reporting. Garment GST % billing par MRP slab se calculate hoti hai (Tax Rules)."
         breadcrumbs={[
           { label: 'Setup' },
           { label: 'HSN Codes', active: true },
@@ -197,6 +212,11 @@ function HSNCodePage() {
           </Button>,
         ]}
       />
+
+      <Alert severity="info" sx={{ mb: 2 }}>
+        {GST_SLAB_INFO_MESSAGE}{' '}
+        {gstRateOptions.filter((o) => o.kind === 'slab').map((o) => o.label).join(' · ') || null}
+      </Alert>
 
       {errorMessage ? (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setErrorMessage('')}>
@@ -222,15 +242,15 @@ function HSNCodePage() {
         <TextField
           size="small"
           select
-          label="GST Slab"
+          label="GST Rate"
           value={gstFilter}
           onChange={(event) => setGstFilter(event.target.value)}
-          sx={{ minWidth: 180 }}
+          sx={{ minWidth: 280 }}
         >
           <MenuItem value="all">All GST Rates</MenuItem>
-          {gstOptions.map((option) => (
+          {gstFilterOptions.map((option) => (
             <MenuItem key={option} value={option}>
-              {option}%
+              {getGstRateLabel(option, taxRules)}
             </MenuItem>
           ))}
         </TextField>
@@ -255,7 +275,7 @@ function HSNCodePage() {
               <TableRow>
                 <TableCell sx={{ fontWeight: 700 }}>HSN Code</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Description</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>GST Rate</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>GST (Reference)</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Created At</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">Actions</TableCell>
@@ -268,7 +288,14 @@ function HSNCodePage() {
                     <Typography sx={{ fontWeight: 700, color: '#0f172a' }}>{row.hsnCode}</Typography>
                   </TableCell>
                   <TableCell>{row.description}</TableCell>
-                  <TableCell>{row.gstRate}%</TableCell>
+                  <TableCell>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {row.gstRate}%
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: '#64748b', display: 'block' }}>
+                      {getGstRateLabel(row.gstRate, taxRules)}
+                    </Typography>
+                  </TableCell>
                   <TableCell><StatusBadge value={row.status} /></TableCell>
                   <TableCell>{row.createdAt || '--'}</TableCell>
                   <TableCell align="right">
@@ -308,19 +335,28 @@ function HSNCodePage() {
                 helperText={formErrors.hsnCode || ' '}
               />
             </Grid>
+            <Grid size={12}>
+              <Alert severity="info" sx={{ py: 0.5 }}>
+                <Typography variant="caption">
+                  Garment: slab ke hisaab se bill par 5% ya 18% auto apply hoga. Neeche reference rate choose karein.
+                </Typography>
+              </Alert>
+            </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 size="small"
                 select
-                label="GST Rate *"
+                label="GST Reference Rate *"
                 value={formValues.gstRate}
                 onChange={(event) => setFormValues((previous) => ({ ...previous, gstRate: event.target.value }))}
                 error={Boolean(formErrors.gstRate)}
-                helperText={formErrors.gstRate || ' '}
+                helperText={formErrors.gstRate || 'Billing par MRP slab se final % calculate hogi'}
               >
-                {[0, 5, 12, 18, 28].map(rate => (
-                  <MenuItem key={rate} value={rate}>{rate}%</MenuItem>
+                {gstRateOptions.map((option) => (
+                  <MenuItem key={`${option.kind}-${option.value}`} value={option.value}>
+                    {option.label}
+                  </MenuItem>
                 ))}
               </TextField>
             </Grid>

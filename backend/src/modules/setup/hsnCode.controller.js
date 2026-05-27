@@ -1,12 +1,28 @@
 const HsnCode = require('../../models/hsnCode.model');
 const { sendSuccess, sendError } = require('../../utils/response.handler');
 
+const normalizeHsnPayload = (body) => {
+  const payload = { ...body };
+  if (payload.hsnCode != null && payload.hsnCode !== '') {
+    payload.code = String(payload.hsnCode).trim();
+  }
+  delete payload.hsnCode;
+  if (payload.gstRate !== undefined) {
+    payload.gstPercent = Number(payload.gstRate);
+  }
+  delete payload.gstRate;
+  if (payload.status !== undefined) {
+    payload.isActive = payload.status !== 'Inactive';
+    delete payload.status;
+  }
+  return payload;
+};
+
 class HsnCodeController {
   create = async (req, res) => {
     try {
-      const payload = { ...req.body };
-      if (payload.gstRate !== undefined) payload.gstPercent = payload.gstRate;
-      
+      const payload = normalizeHsnPayload(req.body);
+
       const hsn = new HsnCode(payload);
       await hsn.save();
       return sendSuccess(res, { data: hsn }, 'HS Code created successfully');
@@ -26,8 +42,7 @@ class HsnCodeController {
 
   update = async (req, res) => {
     try {
-      const payload = { ...req.body };
-      if (payload.gstRate !== undefined) payload.gstPercent = payload.gstRate;
+      const payload = normalizeHsnPayload(req.body);
 
       const hsn = await HsnCode.findByIdAndUpdate(req.params.id, payload, { new: true });
       return sendSuccess(res, { data: hsn }, 'HS Code updated successfully');

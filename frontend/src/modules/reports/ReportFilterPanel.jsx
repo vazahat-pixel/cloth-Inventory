@@ -3,8 +3,10 @@ import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
   Button,
+  Checkbox,
   Collapse,
   Grid,
+  ListItemText,
   MenuItem,
   Stack,
   TextField,
@@ -27,6 +29,7 @@ function ReportFilterPanel({
   showPaymentStatus = false,
   showReportType = false,
   showAttendanceStatus = false,
+  multiSelectWarehouse = false,
   compact = false,
 }) {
   const [expanded, setExpanded] = useState(!compact);
@@ -71,7 +74,10 @@ function ReportFilterPanel({
   }, [itemGroups, isStoreStaff]);
 
   useEffect(() => {
-    if (showWarehouse) dispatch(fetchMasters('warehouses'));
+    if (showWarehouse) {
+      dispatch(fetchMasters('warehouses'));
+      dispatch(fetchMasters('stores'));
+    }
     if (showBrand) dispatch(fetchMasters('brands'));
     if (showCategory) dispatch(fetchMasters('itemGroups'));
     if (showCustomer) dispatch(fetchMasters('customers'));
@@ -89,6 +95,7 @@ function ReportFilterPanel({
       (f.dateFrom && f.dateFrom !== '') ||
       (f.dateTo && f.dateTo !== '') ||
       (f.warehouseId && f.warehouseId !== 'all') ||
+      (Array.isArray(f.warehouseIds) && f.warehouseIds.length > 0) ||
       (f.brandId && f.brandId !== 'all') ||
       (f.categoryId && f.categoryId !== 'all') ||
       (f.customerId && f.customerId !== 'all') ||
@@ -106,7 +113,10 @@ function ReportFilterPanel({
       cleared.dateFrom = '';
       cleared.dateTo = '';
     }
-    if (showWarehouse) cleared.warehouseId = 'all';
+    if (showWarehouse) {
+      cleared.warehouseId = 'all';
+      cleared.warehouseIds = [];
+    }
     if (showBrand) cleared.brandId = 'all';
     if (showCategory) cleared.categoryId = 'all';
     if (showCustomer) cleared.customerId = 'all';
@@ -148,7 +158,42 @@ function ReportFilterPanel({
           </Grid>
         </>
       )}
-      {showWarehouse && !isStoreStaff && (
+      {showWarehouse && !isStoreStaff && multiSelectWarehouse && (
+        <Grid item xs={12} sm={8} md={6}>
+          <TextField
+            fullWidth
+            size="small"
+            select
+            label="Locations (select multiple)"
+            value={filters?.warehouseIds || []}
+            onChange={(e) => {
+              const value = typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value;
+              update('warehouseIds', value);
+              update('warehouseId', value.length ? value[0] : 'all');
+            }}
+            SelectProps={{
+              multiple: true,
+              renderValue: (selected) => {
+                if (!selected.length) return 'All locations';
+                if (selected.length === 1) {
+                  const loc = availableLocations.find((l) => l.id === selected[0]);
+                  return loc?.name || '1 location';
+                }
+                return `${selected.length} locations selected`;
+              },
+            }}
+            helperText={!(filters?.warehouseIds || []).length ? 'Empty = all locations' : ''}
+          >
+            {availableLocations.map((w) => (
+              <MenuItem key={w.id} value={w.id}>
+                <Checkbox size="small" checked={(filters?.warehouseIds || []).includes(w.id)} />
+                <ListItemText primary={w.name} />
+              </MenuItem>
+            ))}
+          </TextField>
+        </Grid>
+      )}
+      {showWarehouse && !isStoreStaff && !multiSelectWarehouse && (
         <Grid item xs={12} sm={6} md={3}>
           <TextField
             fullWidth

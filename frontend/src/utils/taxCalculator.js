@@ -10,10 +10,10 @@ export const calculateGST = (taxableValue, hsnCode, category, taxRules = []) => 
     if (!taxRules || taxRules.length === 0) {
         // Fallback if rules are not loaded
         return {
-            rate: taxableValue > 2499 ? 18 : 5,
+            rate: taxableValue > 2249 ? 18 : 5,
             ruleName: 'Hardcoded Fallback',
             type: 'FALLBACK',
-            message: `${taxableValue > 2499 ? 18 : 5}% GST Applied (Default Slab)`
+            message: `${taxableValue > 2249 ? 18 : 5}% GST Applied (Default Slab)`
         };
     }
 
@@ -51,7 +51,7 @@ export const calculateGST = (taxableValue, hsnCode, category, taxRules = []) => 
     }
     
     // Default fallback if no rule matches
-    const fallbackRate = taxableValue > 2499 ? 18 : 5;
+    const fallbackRate = taxableValue > 2249 ? 18 : 5;
     return {
         rate: fallbackRate,
         ruleName: 'Default',

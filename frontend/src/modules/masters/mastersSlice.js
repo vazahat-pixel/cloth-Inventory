@@ -173,7 +173,7 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
       };
     } else if (entityKey === 'hsnCodes') {
       payload = {
-        code: record.hsnCode,
+        hsnCode: record.hsnCode,
         description: record.description,
         gstRate: record.gstRate,
         status: record.status,
@@ -294,7 +294,7 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
       };
     } else if (entityKey === 'hsnCodes') {
       payload = {
-        code: updates.hsnCode,
+        hsnCode: updates.hsnCode,
         description: updates.description,
         gstRate: updates.gstRate,
         status: updates.status,

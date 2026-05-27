@@ -560,6 +560,9 @@ const confirmDispatch = async (id, userId) => {
             await dispatch.save({ session });
         }
 
+        const hadBillingBefore = !!(dispatch.referenceId && dispatch.referenceType);
+        let billingCreatedInThisRun = false;
+
         const source = await Warehouse.findById(dispatch.sourceWarehouseId).session(session)
             || await Store.findById(dispatch.sourceWarehouseId).session(session);
         const destination = await Store.findById(dispatch.destinationStoreId).session(session);
@@ -571,7 +574,8 @@ const confirmDispatch = async (id, userId) => {
         const destGst = (destination.gstNumber || '').trim().toUpperCase();
         const isSameEntity = sourceGst !== '' && sourceGst === destGst;
 
-        if (!dispatch.referenceId || !dispatch.referenceType) {
+        if (!hadBillingBefore) {
+            billingCreatedInThisRun = true;
             const detailedItems = [];
             let totalSubTotal = 0;
             let totalTaxAmount = 0;
@@ -681,7 +685,8 @@ const confirmDispatch = async (id, userId) => {
             }
         }
 
-        // Process each item: deduct from warehouse, add to store in-transit
+        // Process each item: move stock to destination in-transit.
+        // Billing doc creation (Sale / DeliveryChallan) already deducted warehouse stock in this transaction.
         for (const item of dispatch.items) {
             // Fallback for legacy dispatches missing itemId/barcode
             let itmId = item.itemId;
@@ -697,23 +702,23 @@ const confirmDispatch = async (id, userId) => {
                 }
             }
 
-            // A. Deduct physical stock from source warehouse
-            await stockService.removeStock({
-                itemId: itmId,
-                barcode: bcode,
-                variantId: item.variantId,
-                locationId: dispatch.sourceWarehouseId,
-                locationType: 'WAREHOUSE',
-                qty: item.qty,
-                type: 'TRANSFER',
-                referenceId: dispatch._id,
-                referenceType: 'Dispatch',
-                performedBy: userId,
-                session
-            });
+            if (!billingCreatedInThisRun) {
+                await stockService.removeStock({
+                    itemId: itmId,
+                    barcode: bcode,
+                    variantId: item.variantId,
+                    locationId: dispatch.sourceWarehouseId,
+                    locationType: 'WAREHOUSE',
+                    qty: item.qty,
+                    type: 'TRANSFER',
+                    referenceId: dispatch._id,
+                    referenceType: 'Dispatch',
+                    performedBy: userId,
+                    session
+                });
+            }
 
-
-            // B. Add to in-transit pool at destination store
+            // Add to in-transit pool at destination store
             await stockService.addInTransit({
                 itemId: itmId,
                 barcode: bcode,
@@ -970,22 +975,8 @@ const combineAndConfirmDispatch = async ({ dispatchIds, notes, date, vehicleNumb
             await disp.save({ session });
         }));
 
-        // 8. Deduct physical stock from source warehouse for each unique variant in parallel
-        await Promise.all(mergedItems.map(async (item) => {
-            await stockService.removeStock({
-                itemId: item.itemId,
-                barcode: item.barcode,
-                variantId: item.variantId,
-                locationId: sourceWarehouseId,
-                locationType: 'WAREHOUSE',
-                qty: item.qty,
-                type: 'TRANSFER',
-                referenceId: combinedDispatch._id,
-                referenceType: 'Dispatch',
-                performedBy: userId,
-                session
-            });
-        }));
+        // 8. Billing document (Sale / DeliveryChallan) already deducted warehouse stock above.
+        // Only move merged quantities to destination in-transit here.
 
         // 9. Add all merged items to the in-transit pool at destination store in parallel
         await Promise.all(detailedItems.map(async (item) => {

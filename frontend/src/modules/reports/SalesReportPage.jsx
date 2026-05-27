@@ -21,6 +21,17 @@ import SearchIcon from '@mui/icons-material/Search';
 import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
 import { fetchSales } from '../sales/salesSlice';
+import { fetchItems } from '../items/itemsSlice';
+import { fetchStockOverview } from '../inventory/inventorySlice';
+import { fetchMasters } from '../masters/mastersSlice';
+import {
+  buildVariantItemMap,
+  buildClosingStockMap,
+  enrichSaleDetailRow,
+  matchesLocationFilter,
+  SALE_REGISTER_EXPORT_HEADERS,
+  toSaleRegisterExportRow,
+} from './saleReportUtils';
 
 const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
@@ -29,6 +40,8 @@ function SalesReportPage() {
   const sales = useSelector((state) => state.sales?.records || []);
   const salesReturns = useSelector((state) => state.sales?.returns || []);
   const warehouses = useSelector((state) => state.masters?.warehouses || []);
+  const stores = useSelector((state) => state.masters?.stores || []);
+  const stock = useSelector((state) => state.inventory?.stock || []);
   const itemGroups = useSelector((state) => state.masters?.itemGroups || []);
   const items = useSelector((state) => state.items?.records || []);
 
@@ -37,14 +50,31 @@ function SalesReportPage() {
 
   useEffect(() => {
     dispatch(fetchSales());
+    dispatch(fetchItems({ limit: 100000 }));
+    dispatch(fetchStockOverview());
+    dispatch(fetchMasters('stores'));
     if (isStoreStaff && user?.shopId) {
-       setFilters(prev => ({ ...prev, warehouseId: user.shopId }));
+      setFilters((prev) => ({
+        ...prev,
+        warehouseId: user.shopId,
+        warehouseIds: [user.shopId],
+      }));
     }
   }, [dispatch, isStoreStaff, user?.shopId]);
-  const warehouseMap = useMemo(
-    () => warehouses.reduce((acc, w) => ({ ...acc, [w.id]: w.name }), {}),
-    [warehouses],
+
+  const locationMap = useMemo(() => {
+    const map = {};
+    warehouses.forEach((w) => { map[w.id] = w.name; });
+    stores.forEach((s) => { map[s.id || s._id] = s.name; });
+    return map;
+  }, [warehouses, stores]);
+
+  const variantItemMap = useMemo(
+    () => buildVariantItemMap(items, itemGroups),
+    [items, itemGroups],
   );
+
+  const closingStockMap = useMemo(() => buildClosingStockMap(stock), [stock]);
 
   const itemGroupMap = useMemo(() => {
     const map = {};
@@ -77,8 +107,10 @@ function SalesReportPage() {
     return sales.filter((sale) => {
       const matchesDateFrom = !filters.dateFrom || sale.date >= filters.dateFrom;
       const matchesDateTo = !filters.dateTo || sale.date <= filters.dateTo;
-      const matchesWarehouse =
-        !filters.warehouseId || filters.warehouseId === 'all' || sale.warehouseId === filters.warehouseId;
+      const selectedLocations = filters.warehouseIds || [];
+      const matchesWarehouse = selectedLocations.length
+        ? matchesLocationFilter(sale, selectedLocations)
+        : (!filters.warehouseId || filters.warehouseId === 'all' || sale.warehouseId === filters.warehouseId);
       const matchesCustomer =
         !filters.customerId || filters.customerId === 'all' || sale.customerId === filters.customerId;
       const matchesPayment =
@@ -112,7 +144,7 @@ function SalesReportPage() {
   const groupedAndSortedRows = useMemo(() => {
     const salesByStore = {};
     filteredRows.forEach((sale) => {
-      const storeName = warehouseMap[sale.warehouseId || sale.storeId] || 'Main Office';
+      const storeName = locationMap[sale.warehouseId || sale.storeId] || 'Main Office';
       if (!salesByStore[storeName]) {
         salesByStore[storeName] = [];
       }
@@ -138,7 +170,7 @@ function SalesReportPage() {
       });
     });
     return result;
-  }, [filteredRows, warehouseMap]);
+  }, [filteredRows, locationMap]);
 
   const paginatedRows = useMemo(
     () => groupedAndSortedRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
@@ -184,6 +216,8 @@ function SalesReportPage() {
           size: line.size,
           color: line.color,
           sku: line.sku,
+          variantId: line.variantId,
+          mrp: toNum(line.mrp),
           lot: line.lotNumber || '-',
           quantity: toNum(line.quantity),
           rate: toNum(line.rate),
@@ -211,6 +245,8 @@ function SalesReportPage() {
           size: line.size,
           color: line.color,
           sku: line.sku,
+          variantId: line.variantId,
+          mrp: toNum(line.mrp),
           lot: line.lotNumber || '-',
           quantity: -qty,
           rate: toNum(line.rate),
@@ -227,7 +263,7 @@ function SalesReportPage() {
   const groupedAndSortedDetailRows = useMemo(() => {
     const detailsByStore = {};
     detailRows.forEach((row) => {
-      const storeName = warehouseMap[row.warehouseId] || 'Main Office';
+      const storeName = locationMap[row.warehouseId] || 'Main Office';
       if (!detailsByStore[storeName]) {
         detailsByStore[storeName] = [];
       }
@@ -253,7 +289,19 @@ function SalesReportPage() {
       });
     });
     return result;
-  }, [detailRows, warehouseMap]);
+  }, [detailRows, locationMap]);
+
+  const enrichedDetailRows = useMemo(
+    () =>
+      groupedAndSortedDetailRows.map((row) =>
+        enrichSaleDetailRow(row, {
+          variantMap: variantItemMap,
+          closingStockMap,
+          locationMap,
+        }),
+      ),
+    [groupedAndSortedDetailRows, variantItemMap, closingStockMap, locationMap],
+  );
 
   const paginatedDetailRows = useMemo(
     () => groupedAndSortedDetailRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
@@ -326,7 +374,7 @@ function SalesReportPage() {
         return {
           Invoice: row.invoiceNumber,
           Date: row.date,
-          Branch: warehouseMap[row.warehouseId || row.storeId] || 'Main Office',
+          Branch: locationMap[row.warehouseId || row.storeId] || 'Main Office',
           Customer: row.customerName || 'Walk-in',
           Items: row.items?.length || 0,
           Qty: toNum(t.totalQuantity),
@@ -337,27 +385,12 @@ function SalesReportPage() {
           Payment: row.payment?.mode || '-',
         };
       }),
-    [groupedAndSortedRows, warehouseMap],
+    [groupedAndSortedRows, locationMap],
   );
 
   const exportDetailRows = useMemo(
-    () =>
-      groupedAndSortedDetailRows.map((r) => ({
-        Date: r.date,
-        Invoice: r.invoiceNumber,
-        Customer: r.customerName,
-        Item: r.itemName,
-        Size: r.size,
-        Color: r.color,
-        SKU: r.sku,
-        Lot: r.lot,
-        Qty: r.quantity,
-        Rate: r.rate,
-        Discount: r.discount,
-        Amount: r.amount,
-        'Return': r.isReturn ? 'Yes' : '',
-      })),
-    [groupedAndSortedDetailRows],
+    () => enrichedDetailRows.map(toSaleRegisterExportRow),
+    [enrichedDetailRows],
   );
 
   return (
@@ -377,6 +410,7 @@ function SalesReportPage() {
           onFiltersChange={setFilters}
           showDateRange
           showWarehouse
+          multiSelectWarehouse={!isStoreStaff}
           showCustomer
           showSalesman
           showPaymentStatus
@@ -467,8 +501,8 @@ function SalesReportPage() {
             />
           ) : (
             <ReportExportButton
-              headers={['Date', 'Invoice', 'Customer', 'Item', 'Size', 'Color', 'SKU', 'Lot', 'Qty', 'Rate', 'Discount', 'Amount', 'Return']}
-              headerKeys={['Date', 'Invoice', 'Customer', 'Item', 'Size', 'Color', 'SKU', 'Lot', 'Qty', 'Rate', 'Discount', 'Amount', 'Return']}
+              headers={SALE_REGISTER_EXPORT_HEADERS}
+              headerKeys={SALE_REGISTER_EXPORT_HEADERS}
               rows={exportDetailRows}
               filename="sale-register-detail.csv"
             />
@@ -566,7 +600,7 @@ function SalesReportPage() {
                         <TableRow key={row.id || row._id} hover>
                           <TableCell sx={{ fontWeight: 600 }}>{row.invoiceNumber}</TableCell>
                           <TableCell>{row.date}</TableCell>
-                          <TableCell>{warehouseMap[row.warehouseId || row.storeId] || 'Main Office'}</TableCell>
+                          <TableCell>{locationMap[row.warehouseId || row.storeId] || 'Main Office'}</TableCell>
                           <TableCell>{row.customerName || 'Walk-in'}</TableCell>
                           <TableCell>{row.items?.length || 0}</TableCell>
                           <TableCell align="right">{toNum(t.totalQuantity)}</TableCell>
