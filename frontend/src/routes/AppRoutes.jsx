@@ -71,6 +71,7 @@ const HoMasterDashboard = lazy(() => import('../modules/reports/HoMasterDashboar
 const InTransitMonitorPage = lazy(() => import('../modules/reports/InTransitMonitorPage'));
 
 // Missing Report Pages
+const BranchSalesStockReportPage = lazy(() => import('../modules/reports/BranchSalesStockReportPage'));
 const LedgerReportPage = lazy(() => import('../modules/reports/LedgerReportPage'));
 const BankBookPage = lazy(() => import('../modules/reports/BankBookPage'));
 const CustomerReportPage = lazy(() => import('../modules/reports/CustomerReportPage'));
@@ -331,6 +332,7 @@ function AppRoutes() {
               <Route path="sales" element={<SalesReportPage />} />
               <Route path="purchase" element={<PurchaseReportPage />} />
               <Route path="stock" element={<StockReportPage />} />
+              <Route path="branch-sales-stock" element={<BranchSalesStockReportPage />} />
               <Route path="ledger" element={<LedgerReportPage />} />
               <Route path="bank-book" element={<BankBookPage />} />
               <Route path="collection" element={<CollectionReportPage />} />

@@ -394,6 +394,18 @@ const getConsolidatedStock = async (req, res, next) => {
     }
 };
 
+const getBranchSalesStock = async (req, res, next) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const storeId = req.user.role === 'store_staff' ? req.user.shopId : req.query.storeId;
+        console.log('[getBranchSalesStock] role:', req.user.role, '| storeId:', storeId, '| query:', req.query);
+        const report = await reportService.getBranchSalesStockReport(startDate, endDate, storeId);
+        return sendSuccess(res, { report }, 'Branch Sales & Stock report retrieved successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
 module.exports = {
     getDailySales,
     getMonthlySales,
@@ -427,5 +439,6 @@ module.exports = {
     getAgentWiseReport,
     getConsolidatedStock,
     getInTransitReport,
-    getDetailedGstReport
+    getDetailedGstReport,
+    getBranchSalesStock
 };

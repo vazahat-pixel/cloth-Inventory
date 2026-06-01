@@ -48,6 +48,12 @@ export const reportsQueriesNavItems = [
     icon: InventoryIcon,
   },
   {
+    key: 'branch-sales-stock',
+    label: 'Branch Sales & Stock',
+    path: '/reports/branch-sales-stock',
+    icon: WarehouseOutlinedIcon,
+  },
+  {
     key: 'ledger',
     label: 'Ledger',
     path: '/reports/ledger',

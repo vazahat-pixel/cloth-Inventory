@@ -1250,6 +1250,164 @@ const getAgentWiseReport = async (startDate, endDate) => {
     ]);
 };
 
+/**
+ * Custom Consolidated Branch Sales & Stock Report
+ */
+const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
+    console.log('[BranchSalesStockReport] Params:', { startDate, endDate, storeId });
+
+    const storeQuery = {};
+    if (storeId && storeId !== 'all') {
+        try {
+            storeQuery.storeId = new mongoose.Types.ObjectId(storeId);
+        } catch (e) {
+            console.error('[BranchSalesStockReport] Invalid storeId:', storeId);
+            storeQuery.storeId = storeId;
+        }
+    }
+
+    console.log('[BranchSalesStockReport] storeQuery:', storeQuery);
+
+    const storeInventory = await StoreInventory.find(storeQuery)
+        .populate('storeId', 'name')
+        .populate({
+            path: 'itemId',
+            populate: [
+                { path: 'brand', select: 'name brandName' },
+                { path: 'categoryId', select: 'name' },
+                { path: 'subCategoryId', select: 'name' }
+            ]
+        })
+        .lean();
+
+    console.log('[BranchSalesStockReport] StoreInventory records found:', storeInventory.length);
+
+    // 1. Fetch Sales and calculate salesMap
+    const salesQuery = { isDeleted: false, status: 'COMPLETED' };
+    if (storeId && storeId !== 'all') {
+        salesQuery.storeId = storeId;
+    }
+    if (startDate || endDate) {
+        salesQuery.saleDate = {};
+        if (startDate) salesQuery.saleDate.$gte = new Date(startDate);
+        if (endDate) salesQuery.saleDate.$lte = new Date(endDate);
+    }
+    const sales = await Sale.find(salesQuery).lean();
+    const salesMap = {};
+    sales.forEach(s => {
+        s.items.forEach(item => {
+            const key = `${s.storeId}_${item.itemId}_${item.barcode}`;
+            salesMap[key] = (salesMap[key] || 0) + item.quantity;
+        });
+    });
+
+    // 2. Fetch Customer Returns and calculate retMap
+    const Return = mongoose.models.Return || require('../../models/return.model');
+    const retQuery = { status: 'APPROVED' };
+    if (storeId && storeId !== 'all') {
+        retQuery.locationId = storeId;
+    }
+    if (startDate || endDate) {
+        retQuery.createdAt = {};
+        if (startDate) retQuery.createdAt.$gte = new Date(startDate);
+        if (endDate) retQuery.createdAt.$lte = new Date(endDate);
+    }
+    const customerReturns = await Return.find(retQuery).lean();
+    const retMap = {};
+    customerReturns.forEach(ret => {
+        ret.items.forEach(item => {
+            const key = `${ret.locationId}_${item.variantId}`;
+            retMap[key] = (retMap[key] || 0) + item.quantity;
+        });
+    });
+
+    // 3. Fetch Purchase Returns and calculate prMap
+    const PurchaseReturn = mongoose.models.PurchaseReturn || require('../../models/purchaseReturn.model');
+    const prQuery = { status: 'COMPLETED' };
+    if (storeId && storeId !== 'all') {
+        prQuery.locationId = storeId;
+    }
+    if (startDate || endDate) {
+        prQuery.createdAt = {};
+        if (startDate) prQuery.createdAt.$gte = new Date(startDate);
+        if (endDate) prQuery.createdAt.$lte = new Date(endDate);
+    }
+    const purchaseReturns = await PurchaseReturn.find(prQuery).lean();
+    const prMap = {};
+    purchaseReturns.forEach(pr => {
+        pr.items.forEach(item => {
+            const key = `${pr.locationId}_${item.productId}_${item.variantId}`;
+            prMap[key] = (prMap[key] || 0) + item.quantity;
+        });
+    });
+
+    // 4. Construct rows with exactly 16 columns matching requested spec with 'NIL' fallbacks
+    const rows = storeInventory.map((inv, index) => {
+        if (!inv.itemId) return null;
+
+        const branchName = inv.storeId?.name || 'NIL';
+        const itemName = inv.itemId.itemName || 'NIL';
+        const itemCode = inv.itemId.itemCode || 'NIL';
+
+        // Retrieve variant info from itemId.sizes array
+        const variant = inv.itemId.sizes?.find(s => s._id.toString() === inv.variantId || s.barcode === inv.barcode || s.sku === inv.barcode);
+        const shadeName = variant?.color || inv.itemId.shadeNo || inv.itemId.color || 'NIL';
+        const description = inv.itemId.description || 'NIL';
+        const packSize = variant?.size || inv.itemId.accessorySize || inv.itemId.packingType || 'NIL';
+        const subSection = inv.itemId.subCategoryId?.name || 'NIL';
+        const type = inv.itemId.type || 'NIL';
+        const design = inv.itemId.pattern || 'NIL';
+        const fabric = inv.itemId.fabric || 'NIL';
+        const fabricType = inv.itemId.composition || 'NIL';
+        const vendor = inv.itemId.brand?.brandName || inv.itemId.brand?.name || 'NIL';
+
+        // Net Sale
+        const salesKey = `${inv.storeId?._id}_${inv.itemId?._id}_${inv.barcode}`;
+        const qtySold = salesMap[salesKey] || 0;
+        const custReturnsKey1 = `${inv.storeId?._id}_${inv.variantId}`;
+        const custReturnsKey2 = `${inv.storeId?._id}_${inv.barcode}`;
+        const custReturns = (retMap[custReturnsKey1] || 0) + (retMap[custReturnsKey2] || 0);
+        const netSale = qtySold - custReturns;
+
+        // Purchase Return
+        const prKey1 = `${inv.storeId?._id}_${inv.itemId?._id}_${inv.variantId}`;
+        const prKey2 = `${inv.storeId?._id}_${inv.itemId?._id}_${inv.barcode}`;
+        const prQty = (prMap[prKey1] || 0) + (prMap[prKey2] || 0);
+
+        // Closing Stock
+        const closingStock = (typeof inv.quantityAvailable === 'number') ? inv.quantityAvailable : (inv.quantity || 0);
+
+        // Helper to format values as 'NIL' if falsy/empty/N/A
+        const formatVal = (val) => {
+            if (val === null || val === undefined || val === '' || val === '""' || String(val).trim().toUpperCase() === 'N/A' || String(val).trim().toUpperCase() === 'NIL') {
+                return 'NIL';
+            }
+            return val;
+        };
+
+        return {
+            sno: index + 1,
+            branchName: formatVal(branchName),
+            itemName: formatVal(itemName),
+            itemCode: formatVal(itemCode),
+            shadeName: formatVal(shadeName),
+            itemDescription: formatVal(description),
+            packSize: formatVal(packSize),
+            subSection: formatVal(subSection),
+            type: formatVal(type),
+            design: formatVal(design),
+            fabric: formatVal(fabric),
+            fabricType: formatVal(fabricType),
+            vendor: formatVal(vendor),
+            netSale: netSale || 0,
+            purReturn: prQty || 0,
+            closingStock: closingStock || 0
+        };
+    }).filter(Boolean);
+
+    return rows;
+};
+
 module.exports = {
     getDailySalesReport,
     getMonthlySalesReport,
@@ -1277,5 +1435,6 @@ module.exports = {
     getOrderReport,
     getAgentWiseReport,
     getInTransitReport,
-    getDetailedGstReport
+    getDetailedGstReport,
+    getBranchSalesStockReport
 };

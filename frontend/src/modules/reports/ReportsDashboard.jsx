@@ -139,6 +139,14 @@ const ALL_REPORT_CARDS = [
     roles: ['admin'],
     aliases: ['z-report', 'day end', 'cash audit', 'closure']
   },
+  {
+    title: 'Branch Sales & Stock Report',
+    description: 'Consolidated report showing exact Sales, Returns, and Stock metrics by variant.',
+    path: '/reports/branch-sales-stock',
+    icon: Inventory2Icon,
+    roles: ['admin', 'store_staff'],
+    aliases: ['branch sales', 'variant stock', 'consolidated branch sales']
+  },
 ];
 
 const DAILY_REPORTS = [
