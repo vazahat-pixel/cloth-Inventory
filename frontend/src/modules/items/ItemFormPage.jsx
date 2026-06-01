@@ -3,6 +3,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useParams } from 'react-router-dom';
 import {
   Alert,
+  Autocomplete,
+  createFilterOptions,
   Box,
   Button,
   Grid,
@@ -28,6 +30,8 @@ import VariantTable from './VariantTable';
 import { addItem, updateItem } from './itemsSlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import api from '../../services/api';
+
+const filter = createFilterOptions();
 
 const createVariantId = () => `var-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -88,6 +92,19 @@ function ItemFormPage({ mode = 'edit' }) {
   const [uploadingImage, setUploadingImage] = useState(null);
   const [materialRate, setMaterialRate] = useState({ purchaseRate: 0, saleRate: 0, openingStock: 0 });
 
+  const [uniqueAttributes, setUniqueAttributes] = useState({
+    fabrics: ['Cotton', 'Linen', 'Denim', 'Polyester', 'Silk', 'Viscose', 'Wool', 'Lycra'],
+    colors: ['Black', 'White', 'Navy Blue', 'Red', 'Yellow', 'Pink', 'Grey', 'Beige', 'Cream', 'Olive Green'],
+    fits: ['Slim Fit', 'Regular Fit', 'Relaxed Fit', 'Skinny Fit'],
+    patterns: ['Solid / Plain', 'Checked', 'Printed', 'Striped', 'Self-Design'],
+    genders: ['Men', 'Women', 'Unisex', 'Boys', 'Girls'],
+    compositions: ['100% Cotton', '100% Linen', '100% Polyester', '80% Cotton / 20% Polyester'],
+    shadeNos: [],
+    packingTypes: ['Box', 'Roll', 'Packet', 'PCS']
+  });
+
+  const [localGroups, setLocalGroups] = useState([]);
+
   const styleCode = watch('itemCode');
   const typeWatch = watch('type');  // ← must be declared BEFORE isGarment
 
@@ -102,6 +119,29 @@ function ItemFormPage({ mode = 'edit' }) {
     dispatch(fetchMasters('sizes'));
     dispatch(fetchMasters('suppliers'));
   }, [dispatch]);
+
+  useEffect(() => {
+    api.get('/items/attributes/unique')
+      .then(res => {
+        const data = res.data?.data || res.data;
+        if (data) {
+          setUniqueAttributes(prev => ({
+            fabrics: [...new Set([...(data.fabrics || []), ...prev.fabrics])],
+            colors: [...new Set([...(data.colors || []), ...prev.colors])],
+            fits: [...new Set([...(data.fits || []), ...prev.fits])],
+            patterns: [...new Set([...(data.patterns || []), ...prev.patterns])],
+            genders: [...new Set([...(data.genders || []), ...prev.genders])],
+            compositions: [...new Set([...(data.compositions || []), ...prev.compositions])],
+            shadeNos: [...new Set([...(data.shadeNos || []), ...prev.shadeNos])],
+            packingTypes: [...new Set([...(data.packingTypes || []), ...prev.packingTypes])]
+          }));
+          if (data.groups && data.groups.length > 0) {
+            setLocalGroups(data.groups);
+          }
+        }
+      })
+      .catch(err => console.error('Failed to fetch unique attributes', err));
+  }, []);
 
   const existingItem = useMemo(() => (isEditMode ? items.find((item) => item.id === id || item._id === id) : null), [id, isEditMode, items]);
 
@@ -334,10 +374,12 @@ function ItemFormPage({ mode = 'edit' }) {
   const selectedCategoryId = getOptionId(watch('categoryId'));
   const selectedSubCategoryId = getOptionId(watch('subCategoryId'));
 
-  const sections = itemGroups.filter((g) => (g.groupType === 'Section' || !g.parentId) && !['Brand', 'Season'].includes(g.groupType));
-  const categoryOptions = itemGroups.filter((g) => g.groupType === 'Category' && getOptionId(g.parentId) === selectedSectionId);
-  const subCategoryOptions = itemGroups.filter((g) => g.groupType === 'Sub Category' && getOptionId(g.parentId) === selectedCategoryId);
-  const styleOptions = itemGroups.filter((g) => g.groupType === 'Style / Type' && getOptionId(g.parentId) === selectedSubCategoryId);
+  const activeGroups = useMemo(() => {
+    return itemGroups.length > 0 ? itemGroups : localGroups;
+  }, [itemGroups, localGroups]);
+
+  const categoryOptions = activeGroups.filter((g) => g.groupType === 'Category');
+  const styleOptions = activeGroups.filter((g) => g.groupType === 'Style / Type');
 
   return (
     <Box component="form" onSubmit={handleSubmit((values) => onSubmit(values))}>
@@ -448,30 +490,90 @@ function ItemFormPage({ mode = 'edit' }) {
                 </Grid>
               </FormSection>
 
-              <FormSection title="Category & Hierarchy" subtitle="Organize item in Section > Category > Sub Category.">
+              <FormSection title="Category & Hierarchy" subtitle="Organize item in Category > Style / Type.">
                 <Grid container spacing={2}>
-                  <Grid size={{ xs: 12, md: 3 }}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <Controller
-                      name="sectionId" control={control}
-                      render={({ field }) => <TextField {...field} select size="small" fullWidth label="Section" value={field.value ?? ''} disabled={isViewMode} InputLabelProps={{ shrink: true }}>{renderAsyncValueOption(field.value, sections)}<MenuItem value="">Select Section</MenuItem>{sections.map((g) => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}</TextField>}
+                      name="categoryId"
+                      control={control}
+                      render={({ field }) => (
+                        <Autocomplete
+                          freeSolo
+                          disabled={isViewMode}
+                          options={categoryOptions.map((g) => g.groupName || g.name)}
+                          filterOptions={(options, params) => {
+                            const filtered = filter(options, params);
+                            const { inputValue } = params;
+                            const isExisting = options.some((option) => inputValue.toLowerCase() === option.toLowerCase());
+                            if (inputValue !== '' && !isExisting) {
+                              filtered.push(`Add "${inputValue}"`);
+                            }
+                            return filtered;
+                          }}
+                          value={categoryOptions.find((g) => String(g.id || g._id) === String(field.value))?.groupName || categoryOptions.find((g) => String(g.id || g._id) === String(field.value))?.name || field.value || ''}
+                          onChange={(event, newValue) => {
+                            let cleanValue = newValue || '';
+                            if (cleanValue.startsWith('Add "') && cleanValue.endsWith('"')) {
+                              cleanValue = cleanValue.slice(5, -1);
+                            }
+                            const match = categoryOptions.find((g) => (g.groupName || g.name) === cleanValue);
+                            field.onChange(match ? (match.id || match._id) : (cleanValue || ''));
+                          }}
+                          onBlur={(event) => {
+                            let typedVal = event.target.value || '';
+                            if (typedVal.startsWith('Add "') && typedVal.endsWith('"')) {
+                              typedVal = typedVal.slice(5, -1);
+                            }
+                            const match = categoryOptions.find((g) => (g.groupName || g.name) === typedVal);
+                            field.onChange(match ? (match.id || match._id) : (typedVal || ''));
+                          }}
+                          renderInput={(params) => (
+                            <TextField {...params} size="small" label="Category" placeholder="Type to search or enter custom category..." />
+                          )}
+                        />
+                      )}
                     />
                   </Grid>
-                  <Grid size={{ xs: 12, md: 3 }}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <Controller
-                      name="categoryId" control={control}
-                      render={({ field }) => <TextField {...field} select size="small" fullWidth label="Category" value={field.value ?? ''} disabled={!selectedSectionId || isViewMode} InputLabelProps={{ shrink: true }}>{renderAsyncValueOption(field.value, categoryOptions)}<MenuItem value="">Select Category</MenuItem>{categoryOptions.map((g) => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}</TextField>}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 3 }}>
-                    <Controller
-                      name="subCategoryId" control={control}
-                      render={({ field }) => <TextField {...field} select size="small" fullWidth label="Sub Category" value={field.value ?? ''} disabled={!selectedCategoryId || isViewMode} InputLabelProps={{ shrink: true }}>{renderAsyncValueOption(field.value, subCategoryOptions)}<MenuItem value="">Select Sub Category</MenuItem>{subCategoryOptions.map((g) => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}</TextField>}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 3 }}>
-                    <Controller
-                      name="subSubCategoryId" control={control}
-                      render={({ field }) => <TextField {...field} select size="small" fullWidth label="Style / Type" value={field.value ?? ''} disabled={!selectedSubCategoryId || isViewMode} InputLabelProps={{ shrink: true }}>{renderAsyncValueOption(field.value, styleOptions)}<MenuItem value="">Select Style / Type</MenuItem>{styleOptions.map((g) => <MenuItem key={g.id || g._id} value={g.id || g._id}>{g.groupName || g.name}</MenuItem>)}</TextField>}
+                      name="subSubCategoryId"
+                      control={control}
+                      render={({ field }) => (
+                        <Autocomplete
+                          freeSolo
+                          disabled={isViewMode}
+                          options={styleOptions.map((g) => g.groupName || g.name)}
+                          filterOptions={(options, params) => {
+                            const filtered = filter(options, params);
+                            const { inputValue } = params;
+                            const isExisting = options.some((option) => inputValue.toLowerCase() === option.toLowerCase());
+                            if (inputValue !== '' && !isExisting) {
+                              filtered.push(`Add "${inputValue}"`);
+                            }
+                            return filtered;
+                          }}
+                          value={styleOptions.find((g) => String(g.id || g._id) === String(field.value))?.groupName || styleOptions.find((g) => String(g.id || g._id) === String(field.value))?.name || field.value || ''}
+                          onChange={(event, newValue) => {
+                            let cleanValue = newValue || '';
+                            if (cleanValue.startsWith('Add "') && cleanValue.endsWith('"')) {
+                              cleanValue = cleanValue.slice(5, -1);
+                            }
+                            const match = styleOptions.find((g) => (g.groupName || g.name) === cleanValue);
+                            field.onChange(match ? (match.id || match._id) : (cleanValue || ''));
+                          }}
+                          onBlur={(event) => {
+                            let typedVal = event.target.value || '';
+                            if (typedVal.startsWith('Add "') && typedVal.endsWith('"')) {
+                              typedVal = typedVal.slice(5, -1);
+                            }
+                            const match = styleOptions.find((g) => (g.groupName || g.name) === typedVal);
+                            field.onChange(match ? (match.id || match._id) : (typedVal || ''));
+                          }}
+                          renderInput={(params) => (
+                            <TextField {...params} size="small" label="Style / Type" placeholder="Type to search or enter custom style / type..." />
+                          )}
+                        />
+                      )}
                     />
                   </Grid>
                 </Grid>
@@ -480,11 +582,47 @@ function ItemFormPage({ mode = 'edit' }) {
               {typeWatch === 'FABRIC' && (
                 <FormSection title="Fabric Specifications" subtitle="Technical details for raw material tracking.">
                   <Grid container spacing={2}>
-                    <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Composition" {...register('composition')} placeholder="e.g. 100% Cotton" disabled={isViewMode} /></Grid>
+                    <Grid size={{ xs: 12, md: 3 }}>
+                      <Controller
+                        name="composition"
+                        control={control}
+                        render={({ field }) => (
+                          <Autocomplete
+                            freeSolo
+                            disabled={isViewMode}
+                            options={uniqueAttributes.compositions}
+                            value={field.value || ''}
+                            onChange={(e, val) => field.onChange(val || '')}
+                            onBlur={(e) => field.onChange(e.target.value || '')}
+                            renderInput={(params) => (
+                              <TextField {...params} size="small" label="Composition" placeholder="e.g. 100% Cotton" />
+                            )}
+                          />
+                        )}
+                      />
+                    </Grid>
                     <Grid size={{ xs: 12, md: 2 }}><TextField fullWidth size="small" label="GSM" {...register('gsm')} placeholder="e.g. 180" disabled={isViewMode} /></Grid>
                     <Grid size={{ xs: 12, md: 2 }}><TextField fullWidth size="small" label="Width (Inches)" {...register('width')} placeholder="e.g. 58" disabled={isViewMode} /></Grid>
                     <Grid size={{ xs: 12, md: 2 }}><TextField fullWidth size="small" label="Shrinkage" {...register('shrinkage')} placeholder="e.g. 2%" disabled={isViewMode} /></Grid>
-                    <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Shade / Color No." {...register('shadeNo')} placeholder="e.g. SH-402" disabled={isViewMode} /></Grid>
+                    <Grid size={{ xs: 12, md: 3 }}>
+                      <Controller
+                        name="shadeNo"
+                        control={control}
+                        render={({ field }) => (
+                          <Autocomplete
+                            freeSolo
+                            disabled={isViewMode}
+                            options={uniqueAttributes.shadeNos}
+                            value={field.value || ''}
+                            onChange={(e, val) => field.onChange(val || '')}
+                            onBlur={(e) => field.onChange(e.target.value || '')}
+                            renderInput={(params) => (
+                              <TextField {...params} size="small" label="Shade / Color No." placeholder="e.g. SH-402" />
+                            )}
+                          />
+                        )}
+                      />
+                    </Grid>
                   </Grid>
                 </FormSection>
               )}
@@ -499,19 +637,146 @@ function ItemFormPage({ mode = 'edit' }) {
                   </Grid>
                   {typeWatch !== 'FABRIC' && (
                     <>
-                      <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Fabric / Material" {...register('fabric')} disabled={isViewMode} /></Grid>
-                      <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Primary Color" {...register('color')} disabled={isViewMode} placeholder="e.g. Navy Blue" /></Grid>
-                      <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Pattern" {...register('pattern')} disabled={isViewMode} /></Grid>
-                      <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Fit" {...register('fit')} disabled={isViewMode} /></Grid>
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <Controller
+                          name="fabric"
+                          control={control}
+                          render={({ field }) => (
+                            <Autocomplete
+                              freeSolo
+                              disabled={isViewMode}
+                              options={uniqueAttributes.fabrics}
+                              value={field.value || ''}
+                              onChange={(e, val) => field.onChange(val || '')}
+                              onBlur={(e) => field.onChange(e.target.value || '')}
+                              renderInput={(params) => (
+                                <TextField {...params} size="small" label="Fabric / Material" placeholder="Select or type fabric" />
+                              )}
+                            />
+                          )}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <Controller
+                          name="color"
+                          control={control}
+                          render={({ field }) => (
+                            <Autocomplete
+                              freeSolo
+                              disabled={isViewMode}
+                              options={uniqueAttributes.colors}
+                              value={field.value || ''}
+                              onChange={(e, val) => field.onChange(val || '')}
+                              onBlur={(e) => field.onChange(e.target.value || '')}
+                              renderInput={(params) => (
+                                <TextField {...params} size="small" label="Primary Color" placeholder="e.g. Navy Blue" />
+                              )}
+                            />
+                          )}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <Controller
+                          name="pattern"
+                          control={control}
+                          render={({ field }) => (
+                            <Autocomplete
+                              freeSolo
+                              disabled={isViewMode}
+                              options={uniqueAttributes.patterns}
+                              value={field.value || ''}
+                              onChange={(e, val) => field.onChange(val || '')}
+                              onBlur={(e) => field.onChange(e.target.value || '')}
+                              renderInput={(params) => (
+                                <TextField {...params} size="small" label="Pattern" placeholder="Select or type pattern" />
+                              )}
+                            />
+                          )}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <Controller
+                          name="fit"
+                          control={control}
+                          render={({ field }) => (
+                            <Autocomplete
+                              freeSolo
+                              disabled={isViewMode}
+                              options={uniqueAttributes.fits}
+                              value={field.value || ''}
+                              onChange={(e, val) => field.onChange(val || '')}
+                              onBlur={(e) => field.onChange(e.target.value || '')}
+                              renderInput={(params) => (
+                                <TextField {...params} size="small" label="Fit" placeholder="Select or type fit" />
+                              )}
+                            />
+                          )}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <Controller
+                          name="gender"
+                          control={control}
+                          render={({ field }) => (
+                            <Autocomplete
+                              freeSolo
+                              disabled={isViewMode}
+                              options={uniqueAttributes.genders}
+                              value={field.value || ''}
+                              onChange={(e, val) => field.onChange(val || '')}
+                              onBlur={(e) => field.onChange(e.target.value || '')}
+                              renderInput={(params) => (
+                                <TextField {...params} size="small" label="Gender" placeholder="Select or type gender" />
+                              )}
+                            />
+                          )}
+                        />
+                      </Grid>
                     </>
                   )}
                   {typeWatch === 'FABRIC' && (
-                    <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Color" {...register('color')} disabled={isViewMode} placeholder="e.g. Sky Blue" /></Grid>
+                    <Grid size={{ xs: 12, md: 3 }}>
+                      <Controller
+                        name="color"
+                        control={control}
+                        render={({ field }) => (
+                          <Autocomplete
+                            freeSolo
+                            disabled={isViewMode}
+                            options={uniqueAttributes.colors}
+                            value={field.value || ''}
+                            onChange={(e, val) => field.onChange(val || '')}
+                            onBlur={(e) => field.onChange(e.target.value || '')}
+                            renderInput={(params) => (
+                              <TextField {...params} size="small" label="Color" placeholder="e.g. Sky Blue" />
+                            )}
+                          />
+                        )}
+                      />
+                    </Grid>
                   )}
                   {typeWatch === 'ACCESSORY' && (
                     <>
                       <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Accessory Size / Specs" {...register('accessorySize')} disabled={isViewMode} /></Grid>
-                      <Grid size={{ xs: 12, md: 3 }}><TextField fullWidth size="small" label="Packing Type" {...register('packingType')} disabled={isViewMode} /></Grid>
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <Controller
+                          name="packingType"
+                          control={control}
+                          render={({ field }) => (
+                            <Autocomplete
+                              freeSolo
+                              disabled={isViewMode}
+                              options={uniqueAttributes.packingTypes}
+                              value={field.value || ''}
+                              onChange={(e, val) => field.onChange(val || '')}
+                              onBlur={(e) => field.onChange(e.target.value || '')}
+                              renderInput={(params) => (
+                                <TextField {...params} size="small" label="Packing Type" placeholder="Select or type packing type" />
+                              )}
+                            />
+                          )}
+                        />
+                      </Grid>
                     </>
                   )}
                   <Grid size={12}><TextField fullWidth size="small" label="Item Description" multiline minRows={2} {...register('description')} disabled={isViewMode} /></Grid>

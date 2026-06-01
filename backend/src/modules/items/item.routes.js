@@ -11,6 +11,7 @@ console.log('✅ ITEM_ROUTES: Registering item routes...');
 router.get('/next-code', itemController.getNextCode);
 router.get('/next-barcodes', itemController.getNextBarcodes);
 router.get('/peek-barcodes', itemController.peekBarcodes);
+router.get('/attributes/unique', itemController.getUniqueAttributes);
 router.route('/')
     .get(itemController.getAllItems)
     .post(requireAdmin, itemController.createItem);

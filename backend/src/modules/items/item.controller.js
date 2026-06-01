@@ -181,7 +181,16 @@ class ItemController {
     } catch (error) {
       return sendError(res, error.message);
     }
-  }
+  };
+
+  getUniqueAttributes = async (req, res) => {
+    try {
+      const attributes = await itemService.getUniqueAttributes();
+      return sendSuccess(res, attributes, 'Unique attributes fetched successfully');
+    } catch (error) {
+      return sendError(res, error.message);
+    }
+  };
 }
 
 module.exports = new ItemController();

@@ -136,10 +136,66 @@ const populateItem = async (itemId) =>
     .populate('brand', 'name brandName')
     .populate('hsCodeId', 'code hsnCode gstRate gstPercent');
 
+const resolveOrCreateGroup = async (name, groupType, parentId = null) => {
+  if (!name || name === 'null' || name === 'undefined') return null;
+  
+  if (mongoose.Types.ObjectId.isValid(name)) {
+    const existing = await Group.findById(name);
+    if (existing) return existing._id;
+  }
+  
+  const trimmedName = String(name).trim();
+  if (!trimmedName) return null;
+  
+  let group = await Group.findOne({
+    name: new RegExp(`^${trimmedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+    groupType
+  });
+  
+  if (!group) {
+    const cleanParentId = (parentId && mongoose.Types.ObjectId.isValid(parentId)) ? parentId : null;
+    group = await Group.create({
+      name: trimmedName,
+      groupType,
+      parentId: cleanParentId,
+      code: trimmedName.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) + Math.floor(Math.random() * 100)
+    });
+    console.log(`[AUTO-GROUP] Created new group: [${groupType}] ${trimmedName}`);
+  }
+  
+  return group._id;
+};
+
 class ItemService {
   async normalizeItemData(data) {
     if (data.itemCode) data.itemCode = String(data.itemCode).trim().toUpperCase();
     if (data.type) data.type = data.type.trim().toUpperCase();
+
+    // Automatically resolve or create dynamic Group documents for Section, Category, Sub Category, and Style/Type
+    if (data.sectionId || data.sectionName || data.section) {
+      data.sectionId = await resolveOrCreateGroup(data.sectionId || data.sectionName || data.section, 'Section');
+      if (data.sectionId) {
+        const grp = await Group.findById(data.sectionId).select('name');
+        if (grp) data.sectionName = grp.name;
+      }
+    }
+
+    if (data.categoryId || data.categoryName || data.category) {
+      data.categoryId = await resolveOrCreateGroup(data.categoryId || data.categoryName || data.category, 'Category', data.sectionId);
+      if (data.categoryId) {
+        const grp = await Group.findById(data.categoryId).select('name');
+        if (grp) data.categoryName = grp.name;
+      }
+    }
+
+    if (data.subCategoryId || data.subCategory) {
+      data.subCategoryId = await resolveOrCreateGroup(data.subCategoryId || data.subCategory, 'Sub Category', data.categoryId);
+    }
+
+    if (data.styleId || data.styleType) {
+      data.styleId = await resolveOrCreateGroup(data.styleId || data.styleType, 'Style / Type', data.subCategoryId);
+    }
+
     const descriptors = ['fabric', 'color', 'pattern', 'fit', 'gender', 'occasion', 'uom', 'description', 
                        'composition', 'gsm', 'width', 'shrinkage', 'shadeNo', 'accessorySize', 'packingType'];
     descriptors.forEach(field => {
@@ -148,12 +204,10 @@ class ItemService {
         if (field === 'uom') data[field] = data[field].toUpperCase();
       }
     });
+
     const entityIdFields = ['sectionId', 'categoryId', 'subCategoryId', 'styleId', 'brand', 'hsCodeId', 'defaultWarehouse'];
     entityIdFields.forEach(field => { data[field] = normalizeId(data[field]); });
-    if (data.section) data.sectionId = normalizeId(data.sectionId || data.section);
-    if (data.category) data.categoryId = normalizeId(data.categoryId || data.category);
-    if (data.subCategory) data.subCategoryId = normalizeId(data.subCategory || data.subCategory);
-    if (data.styleType) data.styleId = normalizeId(data.styleId || data.styleType);
+    
     data.groupIds = [data.sectionId, data.categoryId, data.subCategoryId, data.styleId].filter(Boolean);
     data.images = Array.isArray(data.images) ? data.images.filter(img => typeof img === 'string' && img.length > 0) : [];
     data.reorderLevel = Number(data.reorderLevel || 0);
@@ -562,6 +616,87 @@ class ItemService {
     });
 
     return resultMap;
+  }
+
+  async getUniqueAttributes() {
+    // Automatically extract flat categories from items and ensure Group records exist
+    try {
+      const [itemSections, itemCategories, itemSubCategories, itemStyleTypes] = await Promise.all([
+        Item.distinct('sectionName', { sectionName: { $ne: null, $ne: '' } }),
+        Item.distinct('categoryName', { categoryName: { $ne: null, $ne: '', $ne: '(NIL)' } }),
+        Item.distinct('subCategoryName', { subCategoryName: { $ne: null, $ne: '' } }),
+        Item.distinct('styleTypeName', { styleTypeName: { $ne: null, $ne: '' } }),
+      ]);
+
+      const existingGroups = await Group.find({ isActive: true }).select('name groupType').lean();
+      const existingNamesSet = new Set(existingGroups.map(g => `${g.groupType}:${g.name.trim().toLowerCase()}`));
+
+      // Sync sections
+      for (const name of itemSections) {
+        const key = `Section:${name.trim().toLowerCase()}`;
+        if (!existingNamesSet.has(key)) {
+          await resolveOrCreateGroup(name, 'Section');
+        }
+      }
+
+      // Sync categories
+      for (const name of itemCategories) {
+        const key = `Category:${name.trim().toLowerCase()}`;
+        if (!existingNamesSet.has(key)) {
+          await resolveOrCreateGroup(name, 'Category');
+        }
+      }
+
+      // Sync subcategories
+      for (const name of itemSubCategories) {
+        const key = `Sub Category:${name.trim().toLowerCase()}`;
+        if (!existingNamesSet.has(key)) {
+          await resolveOrCreateGroup(name, 'Sub Category');
+        }
+      }
+
+      // Sync style types
+      for (const name of itemStyleTypes) {
+        const key = `Style / Type:${name.trim().toLowerCase()}`;
+        if (!existingNamesSet.has(key)) {
+          await resolveOrCreateGroup(name, 'Style / Type');
+        }
+      }
+    } catch (err) {
+      console.error('[AUTO-GROUP-SYNC] Error during getUniqueAttributes sync:', err);
+    }
+
+    const [fabrics, colors, fits, patterns, genders, compositions, shadeNos, packingTypes] = await Promise.all([
+      Item.distinct('fabric', { fabric: { $ne: null, $ne: '' } }),
+      Item.distinct('color', { color: { $ne: null, $ne: '' } }),
+      Item.distinct('fit', { fit: { $ne: null, $ne: '' } }),
+      Item.distinct('pattern', { pattern: { $ne: null, $ne: '' } }),
+      Item.distinct('gender', { gender: { $ne: null, $ne: '' } }),
+      Item.distinct('composition', { composition: { $ne: null, $ne: '' } }),
+      Item.distinct('shadeNo', { shadeNo: { $ne: null, $ne: '' } }),
+      Item.distinct('packingType', { packingType: { $ne: null, $ne: '' } }),
+    ]);
+
+    const groups = await Group.find({ isActive: true }).lean();
+
+    return {
+      fabrics,
+      colors,
+      fits,
+      patterns,
+      genders,
+      compositions,
+      shadeNos,
+      packingTypes,
+      groups: groups.map(g => ({
+        id: g._id,
+        groupName: g.name,
+        code: g.code,
+        groupType: g.groupType,
+        parentId: g.parentId,
+        level: g.level
+      }))
+    };
   }
 }
 
