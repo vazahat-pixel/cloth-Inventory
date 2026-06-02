@@ -1282,7 +1282,7 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
 
     console.log('[BranchSalesStockReport] StoreInventory records found:', storeInventory.length);
 
-    // 1. Fetch Sales and calculate salesMap
+    // 1. Fetch Sales
     const salesQuery = { isDeleted: false, status: 'COMPLETED' };
     if (storeId && storeId !== 'all') {
         salesQuery.storeId = storeId;
@@ -1293,15 +1293,8 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
         if (endDate) salesQuery.saleDate.$lte = new Date(endDate);
     }
     const sales = await Sale.find(salesQuery).lean();
-    const salesMap = {};
-    sales.forEach(s => {
-        s.items.forEach(item => {
-            const key = `${s.storeId}_${item.itemId}_${item.barcode}`;
-            salesMap[key] = (salesMap[key] || 0) + item.quantity;
-        });
-    });
 
-    // 2. Fetch Customer Returns and calculate retMap
+    // 2. Fetch Customer Returns
     const Return = mongoose.models.Return || require('../../models/return.model');
     const retQuery = { status: 'APPROVED' };
     if (storeId && storeId !== 'all') {
@@ -1313,15 +1306,8 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
         if (endDate) retQuery.createdAt.$lte = new Date(endDate);
     }
     const customerReturns = await Return.find(retQuery).lean();
-    const retMap = {};
-    customerReturns.forEach(ret => {
-        ret.items.forEach(item => {
-            const key = `${ret.locationId}_${item.variantId}`;
-            retMap[key] = (retMap[key] || 0) + item.quantity;
-        });
-    });
 
-    // 3. Fetch Purchase Returns and calculate prMap
+    // 3. Fetch Purchase Returns
     const PurchaseReturn = mongoose.models.PurchaseReturn || require('../../models/purchaseReturn.model');
     const prQuery = { status: 'COMPLETED' };
     if (storeId && storeId !== 'all') {
@@ -1333,12 +1319,156 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
         if (endDate) prQuery.createdAt.$lte = new Date(endDate);
     }
     const purchaseReturns = await PurchaseReturn.find(prQuery).lean();
-    const prMap = {};
+
+    // Initialize temporary mapping fields for storeInventory records
+    const inventoryMap = {};
+    storeInventory.forEach(inv => {
+        inv.netSaleAttr = 0;
+        inv.custReturnAttr = 0;
+        inv.purReturnAttr = 0;
+        inventoryMap[inv._id.toString()] = inv;
+    });
+
+    // Group sales items by storeId_itemId_variantId to allow fallback matching
+    const salesGroup = {};
+    sales.forEach(s => {
+        s.items.forEach(item => {
+            const grpKey = `${s.storeId}_${item.itemId}_${item.variantId}`;
+            if (!salesGroup[grpKey]) {
+                salesGroup[grpKey] = [];
+            }
+            salesGroup[grpKey].push({
+                barcode: item.barcode,
+                quantity: item.quantity,
+                remainingQty: item.quantity
+            });
+        });
+    });
+
+    // Pre-select fallback receiver for general group keys (storeId_itemId_variantId)
+    // to handle duplicate inventory records correctly (e.g. item code vs variant barcode)
+    const fallbackReceiverMap = {};
+    const groupInvRecords = {};
+    storeInventory.forEach(inv => {
+        const storeIdStr = inv.storeId?._id?.toString() || inv.storeId?.toString();
+        const itemIdStr = inv.itemId?._id?.toString() || inv.itemId?.toString();
+        const grpKey = `${storeIdStr}_${itemIdStr}_${inv.variantId}`;
+        if (!groupInvRecords[grpKey]) {
+            groupInvRecords[grpKey] = [];
+        }
+        groupInvRecords[grpKey].push(inv);
+    });
+
+    Object.entries(groupInvRecords).forEach(([grpKey, list]) => {
+        // Choose the best fallback receiver: prefer the record with generic barcode (e.g. no hyphen)
+        const best = list.find(inv => !inv.barcode.includes('-')) || list[0];
+        fallbackReceiverMap[grpKey] = best._id.toString();
+    });
+
+    // Sales Pass 1: Exact barcode match
+    storeInventory.forEach(inv => {
+        const storeIdStr = inv.storeId?._id?.toString() || inv.storeId?.toString();
+        const itemIdStr = inv.itemId?._id?.toString() || inv.itemId?.toString();
+        const grpKey = `${storeIdStr}_${itemIdStr}_${inv.variantId}`;
+        const group = salesGroup[grpKey];
+        if (group) {
+            const exactMatch = group.find(item => item.barcode === inv.barcode && item.remainingQty > 0);
+            if (exactMatch) {
+                inv.netSaleAttr += exactMatch.remainingQty;
+                exactMatch.remainingQty = 0;
+            }
+        }
+    });
+
+    // Sales Pass 2: Fallback (attribute remaining sale quantities to the fallback receiver)
+    storeInventory.forEach(inv => {
+        const storeIdStr = inv.storeId?._id?.toString() || inv.storeId?.toString();
+        const itemIdStr = inv.itemId?._id?.toString() || inv.itemId?.toString();
+        const grpKey = `${storeIdStr}_${itemIdStr}_${inv.variantId}`;
+        const group = salesGroup[grpKey];
+        if (group && fallbackReceiverMap[grpKey] === inv._id.toString()) {
+            const remainingQty = group.reduce((acc, item) => acc + item.remainingQty, 0);
+            if (remainingQty > 0) {
+                inv.netSaleAttr += remainingQty;
+                group.forEach(item => item.remainingQty = 0);
+            }
+        }
+    });
+
+    // Group customer returns items by locationId_variantId
+    const returnsGroup = {};
+    customerReturns.forEach(ret => {
+        ret.items.forEach(item => {
+            const grpKey = `${ret.locationId}_${item.variantId}`;
+            if (!returnsGroup[grpKey]) {
+                returnsGroup[grpKey] = [];
+            }
+            returnsGroup[grpKey].push({
+                quantity: item.quantity,
+                remainingQty: item.quantity
+            });
+        });
+    });
+
+    // Pre-select fallback receiver for return group keys (storeId_variantId)
+    const retFallbackReceiverMap = {};
+    const retGroupInvRecords = {};
+    storeInventory.forEach(inv => {
+        const storeIdStr = inv.storeId?._id?.toString() || inv.storeId?.toString();
+        const grpKey = `${storeIdStr}_${inv.variantId}`;
+        if (!retGroupInvRecords[grpKey]) {
+            retGroupInvRecords[grpKey] = [];
+        }
+        retGroupInvRecords[grpKey].push(inv);
+    });
+
+    Object.entries(retGroupInvRecords).forEach(([grpKey, list]) => {
+        const best = list.find(inv => !inv.barcode.includes('-')) || list[0];
+        retFallbackReceiverMap[grpKey] = best._id.toString();
+    });
+
+    // Attribute customer returns to fallback receiver to prevent double counting
+    storeInventory.forEach(inv => {
+        const storeIdStr = inv.storeId?._id?.toString() || inv.storeId?.toString();
+        const grpKey = `${storeIdStr}_${inv.variantId}`;
+        const group = returnsGroup[grpKey];
+        if (group && retFallbackReceiverMap[grpKey] === inv._id.toString()) {
+            const remainingQty = group.reduce((acc, item) => acc + item.remainingQty, 0);
+            if (remainingQty > 0) {
+                inv.custReturnAttr += remainingQty;
+                group.forEach(item => item.remainingQty = 0);
+            }
+        }
+    });
+
+    // Group purchase returns items by storeId_itemId_variantId
+    const prGroup = {};
     purchaseReturns.forEach(pr => {
         pr.items.forEach(item => {
-            const key = `${pr.locationId}_${item.productId}_${item.variantId}`;
-            prMap[key] = (prMap[key] || 0) + item.quantity;
+            const grpKey = `${pr.locationId}_${item.productId}_${item.variantId}`;
+            if (!prGroup[grpKey]) {
+                prGroup[grpKey] = [];
+            }
+            prGroup[grpKey].push({
+                quantity: item.quantity,
+                remainingQty: item.quantity
+            });
         });
+    });
+
+    // Attribute purchase returns to fallback receiver
+    storeInventory.forEach(inv => {
+        const storeIdStr = inv.storeId?._id?.toString() || inv.storeId?.toString();
+        const itemIdStr = inv.itemId?._id?.toString() || inv.itemId?.toString();
+        const grpKey = `${storeIdStr}_${itemIdStr}_${inv.variantId}`;
+        const group = prGroup[grpKey];
+        if (group && fallbackReceiverMap[grpKey] === inv._id.toString()) {
+            const remainingQty = group.reduce((acc, item) => acc + item.remainingQty, 0);
+            if (remainingQty > 0) {
+                inv.purReturnAttr += remainingQty;
+                group.forEach(item => item.remainingQty = 0);
+            }
+        }
     });
 
     // 4. Construct rows with exactly 16 columns matching requested spec with 'NIL' fallbacks
@@ -1361,18 +1491,9 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
         const fabricType = inv.itemId.composition || 'NIL';
         const vendor = inv.itemId.brand?.brandName || inv.itemId.brand?.name || 'NIL';
 
-        // Net Sale
-        const salesKey = `${inv.storeId?._id}_${inv.itemId?._id}_${inv.barcode}`;
-        const qtySold = salesMap[salesKey] || 0;
-        const custReturnsKey1 = `${inv.storeId?._id}_${inv.variantId}`;
-        const custReturnsKey2 = `${inv.storeId?._id}_${inv.barcode}`;
-        const custReturns = (retMap[custReturnsKey1] || 0) + (retMap[custReturnsKey2] || 0);
-        const netSale = qtySold - custReturns;
-
-        // Purchase Return
-        const prKey1 = `${inv.storeId?._id}_${inv.itemId?._id}_${inv.variantId}`;
-        const prKey2 = `${inv.storeId?._id}_${inv.itemId?._id}_${inv.barcode}`;
-        const prQty = (prMap[prKey1] || 0) + (prMap[prKey2] || 0);
+        // Net Sale & Purchase Return from attributed quantities
+        const netSale = inv.netSaleAttr - inv.custReturnAttr;
+        const prQty = inv.purReturnAttr;
 
         // Closing Stock
         const closingStock = (typeof inv.quantityAvailable === 'number') ? inv.quantityAvailable : (inv.quantity || 0);
