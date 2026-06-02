@@ -1283,7 +1283,7 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
     console.log('[BranchSalesStockReport] StoreInventory records found:', storeInventory.length);
 
     // 1. Fetch Sales
-    const salesQuery = { isDeleted: false, status: 'COMPLETED' };
+    const salesQuery = { isDeleted: false };
     if (storeId && storeId !== 'all') {
         salesQuery.storeId = storeId;
     }
