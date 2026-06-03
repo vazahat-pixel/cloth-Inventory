@@ -13,7 +13,6 @@ import {
   Tooltip,
 } from '@mui/material';
 import { NavLink, useLocation } from 'react-router-dom';
-import { useSelector } from 'react-redux';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
@@ -26,23 +25,10 @@ const COLLAPSED_WIDTH = 88;
 
 const RoleSidebar = ({ navConfig, isCollapsed, onToggle }) => {
   const location = useLocation();
-  const { user } = useSelector((state) => state.auth);
   const [drilldown, setDrilldown] = useState(null); // The parent item currently drilled into
 
-  const basePath = navConfig.basePath || '/ho';
-
-  // Find current drilldown based on path if not manually set (for persistence)
-  useEffect(() => {
-    if (!drilldown) {
-      // Find which main nav item matches current path and has children
-      const activeParent = navConfig.mainNav.find(item => 
-        matchesPath(item, location.pathname) && 
-        navConfig.children?.[item.path] && 
-        navConfig.children[item.path].length > 0
-      );
-      if (activeParent) setDrilldown(activeParent);
-    }
-  }, [location.pathname, navConfig]);
+  const basePath = navConfig?.basePath || '/ho';
+  const mainNav = navConfig?.mainNav || [];
 
   const matchesPath = (item, pathname) => {
     const localPath = pathname.startsWith(basePath) ? (pathname.slice(basePath.length) || '/') : pathname;
@@ -58,6 +44,18 @@ const RoleSidebar = ({ navConfig, isCollapsed, onToggle }) => {
         : localPath === candidate || localPath.startsWith(`${candidate}/`)
     ));
   };
+
+  // Find current drilldown based on path if not manually set (for persistence)
+  useEffect(() => {
+    if (!drilldown) {
+      const activeParent = mainNav.find((item) =>
+        matchesPath(item, location.pathname)
+        && navConfig?.children?.[item.path]
+        && navConfig.children[item.path].length > 0,
+      );
+      if (activeParent) setDrilldown(activeParent);
+    }
+  }, [location.pathname, navConfig, drilldown, basePath, mainNav]);
 
   const toFullPath = (path) => {
     if (!path) return undefined;
@@ -140,7 +138,7 @@ const RoleSidebar = ({ navConfig, isCollapsed, onToggle }) => {
                     transition: 'color 0.2s',
                   }}
                 >
-                  <Icon size={isCollapsed ? 24 : 18} strokeWidth={isActive ? 2.5 : 2} />
+                  <Icon sx={{ fontSize: isCollapsed ? 24 : 18 }} />
                 </ListItemIcon>
               )}
 
@@ -310,8 +308,8 @@ const RoleSidebar = ({ navConfig, isCollapsed, onToggle }) => {
 
         <List sx={{ pt: 0, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
           {drilldown 
-            ? renderNavItems(navConfig.children[drilldown.path] || [], true)
-            : renderNavItems(navConfig.mainNav)
+            ? renderNavItems(navConfig?.children?.[drilldown.path] || [], true)
+            : renderNavItems(mainNav)
           }
         </List>
 

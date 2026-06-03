@@ -49,6 +49,72 @@ const getBrandPrefix = (brand) => {
   return two || 'BR';
 };
 
+/** Global garment barcode / variant SKU series: BM0259 → BM0260, BM0261, ... */
+const BM_COUNTER_NAME = 'itemCode_BM';
+const BM_PREFIX = 'BM';
+const BM_MIN_SEQ = 259;
+
+const parseBmSequence = (value) => {
+  const match = String(value || '').trim().toUpperCase().match(/^BM(\d+)$/);
+  if (!match) return null;
+  const num = Number(match[1]);
+  return Number.isFinite(num) ? num : null;
+};
+
+const formatBmCode = (seq) => `${BM_PREFIX}${String(seq).padStart(4, '0')}`;
+
+const isPlaceholderSku = (sku) => {
+  const normalized = String(sku || '').trim().toUpperCase();
+  if (!normalized) return true;
+  if (/^BM\d+$/.test(normalized)) return false;
+  return /^(ITEM|BR|STYLE|BAR)-\d+$/i.test(normalized);
+};
+
+const syncBmCounterFromDatabase = async () => {
+  const items = await Item.find({
+    $or: [{ itemCode: /^BM\d+$/i }, { 'sizes.sku': /^BM\d+$/i }, { 'sizes.barcode': /^BM\d+$/i }],
+  })
+    .select('itemCode sizes.sku sizes.barcode')
+    .lean();
+
+  let maxSeq = BM_MIN_SEQ - 1;
+  items.forEach((item) => {
+    const candidates = [item.itemCode, ...(item.sizes || []).flatMap((s) => [s.sku, s.barcode])];
+    candidates.forEach((code) => {
+      const seq = parseBmSequence(code);
+      if (seq && seq > maxSeq) maxSeq = seq;
+    });
+  });
+
+  await Counter.findOneAndUpdate(
+    { name: BM_COUNTER_NAME },
+    { $max: { seq: maxSeq } },
+    { upsert: true },
+  );
+
+  return maxSeq;
+};
+
+const peekBmCodes = async (count = 1) => {
+  const safeCount = Math.max(1, Number(count) || 1);
+  const maxSeq = await syncBmCounterFromDatabase();
+  const startSeq = Math.max(maxSeq, BM_MIN_SEQ - 1) + 1;
+  return Array.from({ length: safeCount }, (_, index) => formatBmCode(startSeq + index));
+};
+
+const allocateBmCodes = async (count = 1) => {
+  const safeCount = Math.max(1, Number(count) || 1);
+  await syncBmCounterFromDatabase();
+  const counter = await Counter.findOneAndUpdate(
+    { name: BM_COUNTER_NAME },
+    { $inc: { seq: safeCount } },
+    { upsert: true, new: true },
+  );
+  const endSeq = Math.max(counter.seq, BM_MIN_SEQ);
+  const startSeq = endSeq - safeCount + 1;
+  return Array.from({ length: safeCount }, (_, index) => formatBmCode(startSeq + index));
+};
+
 const normalizeSizeCode = (value) =>
   String(value || '')
     .trim()
@@ -94,36 +160,23 @@ const ensureGroupsExist = async (groupIds) => {
   }
 };
 
-const ensureSizeSKUs = async (sizes = [], brandId = null) => {
+const ensureSizeSKUs = async (sizes = []) => {
   if (!sizes.length) return;
-  const sortedSizes = [...sizes].sort((left, right) => compareSizeValues(left.size, right.size));
-  if (brandId) {
-    const brand = await Brand.findById(brandId);
-    if (brand) {
-      const prefix = getBrandPrefix(brand);
-      const missingCount = sortedSizes.filter((entry) => !entry.sku).length;
-      if (!missingCount) return;
-      const counterKey = `barcode_seq_${prefix}`;
-      const counter = await Counter.findOneAndUpdate(
-        { name: counterKey },
-        { $inc: { seq: missingCount } },
-        { upsert: true, new: true }
-      );
-      const startSeq = counter.seq - missingCount + 1;
-      let sequenceOffset = 0;
-      sortedSizes.forEach((entry) => {
-        if (!entry.sku) {
-          const num = String(startSeq + sequenceOffset).padStart(4, '0');
-          entry.sku = `${prefix}-${num}`;
-          sequenceOffset += 1;
-        }
-      });
-      return;
+  const needsAllocation = sizes.filter((entry) => isPlaceholderSku(entry.sku));
+  if (!needsAllocation.length) return;
+
+  const allocated = await allocateBmCodes(needsAllocation.length);
+  let offset = 0;
+  sizes.forEach((entry) => {
+    if (isPlaceholderSku(entry.sku)) {
+      const code = allocated[offset];
+      offset += 1;
+      entry.sku = code;
+      if (!entry.barcode || isPlaceholderSku(entry.barcode)) {
+        entry.barcode = code;
+      }
     }
-  }
-  for (const entry of sortedSizes) {
-    if (!entry.sku) entry.sku = await generateBarcode();
-  }
+  });
 };
 
 const populateItem = async (itemId) =>
@@ -229,26 +282,28 @@ class ItemService {
   }
 
   async getNextCode(type = 'GARMENT') {
-    const normalizedType = (type || 'GARMENT').toUpperCase();
-    const counter = await Counter.findOne({ name: `itemCode_${normalizedType}` });
-    const seq = (counter?.seq || 0) + 1;
-    const prefix = normalizedType === 'GARMENT' ? 'ST' : normalizedType === 'FABRIC' ? 'FB' : 'ACC';
-    return `${prefix}-${String(seq).padStart(4, '0')}`;
+    void type;
+    const [nextCode] = await peekBmCodes(1);
+    return nextCode;
   }
 
   async createItem(data = {}, options = { allowUpdate: false }) {
     await this.normalizeItemData(data);
     let itemCode = data.itemCode;
     const type = data.type || 'GARMENT';
-    const normalizedType = type.toUpperCase();
-    const counterName = `itemCode_${normalizedType}`;
-    const prefix = normalizedType === 'GARMENT' ? 'ST' : normalizedType === 'FABRIC' ? 'FB' : 'ACC';
+    const COUNTER_NAME = 'itemCode_BM';
+    const PREFIX = 'BM';
     if (!itemCode) {
-      const counter = await Counter.findOneAndUpdate({ name: counterName }, { $inc: { seq: 1 } }, { upsert: true, new: true });
-      itemCode = `${prefix}-${String(counter.seq).padStart(4, '0')}`;
-    } else if (itemCode.startsWith(`${prefix}-`)) {
-      const num = parseInt(itemCode.split('-')[1], 10);
-      if (!isNaN(num)) await Counter.findOneAndUpdate({ name: counterName }, { $max: { seq: num } }, { upsert: true, new: true });
+      [itemCode] = await allocateBmCodes(1);
+    } else if (/^BM\d{4,}$/i.test(itemCode)) {
+      const num = parseInt(itemCode.replace(/^BM/i, ''), 10);
+      if (!isNaN(num)) {
+        await Counter.findOneAndUpdate(
+          { name: COUNTER_NAME },
+          { $max: { seq: num } },
+          { upsert: true, new: true }
+        );
+      }
     }
     const existingItem = await Item.findOne({ itemCode });
     if (existingItem) {
@@ -259,7 +314,7 @@ class ItemService {
     const groupIds = normalizeGroupIds(data.groupIds);
     await ensureGroupsExist(groupIds);
     if ((data.type || 'GARMENT').toUpperCase() === 'GARMENT' && (!Array.isArray(data.sizes) || !data.sizes.length)) throw new Error('Finished Garment item must have at least one size variant');
-    await ensureSizeSKUs(data.sizes, data.brand);
+    await ensureSizeSKUs(data.sizes);
     const item = new Item({ ...data, itemCode, groupIds, sizes: data.sizes || [], type: (data.type || 'GARMENT').toUpperCase() });
     await item.save();
     return populateItem(item._id);
@@ -292,7 +347,7 @@ class ItemService {
       if (existing) throw new Error(`Style Code ${data.itemCode} is already used.`);
     }
     if (item.groupIds?.length > 0) await ensureGroupsExist(item.groupIds);
-    if (item.sizes) await ensureSizeSKUs(item.sizes, item.brand);
+    if (item.sizes) await ensureSizeSKUs(item.sizes);
     await item.save();
     return populateItem(item._id);
   }
@@ -377,28 +432,16 @@ class ItemService {
     return { item, variant };
   }
 
-  async generateSequentialBarcodes(brandId, count) {
-    const brand = await Brand.findById(brandId);
-    if (!brand) throw new Error('Brand not found');
-    const prefix = getBrandPrefix(brand);
-    const counterKey = `barcode_seq_${prefix}`;
-    const counter = await Counter.findOneAndUpdate({ name: counterKey }, { $inc: { seq: count } }, { upsert: true, new: true });
-    const startSeq = counter.seq - count + 1;
-    const barcodes = [];
-    for (let i = 0; i < count; i++) barcodes.push(`${prefix}-${String(startSeq + i).padStart(4, '0')}`);
-    return barcodes;
+  async generateSequentialBarcodes(_brandId, count) {
+    return allocateBmCodes(count);
   }
 
-  async peekSequentialBarcodes(brandId, count) {
-    const brand = await Brand.findById(brandId);
-    if (!brand) throw new Error('Brand not found');
-    const prefix = getBrandPrefix(brand);
-    const counterKey = `barcode_seq_${prefix}`;
-    const counter = await Counter.findOne({ name: counterKey });
-    const startSeq = (counter?.seq || 0) + 1;
-    const barcodes = [];
-    for (let i = 0; i < count; i++) barcodes.push(`${prefix}-${String(startSeq + i).padStart(4, '0')}`);
-    return barcodes;
+  async peekSequentialBarcodes(_brandId, count) {
+    return peekBmCodes(count);
+  }
+
+  async peekBmSkuCodes(count) {
+    return peekBmCodes(count);
   }
 
   async deleteItem(id) { return Item.findByIdAndDelete(id); }

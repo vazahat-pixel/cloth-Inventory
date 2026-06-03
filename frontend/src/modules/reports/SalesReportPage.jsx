@@ -29,6 +29,8 @@ import {
   buildClosingStockMap,
   enrichSaleDetailRow,
   matchesLocationFilter,
+  buildPaymentSplitValues,
+  formatPaymentDisplay,
   SALE_REGISTER_EXPORT_HEADERS,
   toSaleRegisterExportRow,
 } from './saleReportUtils';
@@ -311,17 +313,28 @@ function SalesReportPage() {
   const accountWiseRows = useMemo(() => {
     const byMode = {};
     filteredRows.forEach((sale) => {
-      const mode = sale.payment?.mode || 'Other';
-      if (sale.payment?.mode === 'Split' && sale.payment?.splitValues) {
-        const sv = sale.payment.splitValues;
-        ['Cash', 'Card', 'UPI'].forEach((m) => {
-          const amt = toNum(sv[m.toLowerCase()]);
-          if (amt > 0) {
-            byMode[m] = (byMode[m] || 0) + amt;
-            byMode[`${m}_count`] = (byMode[`${m}_count`] || 0) + 1;
+      const rawPayments = sale.payment?.payments?.length ? sale.payment.payments : sale.payments || [];
+      const { splitValues, isSplit } = buildPaymentSplitValues(
+        rawPayments,
+        sale.payment?.mode,
+        sale.payment?.amountPaid || sale.totals?.netPayable,
+      );
+
+      if (isSplit) {
+        [
+          ['Cash', splitValues.cash],
+          ['Card', splitValues.card],
+          ['UPI', splitValues.upi],
+          ['Gift Voucher', splitValues['gift voucher']],
+        ].forEach(([mode, amt]) => {
+          const amount = toNum(amt);
+          if (amount > 0) {
+            byMode[mode] = (byMode[mode] || 0) + amount;
+            byMode[`${mode}_count`] = (byMode[`${mode}_count`] || 0) + 1;
           }
         });
       } else {
+        const mode = sale.payment?.mode || 'Other';
         const net = toNum(sale.totals?.netPayable);
         byMode[mode] = (byMode[mode] || 0) + net;
         byMode[`${mode}_count`] = (byMode[`${mode}_count`] || 0) + 1;
@@ -382,7 +395,7 @@ function SalesReportPage() {
           Discount: (toNum(t.lineDiscount) + toNum(t.billDiscount)).toFixed(2),
           Tax: toNum(t.taxAmount),
           Net: toNum(t.netPayable),
-          Payment: row.payment?.mode || '-',
+          Payment: formatPaymentDisplay(row.payment, row.payments),
         };
       }),
     [groupedAndSortedRows, locationMap],
@@ -608,18 +621,8 @@ function SalesReportPage() {
                           <TableCell align="right">₹{toNum(t.discount).toFixed(2)}</TableCell>
                           <TableCell align="right">₹{toNum(t.taxAmount).toFixed(2)}</TableCell>
                           <TableCell align="right" sx={{ fontWeight: 700 }}>₹{toNum(t.netPayable).toFixed(2)}</TableCell>
-                          <TableCell>
-                            {row.payment?.mode || '-'}
-                            {row.payment?.mode === 'Split' && row.payment?.splitValues && (
-                              <Box sx={{ fontSize: '10px', color: '#64748b', mt: 0.5, whiteSpace: 'nowrap' }}>
-                                {[
-                                  toNum(row.payment.splitValues.cash) > 0 && `Cash: ₹${toNum(row.payment.splitValues.cash).toFixed(2)}`,
-                                  toNum(row.payment.splitValues.card) > 0 && `Card: ₹${toNum(row.payment.splitValues.card).toFixed(2)}`,
-                                  toNum(row.payment.splitValues.upi) > 0 && `UPI: ₹${toNum(row.payment.splitValues.upi).toFixed(2)}`,
-                                  toNum(row.payment.splitValues['gift voucher']) > 0 && `Voucher: ₹${toNum(row.payment.splitValues['gift voucher']).toFixed(2)}`
-                                ].filter(Boolean).join(' | ')}
-                              </Box>
-                            )}
+                          <TableCell sx={{ whiteSpace: 'nowrap', maxWidth: 220 }}>
+                            {formatPaymentDisplay(row.payment, row.payments)}
                           </TableCell>
                         </TableRow>
                       </>

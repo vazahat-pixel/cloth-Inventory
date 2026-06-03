@@ -1,6 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { getRoleBasePath } from '../common/roleConfig';
+import { getRoleBasePath, normalizePanelRole } from '../common/roleConfig';
 
 function RoleProtectedRoute({ allowedRoles, children }) {
   const { isAuthenticated, role } = useSelector((state) => state.auth);
@@ -13,11 +13,16 @@ function RoleProtectedRoute({ allowedRoles, children }) {
   }
 
   const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
-  const isAllowed = roles.includes(role);
+  const userPanelRole = normalizePanelRole(role);
+  const isAllowed = roles.some((allowed) => normalizePanelRole(allowed) === userPanelRole);
 
   if (!isAllowed) {
-    const correctBase = getRoleBasePath(role);
-    return <Navigate to={correctBase} replace />;
+    const userBase = getRoleBasePath(role);
+    const loginTarget = pathname.startsWith('/store') ? '/login/store' : '/login/ho';
+    if (!role || pathname.startsWith(userBase)) {
+      return <Navigate to={loginTarget} replace />;
+    }
+    return <Navigate to={userBase} replace />;
   }
 
   return children ? children : <Outlet />;

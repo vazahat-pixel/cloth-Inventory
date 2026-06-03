@@ -44,8 +44,15 @@ const roleAliasMap = {
   accountant: 'store_staff'
 };
 
+export const normalizePanelRole = (role) => {
+  if (!role) return '';
+  const normalized = roleAliasMap[role] || String(role).toLowerCase();
+  if (normalized === 'superadmin') return 'admin';
+  return normalized;
+};
+
 export const getRoleBasePath = (role) => {
-  const normalizedRole = roleAliasMap[role] || role || 'admin';
+  const normalizedRole = normalizePanelRole(role) || 'admin';
   const map = { admin: '/ho', store_staff: '/store' };
   return map[normalizedRole] || '/ho';
 };

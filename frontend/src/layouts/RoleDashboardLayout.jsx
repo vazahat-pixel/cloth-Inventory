@@ -16,7 +16,7 @@ function RoleDashboardLayout() {
   
   // Choose sidebar based on current path first (e.g. if admin is in /store, show store sidebar)
   const pathRole = getRoleFromPath(location.pathname);
-  const navConfig = getNavConfigForRole(pathRole || role);
+  const navConfig = getNavConfigForRole(pathRole || role) || getNavConfigForRole('admin');
 
   const sidebarWidth = isCollapsed ? COLLAPSED_WIDTH : DRAWER_WIDTH;
 

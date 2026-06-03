@@ -84,10 +84,10 @@ const VerticalTag = ({ label, mfgLine1, mfgLine2, type, design }) => {
       {/* Product Details Section */}
       <Stack spacing={0.3} sx={{ px: 0.2, flex: 1 }}>
         {[
-          { label: 'Article :', val: label.name || label.itemName || label.article },
-          { label: 'Group', val: label.category || 'SHIRT' },
-          { label: 'Type:', val: type },
-          { label: 'DESIGN :', val: design || 'COLLAR' },
+          { label: 'Article :', val: label.name || label.itemName || label.article || '—' },
+          { label: 'Group :', val: label.category || '—' },
+          { label: 'Type :', val: type || label.fabric || label.itemType || '—' },
+          { label: 'DESIGN :', val: design || label.pattern || '—' },
         ].map((item, i) => (
           <Box key={i} sx={{ display: 'grid', gridTemplateColumns: '15mm 1fr', fontSize: '8pt', lineHeight: 1.1, alignItems: 'start' }}>
             <Typography sx={{ fontWeight: 800, fontSize: 'inherit' }}>{item.label}</Typography>
@@ -102,7 +102,7 @@ const VerticalTag = ({ label, mfgLine1, mfgLine2, type, design }) => {
 
         <Box sx={{ display: 'grid', gridTemplateColumns: '15mm 1fr', fontSize: '8pt', alignItems: 'center' }}>
           <Typography sx={{ fontWeight: 700, fontSize: 'inherit' }}>Qty: 1N</Typography>
-          <Typography sx={{ fontWeight: 700, fontSize: 'inherit', textTransform: 'uppercase' }}>F/S</Typography>
+          <Typography sx={{ fontWeight: 700, fontSize: 'inherit', textTransform: 'uppercase' }}>{label.size || 'F/S'}</Typography>
         </Box>
 
         <Box sx={{ display: 'grid', gridTemplateColumns: '15mm 1fr', fontSize: '8pt', alignItems: 'center' }}>
@@ -189,6 +189,9 @@ function BarcodePrintingPage() {
       const variants = (p.sizes && p.sizes.length > 0) ? p.sizes : (p.variants && p.variants.length > 0) ? p.variants : [{}];
       
       const categoryObj = (p.groupIds || []).find(g => g.groupType === 'Category');
+      const realCategory = categoryObj?.name || categoryObj?.groupName
+        || p.categoryId?.groupName || p.categoryId?.name
+        || p.categoryName || '';
       variants.forEach(v => {
         flattened.push({
           id: v._id || p._id,
@@ -198,8 +201,14 @@ function BarcodePrintingPage() {
           salePrice: v.mrp || v.salePrice || p.salePrice || 0,
           size: v.size || 'N/A',
           color: v.color || p.shadeNo || p.color || p.shade || 'N/A',
-          category: categoryObj?.name || categoryObj?.groupName || 'SHIRT',
-          article: p.itemCode || p.sku
+          category: realCategory,
+          article: p.itemCode || p.sku,
+          // Real item fields for tag
+          itemType: p.type || 'GARMENT',
+          pattern: p.pattern || '',
+          fabric: p.fabric || '',
+          gender: p.gender || '',
+          fit: p.fit || '',
         });
       });
     });
@@ -322,6 +331,10 @@ function BarcodePrintingPage() {
       if (!variants.length) {
         return;
       }
+      const categoryObj = (item.groupIds || []).find(g => g.groupType === 'Category');
+      const realCategory = categoryObj?.name || categoryObj?.groupName
+        || item.categoryId?.groupName || item.categoryId?.name
+        || item.categoryName || '';
 
       variants.forEach((variant) => {
         lines.push({
@@ -334,8 +347,13 @@ function BarcodePrintingPage() {
           printQty: 1,
           mrp: variant.mrp || variant.salePrice || item.salePrice || item.mrp || 0,
           color: variant.color || item.shadeNo || item.color || item.shade || 'N/A',
-          category: (item.groupIds || []).find(g => g.groupType === 'Category')?.name || (item.categoryId?.name || item.categoryId?.groupName) || 'GARMENT',
-          article: item.itemCode
+          category: realCategory,
+          article: item.itemCode,
+          itemType: item.type || 'GARMENT',
+          pattern: item.pattern || '',
+          fabric: item.fabric || '',
+          gender: item.gender || '',
+          fit: item.fit || '',
         });
       });
     });
@@ -355,7 +373,11 @@ function BarcodePrintingPage() {
           mrp: line.mrp,
           color: line.color,
           category: line.category,
-          name: line.itemName || line.name || ''
+          name: line.itemName || line.name || '',
+          type: line.type || line.itemType || '',
+          design: line.design || line.pattern || '',
+          fabric: line.fabric || '',
+          pattern: line.pattern || '',
         });
       }
     });
@@ -460,25 +482,25 @@ function BarcodePrintingPage() {
         
         <div class="spec-container">
           <div class="row">
-            <span class="key">Article :</span> <span class="val">${label.name || label.itemName || label.article || ''}</span>
+            <span class="key">Article :</span> <span class="val">${label.name || label.itemName || label.article || '—'}</span>
           </div>
           <div class="row">
-            <span class="key">Group</span> <span class="val">${label.category || 'SHIRT'}</span>
+            <span class="key">Group :</span> <span class="val">${label.category || '—'}</span>
           </div>
           <div class="row">
-            <span class="key">Type:</span> <span class="val">${type}</span>
+            <span class="key">Type :</span> <span class="val">${label.type || label.fabric || label.itemType || type || '—'}</span>
           </div>
           <div class="row">
-            <span class="key">DESIGN :</span> <span class="val">${design}</span>
+            <span class="key">DESIGN :</span> <span class="val">${label.design || label.pattern || design || '—'}</span>
           </div>
           <div class="row" style="align-items: center; margin-top: 0.2mm;">
-            <span class="key">Size :</span> <span class="val" style="font-size: 9pt; font-weight: 900;">${label.size}</span>
+            <span class="key">Size :</span> <span class="val" style="font-size: 9pt; font-weight: 900;">${label.size || '—'}</span>
           </div>
           <div class="row" style="align-items: center;">
-            <span class="key">Qty: 1N</span> <span class="val">F/S</span>
+            <span class="key">Qty: 1N</span> <span class="val">${label.size || 'F/S'}</span>
           </div>
           <div class="row" style="align-items: center;">
-            <span class="key">Colour :</span> <span class="val">${label.color || 'N/A'}</span>
+            <span class="key">Colour :</span> <span class="val">${label.color || '—'}</span>
           </div>
           
           <div class="mrp-section">
@@ -512,11 +534,24 @@ function BarcodePrintingPage() {
     return {
       barcode: selectedProduct.barcode || selectedProduct.sku,
       article: selectedProduct.article,
+      name: selectedProduct.name,
       size: selectedProduct.size,
       mrp: selectedProduct.salePrice,
       color: selectedProduct.color,
-      category: selectedProduct.category
+      category: selectedProduct.category,
+      itemType: selectedProduct.itemType || 'GARMENT',
+      pattern: selectedProduct.pattern || '',
+      fabric: selectedProduct.fabric || '',
+      gender: selectedProduct.gender || '',
+      fit: selectedProduct.fit || '',
     };
+  }, [selectedProduct]);
+
+  // Auto-populate Type & Design from selected product (user can still override)
+  useEffect(() => {
+    if (!selectedProduct) return;
+    if (selectedProduct.pattern) setDesign(selectedProduct.pattern);
+    if (selectedProduct.fabric) setType(selectedProduct.fabric);
   }, [selectedProduct]);
 
   const totalBatchLabels = useMemo(

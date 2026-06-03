@@ -152,6 +152,55 @@ export function toSaleRegisterExportRow(row) {
   };
 }
 
+export function buildPaymentSplitValues(payments = [], fallbackMode = '', fallbackAmount = 0) {
+  const splitValues = { cash: 0, card: 0, upi: 0, 'gift voucher': 0 };
+  const activePayments = (Array.isArray(payments) ? payments : []).filter((p) => toNum(p.amount) > 0);
+
+  activePayments.forEach((p) => {
+    const m = String(p.mode || '').toLowerCase().replace(/_/g, ' ');
+    const amount = toNum(p.amount);
+    if (m === 'cash') splitValues.cash += amount;
+    else if (m === 'card') splitValues.card += amount;
+    else if (m === 'upi') splitValues.upi += amount;
+    else if (m === 'gift voucher') splitValues['gift voucher'] += amount;
+  });
+
+  const activeModes = ['cash', 'card', 'upi', 'gift voucher'].filter((k) => toNum(splitValues[k]) > 0);
+  const isSplit = activeModes.length > 1;
+
+  if (!activeModes.length && fallbackMode) {
+    const m = String(fallbackMode).toLowerCase().replace(/_/g, ' ');
+    const amount = toNum(fallbackAmount);
+    if (m === 'cash') splitValues.cash = amount;
+    else if (m === 'card') splitValues.card = amount;
+    else if (m === 'upi') splitValues.upi = amount;
+    else if (m === 'gift voucher') splitValues['gift voucher'] = amount;
+  }
+
+  return { splitValues, isSplit, activePayments };
+}
+
+export function formatPaymentDisplay(payment, rawPayments = []) {
+  if (!payment && !rawPayments?.length) return '-';
+
+  const sourcePayments = rawPayments?.length ? rawPayments : payment?.payments || [];
+  const { splitValues, isSplit } = buildPaymentSplitValues(
+    sourcePayments,
+    payment?.mode || payment?.paymentMode,
+    payment?.amountPaid,
+  );
+
+  const parts = [];
+  if (toNum(splitValues.cash) > 0) parts.push(`Cash ₹${toNum(splitValues.cash).toFixed(2)}`);
+  if (toNum(splitValues.card) > 0) parts.push(`Card ₹${toNum(splitValues.card).toFixed(2)}`);
+  if (toNum(splitValues.upi) > 0) parts.push(`UPI ₹${toNum(splitValues.upi).toFixed(2)}`);
+  if (toNum(splitValues['gift voucher']) > 0) parts.push(`Voucher ₹${toNum(splitValues['gift voucher']).toFixed(2)}`);
+
+  if (parts.length > 1 || isSplit) return parts.join(' | ');
+  if (parts.length === 1) return parts[0];
+  return payment?.mode || '-';
+}
+
 export function matchesLocationFilter(sale, warehouseIds = []) {
   const locationId = sale.warehouseId || sale.storeId;
   if (!warehouseIds.length) return true;

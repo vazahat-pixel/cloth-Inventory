@@ -4,7 +4,11 @@ import api from '../../../services/api';
 export const getMe = createAsyncThunk('auth/getMe', async (_, { rejectWithValue }) => {
   try {
     const response = await api.get('/auth/me');
-    return response.data.user;
+    const user = response.data?.user || response.data?.data?.user;
+    if (!user) {
+      return rejectWithValue('Invalid session response');
+    }
+    return user;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || 'Session expired');
   }
@@ -52,21 +56,27 @@ const clearStoredAuth = () => {
   localStorage.removeItem(AUTH_STORAGE_KEY);
 };
 
-const persistedAuth = loadStoredAuth();
-
-const initialState = {
-  user: persistedAuth?.user ?? null,
-  token: persistedAuth?.token ?? null,
-  role: persistedAuth?.user?.role ?? '',
-  isAuthenticated: Boolean(persistedAuth?.token),
-  loading: false,
-  error: null,
-};
-
 const mapRole = (backendRole) => {
   if (backendRole === 'admin') return 'Admin';
   if (backendRole === 'store_staff') return 'Staff';
   return backendRole; // fallback
+};
+
+const persistedAuth = loadStoredAuth();
+const persistedMappedRole = persistedAuth?.user
+  ? mapRole(persistedAuth.user.role)
+  : '';
+
+const initialState = {
+  user: persistedAuth?.user
+    ? { ...persistedAuth.user, role: persistedMappedRole }
+    : null,
+  token: persistedAuth?.token ?? null,
+  role: persistedMappedRole,
+  isAuthenticated: Boolean(persistedAuth?.token),
+  authReady: true,
+  loading: false,
+  error: null,
 };
 
 const authSlice = createSlice({
@@ -87,6 +97,7 @@ const authSlice = createSlice({
       state.token = token;
       state.role = mappedRole;
       state.isAuthenticated = true;
+      state.authReady = true;
       state.loading = false;
       state.error = null;
 
@@ -99,6 +110,7 @@ const authSlice = createSlice({
       state.token = null;
       state.role = '';
       state.isAuthenticated = false;
+      state.authReady = true;
 
       clearStoredAuth();
     },
@@ -107,6 +119,7 @@ const authSlice = createSlice({
       state.token = null;
       state.role = '';
       state.isAuthenticated = false;
+      state.authReady = true;
       state.loading = false;
       state.error = null;
 
@@ -124,12 +137,16 @@ const authSlice = createSlice({
         const mappedUser = { ...user, role: mappedRole };
         state.user = mappedUser;
         state.role = mappedRole;
+        state.isAuthenticated = true;
+        state.authReady = true;
+        saveStoredAuth(state.token, mappedUser);
       })
       .addCase(getMe.rejected, (state) => {
         state.user = null;
         state.token = null;
         state.role = '';
         state.isAuthenticated = false;
+        state.authReady = true;
         clearStoredAuth();
       })
       .addCase(registerUser.pending, (state) => {
@@ -145,6 +162,7 @@ const authSlice = createSlice({
         state.token = token;
         state.role = mappedRole;
         state.isAuthenticated = true;
+        state.authReady = true;
         state.loading = false;
         state.error = null;
 

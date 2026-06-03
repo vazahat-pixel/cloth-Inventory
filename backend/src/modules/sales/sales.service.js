@@ -79,6 +79,29 @@ const generateSaleNumber = async (storeId, session = null) => {
     return `${finalPrefix}${seq.toString().padStart(4, '0')}`;
 };
 
+const normalizeSalePayments = (payments = [], paymentMode = 'CASH', amountPaid = 0) => {
+    const cleaned = (Array.isArray(payments) ? payments : [])
+        .map((p) => ({
+            mode: String(p.mode || 'CASH').toUpperCase(),
+            amount: Number(p.amount) || 0,
+        }))
+        .filter((p) => p.amount > 0);
+
+    if (cleaned.length > 1) {
+        return { paymentMode: 'SPLIT', payments: cleaned };
+    }
+    if (cleaned.length === 1) {
+        return { paymentMode: cleaned[0].mode, payments: cleaned };
+    }
+
+    const mode = String(paymentMode || 'CASH').toUpperCase();
+    const amount = Number(amountPaid) || 0;
+    return {
+        paymentMode: mode,
+        payments: amount > 0 ? [{ mode, amount }] : [],
+    };
+};
+
 /**
  * Get product by barcode for scanning
  */
@@ -176,6 +199,8 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             const stockService = require('../../services/stock.service');
             for (const item of existingSale.items) {
                 await stockService.addStock({
+                    itemId: item.itemId,
+                    barcode: item.barcode,
                     variantId: item.variantId,
                     locationId: existingSale.storeId,
                     locationType: 'STORE',
@@ -605,9 +630,14 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
 
         const amountPaid = Number(saleData.amountPaid || 0);
         const dueAmount = Number((finalGrandTotal - amountPaid).toFixed(2)) || 0;
+        const normalizedPayments = normalizeSalePayments(
+            saleData.payments,
+            saleData.paymentMode,
+            amountPaid,
+        );
 
-        if (saleData.payments && saleData.payments.length > 0) {
-            const totalPayments = saleData.payments.reduce((sum, p) => sum + Number(p.amount), 0);
+        if (normalizedPayments.payments.length > 0) {
+            const totalPayments = normalizedPayments.payments.reduce((sum, p) => sum + Number(p.amount), 0);
             if (Math.abs(totalPayments - amountPaid) > 0.01) {
                 throw new Error('Sum of payments does not match amount paid');
             }
@@ -665,8 +695,8 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             dueAmount,
             customerId: finalCustomerId,
             customerName: finalCustomerName,
-            paymentMode: saleData.paymentMode || 'CASH',
-            payments: saleData.payments || [],
+            paymentMode: normalizedPayments.paymentMode,
+            payments: normalizedPayments.payments,
             status: dueAmount > 0 ? SaleStatus.PARTIAL : SaleStatus.COMPLETED,
             saleDate: saleData.date ? new Date(saleData.date) : Date.now()
         };
@@ -1056,6 +1086,55 @@ const getSaleById = async (id, user = null) => {
     return saleObj;
 };
 
+const saleByNumberPopulate = [
+    { path: 'storeId', select: 'name invoicePrefix location' },
+    { path: 'cashierId', select: 'name' },
+    { path: 'customerId', select: 'customerName mobileNumber loyaltyPoints' },
+    {
+        path: 'items.itemId',
+        select: 'itemName itemCode shade gstTax sizes categoryId hsCodeId',
+        populate: [
+            { path: 'categoryId', select: 'name' },
+            { path: 'hsCodeId', select: 'code gstPercent' }
+        ]
+    }
+];
+
+const getSaleByNumber = async (saleNumber, user = null, storeId = null) => {
+    void storeId;
+    const trimmed = String(saleNumber || '').trim();
+    if (!trimmed) throw new Error('Sale number is required');
+
+    const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const sale = await Sale.findOne({
+        isDeleted: { $ne: true },
+        saleNumber: new RegExp(`^${escaped}$`, 'i'),
+    }).populate(saleByNumberPopulate);
+
+    if (!sale) throw new Error('Invoice not found');
+
+    const saleObj = sale.toObject();
+    const Warehouse = require('../../models/warehouse.model');
+
+    const rawStoreId = sale.populated('storeId') ? sale.storeId?._id : sale._doc?.storeId;
+    if (!sale.storeId && rawStoreId) {
+        const warehouse = await Warehouse.findById(rawStoreId).lean();
+        if (warehouse) {
+            saleObj.storeId = warehouse;
+        }
+    }
+
+    const checkStoreId = saleObj.storeId?._id || saleObj.storeId || rawStoreId;
+    if (user?.role === 'store_staff') {
+        if (!user.shopId) throw new Error('User is not linked to any store. Please contact administrator.');
+        if (checkStoreId && String(checkStoreId) !== String(user.shopId)) {
+            throw new Error('This invoice belongs to another store');
+        }
+    }
+
+    return saleObj;
+};
+
 /**
  * Cancel a Sale
  */
@@ -1069,6 +1148,8 @@ const cancelSale = async (id, userId) => {
         const stockService = require('../../services/stock.service');
         for (const item of sale.items) {
             await stockService.addStock({
+                itemId: item.itemId,
+                barcode: item.barcode,
                 variantId: item.variantId,
                 locationId: sale.storeId,
                 locationType: 'STORE',
@@ -1314,6 +1395,8 @@ const deleteSale = async (id, userId) => {
             const stockService = require('../../services/stock.service');
             for (const item of sale.items) {
                 await stockService.addStock({
+                    itemId: item.itemId,
+                    barcode: item.barcode,
                     variantId: item.variantId,
                     locationId: sale.storeId,
                     locationType: 'STORE',
@@ -1434,6 +1517,7 @@ module.exports = {
     updateSale,
     getAllSales,
     getSaleById,
+    getSaleByNumber,
     cancelSale,
     applyCreditNote,
     deleteSale

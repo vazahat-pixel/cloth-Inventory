@@ -215,7 +215,9 @@ function BillingPage({
   const { eligibleOffers, evaluateLoading, totalPromoDiscount, promoItems } = useSelector((state) => state.pricing);
   const taxRules = useSelector((state) => state.masters.taxRules || EMPTY_ARR);
 
-  const isStoreStaff = user?.role !== 'Admin';
+  const isHeadOffice = user?.role === 'Admin' || user?.role === 'admin';
+  const isStoreStaff = !isHeadOffice;
+  const canManageSales = isHeadOffice;
 
   const availableLocations = useMemo(() => {
     const combined = [...warehouses, ...stores];
@@ -257,11 +259,18 @@ function BillingPage({
   const [saleType, setSaleType] = useState('retail');
   const [completedSaleData, setCompletedSaleData] = useState(null);
   const [showPrint, setShowPrint] = useState(false);
-  const [printFormat, setPrintFormat] = useState('thermal'); // Default to thermal for POS
+  const [printFormat, setPrintFormat] = useState(isStoreStaff ? 'a4' : 'thermal');
   const autoPrintTriggeredRef = useRef(false);
   const barcodeInputRef = useRef(null);
   const { showNotification } = useNotification();
   const { showLoading, hideLoading } = useLoading();
+
+  useEffect(() => {
+    if (isEditMode && !canManageSales) {
+      showNotification('Only Head Office can edit sales.', 'error');
+      navigate(listPath);
+    }
+  }, [isEditMode, canManageSales, showNotification, navigate, listPath]);
   const [selectedScheme, setSelectedScheme] = useState(null);
   const [exchangeOpen, setExchangeOpen] = useState(false);
   const [exchangeItems, setExchangeItems] = useState([]);
@@ -474,7 +483,8 @@ function BillingPage({
         hsnCode: item.hsnCode || '',
         category: item.category || '',
         brand: item.brand || '',
-        productId: item.productId?._id || item.productId || item.itemId?._id || item.itemId || item.variantId,
+        itemId: item.itemId?._id || item.itemId || item.productId?._id || item.productId,
+        productId: item.itemId?._id || item.itemId || item.productId?._id || item.productId || item.variantId,
         variantId: item.variantId || item.productId?._id || item.productId || item.itemId?._id || item.itemId,
       }));
       setLines(loadedLines);
@@ -831,9 +841,9 @@ function BillingPage({
       const lineTaxRate = itemRule.rate;
       const calcs = calculateLine(line, lineTaxRate, promo?.promoDiscount || 0);
       return {
-        productId: line.productId?._id || line.productId,
+        productId: line.productId?._id || line.productId || line.itemId,
         variantId: line.variantId?._id || line.variantId || line.productId?._id || line.productId,
-        itemId: line.productId?._id || line.productId,
+        itemId: line.itemId || line.productId?._id || line.productId,
         barcode: line.barcode || line.sku || '',
         itemName: line.itemName,
         sku: line.sku,
@@ -1871,6 +1881,7 @@ function BillingPage({
                         <StandardInvoicePrint 
                             sale={completedSaleData} 
                             store={availableLocations.find(l => (l.id || l._id) === storeId)}
+                            title={completedSaleData?.type === 'EXCHANGE' ? undefined : 'RETAIL INVOICE'}
                         /> : 
                         <ThermalInvoicePrint sale={completedSaleData} />
                 )}
@@ -1881,12 +1892,14 @@ function BillingPage({
       <ExchangeDialog
         open={exchangeOpen}
         onClose={() => setExchangeOpen(false)}
-        storeId={storeId}
         onAddItems={(data) => {
           setOriginalSaleId(data.originalSaleId);
           setOriginalSaleNumber(data.originalSaleNumber);
           setExchangeItems(data.items);
           setSaleType('exchange');
+          if (data.originalSaleStoreId) {
+            setStoreId(String(data.originalSaleStoreId));
+          }
         }}
       />
     </>

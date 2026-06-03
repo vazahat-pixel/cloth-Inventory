@@ -66,6 +66,67 @@ const _getItemMetadata = async (variantId, barcode, session) => {
     }
 };
 
+const _resolveStockIdentifiers = async ({ itemId, barcode, variantId, session }) => {
+    let resolvedItemId = itemId || null;
+    let resolvedBarcode = barcode ? String(barcode).trim() : '';
+    let resolvedVariantId = variantId || null;
+
+    if (resolvedItemId && resolvedBarcode) {
+        return {
+            itemId: resolvedItemId,
+            barcode: resolvedBarcode,
+            variantId: resolvedVariantId,
+        };
+    }
+
+    const mongoose = require('mongoose');
+    const lookupClauses = [];
+
+    if (resolvedBarcode) {
+        lookupClauses.push(
+            { itemCode: resolvedBarcode.toUpperCase() },
+            { 'sizes.barcode': resolvedBarcode },
+            { 'sizes.sku': resolvedBarcode },
+        );
+    }
+    if (resolvedVariantId && mongoose.Types.ObjectId.isValid(resolvedVariantId)) {
+        lookupClauses.push(
+            { _id: resolvedVariantId },
+            { 'sizes._id': resolvedVariantId },
+        );
+    }
+    if (resolvedItemId && mongoose.Types.ObjectId.isValid(resolvedItemId)) {
+        lookupClauses.push({ _id: resolvedItemId });
+    }
+
+    if (lookupClauses.length) {
+        const item = await Item.findOne({ $or: lookupClauses }).session(session).lean();
+        if (item) {
+            resolvedItemId = resolvedItemId || item._id;
+            const variant =
+                item.sizes?.find(
+                    (size) =>
+                        String(size._id) === String(resolvedVariantId) ||
+                        (resolvedBarcode &&
+                            (size.barcode === resolvedBarcode || size.sku === resolvedBarcode)),
+                ) || item.sizes?.[0];
+            resolvedVariantId = resolvedVariantId || variant?._id || null;
+            resolvedBarcode =
+                resolvedBarcode || variant?.barcode || variant?.sku || item.itemCode || '';
+        }
+    }
+
+    if (!resolvedItemId || !resolvedBarcode) {
+        throw new Error('Unable to resolve itemId and barcode for stock movement');
+    }
+
+    return {
+        itemId: resolvedItemId,
+        barcode: resolvedBarcode,
+        variantId: resolvedVariantId,
+    };
+};
+
 /**
  * Core internal function to update inventory collection based on location type
  */
@@ -283,6 +344,11 @@ const addStock = async ({ itemId, barcode, variantId, locationId, locationType, 
     if (movementQty <= 0) throw new Error('Quantity to add must be positive');
     if (!referenceId) throw new Error('referenceId is required for stock movement');
 
+    const resolved = await _resolveStockIdentifiers({ itemId, barcode, variantId, session });
+    itemId = resolved.itemId;
+    barcode = resolved.barcode;
+    variantId = resolved.variantId;
+
     const filter = { barcode };
     if (locationType === 'STORE') filter.storeId = locationId;
     if (locationType === 'WAREHOUSE') filter.warehouseId = locationId;
@@ -342,6 +408,11 @@ const removeStock = async ({ itemId, barcode, variantId, locationId, locationTyp
     const movementQty = toFiniteNumber(qty);
     if (movementQty <= 0) throw new Error('Quantity to remove must be positive');
     if (!referenceId) throw new Error('referenceId is required for stock movement');
+
+    const resolved = await _resolveStockIdentifiers({ itemId, barcode, variantId, session });
+    itemId = resolved.itemId;
+    barcode = resolved.barcode;
+    variantId = resolved.variantId;
 
     const filter = { barcode };
     if (locationType === 'STORE') filter.storeId = locationId;

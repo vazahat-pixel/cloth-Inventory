@@ -41,12 +41,22 @@ function PaymentDialog({ open, onClose, totals, onComplete, store, customer, isE
   const paymentStatus = dueAmount > 0 ? 'Partial' : 'Paid';
 
   const handleConfirm = () => {
-    onConfirm({
-      method: payments[0]?.mode === 'Gift Voucher' ? 'GIFT_VOUCHER' : payments[0]?.mode?.toUpperCase() || 'CASH',
-      payments: payments.map(p => ({
+    const activePayments = payments
+      .map((p) => ({
         mode: p.mode === 'Gift Voucher' ? 'GIFT_VOUCHER' : p.mode.toUpperCase(),
-        amount: toNumber(p.amount)
-      })),
+        amount: toNumber(p.amount),
+      }))
+      .filter((p) => p.amount > 0);
+
+    const primary = activePayments[0];
+    const method =
+      activePayments.length > 1
+        ? 'SPLIT'
+        : primary?.mode || 'CASH';
+
+    onConfirm({
+      method,
+      payments: activePayments.length ? activePayments : [{ mode: 'CASH', amount: 0 }],
       amountPaid: computedAmountPaid,
       changeReturned,
       dueAmount,

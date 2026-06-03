@@ -1,11 +1,12 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useSelector } from 'react-redux';
+import { getRoleBasePath } from '../common/roleConfig';
 
 function PublicRoute({ children }) {
-  const { isAuthenticated } = useSelector((state) => state.auth);
+  const { isAuthenticated, role } = useSelector((state) => state.auth);
 
   if (isAuthenticated) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={getRoleBasePath(role)} replace />;
   }
 
   return children || <Outlet />;

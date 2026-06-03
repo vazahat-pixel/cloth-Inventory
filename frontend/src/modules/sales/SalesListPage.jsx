@@ -53,6 +53,8 @@ function SalesListPage({
   const sales = useSelector((state) => state.sales.records || []);
   const customers = useSelector((state) => state.masters.customers || []);
   const warehouses = useSelector((state) => state.masters.warehouses || []);
+  const user = useSelector((state) => state.auth.user);
+  const canManageSales = user?.role === 'Admin' || user?.role === 'admin';
 
   const [searchText, setSearchText] = useState('');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('all');
@@ -282,20 +284,24 @@ function SalesListPage({
                             >
                               <KeyboardReturnOutlinedIcon fontSize="small" />
                             </IconButton>
-                            <IconButton
-                              size="small"
-                              color="primary"
-                              onClick={() => navigate(`/sales/sale-bill/${row.id}/edit`)}
-                            >
-                              <EditOutlinedIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => handleDelete(row.id)}
-                            >
-                              <DeleteOutlineOutlinedIcon fontSize="small" />
-                            </IconButton>
+                            {canManageSales && (
+                              <IconButton
+                                size="small"
+                                color="primary"
+                                onClick={() => navigate(`/sales/sale-bill/${row.id}/edit`)}
+                              >
+                                <EditOutlinedIcon fontSize="small" />
+                              </IconButton>
+                            )}
+                            {canManageSales && (
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => handleDelete(row.id)}
+                              >
+                                <DeleteOutlineOutlinedIcon fontSize="small" />
+                              </IconButton>
+                            )}
                           </Stack>
                         </TableCell>
                       </TableRow>

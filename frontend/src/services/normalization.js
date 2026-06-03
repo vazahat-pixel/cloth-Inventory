@@ -151,14 +151,31 @@ const normalizeItem = (item, entityType) => {
             else if (rawMode === 'CREDIT') normalizedMode = 'Credit';
 
             const splitValues = { cash: 0, card: 0, upi: 0, 'gift voucher': 0 };
-            if (Array.isArray(item.payments) && item.payments.length > 0) {
-                item.payments.forEach(p => {
-                    const m = String(p.mode || '').toLowerCase();
-                    if (m === 'cash') splitValues.cash = p.amount || 0;
-                    else if (m === 'card') splitValues.card = p.amount || 0;
-                    else if (m === 'upi') splitValues.upi = p.amount || 0;
-                    else if (m === 'gift_voucher' || m === 'gift voucher') splitValues['gift voucher'] = p.amount || 0;
+            const activePayments = (Array.isArray(item.payments) ? item.payments : []).filter(
+                (p) => Number(p.amount) > 0,
+            );
+
+            if (activePayments.length > 0) {
+                activePayments.forEach((p) => {
+                    const m = String(p.mode || '').toLowerCase().replace(/_/g, ' ');
+                    const amount = Number(p.amount) || 0;
+                    if (m === 'cash') splitValues.cash += amount;
+                    else if (m === 'card') splitValues.card += amount;
+                    else if (m === 'upi') splitValues.upi += amount;
+                    else if (m === 'gift voucher') splitValues['gift voucher'] += amount;
                 });
+                const activeModeCount = ['cash', 'card', 'upi', 'gift voucher'].filter(
+                    (k) => (splitValues[k] || 0) > 0,
+                ).length;
+                if (activeModeCount > 1 || rawMode === 'SPLIT') {
+                    normalizedMode = 'Split';
+                } else if (activeModeCount === 1) {
+                    const singleMode = Object.entries(splitValues).find(([, v]) => v > 0)?.[0];
+                    if (singleMode === 'cash') normalizedMode = 'Cash';
+                    else if (singleMode === 'card') normalizedMode = 'Card';
+                    else if (singleMode === 'upi') normalizedMode = 'UPI';
+                    else if (singleMode === 'gift voucher') normalizedMode = 'Gift Voucher';
+                }
             } else if (normalizedMode !== 'Split' && normalizedMode !== 'Other') {
                 const m = normalizedMode.toLowerCase();
                 const amt = item.amountPaid || item.grandTotal || 0;
@@ -174,7 +191,8 @@ const normalizeItem = (item, entityType) => {
                 dueAmount: item.dueAmount || 0,
                 changeReturned: 0,
                 mode: normalizedMode,
-                splitValues
+                splitValues,
+                payments: activePayments.length ? activePayments : item.payments || [],
             };
 
             normalized.cashierName = item.cashierId?.name || '';

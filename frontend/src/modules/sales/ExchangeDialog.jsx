@@ -22,7 +22,7 @@ import {
 import SearchIcon from '@mui/icons-material/Search';
 import api from '../../services/api';
 
-function ExchangeDialog({ open, onClose, onAddItems, storeId }) {
+function ExchangeDialog({ open, onClose, onAddItems }) {
   const [saleNumber, setSaleNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [saleData, setSaleData] = useState(null);
@@ -36,17 +36,20 @@ function ExchangeDialog({ open, onClose, onAddItems, storeId }) {
     setSaleData(null);
     setSelectedItems([]);
     try {
-      // Find sale by sale number
-      const response = await api.get(`/sales?saleNumber=${saleNumber.trim()}`);
-      const sale = response.data.sales?.[0] || response.data.data?.[0];
-      
-      if (!sale) {
+      const query = saleNumber.trim();
+      const response = await api.get('/sales/lookup/by-number', {
+        params: { saleNumber: query },
+      });
+      const sale = response.data?.sale || response.data?.data?.sale;
+
+      const returnedNumber = String(sale?.saleNumber || '').trim().toUpperCase();
+      if (!sale || returnedNumber !== query.toUpperCase()) {
         setError('Invoice not found.');
       } else {
         setSaleData(sale);
       }
     } catch (err) {
-      setError('Error searching for invoice.');
+      setError(err.response?.data?.message || 'Error searching for invoice.');
     } finally {
       setLoading(false);
     }
@@ -76,9 +79,12 @@ function ExchangeDialog({ open, onClose, onAddItems, storeId }) {
 
   const handleConfirm = () => {
     if (selectedItems.length === 0) return;
+    const originalSaleStoreId =
+      saleData?.storeId?._id || saleData?.storeId?.id || saleData?.storeId || null;
     onAddItems({
       originalSaleId: saleData._id || saleData.id,
       originalSaleNumber: saleData.saleNumber,
+      originalSaleStoreId,
       items: selectedItems.map(i => ({
         ...i,
         quantity: i.returnQty,

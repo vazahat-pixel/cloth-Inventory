@@ -47,8 +47,28 @@ const sanitizeSkuPart = (value, fallback) => {
 const generateSku = (styleCode, size, color) =>
   `${sanitizeSkuPart(styleCode, 'STYLE')}-${sanitizeSkuPart(size, 'SIZE')}-${sanitizeSkuPart(color, 'COLOR')}`;
 
-const generateSequentialPreviewSku = (prefix, sequence) =>
-  `${sanitizeSkuPart(prefix, 'BR')}-${String(sequence).padStart(4, '0')}`;
+const parseBmSequence = (sku) => {
+  const match = String(sku || '').trim().toUpperCase().match(/^BM(\d+)$/);
+  if (!match) return null;
+  const num = Number(match[1]);
+  return Number.isFinite(num) ? num : null;
+};
+
+const formatBmCode = (seq) => `BM${String(seq).padStart(4, '0')}`;
+
+const getMaxBmSequenceInVariants = (variantList) =>
+  variantList.reduce((maxSequence, variant) => {
+    const sequence = parseBmSequence(variant.sku);
+    return sequence && sequence > maxSequence ? sequence : maxSequence;
+  }, 0);
+
+const buildBmSkuList = (variantList, count, serverCodes = []) => {
+  const safeCount = Math.max(1, Number(count) || 1);
+  const localMax = getMaxBmSequenceInVariants(variantList);
+  const serverStart = parseBmSequence(serverCodes[0]) || 260;
+  const startSeq = Math.max(serverStart, localMax + 1);
+  return Array.from({ length: safeCount }, (_, index) => formatBmCode(startSeq + index));
+};
 
 const normalizeSizeCode = (value) =>
   String(value || '')
@@ -105,13 +125,6 @@ const getHeuristicSizeRank = (size) => {
   if (['MTR', 'METER', 'METRE', 'CM', 'CMS', 'INCH', 'INCHES', 'MM'].includes(normalized)) return 20000;
 
   return 30000;
-};
-
-const getSequentialSkuNumber = (sku) => {
-  const normalized = String(sku || '').trim().toUpperCase();
-  const match = normalized.match(/-(\d+)$/);
-  if (!match) return null;
-  return Number(match[1]);
 };
 
 const createVariantPayload = (overrides = {}) => ({
@@ -226,12 +239,13 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
   const getSizeLabel = (value) => resolveSizeLabel(value, sizeLabelLookup);
 
   const peekBarcodes = async (count) => {
-    if (!brandId) return [];
     try {
-      const response = await api.get('/items/peek-barcodes', { params: { brandId, count } });
-      return response.data?.barcodes || [];
+      const params = { count };
+      if (brandId) params.brandId = brandId;
+      const response = await api.get('/items/peek-barcodes', { params });
+      return response.data?.barcodes || response.data?.data?.barcodes || [];
     } catch (err) {
-      console.error('Failed to peek barcodes:', err);
+      console.error('Failed to peek BM SKU codes:', err);
       return [];
     }
   };
@@ -252,14 +266,11 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
     }
     setEditingVariant(null);
     setAutoGenerateSku(true);
-    const [peek] = await peekBarcodes(1);
-    const nextSequence = variants.reduce((maxSequence, variant) => {
-      const sequence = getSequentialSkuNumber(variant.sku);
-      return sequence && sequence > maxSequence ? sequence : maxSequence;
-    }, 0) + 1;
+    const serverCodes = await peekBarcodes(1);
+    const [peek] = buildBmSkuList(variants, 1, serverCodes);
     reset(
       createVariantPayload({
-        sku: peek || generateSequentialPreviewSku(styleCode, nextSequence),
+        sku: peek || '',
         barcodePrefix: sanitizeSkuPart(styleCode, 'BAR'),
       }),
     );
@@ -373,25 +384,34 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
       return;
     }
 
-    const peekList = await peekBarcodes(newCombinations.length);
-    const currentAutoVariantCount = variants.reduce((maxSequence, variant) => {
-      const sequence = getSequentialSkuNumber(variant.sku);
-      return sequence && sequence > maxSequence ? sequence : maxSequence;
-    }, 0);
-    const generatedVariants = newCombinations.map((combo, index) => {
-      const sequence = currentAutoVariantCount + index + 1;
-      return createVariantPayload({
+    const serverCodes = await peekBarcodes(newCombinations.length);
+    const peekList = buildBmSkuList(variants, newCombinations.length, serverCodes);
+    if (!peekList.length || !peekList[0]) {
+      setGeneratorFeedback({
+        severity: 'error',
+        text: 'Could not reserve BM SKU codes from server. Check backend is running and try again.',
+      });
+      return;
+    }
+
+    const generatedVariants = newCombinations.map((combo, index) =>
+      createVariantPayload({
         size: combo.size,
         color: combo.color,
-        sku: peekList[index] || generateSequentialPreviewSku(styleCode, sequence),
+        sku: peekList[index],
         barcodePrefix: sanitizeSkuPart(styleCode, 'BAR'),
-      });
-    });
+      }),
+    );
 
     onChange(applySortedVariants([...variants, ...generatedVariants]));
+    const firstSku = peekList[0];
+    const lastSku = peekList[peekList.length - 1];
     setGeneratorFeedback({
       severity: 'success',
-      text: `Generated ${generatedVariants.length} new variants with local preview SKUs.`,
+      text:
+        peekList.length === 1
+          ? `Generated 1 variant with SKU ${firstSku}.`
+          : `Generated ${generatedVariants.length} variants with SKUs ${firstSku} – ${lastSku}.`,
     });
   };
 

@@ -219,7 +219,12 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
     const isInclusiveSource = sale.type === 'RETAIL' && !sale.dispatchNumber;
     
     const isB2B = Boolean(destinationGstin !== 'N/A' || sale.customerGst || sale.consigneeGst);
-    const displayTitle = providedTitle || (isStockTransfer ? 'STOCK TRANSFER INVOICE' : 'TAX INVOICE');
+    const isRetailStoreSale =
+        (sale.type === 'RETAIL' || String(sale.saleType || '').toLowerCase() === 'retail')
+        && !isStockTransfer
+        && !sale.dispatchNumber;
+    const displayTitle = providedTitle
+        || (isStockTransfer ? 'STOCK TRANSFER INVOICE' : isRetailStoreSale ? 'RETAIL INVOICE' : 'TAX INVOICE');
 
     const finalNetPayable = Number(sale.totals?.netPayable ?? sale.netPayable ?? sale.grandTotal ?? grandTotal);
     const roundOff = finalNetPayable - grandTotal;

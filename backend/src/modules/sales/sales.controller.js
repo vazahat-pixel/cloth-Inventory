@@ -83,8 +83,24 @@ const getSaleById = async (req, res, next) => {
     }
 };
 
+const getSaleByNumber = async (req, res, next) => {
+    try {
+        const { saleNumber, storeId } = req.query;
+        if (!saleNumber || !String(saleNumber).trim()) {
+            return sendError(res, 'saleNumber is required', 400);
+        }
+        const sale = await salesService.getSaleByNumber(saleNumber, req.user, storeId || null);
+        return sendSuccess(res, { sale }, 'Sale found');
+    } catch (err) {
+        return sendNotFound(res, err.message);
+    }
+};
+
 const cancelSale = async (req, res, next) => {
     try {
+        if (req.user.role === 'store_staff') {
+            return sendError(res, 'Only Head Office can cancel sales.', 403);
+        }
         const sale = await salesService.cancelSale(req.params.id, req.user._id);
         return sendSuccess(res, { sale }, 'Sale cancelled successfully');
     } catch (err) {
@@ -105,6 +121,9 @@ const applyCreditNote = async (req, res, next) => {
 
 const deleteSale = async (req, res, next) => {
     try {
+        if (req.user.role === 'store_staff') {
+            return sendError(res, 'Only Head Office can delete sales.', 403);
+        }
         const sale = await salesService.deleteSale(req.params.id, req.user._id);
         return sendSuccess(res, { sale }, 'Sale deleted successfully');
     } catch (err) {
@@ -114,20 +133,11 @@ const deleteSale = async (req, res, next) => {
 
 const updateSale = async (req, res, next) => {
     try {
+        if (req.user.role === 'store_staff') {
+            return sendError(res, 'Only Head Office can edit sales.', 403);
+        }
         if (!req.body.products?.length && !req.body.items?.length) {
             return sendError(res, 'Cannot update invoice/sale with empty items', 400);
-        }
-
-        if (req.user.role === 'store_staff') {
-            if (!req.user.shopId) {
-                return sendError(res, 'User is not linked to any store. Please contact administrator.', 400);
-            }
-
-            if (req.body.storeId && req.body.storeId.toString() !== req.user.shopId.toString()) {
-                return sendError(res, 'You can only update sales for your own store.', 403);
-            }
-
-            req.body.storeId = req.user.shopId;
         }
 
         const sale = await salesService.updateSale(req.params.id, req.body, req.user._id);
@@ -143,6 +153,7 @@ module.exports = {
     updateSale,
     getAllSales,
     getSaleById,
+    getSaleByNumber,
     cancelSale,
     applyCreditNote,
     deleteSale

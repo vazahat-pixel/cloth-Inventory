@@ -4,6 +4,7 @@ import RoleDashboardLayout from '../layouts/RoleDashboardLayout';
 import LoadingOverlay from '../components/LoadingOverlay';
 import RoleProtectedRoute from './RoleProtectedRoute';
 import PublicRoute from './PublicRoute';
+import RootRedirect from './RootRedirect';
 
 // Auth
 const LoginPage = lazy(() => import('../pages/auth/LoginPage'));
@@ -176,7 +177,7 @@ function AppRoutes() {
   return (
     <Suspense fallback={<LoadingOverlay />}>
       <Routes>
-        <Route path="/" element={<Navigate to="/ho" replace />} />
+        <Route path="/" element={<RootRedirect />} />
 
         {/* Auth Routes */}
         <Route path="/login/:role" element={<PublicRoute><LoginPage /></PublicRoute>} />
