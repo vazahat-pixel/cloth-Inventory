@@ -359,13 +359,23 @@ function SalesListPage({
       />
 
       <BillPrintDialog open={Boolean(printTarget)} onClose={() => setPrintTarget(null)}>
-        {printTarget && (
-          printTarget.saleType === 'exchange' ? (
-            <ExchangeInvoicePrint sale={printTarget} />
+        {(() => {
+          if (!printTarget) return null;
+          const customer = customerMap[printTarget.customerId];
+          const enrichedTarget = {
+            ...printTarget,
+            customerName: printTarget.customerName || customer?.customerName || 'Walk-in Customer',
+            customerMobile: printTarget.customerMobile || customer?.mobileNumber || '',
+            customerAddress: (printTarget.customerAddress && printTarget.customerAddress !== 'N/A')
+              ? printTarget.customerAddress
+              : (customer?.address || ''),
+          };
+          return enrichedTarget.saleType === 'exchange' ? (
+            <ExchangeInvoicePrint sale={enrichedTarget} />
           ) : (
-            <StandardInvoicePrint sale={printTarget} />
-          )
-        )}
+            <StandardInvoicePrint sale={enrichedTarget} />
+          );
+        })()}
       </BillPrintDialog>
     </>
   );

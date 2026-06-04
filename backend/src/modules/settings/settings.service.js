@@ -63,7 +63,7 @@ module.exports = {
         logo: '',
         address: { address: 'PLOT NO 418 PHASE 3 SECTOR - 53 HSIIDC KUNDLI', city: 'SONIPAT', state: 'HARYANA', pincode: '131028' },
         phone: '9999999999',
-        email: 'warehouse@example.com',
+        email: 'support@billmarkclothing.com',
         financialYearStart: '04-01'
     }),
     updateCompanyProfile: (data, userId) => updateSetting('company_profile', data, userId),

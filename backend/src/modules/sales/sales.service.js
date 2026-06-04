@@ -262,6 +262,8 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
         }
         const finalCustomerId = customer?._id || (mongoose.Types.ObjectId.isValid(customerId) ? customerId : null);
         const finalCustomerName = customer?.name || customerName || 'Walk-in Customer';
+        const finalCustomerMobile = customer?.phone || customerMobile || '';
+        const finalCustomerAddress = customer?.address || customerAddress || '';
 
         // 1. Generate Sale Number
         if (!saleNumber) {
@@ -534,10 +536,10 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
                     throw new Error(`Return quantity for ${rItem.barcode} exceeds original purchased quantity`);
                 }
 
-                const itemReturnValue = (matchedSaleItem.rate * rItem.quantity); // Returns at original rate
+                const itemReturnValue = (matchedSaleItem.total / matchedSaleItem.quantity) * rItem.quantity; // Net paid amount
                 const itemReturnTax = (matchedSaleItem.taxAmount / matchedSaleItem.quantity) * rItem.quantity;
                 
-                totalReturnValue += (itemReturnValue + itemReturnTax);
+                totalReturnValue += itemReturnValue;
 
                 returnItemsProcessed.push({
                     itemId: matchedSaleItem.itemId,
@@ -552,10 +554,10 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
                     color: matchedSaleItem.color,
                     quantity: rItem.quantity,
                     mrp: matchedSaleItem.mrp || matchedSaleItem.rate,
-                    rate: matchedSaleItem.rate,
+                    rate: Number((matchedSaleItem.total / matchedSaleItem.quantity).toFixed(2)),
                     taxAmount: itemReturnTax,
                     taxPercentage: matchedSaleItem.taxPercentage || 0,
-                    total: itemReturnValue + itemReturnTax
+                    total: itemReturnValue
                 });
 
                 // Stock Movement (Add back to stock)
@@ -616,14 +618,12 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
 
         const netDifference = (calculatedSubTotal || 0) + (totalTax || 0) - (discount || 0) - (loyaltyRedemptionAmount || 0) - (creditNoteAppliedAmount || 0) - (totalReturnValue || 0);
         
-        let surplusAmount = 0;
         let finalGrandTotal = 0;
         
-        if (netDifference < 0) {
-            surplusAmount = Math.abs(Number(netDifference.toFixed(2)));
-            finalGrandTotal = 0;
+        if (netDifference < -0.01) {
+            throw new Error('Exchange Not Allowed: Value of new items must be greater than or equal to the returned items.');
         } else {
-            finalGrandTotal = Number(netDifference.toFixed(2));
+            finalGrandTotal = Math.max(0, Number(netDifference.toFixed(2)));
         }
 
         const exchangeAdjustment = totalReturnValue || 0;
@@ -649,10 +649,10 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             storeId,
             destinationStoreId: saleData.destinationStoreId,
             cashierId: cashierId,
-            customerId: saleData.customerId,
-            customerName: saleData.customerName,
-            customerMobile: saleData.customerMobile,
-            customerAddress: saleData.customerAddress,
+            customerId: finalCustomerId,
+            customerName: finalCustomerName,
+            customerMobile: finalCustomerMobile,
+            customerAddress: finalCustomerAddress,
             type: saleData.type || 'RETAIL',
             parentSaleId,
             items: products.map(p => ({
@@ -693,8 +693,6 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             returnedItems: returnItemsProcessed,
             amountPaid,
             dueAmount,
-            customerId: finalCustomerId,
-            customerName: finalCustomerName,
             paymentMode: normalizedPayments.paymentMode,
             payments: normalizedPayments.payments,
             status: dueAmount > 0 ? SaleStatus.PARTIAL : SaleStatus.COMPLETED,
@@ -713,18 +711,7 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
         await sale.save({ session });
         
         // Generate Credit Note if there's a surplus from exchange
-        if (surplusAmount > 0 && finalCustomerId) {
-            const creditNote = new CreditNote({
-                customerId: finalCustomerId,
-                saleId: sale._id,
-                amount: surplusAmount,
-                remainingAmount: surplusAmount,
-                reason: `Exchange Surplus from Sale ${saleNumber}`,
-                status: CreditNoteStatus.ACTIVE,
-                createdBy: cashierId
-            });
-            await creditNote.save({ session });
-        }
+        // (Removed due to business rule: No Credit Notes generated on exchange, upgrade only)
         // 4. Update Stock and Record in Ledger in parallel
         await Promise.all(stockMovements.map(async (mov) => {
             if (mov.type === 'SALE') {
@@ -1042,7 +1029,7 @@ const getSaleById = async (id, user = null) => {
         .populate('storeId')
         .populate('destinationStoreId')
         .populate('cashierId', 'name')
-        .populate('customerId', 'customerName mobileNumber loyaltyPoints')
+        .populate('customerId', 'name phone address loyaltyPoints')
         .populate({
             path: 'items.itemId',
             select: 'itemName itemCode shade gstTax sizes categoryId hsCodeId',
@@ -1089,7 +1076,7 @@ const getSaleById = async (id, user = null) => {
 const saleByNumberPopulate = [
     { path: 'storeId', select: 'name invoicePrefix location' },
     { path: 'cashierId', select: 'name' },
-    { path: 'customerId', select: 'customerName mobileNumber loyaltyPoints' },
+    { path: 'customerId', select: 'name phone address loyaltyPoints' },
     {
         path: 'items.itemId',
         select: 'itemName itemCode shade gstTax sizes categoryId hsCodeId',

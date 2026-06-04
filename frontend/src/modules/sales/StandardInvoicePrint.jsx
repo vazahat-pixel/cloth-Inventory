@@ -52,7 +52,7 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
     const resolvedStoreId = saleStoreId || saleWarehouseId;
     const reduxStore = warehouses.find(w => w.id === resolvedStoreId) || stores.find(s => s.id === resolvedStoreId);
 
-    const store = providedStore || (typeof sale.storeId === 'object' ? sale.storeId : null) || (typeof sale.warehouseId === 'object' ? sale.warehouseId : null) || reduxStore || {};
+    const store = providedStore || reduxStore || (typeof sale.storeId === 'object' ? sale.storeId : null) || (typeof sale.warehouseId === 'object' ? sale.warehouseId : null) || {};
     const sourceWarehouse = sale.sourceWarehouseId || store || {};
     const destinationStore = sale.destinationStoreId || {};
     const company = config?.company || {};
@@ -128,17 +128,19 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
         };
     });
 
-    // Aggregate items by Category, HSN, and Rate
+    // Aggregate items by SKU, Category, HSN, and Rate
     const aggregatedItems = [];
     normalizedItems.forEach((item) => {
         const cat = (item.category || item.itemId?.categoryId?.name || item.categoryId?.name || item.itemId?.category || 'OTHERS').toUpperCase();
         const hsn = item.hsnCode || 'N/A';
         const rate = Number(item.rate || 0);
         const gst = Number(item.taxPercentage || 0);
+        const sku = item.sku || '-';
+        const name = item.itemName || 'Item';
 
-        // Find existing aggregated item with same category, hsn, rate, and gst
+        // Find existing aggregated item with same SKU, category, hsn, rate, and gst
         const existing = aggregatedItems.find(
-            (x) => x.category === cat && x.hsnCode === hsn && Math.abs(x.rate - rate) < 0.01 && Math.abs(x.taxPercentage - gst) < 0.01
+            (x) => x.sku === sku && x.category === cat && x.hsnCode === hsn && Math.abs(x.rate - rate) < 0.01 && Math.abs(x.taxPercentage - gst) < 0.01
         );
 
         if (existing) {
@@ -150,6 +152,8 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
             existing.lineTotal += item.lineTotal;
         } else {
             aggregatedItems.push({
+                sku,
+                itemName: name,
                 category: cat,
                 hsnCode: hsn,
                 rate,
@@ -322,7 +326,7 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
                         GSTIN: {store.gstNumber || store.gstin || company.gstin || '06AAJCR6675A1ZB'}
                     </Box>
                     <Box sx={{ mt: 0.5, fontSize: '11px', fontWeight: 700 }}>
-                        PH: {store.phone || store.managerPhone || company.phone || '9999999999'} | Email: {store.email || company.email || '-'}
+                        PH: {store.phone || store.managerPhone || company.phone || '9999999999'} | Email: support@billmarkclothing.com
                     </Box>
                 </Typography>
             </Box>
@@ -469,7 +473,7 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
                             <TableHead sx={tableHeaderStyle}>
                                 <TableRow>
                                     <TableCell width="30">S.No</TableCell>
-                                    <TableCell width="120">CATEGORY</TableCell>
+                                    <TableCell width="120">ITEM DESCRIPTION</TableCell>
                                     <TableCell width="70">HSN CODE</TableCell>
                                     <TableCell width="50">TOTAL QTY</TableCell>
                                     <TableCell width="70">RATE</TableCell>
@@ -483,7 +487,16 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
                                 {groupItems.map((item, index) => (
                                     <TableRow key={index} sx={{ '& .MuiTableCell-root': tableCellStyle }}>
                                         <TableCell width="30">{index + 1}</TableCell>
-                                        <TableCell width="120" sx={{ textAlign: 'left !important', pl: 1 }}>{item.category}</TableCell>
+                                        <TableCell width="120" sx={{ textAlign: 'left !important', pl: 1 }}>
+                                            <Typography sx={{ fontSize: '9px', fontWeight: 900, color: '#000' }}>
+                                                {item.itemName}
+                                            </Typography>
+                                            {item.sku && item.sku !== '-' && (
+                                                <Typography sx={{ fontSize: '8px', color: '#475569', fontWeight: 700 }}>
+                                                    Code: {item.sku}
+                                                </Typography>
+                                            )}
+                                        </TableCell>
                                         <TableCell width="70">{item.hsnCode}</TableCell>
                                         <TableCell width="50">{item.quantity}</TableCell>
                                         <TableCell width="70">{item.rate.toFixed(2)}</TableCell>

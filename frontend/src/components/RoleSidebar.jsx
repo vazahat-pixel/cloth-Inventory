@@ -26,6 +26,7 @@ const COLLAPSED_WIDTH = 88;
 const RoleSidebar = ({ navConfig, isCollapsed, onToggle }) => {
   const location = useLocation();
   const [drilldown, setDrilldown] = useState(null); // The parent item currently drilled into
+  const [lastAutoDrilldownPath, setLastAutoDrilldownPath] = useState(null);
 
   const basePath = navConfig?.basePath || '/ho';
   const mainNav = navConfig?.mainNav || [];
@@ -47,15 +48,21 @@ const RoleSidebar = ({ navConfig, isCollapsed, onToggle }) => {
 
   // Find current drilldown based on path if not manually set (for persistence)
   useEffect(() => {
-    if (!drilldown) {
+    if (location.pathname !== lastAutoDrilldownPath) {
       const activeParent = mainNav.find((item) =>
         matchesPath(item, location.pathname)
         && navConfig?.children?.[item.path]
         && navConfig.children[item.path].length > 0,
       );
-      if (activeParent) setDrilldown(activeParent);
+      if (activeParent) {
+        setDrilldown(activeParent);
+      } else if (!activeParent && drilldown) {
+          // Optional: close drilldown if navigating to a completely different root path
+          // setDrilldown(null); 
+      }
+      setLastAutoDrilldownPath(location.pathname);
     }
-  }, [location.pathname, navConfig, drilldown, basePath, mainNav]);
+  }, [location.pathname, navConfig, basePath, mainNav, lastAutoDrilldownPath]);
 
   const toFullPath = (path) => {
     if (!path) return undefined;

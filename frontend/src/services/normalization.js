@@ -93,6 +93,7 @@ const normalizeItem = (item, entityType) => {
                 normalized.customerId = item.customerId._id || item.customerId.id;
                 normalized.customerName = item.customerId.name || item.customerId.customerName;
                 normalized.customerMobile = item.customerId.phone || item.customerId.mobileNumber;
+                normalized.customerAddress = item.customerAddress || item.customerId.address || '';
             }
 
             // Products / Items normalization
