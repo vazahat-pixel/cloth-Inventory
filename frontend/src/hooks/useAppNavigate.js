@@ -9,7 +9,8 @@ export function useAppNavigate() {
   const appNavigate = useCallback(
     (to, options) => {
       if (typeof to === 'string' && to.startsWith('/') && !to.startsWith('/login')) {
-        navigate(`${basePath}${to}`, options);
+        const targetPath = to === '/' ? basePath : `${basePath}${to}`;
+        navigate(targetPath, options);
       } else {
         navigate(to, options);
       }

@@ -1519,7 +1519,7 @@ function BillingPage({
                         </TableCell>
                         <TableCell align="right">{item.quantity}</TableCell>
                         <TableCell align="right" sx={{ fontWeight: 700, color: '#10B981' }}>
-                          ₹{((toNumber(item.rate) * toNumber(item.quantity)) + (toNumber(item.taxAmount) || 0)).toFixed(2)}
+                          ₹{(toNumber(item.rate) * toNumber(item.quantity)).toFixed(2)}
                         </TableCell>
                       </TableRow>
                     ))}
