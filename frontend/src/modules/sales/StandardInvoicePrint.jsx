@@ -17,6 +17,8 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
     const [config, setConfig] = useState(null);
     const [loading, setLoading] = useState(true);
     const taxRules = useSelector((state) => state.masters.taxRules || []);
+    const warehouses = useSelector((state) => state.masters.warehouses || []);
+    const stores = useSelector((state) => state.masters.stores || []);
 
     useEffect(() => {
         const fetchPrintConfig = async () => {
@@ -45,7 +47,12 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
         </Box>
     );
 
-    const store = providedStore || (typeof sale.storeId === 'object' ? sale.storeId : null) || (typeof sale.warehouseId === 'object' ? sale.warehouseId : null) || {};
+    const saleStoreId = typeof sale.storeId === 'object' ? sale.storeId?.id || sale.storeId?._id : sale.storeId;
+    const saleWarehouseId = typeof sale.warehouseId === 'object' ? sale.warehouseId?.id || sale.warehouseId?._id : sale.warehouseId;
+    const resolvedStoreId = saleStoreId || saleWarehouseId;
+    const reduxStore = warehouses.find(w => w.id === resolvedStoreId) || stores.find(s => s.id === resolvedStoreId);
+
+    const store = providedStore || (typeof sale.storeId === 'object' ? sale.storeId : null) || (typeof sale.warehouseId === 'object' ? sale.warehouseId : null) || reduxStore || {};
     const sourceWarehouse = sale.sourceWarehouseId || store || {};
     const destinationStore = sale.destinationStoreId || {};
     const company = config?.company || {};

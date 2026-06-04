@@ -168,8 +168,11 @@ function ReportFilterPanel({
             value={filters?.warehouseIds || []}
             onChange={(e) => {
               const value = typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value;
-              update('warehouseIds', value);
-              update('warehouseId', value.length ? value[0] : 'all');
+              onFiltersChange?.({
+                ...filters,
+                warehouseIds: value,
+                warehouseId: value.length ? value[0] : 'all'
+              });
             }}
             SelectProps={{
               multiple: true,

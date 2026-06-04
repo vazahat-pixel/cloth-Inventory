@@ -1,9 +1,18 @@
+import { useSelector } from 'react-redux';
 import { Box, Divider, Grid, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography, Stack } from '@mui/material';
 
 const ExchangeInvoicePrint = ({ sale }) => {
+    const warehouses = useSelector((state) => state.masters.warehouses || []);
+    const stores = useSelector((state) => state.masters.stores || []);
+
     if (!sale) return null;
 
-    const store = sale.storeId || {};
+    const saleStoreId = typeof sale.storeId === 'object' ? sale.storeId?.id || sale.storeId?._id : sale.storeId;
+    const saleWarehouseId = typeof sale.warehouseId === 'object' ? sale.warehouseId?.id || sale.warehouseId?._id : sale.warehouseId;
+    const resolvedStoreId = saleStoreId || saleWarehouseId;
+    const reduxStore = warehouses.find(w => w.id === resolvedStoreId) || stores.find(s => s.id === resolvedStoreId);
+
+    const store = (typeof sale.storeId === 'object' ? sale.storeId : null) || (typeof sale.warehouseId === 'object' ? sale.warehouseId : null) || reduxStore || {};
     const location = store.location || {};
     const newItems = sale.items || [];
     const returnedItems = sale.returnedItems || [];

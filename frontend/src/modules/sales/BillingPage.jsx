@@ -181,7 +181,7 @@ const calculateTotals = (lines, taxRules, billDiscount, loyaltyRedeemed, couponD
 };
 
 function BillingPage({
-  listPath = '/sales',
+  listPath = '/sales/sale-bill',
   pageTitle = 'POS Billing',
   pageDescription = 'Fast, store-level checkout for walk-in and repeat customers.',
   listLabel = 'Back to Sales List',
@@ -353,13 +353,10 @@ function BillingPage({
         const qty = toNumber(i.quantity);
         const itemTotal = rate * qty;
         
-        // If taxAmount is missing, calculate it from percentage (i.tax)
-        let itemTax = toNumber(i.taxAmount);
-        if (!itemTax && i.tax) {
-            itemTax = itemTotal * (toNumber(i.tax) / 100);
-        }
-        
-        return acc + itemTotal + itemTax;
+        // We do NOT add tax here because the `rate` passed from ExchangeDialog 
+        // (which is derived from i.total / i.quantity) already represents the 
+        // final net paid amount inclusive of everything (tax, discounts).
+        return acc + itemTotal;
     }, 0);
   }, [exchangeItems]);
 
@@ -396,7 +393,8 @@ function BillingPage({
       return {
         ...basic,
         returnTotalCredit,
-        netPayable: saleType === 'exchange' ? basic.netPayable - returnTotalCredit : Math.max(0, basic.netPayable - returnTotalCredit),
+        basicNetPayable: basic.netPayable,
+        netPayable: Math.max(0, basic.netPayable - returnTotalCredit),
       };
     },
     [billDiscount, lines, loyaltyRedeemed, couponDiscountAmount, creditNoteAmount, saleType, returnTotalCredit, promoItems, taxRules, adjustments],
@@ -800,13 +798,14 @@ function BillingPage({
       return;
     }
 
-    // Prevent proceeding when nothing is actually payable (except for exchanges)
-    const effectiveNet =
-      saleType === 'exchange'
-        ? totals.netPayable - creditNoteAmount
-        : Math.max(0, totals.netPayable - creditNoteAmount);
+    if (saleType === 'exchange' && totals.basicNetPayable < totals.returnTotalCredit) {
+      setErrorMessage('Exchange Not Allowed: Value of new items must be greater than or equal to the returned items.');
+      return;
+    }
 
-    if (effectiveNet < 0 && saleType !== 'exchange' && !isEditMode) {
+    const effectiveNet = Math.max(0, totals.netPayable - creditNoteAmount);
+
+    if (effectiveNet < 0 && !isEditMode) {
       setErrorMessage('Net payable must be greater than 0 to proceed.');
       return;
     }

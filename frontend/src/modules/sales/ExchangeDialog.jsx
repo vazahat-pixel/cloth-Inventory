@@ -88,7 +88,7 @@ function ExchangeDialog({ open, onClose, onAddItems }) {
       items: selectedItems.map(i => ({
         ...i,
         quantity: i.returnQty,
-        rate: i.rate,
+        rate: (i.total !== undefined && i.quantity) ? Number((i.total / i.quantity).toFixed(2)) : i.rate,
         mrp: i.mrp || i.rate,
         tax: i.tax || i.gstPercent || 0,
         isReturn: true

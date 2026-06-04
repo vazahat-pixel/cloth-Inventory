@@ -7,6 +7,7 @@ import useRoleBasePath from '../hooks/useRoleBasePath';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import StoreIcon from '@mui/icons-material/Store';
 import CorporateFareIcon from '@mui/icons-material/CorporateFare';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { Link } from 'react-router-dom';
 
 function Topbar() {
@@ -23,6 +24,8 @@ function Topbar() {
     dispatch(logout());
     navigate(isHo ? '/login/ho' : '/login/store', { replace: true });
   };
+
+  const isDashboardHome = location.pathname === '/ho' || location.pathname === '/store' || location.pathname === '/ho/' || location.pathname === '/store/';
 
   return (
     <Box
@@ -42,6 +45,24 @@ function Topbar() {
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
         <Stack direction="row" spacing={1.5} alignItems="center">
+          {!isDashboardHome && (
+            <Button
+              variant="text"
+              size="small"
+              onClick={() => navigate(-1)}
+              sx={{ 
+                minWidth: 'auto', 
+                p: 0.5, 
+                mr: 0.5,
+                color: '#475569', 
+                bgcolor: '#f1f5f9', 
+                borderRadius: '8px',
+                '&:hover': { bgcolor: '#e2e8f0', color: '#0f172a' } 
+              }}
+            >
+              <ArrowBackIcon fontSize="small" />
+            </Button>
+          )}
           <Typography variant="h6" sx={{ fontSize: 18, fontWeight: 700, color: '#0f172a', letterSpacing: -0.5 }}>
             {title}
           </Typography>
