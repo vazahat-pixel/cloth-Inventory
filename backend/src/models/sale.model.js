@@ -211,7 +211,13 @@ const saleSchema = new mongoose.Schema(
                 amount: { type: Number, default: 0 }
             }
         ],
-        returnedItems: [saleItemSchema]
+        returnedItems: [saleItemSchema],
+        cancelReason: {
+            type: String
+        },
+        deleteReason: {
+            type: String
+        }
     },
     { timestamps: true }
 );

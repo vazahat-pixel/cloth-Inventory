@@ -1256,14 +1256,24 @@ const getAgentWiseReport = async (startDate, endDate) => {
 const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
     console.log('[BranchSalesStockReport] Params:', { startDate, endDate, storeId });
 
-    const storeQuery = {};
+    let targetStoreIds = null;
     if (storeId && storeId !== 'all') {
         try {
-            storeQuery.storeId = new mongoose.Types.ObjectId(storeId);
+            const parsedIds = String(storeId).split(',')
+                .map(id => id.trim())
+                .filter(id => mongoose.Types.ObjectId.isValid(id))
+                .map(id => new mongoose.Types.ObjectId(id));
+            if (parsedIds.length > 0) {
+                targetStoreIds = parsedIds;
+            }
         } catch (e) {
-            console.error('[BranchSalesStockReport] Invalid storeId:', storeId);
-            storeQuery.storeId = storeId;
+            console.error('[BranchSalesStockReport] Error parsing storeId:', e);
         }
+    }
+
+    const storeQuery = {};
+    if (targetStoreIds) {
+        storeQuery.storeId = { $in: targetStoreIds };
     }
 
     console.log('[BranchSalesStockReport] storeQuery:', storeQuery);
@@ -1284,8 +1294,8 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
 
     // 1. Fetch Sales
     const salesQuery = { isDeleted: false };
-    if (storeId && storeId !== 'all') {
-        salesQuery.storeId = storeId;
+    if (targetStoreIds) {
+        salesQuery.storeId = { $in: targetStoreIds };
     }
     if (startDate || endDate) {
         salesQuery.saleDate = {};
@@ -1297,8 +1307,8 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
     // 2. Fetch Customer Returns
     const Return = mongoose.models.Return || require('../../models/return.model');
     const retQuery = { status: 'APPROVED' };
-    if (storeId && storeId !== 'all') {
-        retQuery.locationId = storeId;
+    if (targetStoreIds) {
+        retQuery.locationId = { $in: targetStoreIds };
     }
     if (startDate || endDate) {
         retQuery.createdAt = {};
@@ -1310,8 +1320,8 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
     // 3. Fetch Purchase Returns
     const PurchaseReturn = mongoose.models.PurchaseReturn || require('../../models/purchaseReturn.model');
     const prQuery = { status: 'COMPLETED' };
-    if (storeId && storeId !== 'all') {
-        prQuery.locationId = storeId;
+    if (targetStoreIds) {
+        prQuery.locationId = { $in: targetStoreIds };
     }
     if (startDate || endDate) {
         prQuery.createdAt = {};
@@ -1482,9 +1492,9 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
         // Retrieve variant info from itemId.sizes array
         const variant = inv.itemId.sizes?.find(s => s._id.toString() === inv.variantId || s.barcode === inv.barcode || s.sku === inv.barcode);
         const shadeName = variant?.color || inv.itemId.shadeNo || inv.itemId.color || 'NIL';
-        const description = inv.itemId.description || 'NIL';
+        const description = inv.itemId.itemName || inv.itemId.name || 'NIL';
         const packSize = variant?.size || inv.itemId.accessorySize || inv.itemId.packingType || 'NIL';
-        const subSection = inv.itemId.subCategoryId?.name || 'NIL';
+        const subSection = inv.itemId.categoryName || inv.itemId.categoryId?.name || 'NIL';
         const type = inv.itemId.type || 'NIL';
         const design = inv.itemId.pattern || 'NIL';
         const fabric = inv.itemId.fabric || 'NIL';

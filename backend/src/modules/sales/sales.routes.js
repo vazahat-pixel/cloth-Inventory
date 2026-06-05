@@ -15,6 +15,7 @@ router.route('/')
     .get(requireAny, salesController.getAllSales);
 
 router.get('/lookup/by-number', requireAny, salesController.getSaleByNumber);
+router.get('/next-invoice-number', requireAny, salesController.getNextInvoiceNumber);
 router.get('/:id', requireAny, salesController.getSaleById);
 router.put('/:id', requireAdmin, salesController.updateSale);
 router.patch('/:id/cancel', requireAdmin, salesController.cancelSale);

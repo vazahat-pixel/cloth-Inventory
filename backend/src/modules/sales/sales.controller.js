@@ -101,7 +101,11 @@ const cancelSale = async (req, res, next) => {
         if (req.user.role === 'store_staff') {
             return sendError(res, 'Only Head Office can cancel sales.', 403);
         }
-        const sale = await salesService.cancelSale(req.params.id, req.user._id);
+        const { reason } = req.body;
+        if (!reason || !String(reason).trim()) {
+            return sendError(res, 'Cancellation reason is required.', 400);
+        }
+        const sale = await salesService.cancelSale(req.params.id, req.user._id, String(reason).trim());
         return sendSuccess(res, { sale }, 'Sale cancelled successfully');
     } catch (err) {
         return sendError(res, err.message, 400);
@@ -124,8 +128,31 @@ const deleteSale = async (req, res, next) => {
         if (req.user.role === 'store_staff') {
             return sendError(res, 'Only Head Office can delete sales.', 403);
         }
-        const sale = await salesService.deleteSale(req.params.id, req.user._id);
+        const reason = req.body.reason || req.query.reason;
+        if (!reason || !String(reason).trim()) {
+            return sendError(res, 'Deletion reason is required.', 400);
+        }
+        const sale = await salesService.deleteSale(req.params.id, req.user._id, String(reason).trim());
         return sendSuccess(res, { sale }, 'Sale deleted successfully');
+    } catch (err) {
+        return sendError(res, err.message, 400);
+    }
+};
+
+const getNextInvoiceNumber = async (req, res, next) => {
+    try {
+        let storeId = req.query.storeId;
+        if (req.user.role === 'store_staff') {
+            if (!req.user.shopId) {
+                return sendError(res, 'User is not linked to any store.', 400);
+            }
+            storeId = req.user.shopId.toString();
+        }
+        if (!storeId) {
+            return sendError(res, 'storeId is required', 400);
+        }
+        const nextInvoiceNumber = await salesService.previewNextInvoiceNumber(storeId);
+        return sendSuccess(res, { nextInvoiceNumber }, 'Next invoice number fetched successfully');
     } catch (err) {
         return sendError(res, err.message, 400);
     }
@@ -156,5 +183,6 @@ module.exports = {
     getSaleByNumber,
     cancelSale,
     applyCreditNote,
-    deleteSale
+    deleteSale,
+    getNextInvoiceNumber
 };

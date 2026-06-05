@@ -66,7 +66,8 @@ function BranchSalesStockReportPage() {
   const [filters, setFilters] = useState({
     dateFrom: '',
     dateTo: '',
-    warehouseId: 'all'
+    warehouseId: 'all',
+    warehouseIds: []
   });
   const [hasFetched, setHasFetched] = useState(false);
 
@@ -77,7 +78,9 @@ function BranchSalesStockReportPage() {
       const params = {};
       if (f.dateFrom) params.startDate = f.dateFrom;
       if (f.dateTo) params.endDate = f.dateTo;
-      if (f.warehouseId && f.warehouseId !== 'all') {
+      if (f.warehouseIds && f.warehouseIds.length > 0) {
+        params.storeId = f.warehouseIds.join(',');
+      } else if (f.warehouseId && f.warehouseId !== 'all') {
         params.storeId = f.warehouseId;
       }
       
@@ -104,7 +107,7 @@ function BranchSalesStockReportPage() {
       fetchReport(filters);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.warehouseId, filters.dateFrom, filters.dateTo]);
+  }, [filters.warehouseId, JSON.stringify(filters.warehouseIds || []), filters.dateFrom, filters.dateTo]);
 
   const paginatedRows = useMemo(() => {
     return reportData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
@@ -168,6 +171,7 @@ function BranchSalesStockReportPage() {
           onFiltersChange={setFilters}
           showDateRange={true}
           showWarehouse={true}
+          multiSelectWarehouse={true}
           compact={false}
         />
         <Stack direction="row" justifyContent="flex-end" sx={{ mt: 2 }}>

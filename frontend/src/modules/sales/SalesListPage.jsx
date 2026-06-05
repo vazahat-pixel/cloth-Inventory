@@ -7,6 +7,10 @@ import {
   Box,
   Button,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   IconButton,
   InputAdornment,
   MenuItem,
@@ -28,6 +32,7 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import KeyboardReturnOutlinedIcon from '@mui/icons-material/KeyboardReturnOutlined';
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import BlockOutlinedIcon from '@mui/icons-material/BlockOutlined';
 import SalesDetailDialog from './SalesDetailDialog';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import BillPrintDialog from '../../components/BillPrintDialog';
@@ -55,6 +60,7 @@ function SalesListPage({
   const warehouses = useSelector((state) => state.masters.warehouses || []);
   const user = useSelector((state) => state.auth.user);
   const canManageSales = user?.role === 'Admin' || user?.role === 'admin';
+  const canCancelOrDelete = user?.role && user.role !== 'store_staff';
 
   const [searchText, setSearchText] = useState('');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('all');
@@ -64,11 +70,44 @@ function SalesListPage({
   const [selectedSale, setSelectedSale] = useState(null);
   const [printTarget, setPrintTarget] = useState(null);
 
-  const handleDelete = (id) => {
-    if (window.confirm('Are you sure you want to delete this sale? This action will restore the stock.')) {
-      dispatch(deleteSale(id)).then(() => {
-        dispatch(fetchSales());
-      });
+  const [reasonDialogOpen, setReasonDialogOpen] = useState(false);
+  const [reasonActionType, setReasonActionType] = useState(''); // 'cancel' or 'delete'
+  const [actionTargetId, setActionTargetId] = useState(null);
+  const [reasonText, setReasonText] = useState('');
+  const [reasonError, setReasonError] = useState('');
+
+  const handleOpenReasonDialog = (actionType, id) => {
+    setActionTargetId(id);
+    setReasonActionType(actionType);
+    setReasonText('');
+    setReasonError('');
+    setReasonDialogOpen(true);
+  };
+
+  const handleConfirmAction = () => {
+    if (!reasonText.trim()) {
+      setReasonError('Reason is required.');
+      return;
+    }
+
+    if (reasonActionType === 'cancel') {
+      dispatch(cancelSale({ id: actionTargetId, reason: reasonText.trim() })).unwrap()
+        .then(() => {
+          setReasonDialogOpen(false);
+          dispatch(fetchSales());
+        })
+        .catch((err) => {
+          alert(err || 'Failed to cancel sale');
+        });
+    } else if (reasonActionType === 'delete') {
+      dispatch(deleteSale({ id: actionTargetId, reason: reasonText.trim() })).unwrap()
+        .then(() => {
+          setReasonDialogOpen(false);
+          dispatch(fetchSales());
+        })
+        .catch((err) => {
+          alert(err || 'Failed to delete sale');
+        });
     }
   };
 
@@ -267,7 +306,11 @@ function SalesListPage({
                           </Typography>
                         </TableCell>
                         <TableCell>
-                          <PaymentStatusChip status={row.payment?.status || 'Pending'} />
+                          {row.status === 'CANCELLED' ? (
+                            <Chip size="small" color="error" variant="filled" label="Cancelled" sx={{ fontWeight: 600 }} />
+                          ) : (
+                            <PaymentStatusChip status={row.payment?.status || 'Pending'} />
+                          )}
                         </TableCell>
                         <TableCell>
                           <Stack direction="row" spacing={0.5}>
@@ -280,6 +323,7 @@ function SalesListPage({
                             <IconButton
                               size="small"
                               color="warning"
+                              disabled={row.status === 'CANCELLED'}
                               onClick={() => navigate(returnPathBuilder(row.id))}
                             >
                               <KeyboardReturnOutlinedIcon fontSize="small" />
@@ -288,16 +332,28 @@ function SalesListPage({
                               <IconButton
                                 size="small"
                                 color="primary"
+                                disabled={row.status === 'CANCELLED'}
                                 onClick={() => navigate(`/sales/sale-bill/${row.id}/edit`)}
                               >
                                 <EditOutlinedIcon fontSize="small" />
                               </IconButton>
                             )}
-                            {canManageSales && (
+                            {canCancelOrDelete && row.status !== 'CANCELLED' && (
                               <IconButton
                                 size="small"
                                 color="error"
-                                onClick={() => handleDelete(row.id)}
+                                title="Cancel Sale"
+                                onClick={() => handleOpenReasonDialog('cancel', row.id)}
+                              >
+                                <BlockOutlinedIcon fontSize="small" />
+                              </IconButton>
+                            )}
+                            {canCancelOrDelete && (
+                              <IconButton
+                                size="small"
+                                color="error"
+                                title="Delete Sale"
+                                onClick={() => handleOpenReasonDialog('delete', row.id)}
                               >
                                 <DeleteOutlineOutlinedIcon fontSize="small" />
                               </IconButton>
@@ -377,6 +433,41 @@ function SalesListPage({
           );
         })()}
       </BillPrintDialog>
+
+      <Dialog open={reasonDialogOpen} onClose={() => setReasonDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>
+          {reasonActionType === 'cancel' ? 'Cancel Invoice' : 'Delete Invoice'}
+        </DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <Typography variant="body2" sx={{ color: '#64748b', mb: 2 }}>
+            Are you sure you want to {reasonActionType === 'cancel' ? 'cancel' : 'delete'} this sale invoice? Please provide a reason below. This action will restore stock.
+          </Typography>
+          <TextField
+            autoFocus
+            fullWidth
+            size="small"
+            label="Reason"
+            placeholder={`Enter reason for ${reasonActionType}...`}
+            value={reasonText}
+            onChange={(e) => {
+              setReasonText(e.target.value);
+              if (e.target.value.trim()) setReasonError('');
+            }}
+            error={Boolean(reasonError)}
+            helperText={reasonError}
+            multiline
+            rows={3}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => setReasonDialogOpen(false)} sx={{ color: '#64748b' }}>
+            Cancel
+          </Button>
+          <Button onClick={handleConfirmAction} color="error" variant="contained">
+            Confirm
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }

@@ -44,12 +44,22 @@ export const updateSale = createAsyncThunk('sales/update', async ({ id, saleData
   }
 });
 
-export const deleteSale = createAsyncThunk('sales/delete', async (id, { rejectWithValue }) => {
+export const deleteSale = createAsyncThunk('sales/delete', async ({ id, reason }, { rejectWithValue }) => {
   try {
-    await api.delete(`/sales/${id}`);
+    await api.delete(`/sales/${id}`, { data: { reason } });
     return id;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || 'Failed to delete sale');
+  }
+});
+
+export const cancelSale = createAsyncThunk('sales/cancel', async ({ id, reason }, { rejectWithValue }) => {
+  try {
+    const response = await api.patch(`/sales/${id}/cancel`, { reason });
+    const raw = response.data.sale || response.data.data;
+    return normalizeResponse(raw, 'sale');
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || 'Failed to cancel sale');
   }
 });
 
@@ -147,6 +157,22 @@ const salesSlice = createSlice({
         state.records = state.records.filter((r) => r.id !== action.payload);
       })
       .addCase(deleteSale.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // Cancel Sale
+      .addCase(cancelSale.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(cancelSale.fulfilled, (state, action) => {
+        state.loading = false;
+        const index = state.records.findIndex((r) => r.id === action.payload.id);
+        if (index !== -1) {
+          state.records[index] = action.payload;
+        }
+      })
+      .addCase(cancelSale.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })

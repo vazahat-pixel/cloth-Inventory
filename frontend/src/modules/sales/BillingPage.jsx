@@ -244,6 +244,7 @@ function BillingPage({
   const [loyaltyRedeemed, setLoyaltyRedeemed] = useState('');
   const [barcodeInput, setBarcodeInput] = useState('');
   const [selectedOption, setSelectedOption] = useState(null);
+  const [saleNumber, setSaleNumber] = useState('');
 
   const [activeTab, setActiveTab] = useState(0);
   const [lines, setLines] = useState([]);
@@ -430,6 +431,18 @@ function BillingPage({
     }
   }, [storeId, user, warehouses, stores]);
 
+  useEffect(() => {
+    if (storeId && mode === 'new') {
+      api.get(`/sales/next-invoice-number?storeId=${storeId}`)
+        .then((res) => {
+          setSaleNumber(res.data.data?.nextInvoiceNumber || '');
+        })
+        .catch((err) => {
+          console.error('Failed to fetch next invoice number', err);
+        });
+    }
+  }, [storeId, mode]);
+
   const loadLinesFromDO = (doId) => {
     const do_ = deliveryOrders.find((d) => d.id === doId);
     if (!do_?.items?.length) return;
@@ -464,6 +477,7 @@ function BillingPage({
       setStoreId(existingSale.storeId || existingSale.warehouseId || '');
       setBillDate(existingSale.saleDate?.slice(0, 10) || existingSale.date?.slice(0, 10) || getTodayDate());
       setSaleType(existingSale.saleType || 'retail');
+      setSaleNumber(existingSale.saleNumber || existingSale.invoiceNumber || '');
       
       const loadedLines = (existingSale.items || []).map((item, idx) => ({
         id: `${item.variantId}-${idx}-${Date.now()}`,
@@ -864,6 +878,7 @@ function BillingPage({
     // 2. Build backend-compliant payload
     const payload = {
       storeId,
+      saleNumber: (mode === 'new' && saleNumber.trim()) ? saleNumber.trim() : undefined,
       date: billDate,
       isInclusiveTax: true, // Explicitly mark as inclusive for retail
       customerId: selectedCustomer?.id || null,
@@ -1143,11 +1158,11 @@ function BillingPage({
                 <TextField
                   fullWidth
                   size="small"
-                  label="Bill Date"
-                  type="date"
-                  value={billDate}
-                  onChange={(e) => setBillDate(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
+                  label="Invoice Number"
+                  placeholder="Auto-generated if blank"
+                  value={saleNumber}
+                  onChange={(e) => setSaleNumber(e.target.value)}
+                  disabled={isDetailMode || isEditMode}
                 />
               </Grid>
               {!isStoreStaff && (

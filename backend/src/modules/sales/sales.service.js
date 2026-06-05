@@ -79,6 +79,97 @@ const generateSaleNumber = async (storeId, session = null) => {
     return `${finalPrefix}${seq.toString().padStart(4, '0')}`;
 };
 
+const updateSequenceForManualInvoice = async (storeId, saleNumber, session = null) => {
+    if (!saleNumber) return;
+
+    const Store = require('../../models/store.model');
+    const Warehouse = require('../../models/warehouse.model');
+    const Counter = require('../../models/counter.model');
+
+    let store = await Store.findById(storeId).session(session);
+    if (!store) {
+        store = await Warehouse.findById(storeId).session(session);
+    }
+
+    let storeName = store?.name?.toUpperCase() || '';
+    const storePrefixMap = {
+        'BHOPAL': 'BPL',
+        'BHUCHO MANDI': 'BHU',
+        'GTB NAGAR': 'GTB',
+        'SONIPAT': 'SNP',
+        'MUKTSAR SAHIB': 'MUK',
+        'HANUMANGARH': 'HAN',
+        'PITAMPURA': 'PTM',
+        'SAHIBABAD': 'SAH',
+        'SHAHJAHANPUR': 'SHA'
+    };
+
+    let prefix = 'INV';
+    for (const [key, val] of Object.entries(storePrefixMap)) {
+        if (storeName.includes(key)) {
+            prefix = val;
+            break;
+        }
+    }
+
+    const finalPrefix = store?.invoicePrefix || prefix || 'INV';
+    const counterName = `SALE_${finalPrefix}`;
+
+    const match = String(saleNumber).match(/(\d+)$/);
+    if (match) {
+        const seqNum = parseInt(match[1], 10);
+        if (!isNaN(seqNum) && seqNum > 0) {
+            const currentCounter = await Counter.findOne({ name: counterName }).session(session);
+            if (!currentCounter || seqNum > currentCounter.seq) {
+                await Counter.findOneAndUpdate(
+                    { name: counterName },
+                    { seq: seqNum },
+                    { upsert: true, new: true, session }
+                );
+            }
+        }
+    }
+};
+
+const previewNextInvoiceNumber = async (storeId) => {
+    const Store = require('../../models/store.model');
+    const Warehouse = require('../../models/warehouse.model');
+    const Counter = require('../../models/counter.model');
+
+    let store = await Store.findById(storeId);
+    if (!store) {
+        store = await Warehouse.findById(storeId);
+    }
+
+    let storeName = store?.name?.toUpperCase() || '';
+    const storePrefixMap = {
+        'BHOPAL': 'BPL',
+        'BHUCHO MANDI': 'BHU',
+        'GTB NAGAR': 'GTB',
+        'SONIPAT': 'SNP',
+        'MUKTSAR SAHIB': 'MUK',
+        'HANUMANGARH': 'HAN',
+        'PITAMPURA': 'PTM',
+        'SAHIBABAD': 'SAH',
+        'SHAHJAHANPUR': 'SHA'
+    };
+
+    let prefix = 'INV';
+    for (const [key, val] of Object.entries(storePrefixMap)) {
+        if (storeName.includes(key)) {
+            prefix = val;
+            break;
+        }
+    }
+
+    const finalPrefix = `${store?.invoicePrefix || prefix}-`;
+    const counterName = `SALE_${store?.invoicePrefix || prefix || 'INV'}`;
+
+    const counter = await Counter.findOne({ name: counterName });
+    const nextSeq = (counter ? counter.seq : 0) + 1;
+    return `${finalPrefix}${nextSeq.toString().padStart(4, '0')}`;
+};
+
 const normalizeSalePayments = (payments = [], paymentMode = 'CASH', amountPaid = 0) => {
     const cleaned = (Array.isArray(payments) ? payments : [])
         .map((p) => ({
@@ -267,7 +358,15 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
 
         // 1. Generate Sale Number
         if (!saleNumber) {
-            if (type === 'INTERNAL_SALE') {
+            if (saleData.saleNumber && String(saleData.saleNumber).trim()) {
+                const manualNum = String(saleData.saleNumber).trim();
+                const exists = await Sale.exists({ saleNumber: new RegExp(`^${manualNum.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'), isDeleted: false }).session(session);
+                if (exists) {
+                    throw new Error(`Invoice number "${manualNum}" is already in use. Please enter a unique invoice number.`);
+                }
+                saleNumber = manualNum;
+                await updateSequenceForManualInvoice(storeId, saleNumber, session);
+            } else if (type === 'INTERNAL_SALE') {
                 const seq = await getNextSequence('INTERNAL_SALE_REB', session);
                 saleNumber = `REB-${seq.toString().padStart(4, '0')}`;
             } else {
@@ -465,12 +564,19 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             totalIGST += gstData.igst;
             totalTax += gstData.totalTax;
 
+            // Ensure parentItem.hsCodeId is populated if it is a string ID
+            if (parentItem && parentItem.hsCodeId && typeof parentItem.hsCodeId !== 'object') {
+                const HSNCode = require('../../models/hsnCode.model');
+                parentItem.hsCodeId = await HSNCode.findById(parentItem.hsCodeId).session(session);
+            }
+            const masterHsn = parentItem.hsCodeId?.code || parentItem.hsnCode || '';
+
             // Updated item object for sale record
             item.itemId = parentItem._id;
             item.variantId = inventory.variantId;
             item.itemName = item.itemName || parentItem.itemName || parentItem.name;
             item.sku = item.sku || variant?.sku || parentItem.sku;
-            item.hsnCode = item.hsnCode || parentItem.hsnCode || parentItem.hsCodeId?.code || '';
+            item.hsnCode = masterHsn || item.hsnCode || '';
             // Safely clean/normalize category and brand to strings to avoid Cast to String Validation errors
             let finalCategory = '';
             if (item.category) {
@@ -1125,7 +1231,8 @@ const getSaleByNumber = async (saleNumber, user = null, storeId = null) => {
 /**
  * Cancel a Sale
  */
-const cancelSale = async (id, userId) => {
+const cancelSale = async (id, userId, reason) => {
+    if (!reason || !reason.trim()) throw new Error('Cancellation reason is required');
     return await withTransaction(async (session) => {
         const sale = await Sale.findById(id).session(session);
         if (!sale) throw new Error('Sale not found');
@@ -1262,6 +1369,7 @@ const cancelSale = async (id, userId) => {
 
         // 5. Update Status
         sale.status = SaleStatus.CANCELLED;
+        sale.cancelReason = reason.trim();
         await sale.save({ session });
 
         // 6. Audit Log
@@ -1272,7 +1380,7 @@ const cancelSale = async (id, userId) => {
             targetId: sale._id,
             targetModel: 'Sale',
             before: { status: SaleStatus.COMPLETED },
-            after: { status: SaleStatus.CANCELLED },
+            after: { status: SaleStatus.CANCELLED, cancelReason: reason.trim() },
             session
         });
 
@@ -1371,7 +1479,8 @@ const applyCreditNote = async (saleId, creditNoteId, userId) => {
     });
 };
 
-const deleteSale = async (id, userId) => {
+const deleteSale = async (id, userId, reason) => {
+    if (!reason || !reason.trim()) throw new Error('Deletion reason is required');
     return await withTransaction(async (session) => {
         const sale = await Sale.findById(id).session(session);
         if (!sale) throw new Error('Sale not found');
@@ -1476,6 +1585,7 @@ const deleteSale = async (id, userId) => {
 
         sale.status = SaleStatus.CANCELLED;
         sale.isDeleted = true;
+        sale.deleteReason = reason.trim();
         await sale.save({ session });
 
         await createAuditLog({
@@ -1485,7 +1595,7 @@ const deleteSale = async (id, userId) => {
             targetId: sale._id,
             targetModel: 'Sale',
             before: { status: sale.status, isDeleted: false },
-            after: { status: SaleStatus.CANCELLED, isDeleted: true },
+            after: { status: SaleStatus.CANCELLED, isDeleted: true, deleteReason: reason.trim() },
             session
         });
 
@@ -1507,5 +1617,6 @@ module.exports = {
     getSaleByNumber,
     cancelSale,
     applyCreditNote,
-    deleteSale
+    deleteSale,
+    previewNextInvoiceNumber
 };
