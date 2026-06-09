@@ -1,6 +1,6 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
-
+//commit 
 async function run() {
     try {
         await mongoose.connect(process.env.MONGODB_URI);
@@ -12,7 +12,7 @@ async function run() {
         console.log('--- DISPATCH BREAKDOWN (WAREHOUSE TO STORE) ---');
         // We only care about dispatches that have left the warehouse ('DISPATCHED', 'RECEIVED')
         const dispatches = await Dispatch.find({ status: { $in: ['DISPATCHED', 'RECEIVED'] } }).populate('destinationStoreId').lean();
-        
+
         const dispatchStoreMap = {};
         for (const d of dispatches) {
             const storeName = d.destinationStoreId ? d.destinationStoreId.name : 'Unknown Store';
@@ -27,7 +27,7 @@ async function run() {
 
         console.log('\n--- SALES BREAKDOWN (STORE-WISE & WAREHOUSE) ---');
         const sales = await Sale.find({}).populate('storeId').lean();
-        
+
         const salesMap = {};
         for (const s of sales) {
             // Check if storeId belongs to a Warehouse or Store
@@ -48,7 +48,7 @@ async function run() {
                     }
                 }
             }
-            
+
             if (!salesMap[locationName]) salesMap[locationName] = 0;
             const qty = s.items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
             salesMap[locationName] += qty;
