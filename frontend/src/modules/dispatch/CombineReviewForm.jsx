@@ -228,7 +228,8 @@ function CombineReviewForm({ listPath = '/orders/delivery-challan' }) {
             showNotification('Challans combined and Billing finalized successfully!', 'success');
             setShowPrint(true);
         } catch (err) {
-            setError(err?.message || 'Failed to combine and finalize dispatches.');
+            const errMsg = typeof err === 'string' ? err : (err?.message || 'Failed to combine and finalize dispatches.');
+            setError(errMsg);
         } finally {
             hideLoading();
         }

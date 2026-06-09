@@ -78,8 +78,11 @@ function Gstr1DetailedReportPage() {
       'Bill No': item.invoice,
       'Bill Date': new Date(item.date).toLocaleDateString(),
       'Customer Name': item.customer,
+      'Branch / Store': item.storeName || 'N/A',
       'Category / Group': item.category,
       'HSN Code': item.hsn,
+      'MRP': item.mrp || 0,
+      'Discount %': `${item.discount || 0}%`,
       'Total Quantity': item.quantity,
       'Taxable Amount': item.taxable,
       'CGST %': `${item.cgstRate}%`,
@@ -94,8 +97,11 @@ function Gstr1DetailedReportPage() {
       'Bill No': 'Total',
       'Bill Date': '',
       'Customer Name': '',
+      'Branch / Store': '',
       'Category / Group': '',
       'HSN Code': '',
+      'MRP': '',
+      'Discount %': '',
       'Total Quantity': data.itemWise.reduce((sum, item) => sum + item.quantity, 0),
       'Taxable Amount': data.summary.totalTaxableValue,
       'CGST %': '',
@@ -105,21 +111,23 @@ function Gstr1DetailedReportPage() {
       'Net Amount': data.summary.grandTotal
     });
 
-    // 2. HSN Summary Sheet
-    const hsnData = data.hsnSummary.map(h => ({
-      'HSN Code': h.hsnCode,
-      'Quantity': h.qty,
-      'Taxable Value': h.taxable,
-      'CGST': h.cgst,
-      'SGST': h.sgst,
-      'IGST': h.igst,
-      'Total Tax': h.totalTax,
-      'Invoice Value': h.invoiceValue
+    // 2. Month & Branch Summary Sheet
+    const monthStoreData = (data.monthStoreSummary || []).map(m => ({
+      'Month': m.month,
+      'Branch / Store': m.branchName,
+      'Quantity': m.qty,
+      'Taxable Value': m.taxable,
+      'CGST': m.cgst,
+      'SGST': m.sgst,
+      'IGST': m.igst,
+      'Total Tax': m.totalTax,
+      'Invoice Value': m.invoiceValue
     }));
 
-    hsnData.push({
-      'HSN Code': 'Total',
-      'Quantity': data.hsnSummary.reduce((sum, h) => sum + h.qty, 0),
+    monthStoreData.push({
+      'Month': 'Total',
+      'Branch / Store': '',
+      'Quantity': (data.monthStoreSummary || []).reduce((sum, m) => sum + m.qty, 0),
       'Taxable Value': data.summary.totalTaxableValue,
       'CGST': data.summary.totalCGST,
       'SGST': data.summary.totalSGST,
@@ -151,11 +159,11 @@ function Gstr1DetailedReportPage() {
 
     const wb = XLSX.utils.book_new();
     const wsDetailed = XLSX.utils.json_to_sheet(detailedData);
-    const wsHsn = XLSX.utils.json_to_sheet(hsnData);
+    const wsMonthStore = XLSX.utils.json_to_sheet(monthStoreData);
     const wsSlab = XLSX.utils.json_to_sheet(slabData);
 
     XLSX.utils.book_append_sheet(wb, wsDetailed, 'Detailed Item-wise');
-    XLSX.utils.book_append_sheet(wb, wsHsn, 'HSN Summary');
+    XLSX.utils.book_append_sheet(wb, wsMonthStore, 'Month & Branch Summary');
     XLSX.utils.book_append_sheet(wb, wsSlab, 'Slab Summary');
 
     XLSX.writeFile(wb, `GST_Statutory_Report_${filters.startDate}_to_${filters.endDate}.xlsx`);
@@ -166,18 +174,19 @@ function Gstr1DetailedReportPage() {
     let headers, rows, filename;
 
     if (tab === 0) {
-      headers = ['HSN Code', 'Quantity', 'Taxable Value', 'CGST', 'SGST', 'IGST', 'Total Tax', 'Invoice Value'];
-      rows = data.hsnSummary.map(h => ({
-        'HSN Code': h.hsnCode,
-        'Quantity': h.qty,
-        'Taxable Value': h.taxable,
-        'CGST': h.cgst,
-        'SGST': h.sgst,
-        'IGST': h.igst,
-        'Total Tax': h.totalTax,
-        'Invoice Value': h.invoiceValue
+      headers = ['Month', 'Branch Name', 'Quantity', 'Taxable Value', 'CGST', 'SGST', 'IGST', 'Total Tax', 'Invoice Value'];
+      rows = (data.monthStoreSummary || []).map(m => ({
+        'Month': m.month,
+        'Branch Name': m.branchName,
+        'Quantity': m.qty,
+        'Taxable Value': m.taxable,
+        'CGST': m.cgst,
+        'SGST': m.sgst,
+        'IGST': m.igst,
+        'Total Tax': m.totalTax,
+        'Invoice Value': m.invoiceValue
       }));
-      filename = `GST_HSN_Summary_${filters.startDate}_to_${filters.endDate}.csv`;
+      filename = `GST_Month_Branch_Summary_${filters.startDate}_to_${filters.endDate}.csv`;
     } else if (tab === 1) {
       headers = ['Slab', 'Taxable Value', 'CGST', 'SGST', 'IGST', 'Total Tax', 'Invoice Value'];
       rows = data.slabSummary.map(s => ({
@@ -191,13 +200,16 @@ function Gstr1DetailedReportPage() {
       }));
       filename = `GST_Slab_Summary_${filters.startDate}_to_${filters.endDate}.csv`;
     } else {
-      headers = ['Bill No', 'Bill Date', 'Customer Name', 'Category / Group', 'HSN Code', 'Total Quantity', 'Taxable Amount', 'CGST %', 'CGST Amount', 'SGST / IGST %', 'SGST / IGST Amount', 'Net Amount'];
+      headers = ['Bill No', 'Bill Date', 'Customer Name', 'Branch / Store', 'Category / Group', 'HSN Code', 'MRP', 'Discount %', 'Total Quantity', 'Taxable Amount', 'CGST %', 'CGST Amount', 'SGST / IGST %', 'SGST / IGST Amount', 'Net Amount'];
       rows = data.itemWise.map(item => ({
         'Bill No': item.invoice,
         'Bill Date': new Date(item.date).toLocaleDateString(),
         'Customer Name': item.customer,
+        'Branch / Store': item.storeName || 'N/A',
         'Category / Group': item.category,
         'HSN Code': item.hsn,
+        'MRP': item.mrp || 0,
+        'Discount %': `${item.discount || 0}%`,
         'Total Quantity': item.quantity,
         'Taxable Amount': item.taxable,
         'CGST %': `${item.cgstRate}%`,
@@ -332,7 +344,7 @@ function Gstr1DetailedReportPage() {
 
             <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3, overflow: 'hidden' }}>
               <Tabs value={tab} onChange={(e, v) => setTab(v)} sx={{ bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }} className="no-print">
-                <Tab label="HSN-Wise Summary" sx={{ fontWeight: 700, px: 3 }} />
+                <Tab label="Month & Branch Summary" sx={{ fontWeight: 700, px: 3 }} />
                 <Tab label="GST Slab Summary" sx={{ fontWeight: 700, px: 3 }} />
                 <Tab label="Item-Wise Detailed" sx={{ fontWeight: 700, px: 3 }} />
                 <Tab label="B2B Invoice List" sx={{ fontWeight: 700, px: 3 }} />
@@ -344,7 +356,8 @@ function Gstr1DetailedReportPage() {
                     <Table size="small">
                       <TableHead sx={{ bgcolor: '#f1f5f9' }}>
                         <TableRow>
-                          <TableCell sx={{ fontWeight: 850 }}>HSN Code</TableCell>
+                          <TableCell sx={{ fontWeight: 850 }}>Month</TableCell>
+                          <TableCell sx={{ fontWeight: 850 }}>Branch/Store Name</TableCell>
                           <TableCell align="center" sx={{ fontWeight: 850 }}>Quantity</TableCell>
                           <TableCell align="right" sx={{ fontWeight: 850 }}>Taxable Value</TableCell>
                           <TableCell align="right" sx={{ fontWeight: 850 }}>CGST</TableCell>
@@ -355,9 +368,10 @@ function Gstr1DetailedReportPage() {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {data.hsnSummary.map((h, i) => (
+                        {(data.monthStoreSummary || []).map((h, i) => (
                           <TableRow key={i} hover>
-                            <TableCell sx={{ fontWeight: 700 }}>{h.hsnCode}</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>{h.month}</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>{h.branchName}</TableCell>
                             <TableCell align="center">{h.qty}</TableCell>
                             <TableCell align="right">₹{h.taxable.toFixed(2)}</TableCell>
                             <TableCell align="right">₹{h.cgst.toFixed(2)}</TableCell>
@@ -369,7 +383,8 @@ function Gstr1DetailedReportPage() {
                         ))}
                         <TableRow sx={{ bgcolor: '#f8fafc', '& td': { fontWeight: 900 } }}>
                           <TableCell>Total</TableCell>
-                          <TableCell align="center">{data.hsnSummary.reduce((sum, h) => sum + h.qty, 0)}</TableCell>
+                          <TableCell></TableCell>
+                          <TableCell align="center">{(data.monthStoreSummary || []).reduce((sum, h) => sum + h.qty, 0)}</TableCell>
                           <TableCell align="right">₹{data.summary.totalTaxableValue.toFixed(2)}</TableCell>
                           <TableCell align="right">₹{data.summary.totalCGST.toFixed(2)}</TableCell>
                           <TableCell align="right">₹{data.summary.totalSGST.toFixed(2)}</TableCell>
@@ -430,8 +445,11 @@ function Gstr1DetailedReportPage() {
                           <TableCell>Bill No</TableCell>
                           <TableCell>Bill Date</TableCell>
                           <TableCell>Customer Name</TableCell>
+                          <TableCell>Branch / Store</TableCell>
                           <TableCell>Category / Group</TableCell>
                           <TableCell>HSN Code</TableCell>
+                          <TableCell align="right">MRP</TableCell>
+                          <TableCell align="right">Discount %</TableCell>
                           <TableCell align="center">Total Quantity</TableCell>
                           <TableCell align="right">Taxable Amount</TableCell>
                           <TableCell align="center">CGST %</TableCell>
@@ -447,8 +465,11 @@ function Gstr1DetailedReportPage() {
                             <TableCell sx={{ fontWeight: 700 }}>{item.invoice}</TableCell>
                             <TableCell sx={{ whiteSpace: 'nowrap' }}>{new Date(item.date).toLocaleDateString()}</TableCell>
                             <TableCell>{item.customer}</TableCell>
+                            <TableCell>{item.storeName || 'N/A'}</TableCell>
                             <TableCell>{item.category}</TableCell>
                             <TableCell>{item.hsn}</TableCell>
+                            <TableCell align="right">₹{(item.mrp || 0).toFixed(2)}</TableCell>
+                            <TableCell align="right">{item.discount || 0}%</TableCell>
                             <TableCell align="center">{item.quantity}</TableCell>
                             <TableCell align="right">₹{item.taxable.toFixed(2)}</TableCell>
                             <TableCell align="center">{item.cgstRate}%</TableCell>
@@ -460,6 +481,9 @@ function Gstr1DetailedReportPage() {
                         ))}
                         <TableRow sx={{ bgcolor: '#f8fafc', '& td': { fontWeight: 900 } }}>
                           <TableCell>Total</TableCell>
+                          <TableCell></TableCell>
+                          <TableCell></TableCell>
+                          <TableCell></TableCell>
                           <TableCell></TableCell>
                           <TableCell></TableCell>
                           <TableCell></TableCell>

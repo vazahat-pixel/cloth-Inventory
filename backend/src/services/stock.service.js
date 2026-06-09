@@ -214,7 +214,11 @@ const _updateInventory = async ({ itemId, barcode, variantId, locationId, locati
     const allowNegative = await systemConfigService.getConfigByKey('allowNegativeStock', false);
 
     if (!inventory) {
-        if (qty < 0 && !allowNegative) throw new Error(`Insufficient stock for barcode ${barcode} at ${locationType}`);
+        if (qty < 0 && !allowNegative) {
+            const metadata = await _getItemMetadata(variantId, barcode, session);
+            const itemNameStr = metadata.itemName ? ` (${metadata.itemName})` : '';
+            throw new Error(`Insufficient stock for barcode "${barcode}"${itemNameStr} at ${locationType}`);
+        }
         const initData = { barcode, [locField]: locationId, itemId, variantId, quantity: 0 };
         if (locationType === 'STORE') initData.quantityAvailable = 0;
         inventory = new InventoryModel(initData);
@@ -223,7 +227,9 @@ const _updateInventory = async ({ itemId, barcode, variantId, locationId, locati
     const newQty = (inventory.quantity || 0) + delta;
     
     if (!allowNegative && newQty < 0) {
-        throw new Error(`Negative stock not allowed at ${locationType}. Requested Change: ${delta}, Current: ${inventory.quantity}`);
+        const metadata = await _getItemMetadata(variantId, barcode, session);
+        const itemNameStr = metadata.itemName ? ` (${metadata.itemName})` : '';
+        throw new Error(`Negative stock not allowed at ${locationType} for barcode "${barcode}"${itemNameStr}. Requested Change: ${delta}, Current: ${inventory.quantity}`);
     }
     
     inventory.quantity = newQty;

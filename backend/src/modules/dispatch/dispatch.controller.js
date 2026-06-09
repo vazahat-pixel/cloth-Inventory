@@ -110,6 +110,17 @@ const combineAndConfirm = async (req, res, next) => {
         }, req.user._id);
         return sendSuccess(res, { dispatch }, 'Combined dispatch confirmed and billing completed successfully');
     } catch (error) {
+        if (error.message && (
+            error.message.includes('stock') ||
+            error.message.includes('Insufficient') ||
+            error.message.includes('Dispatch record not found') ||
+            error.message.includes('Only pending or packed') ||
+            error.message.includes('same source') ||
+            error.message.includes('same destination') ||
+            error.message.includes('No items found')
+        )) {
+            error.statusCode = 400;
+        }
         next(error);
     }
 };

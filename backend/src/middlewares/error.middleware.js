@@ -36,6 +36,20 @@ const errorHandler = (err, req, res, next) => {
         return res.status(401).json({ success: false, message: 'Token expired. Please log in again.' });
     }
 
+    // Stock/Business Validation errors fallback to 400
+    if (err.message && (
+        err.message.includes('Negative stock') ||
+        err.message.includes('Insufficient stock') ||
+        err.message.includes('not enough stock') ||
+        err.message.includes('not allowed') ||
+        err.message.includes('must have the same') ||
+        err.message.includes('Only pending or packed') ||
+        err.message.includes('Dispatch record not found') ||
+        err.message.includes('No items found')
+    )) {
+        err.statusCode = 400;
+    }
+
     // Generic fallback
     return res.status(err.statusCode || 500).json({
         success: false,

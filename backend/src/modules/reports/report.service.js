@@ -664,7 +664,7 @@ const getDetailedGstReport = async (startDate, endDate, storeId) => {
         .populate('storeId', 'name gstin location')
         .sort({ saleDate: -1 });
 
-    const hsnSummary = {};
+    const monthStoreSummary = {};
     
     // Pre-populate required standard GST Slabs
     const slabSummary = {
@@ -787,8 +787,11 @@ const getDetailedGstReport = async (startDate, endDate, storeId) => {
                 invoice: invSummary.invoice,
                 date: invSummary.date,
                 customer: invSummary.customer,
+                storeName: sale.storeId?.name || 'N/A',
                 category,
                 hsn,
+                mrp: item.mrp || 0,
+                discount: item.discount || 0,
                 quantity: item.quantity,
                 taxable,
                 cgstRate: isInterstate ? 0 : rate / 2,
@@ -798,17 +801,34 @@ const getDetailedGstReport = async (startDate, endDate, storeId) => {
                 netAmount
             });
 
-            // HSN Summary aggregation
-            if (!hsnSummary[hsn]) {
-                hsnSummary[hsn] = { hsnCode: hsn, qty: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0, invoiceValue: 0 };
+            // Month & Store Summary aggregation
+            const dateObj = new Date(sale.saleDate);
+            const month = dateObj.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+            const monthSortKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+            const branchName = sale.storeId?.name || 'N/A';
+            const groupKey = `${month}_${branchName}`;
+
+            if (!monthStoreSummary[groupKey]) {
+                monthStoreSummary[groupKey] = {
+                    month,
+                    monthSortKey,
+                    branchName,
+                    qty: 0,
+                    taxable: 0,
+                    cgst: 0,
+                    sgst: 0,
+                    igst: 0,
+                    totalTax: 0,
+                    invoiceValue: 0
+                };
             }
-            hsnSummary[hsn].qty += item.quantity;
-            hsnSummary[hsn].taxable += taxable;
-            hsnSummary[hsn].cgst += cgst;
-            hsnSummary[hsn].sgst += sgst;
-            hsnSummary[hsn].igst += igst;
-            hsnSummary[hsn].totalTax += tax;
-            hsnSummary[hsn].invoiceValue += netAmount;
+            monthStoreSummary[groupKey].qty += item.quantity;
+            monthStoreSummary[groupKey].taxable += taxable;
+            monthStoreSummary[groupKey].cgst += cgst;
+            monthStoreSummary[groupKey].sgst += sgst;
+            monthStoreSummary[groupKey].igst += igst;
+            monthStoreSummary[groupKey].totalTax += tax;
+            monthStoreSummary[groupKey].invoiceValue += netAmount;
 
             // Slab Summary aggregation
             const slabKey = `${rate}%`;
@@ -845,21 +865,22 @@ const getDetailedGstReport = async (startDate, endDate, storeId) => {
         summary: finalSummary,
         b2b: b2bInvoices,
         b2c: b2cInvoices,
-        hsnSummary: Object.values(hsnSummary)
-            .sort((a, b) => a.hsnCode.localeCompare(b.hsnCode))
-            .map(h => {
-                const rCgst = Number(h.cgst.toFixed(2));
-                const rSgst = Number(h.sgst.toFixed(2));
-                const rIgst = Number(h.igst.toFixed(2));
+        monthStoreSummary: Object.values(monthStoreSummary)
+            .sort((a, b) => a.monthSortKey.localeCompare(b.monthSortKey) || a.branchName.localeCompare(b.branchName))
+            .map(m => {
+                const rCgst = Number(m.cgst.toFixed(2));
+                const rSgst = Number(m.sgst.toFixed(2));
+                const rIgst = Number(m.igst.toFixed(2));
                 return {
-                    hsnCode: h.hsnCode,
-                    qty: h.qty,
-                    taxable: Number(h.taxable.toFixed(2)),
+                    month: m.month,
+                    branchName: m.branchName,
+                    qty: m.qty,
+                    taxable: Number(m.taxable.toFixed(2)),
                     cgst: rCgst,
                     sgst: rSgst,
                     igst: rIgst,
                     totalTax: Number((rCgst + rSgst + rIgst).toFixed(2)),
-                    invoiceValue: Number(h.invoiceValue.toFixed(2))
+                    invoiceValue: Number(m.invoiceValue.toFixed(2))
                 };
             }),
         slabSummary: Object.values(slabSummary)

@@ -345,6 +345,12 @@ function DeliveryChallanForm({
             const res = await api.get(`/inventory/warehouse/${sourceId}/scan/${encodeURIComponent(cleaned)}`);
             const item = res.data.data || res.data;
             if (item) {
+                if (Number(item.quantity || 0) <= 0) {
+                    const errMsg = `This stock quantity is 0, cannot be dispatched. Barcode: ${cleaned}`;
+                    setError(errMsg);
+                    showNotification(errMsg, 'error');
+                    return;
+                }
                 const baseMrp = item.mrp || item.rate || 0;
                 const resolvedItemCode = item.itemCode || item.itemId?.itemCode || '';
                 const newLine = {

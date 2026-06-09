@@ -776,7 +776,9 @@ function BillingPage({
       });
       setBarcodeInput('');
     } catch (err) {
-      setErrorMessage(err.response?.data?.message || 'Error fetching product by barcode');
+      const errMsg = err.response?.data?.message || 'Error fetching product by barcode';
+      setErrorMessage(errMsg);
+      showNotification(errMsg, 'error');
     } finally {
       setTimeout(() => {
         barcodeInputRef.current?.focus();
