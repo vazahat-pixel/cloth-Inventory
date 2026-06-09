@@ -19,8 +19,7 @@ import {
 import SearchIcon from '@mui/icons-material/Search';
 import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
-import axios from 'axios';
-import { useSelector } from 'react-redux';
+import api from '../../services/api';
 
 /**
  * DynamicReportPage - A reusable engine for various ERP reports.
@@ -47,16 +46,12 @@ function DynamicReportPage({ config }) {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  const user = useSelector((state) => state.auth.user);
-  const token = useSelector((state) => state.auth.token);
-
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/reports${endpoint}`, {
+      const response = await api.get(`/reports${endpoint}`, {
         params: filters,
-        headers: { Authorization: `Bearer ${token}` }
       });
       
       const result = response.data.data?.[dataKey] || response.data.data || [];

@@ -1,4 +1,6 @@
 const Settings = require('../../models/settings.model');
+const DiscountKey = require('../../models/discountKey.model');
+const crypto = require('crypto');
 
 /**
  * Generic Get Setting
@@ -84,5 +86,27 @@ module.exports = {
     getSetting,
     updateSetting,
     addToCollection,
-    updateInCollection
+    updateInCollection,
+    generateDiscountKey: async (userId) => {
+        const rawKey = crypto.randomBytes(3).toString('hex').toUpperCase();
+        const key = `DISC-${rawKey}`;
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+        const newKey = new DiscountKey({ key, expiresAt });
+        await newKey.save();
+        console.log(`[DISCOUNT-KEY] Generated key: ${key} by Admin: ${userId}`);
+        return { key, expiresAt };
+    },
+    verifyDiscountKey: async (key) => {
+        const record = await DiscountKey.findOne({ key, isUsed: false });
+        if (!record) {
+            throw new Error('Invalid or already used Discount OTP Key');
+        }
+        if (new Date() > record.expiresAt) {
+            throw new Error('Discount OTP Key has expired (15 minutes limit)');
+        }
+        record.isUsed = true;
+        await record.save();
+        console.log(`[DISCOUNT-KEY] Key verified and consumed: ${key}`);
+        return true;
+    }
 };

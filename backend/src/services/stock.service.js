@@ -270,6 +270,11 @@ const addInTransit = async ({ itemId, barcode, variantId, locationId, locationTy
     const transitQty = toFiniteNumber(qty);
     if (transitQty <= 0) throw new Error('In-Transit quantity must be positive');
 
+    const resolved = await _resolveStockIdentifiers({ itemId, barcode, variantId, session });
+    itemId = resolved.itemId;
+    barcode = resolved.barcode;
+    variantId = resolved.variantId;
+
     const filter = { barcode };
     let InventoryModel;
     if (locationType === 'STORE') {
@@ -299,6 +304,11 @@ const addInTransit = async ({ itemId, barcode, variantId, locationId, locationTy
 const removeInTransit = async ({ itemId, barcode, variantId, locationId, locationType, qty, session }) => {
     const transitQty = toFiniteNumber(qty);
     if (transitQty <= 0) throw new Error('Quantity must be positive');
+
+    const resolved = await _resolveStockIdentifiers({ itemId, barcode, variantId, session });
+    itemId = resolved.itemId;
+    barcode = resolved.barcode;
+    variantId = resolved.variantId;
 
     let InventoryModel;
     const filter = {};

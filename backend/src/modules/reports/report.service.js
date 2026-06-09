@@ -665,10 +665,25 @@ const getDetailedGstReport = async (startDate, endDate, storeId) => {
         .sort({ saleDate: -1 });
 
     const hsnSummary = {};
-    const rateSummary = {};
+    
+    // Pre-populate required standard GST Slabs
+    const slabSummary = {
+        '5%': { slab: '5%', taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0, invoiceValue: 0 },
+        '12%': { slab: '12%', taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0, invoiceValue: 0 },
+        '18%': { slab: '18%', taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0, invoiceValue: 0 },
+        '28%': { slab: '28%', taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0, invoiceValue: 0 }
+    };
+    
     const b2bInvoices = [];
     const b2cInvoices = [];
     const itemWiseDetails = [];
+
+    let totalTaxableValue = 0;
+    let totalCGST = 0;
+    let totalSGST = 0;
+    let totalIGST = 0;
+    let totalGST = 0;
+    let grandTotal = 0;
 
     sales.forEach(sale => {
         const isB2B = !!(sale.customerGst && sale.customerGst.length >= 15);
@@ -688,64 +703,181 @@ const getDetailedGstReport = async (startDate, endDate, storeId) => {
         if (isB2B) b2bInvoices.push(invSummary);
         else b2cInvoices.push(invSummary);
 
-        sale.items.forEach(item => {
-            const hsn = item.itemId?.hsCodeId?.code || 'N/A';
-            const rate = item.taxPercentage || 0;
-            const taxable = item.rate * item.quantity;
-            const tax = item.taxAmount || 0;
+        const isInterstate = sale.taxBreakup && (sale.taxBreakup.igst > 0);
 
-            // Item-wise tracking
+        let saleTaxableSum = 0;
+        let saleTaxSum = 0;
+        let saleCGSTSum = 0;
+        let saleSGSTSum = 0;
+        let saleIGSTSum = 0;
+
+        sale.items.forEach((item, idx) => {
+            const hsn = item.hsnCode || item.itemId?.hsCodeId?.code || 'N/A';
+            const rate = item.taxPercentage || 0;
+            const category = item.category || item.itemId?.categoryName || item.itemId?.categoryId?.name || 'GARMENT';
+
+            // Item taxable value (before invoice adjustments)
+            const itemGross = item.total || 0;
+            const itemTax = item.taxAmount || 0;
+            const itemTaxable = itemGross - itemTax;
+
+            // Invoice values
+            const invoiceTotal = sale.grandTotal || 0;
+            const invoiceSubtotal = sale.subTotal || 0;
+            const invoiceTax = sale.totalTax || 0;
+            const invoiceSum = invoiceSubtotal + invoiceTax;
+
+            // Proration factor
+            const factor = invoiceSum > 0 ? (invoiceTotal / invoiceSum) : 1;
+
+            let taxable = itemTaxable * factor;
+            let tax = itemTax * factor;
+
+            const isLast = (idx === sale.items.length - 1);
+            if (isLast) {
+                // Adjustment to match invoice totals exactly
+                const targetSaleTaxable = invoiceTotal - invoiceTax;
+                const targetSaleTax = invoiceTax;
+
+                taxable = targetSaleTaxable - saleTaxableSum;
+                tax = targetSaleTax - saleTaxSum;
+            }
+
+            taxable = Number(taxable.toFixed(2));
+            tax = Number(tax.toFixed(2));
+
+            saleTaxableSum += taxable;
+            saleTaxSum += tax;
+
+            let cgst = isInterstate ? 0 : tax / 2;
+            let sgst = isInterstate ? 0 : tax / 2;
+            let igst = isInterstate ? tax : 0;
+
+            if (isLast) {
+                if (isInterstate) {
+                    igst = invoiceTax - saleIGSTSum;
+                } else {
+                    const targetCGST = sale.taxBreakup?.cgst || (invoiceTax / 2);
+                    const targetSGST = sale.taxBreakup?.sgst || (invoiceTax / 2);
+                    cgst = targetCGST - saleCGSTSum;
+                    sgst = targetSGST - saleSGSTSum;
+                }
+            }
+
+            cgst = Number(cgst.toFixed(2));
+            sgst = Number(sgst.toFixed(2));
+            igst = Number(igst.toFixed(2));
+
+            saleCGSTSum += cgst;
+            saleSGSTSum += sgst;
+            saleIGSTSum += igst;
+
+            const netAmount = Number((taxable + tax).toFixed(2));
+
+            // Totals Accumulation
+            totalTaxableValue += taxable;
+            totalCGST += cgst;
+            totalSGST += sgst;
+            totalIGST += igst;
+            totalGST += tax;
+            grandTotal += netAmount;
+
+            // Detailed item-wise record
             itemWiseDetails.push({
                 invoice: invSummary.invoice,
                 date: invSummary.date,
-                itemName: item.itemId?.itemName || 'Unknown',
+                customer: invSummary.customer,
+                category,
                 hsn,
                 quantity: item.quantity,
-                taxable: taxable,
-                gstRate: rate,
-                taxAmount: tax,
-                customer: invSummary.customer
+                taxable,
+                cgstRate: isInterstate ? 0 : rate / 2,
+                cgstAmount: cgst,
+                sgstIgstRate: isInterstate ? rate : rate / 2,
+                sgstIgstAmount: isInterstate ? igst : sgst,
+                netAmount
             });
 
-            // HSN Summary
+            // HSN Summary aggregation
             if (!hsnSummary[hsn]) {
-                hsnSummary[hsn] = { hsn, taxable: 0, igst: 0, cgst: 0, sgst: 0, totalTax: 0, qty: 0 };
+                hsnSummary[hsn] = { hsnCode: hsn, qty: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0, invoiceValue: 0 };
             }
-            hsnSummary[hsn].taxable += taxable;
             hsnSummary[hsn].qty += item.quantity;
+            hsnSummary[hsn].taxable += taxable;
+            hsnSummary[hsn].cgst += cgst;
+            hsnSummary[hsn].sgst += sgst;
+            hsnSummary[hsn].igst += igst;
             hsnSummary[hsn].totalTax += tax;
-            if (invSummary.igst > 0) hsnSummary[hsn].igst += tax;
-            else {
-                hsnSummary[hsn].cgst += tax / 2;
-                hsnSummary[hsn].sgst += tax / 2;
-            }
+            hsnSummary[hsn].invoiceValue += netAmount;
 
-            // Rate Summary
-            const rateKey = `${rate}%`;
-            if (!rateSummary[rateKey]) {
-                rateSummary[rateKey] = { rate: rateKey, taxable: 0, igst: 0, cgst: 0, sgst: 0, totalTax: 0 };
+            // Slab Summary aggregation
+            const slabKey = `${rate}%`;
+            if (!slabSummary[slabKey]) {
+                slabSummary[slabKey] = { slab: slabKey, taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0, invoiceValue: 0 };
             }
-            rateSummary[rateKey].taxable += taxable;
-            rateSummary[rateKey].totalTax += tax;
-            if (invSummary.igst > 0) rateSummary[rateKey].igst += tax;
-            else {
-                rateSummary[rateKey].cgst += tax / 2;
-                rateSummary[rateKey].sgst += tax / 2;
-            }
+            slabSummary[slabKey].taxable += taxable;
+            slabSummary[slabKey].cgst += cgst;
+            slabSummary[slabKey].sgst += sgst;
+            slabSummary[slabKey].igst += igst;
+            slabSummary[slabKey].totalTax += tax;
+            slabSummary[slabKey].invoiceValue += netAmount;
         });
     });
 
+    // Derive totalGST from already-rounded components to avoid float rounding drift
+    // (e.g. summing tax/2 + tax/2 for many items can differ from summing raw tax)
+    const _rCGST = Number(totalCGST.toFixed(2));
+    const _rSGST = Number(totalSGST.toFixed(2));
+    const _rIGST = Number(totalIGST.toFixed(2));
+
+    const finalSummary = {
+        totalTaxableValue: Number(totalTaxableValue.toFixed(2)),
+        totalCGST: _rCGST,
+        totalSGST: _rSGST,
+        totalIGST: _rIGST,
+        totalGST: Number((_rCGST + _rSGST + _rIGST).toFixed(2)),
+        grandTotal: Number(grandTotal.toFixed(2)),
+        totalB2B: b2bInvoices.length,
+        totalB2C: b2cInvoices.length
+    };
+
     return {
-        summary: {
-            totalB2B: b2bInvoices.length,
-            totalB2C: b2cInvoices.length,
-            totalTaxable: Object.values(rateSummary).reduce((a, b) => a + b.taxable, 0),
-            totalTax: Object.values(rateSummary).reduce((a, b) => a + b.totalTax, 0)
-        },
+        summary: finalSummary,
         b2b: b2bInvoices,
         b2c: b2cInvoices,
-        hsnSummary: Object.values(hsnSummary),
-        rateSummary: Object.values(rateSummary),
+        hsnSummary: Object.values(hsnSummary)
+            .sort((a, b) => a.hsnCode.localeCompare(b.hsnCode))
+            .map(h => {
+                const rCgst = Number(h.cgst.toFixed(2));
+                const rSgst = Number(h.sgst.toFixed(2));
+                const rIgst = Number(h.igst.toFixed(2));
+                return {
+                    hsnCode: h.hsnCode,
+                    qty: h.qty,
+                    taxable: Number(h.taxable.toFixed(2)),
+                    cgst: rCgst,
+                    sgst: rSgst,
+                    igst: rIgst,
+                    totalTax: Number((rCgst + rSgst + rIgst).toFixed(2)),
+                    invoiceValue: Number(h.invoiceValue.toFixed(2))
+                };
+            }),
+        slabSummary: Object.values(slabSummary)
+            .sort((a, b) => parseFloat(a.slab) - parseFloat(b.slab))
+            .map(s => {
+                const rCgst = Number(s.cgst.toFixed(2));
+                const rSgst = Number(s.sgst.toFixed(2));
+                const rIgst = Number(s.igst.toFixed(2));
+                return {
+                    slab: s.slab,
+                    taxable: Number(s.taxable.toFixed(2)),
+                    cgst: rCgst,
+                    sgst: rSgst,
+                    igst: rIgst,
+                    totalTax: Number((rCgst + rSgst + rIgst).toFixed(2)),
+                    invoiceValue: Number(s.invoiceValue.toFixed(2))
+                };
+            }),
         itemWise: itemWiseDetails
     };
 };

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import {
@@ -16,11 +16,15 @@ import {
     TableRow,
     TextField,
     Typography,
+    InputAdornment,
+    Chip,
+    CircularProgress,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
-import { addPurchaseReturn } from '../purchase/purchaseSlice';
+import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
+import { initiateStockReturn, fetchStockReturns } from '../inventory/stockReturnSlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchStockOverview } from '../inventory/inventorySlice';
 
@@ -33,17 +37,22 @@ function PurchaseReturnPage() {
     const warehouses = useSelector((state) => state.masters.warehouses || []);
     const stockRows = useSelector((state) => state.inventory.stock || []);
     const user = useSelector((state) => state.auth.user);
+    const returns = useSelector((state) => state.stockReturn.returns || []);
+    const returnsLoading = useSelector((state) => state.stockReturn.loading);
 
     const [date, setDate] = useState(getTodayDate());
     const [targetId, setTargetId] = useState(''); // The warehouse/factory returning to
     const [lines, setLines] = useState([]);
     const [variantPickerValue, setVariantPickerValue] = useState(null);
+    const [barcodeInput, setBarcodeInput] = useState('');
+    const barcodeInputRef = useRef(null);
     const [remarks, setRemarks] = useState('');
     const [error, setError] = useState('');
 
     useEffect(() => {
         dispatch(fetchMasters('warehouses'));
         dispatch(fetchStockOverview());
+        dispatch(fetchStockReturns());
     }, [dispatch]);
 
     const activeWarehouses = useMemo(
@@ -58,13 +67,13 @@ function PurchaseReturnPage() {
 
     const variantOptions = useMemo(() => {
         return myStoreStock.map((s) => ({
-            variantId: s.productId || s.variantId,
-            itemName: s.itemName,
-            sku: s.sku,
+            variantId: s.variantId,
+            itemName: s.itemName || s.itemId?.itemName || 'Item',
+            sku: s.sku || s.barcode || '',
             barcode: s.barcode,
             size: s.size,
             color: s.color,
-            available: s.quantity,
+            available: s.available ?? s.quantity ?? s.availableStock ?? 0,
         })).filter(o => o.available > 0);
     }, [myStoreStock]);
 
@@ -73,14 +82,61 @@ function PurchaseReturnPage() {
         return variantOptions.filter((o) => !ids.has(o.variantId));
     }, [lines, variantOptions]);
 
-    const addLine = () => {
-        if (!variantPickerValue) return;
-        const line = {
-            ...variantPickerValue,
-            quantity: 1,
-        };
-        setLines((prev) => [...prev, line]);
+    const addLine = (val) => {
+        const item = val || variantPickerValue;
+        if (!item) return;
+        setLines((prev) => {
+            const existing = prev.find((line) => line.variantId === item.variantId);
+            if (existing) {
+                const nextQty = Math.min(existing.quantity + 1, item.available);
+                if (nextQty === existing.quantity) {
+                    setError(`Cannot add more than available stock (${item.available}) for ${item.itemName}.`);
+                }
+                return prev.map((line) =>
+                    line.variantId === item.variantId ? { ...line, quantity: nextQty } : line
+                );
+            }
+            return [...prev, { ...item, quantity: 1 }];
+        });
         setVariantPickerValue(null);
+    };
+
+    const handleBarcodeAdd = (scannedValue) => {
+        const rawCode = typeof scannedValue === 'string' ? scannedValue : barcodeInput;
+        const scannedCode = (rawCode || '').trim().toLowerCase();
+        if (!scannedCode) return;
+
+        setError('');
+
+        const matched = variantOptions.find(
+            (o) =>
+                (o.barcode && String(o.barcode).toLowerCase() === scannedCode) ||
+                (o.sku && String(o.sku).toLowerCase() === scannedCode)
+        );
+
+        if (!matched) {
+            setError(`Item with barcode/SKU "${rawCode}" not found or has no available stock in this store.`);
+            return;
+        }
+
+        setLines((prev) => {
+            const existing = prev.find((line) => line.variantId === matched.variantId);
+            if (existing) {
+                const nextQty = Math.min(existing.quantity + 1, matched.available);
+                if (nextQty === existing.quantity) {
+                    setError(`Cannot add more than available stock (${matched.available}) for ${matched.itemName}.`);
+                }
+                return prev.map((line) =>
+                    line.variantId === matched.variantId ? { ...line, quantity: nextQty } : line
+                );
+            }
+            return [...prev, { ...matched, quantity: 1 }];
+        });
+
+        setBarcodeInput('');
+        setTimeout(() => {
+            barcodeInputRef.current?.focus();
+        }, 10);
     };
 
     const updateQuantity = (variantId, val) => {
@@ -106,21 +162,27 @@ function PurchaseReturnPage() {
             return;
         }
 
-        const promises = lines.map(line => {
-            const payload = {
-                type: 'STORE_TO_FACTORY',
-                storeId: user.shopId,
-                productId: line.variantId,
-                quantity: line.quantity,
-                reason: remarks,
-                destinationId: targetId
-            };
-            return dispatch(addPurchaseReturn(payload)).unwrap();
-        });
+        const payload = {
+            sourceStoreId: user.shopId,
+            destinationWarehouseId: targetId,
+            items: lines.map(line => ({
+                variantId: line.variantId,
+                qty: line.quantity
+            })),
+            reason: remarks
+        };
 
-        Promise.all(promises)
-            .then(() => navigate('/inventory/stock-overview'))
-            .catch(err => setError(err || 'Failed to process returns'));
+        dispatch(initiateStockReturn(payload))
+            .unwrap()
+            .then(() => {
+                setLines([]);
+                setRemarks('');
+                setTargetId('');
+                setError('');
+                dispatch(fetchStockReturns());
+                dispatch(fetchStockOverview());
+            })
+            .catch(err => setError(err || 'Failed to initiate return'));
     };
 
     return (
@@ -157,17 +219,51 @@ function PurchaseReturnPage() {
                         />
                     </Stack>
 
-                    <Stack direction="row" spacing={2}>
+                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+                        <TextField
+                            size="small"
+                            label="Barcode / SKU"
+                            inputRef={barcodeInputRef}
+                            autoFocus
+                            value={barcodeInput}
+                            onChange={(e) => setBarcodeInput(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleBarcodeAdd(e.target.value);
+                                }
+                            }}
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <QrCodeScannerIcon fontSize="small" />
+                                    </InputAdornment>
+                                ),
+                            }}
+                            sx={{ flex: 1 }}
+                            placeholder="Scan or type barcode/SKU and press Enter"
+                        />
+                        <Button variant="contained" onClick={() => handleBarcodeAdd(barcodeInput)} sx={{ minWidth: 120 }}>
+                            Scan Add
+                        </Button>
+                    </Stack>
+
+                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
                         <Autocomplete
                             size="small"
                             options={filteredOptions}
                             getOptionLabel={(o) => `${o.sku} | ${o.itemName} (${o.size}/${o.color}) - Avail: ${o.available}`}
                             value={variantPickerValue}
-                            onChange={(_, v) => setVariantPickerValue(v)}
+                            onChange={(_, v) => {
+                                setVariantPickerValue(v);
+                                if (v) {
+                                    addLine(v);
+                                }
+                            }}
                             sx={{ flex: 1 }}
-                            renderInput={(params) => <TextField {...params} label="Select Item from Stock" />}
+                            renderInput={(params) => <TextField {...params} label="Select Item from Stock Manually" />}
                         />
-                        <Button variant="contained" onClick={addLine} disabled={!variantPickerValue}>
+                        <Button variant="outlined" onClick={() => addLine()} disabled={!variantPickerValue} sx={{ minWidth: 120 }}>
                             Add Item
                         </Button>
                     </Stack>
@@ -239,6 +335,73 @@ function PurchaseReturnPage() {
                         </Button>
                     </Stack>
                 </Stack>
+            </Paper>
+
+            {/* Returns History Section */}
+            <Typography variant="h6" sx={{ fontWeight: 700, mt: 4, mb: 2 }}>
+                Recent Returns History
+            </Typography>
+            <Paper elevation={0} sx={{ p: 3, border: '1px solid #e2e8f0', borderRadius: 2 }}>
+                {returnsLoading ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                        <CircularProgress size={30} />
+                    </Box>
+                ) : returns.length > 0 ? (
+                    <TableContainer>
+                        <Table size="small">
+                            <TableHead sx={{ bgcolor: '#f8fafc' }}>
+                                <TableRow>
+                                    <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Return Number</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Destination Warehouse</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }} align="right">Items Qty</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Reason</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {returns.map((row) => {
+                                    const totalQty = row.items?.reduce((sum, item) => sum + (item.qty || 0), 0) || 0;
+                                    return (
+                                        <TableRow key={row._id || row.id} hover>
+                                            <TableCell>
+                                                {row.initiatedAt ? new Date(row.initiatedAt).toLocaleDateString() : new Date(row.createdAt).toLocaleDateString()}
+                                            </TableCell>
+                                            <TableCell sx={{ fontWeight: 700 }}>
+                                                {row.returnNumber}
+                                            </TableCell>
+                                            <TableCell>
+                                                {row.destinationWarehouseId?.name || 'Warehouse'}
+                                            </TableCell>
+                                            <TableCell align="right" sx={{ fontWeight: 700 }}>
+                                                {totalQty} Pcs
+                                            </TableCell>
+                                            <TableCell sx={{ color: '#64748b' }}>
+                                                {row.reason || '--'}
+                                            </TableCell>
+                                            <TableCell>
+                                                <Chip 
+                                                    label={row.status === 'DISPATCHED' ? 'IN TRANSIT' : row.status}
+                                                    size="small"
+                                                    sx={{ 
+                                                        bgcolor: row.status === 'RECEIVED' ? '#dcfce7' : '#eff6ff', 
+                                                        color: row.status === 'RECEIVED' ? '#166534' : '#1e40af', 
+                                                        fontWeight: 700, 
+                                                        fontSize: 10 
+                                                    }}
+                                                />
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                ) : (
+                    <Typography align="center" color="textSecondary" sx={{ py: 2 }}>
+                        No stock returns initiated yet.
+                    </Typography>
+                )}
             </Paper>
         </Box>
     );

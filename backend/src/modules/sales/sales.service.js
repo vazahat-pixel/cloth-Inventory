@@ -778,6 +778,7 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
                 mrp: p.mrp,
                 rate: p.rate,
                 discount: p.discount || 0,
+                extraDiscount: p.extraDiscount || 0,
                 taxAmount: p.taxAmount || 0,
                 taxPercentage: p.taxPercentage || 0,
                 total: p.total

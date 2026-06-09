@@ -16,8 +16,7 @@ import {
 } from '@mui/material';
 import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
-import axios from 'axios';
-import { useSelector } from 'react-redux';
+import api from '../../services/api';
 import { getFriendlyErrorMessage } from '../../utils/errorMessageHelper';
 
 const SummaryChip = ({ label, value, strong }) => (
@@ -44,18 +43,15 @@ function ProfitReportPage() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  const token = useSelector((state) => state.auth.token);
-
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/reports/profit`, {
+      const response = await api.get('/reports/profit', {
         params: {
           startDate: filters.dateFrom,
           endDate: filters.dateTo
         },
-        headers: { Authorization: `Bearer ${token}` }
       });
       // The backend returns { report: [...] }
       setData(response.data.report || []);

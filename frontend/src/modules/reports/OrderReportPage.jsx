@@ -16,8 +16,7 @@ import {
 } from '@mui/material';
 import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
-import axios from 'axios';
-import { useSelector } from 'react-redux';
+import api from '../../services/api';
 import { getFriendlyErrorMessage } from '../../utils/errorMessageHelper';
 
 function OrderReportPage() {
@@ -29,18 +28,15 @@ function OrderReportPage() {
     dateTo: new Date().toISOString().split('T')[0],
   });
 
-  const token = useSelector((state) => state.auth.token);
-
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/reports/orders`, {
+      const response = await api.get('/reports/orders', {
         params: {
             startDate: filters.dateFrom,
             endDate: filters.dateTo
         },
-        headers: { Authorization: `Bearer ${token}` }
       });
       setData(response.data.report);
     } catch (err) {

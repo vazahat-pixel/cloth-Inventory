@@ -9,6 +9,9 @@ import {
   Button,
   Chip,
   Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
   Divider,
   Grid,
   IconButton,
@@ -67,7 +70,9 @@ const calculateLine = (line, taxRate = 5, promoDiscount = 0) => {
   // If there's a system promo (e.g. 70% HO offer), we prioritize it 
   // and usually ignore manual line discounts to prevent double-dipping.
   const hasPromo = toNumber(promoDiscount) > 0;
-  const manualDiscPercent = hasPromo ? 0 : toNumber(line.discount);
+  
+  // Combine standard manual discount and extra OTP discount
+  const manualDiscPercent = hasPromo ? 0 : (toNumber(line.discount) + toNumber(line.extraDiscount || 0));
   const manualDisc = (gross * manualDiscPercent) / 100;
   
   const netAfterDiscount = Math.max(0, gross - manualDisc - toNumber(promoDiscount));
@@ -93,7 +98,7 @@ const calculateTotals = (lines, taxRules, billDiscount, loyaltyRedeemed, couponD
   lines.forEach(l => {
     const promo = promoItems?.find(pi => pi.variantId === l.productId || pi.variantId === l.variantId);
     const gross = toNumber(l.quantity) * toNumber(l.rate);
-    const manualDisc = (gross * toNumber(l.discount)) / 100;
+    const manualDisc = (gross * (toNumber(l.discount) + toNumber(l.extraDiscount || 0))) / 100;
     totalNetBeforeTax += Math.max(0, gross - manualDisc - toNumber(promo?.promoDiscount || 0));
   });
 
@@ -110,7 +115,7 @@ const calculateTotals = (lines, taxRules, billDiscount, loyaltyRedeemed, couponD
     // Calculate net price for this item individually to determine its correct SLAB rate
     const gross = toNumber(l.quantity) * toNumber(l.rate);
     const linePromoDiscount = toNumber(promo?.promoDiscount || 0);
-    const lineManualDiscount = (gross * toNumber(l.discount)) / 100;
+    const lineManualDiscount = (gross * (toNumber(l.discount) + toNumber(l.extraDiscount || 0))) / 100;
     const lineNetPayable = Math.max(0, gross - lineManualDiscount - linePromoDiscount);
     const unitNetPayable = lineNetPayable / toNumber(l.quantity || 1);
     const unitTaxableValue = unitNetPayable / 1.05;
@@ -153,7 +158,7 @@ const calculateTotals = (lines, taxRules, billDiscount, loyaltyRedeemed, couponD
         // Calculate net price for this item individually to determine its correct HSN summary SLAB rate
         const gross = toNumber(l.quantity) * toNumber(l.rate);
         const linePromoDiscount = toNumber(promo?.promoDiscount || 0);
-        const lineManualDiscount = (gross * toNumber(l.discount)) / 100;
+        const lineManualDiscount = (gross * (toNumber(l.discount) + toNumber(l.extraDiscount || 0))) / 100;
         const lineNetPayable = Math.max(0, gross - lineManualDiscount - linePromoDiscount);
         const unitNetPayable = lineNetPayable / toNumber(l.quantity || 1);
         const unitTaxableValue = unitNetPayable / 1.05;
@@ -239,6 +244,7 @@ function BillingPage({
   const [customerMobile, setCustomerMobile] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
+  const [customerGst, setCustomerGst] = useState('');
   const [customerId, setCustomerId] = useState('');
   const [billDiscount, setBillDiscount] = useState('');
   const [loyaltyRedeemed, setLoyaltyRedeemed] = useState('');
@@ -278,6 +284,43 @@ function BillingPage({
   const [originalSaleId, setOriginalSaleId] = useState(null);
   const [originalSaleNumber, setOriginalSaleNumber] = useState('');
   const [adjustments, setAdjustments] = useState([]); // Array of { label, amount }
+
+  const [extraDiscountDialogOpen, setExtraDiscountDialogOpen] = useState(false);
+  const [selectedLineForExtraDiscount, setSelectedLineForExtraDiscount] = useState(null);
+  const [enteredSecretKey, setEnteredSecretKey] = useState('');
+  const [enteredExtraDiscount, setEnteredExtraDiscount] = useState('');
+
+  const handleApplyExtraDiscount = async () => {
+    const key = enteredSecretKey.trim();
+    const discountVal = toNumber(enteredExtraDiscount);
+
+    if (discountVal < 0 || discountVal > 100) {
+      showNotification('Discount must be between 0 and 100.', 'error');
+      return;
+    }
+
+    try {
+      showLoading('Verifying OTP Key...');
+      await api.post('/settings/verify-discount-key', { key });
+      
+      setLines(prev => prev.map(l => {
+        if (l.id === selectedLineForExtraDiscount.id) {
+          return { ...l, extraDiscount: discountVal };
+        }
+        return l;
+      }));
+
+      showNotification('OTP Key authorized! Extra discount applied successfully.', 'success');
+      setExtraDiscountDialogOpen(false);
+      setSelectedLineForExtraDiscount(null);
+      setEnteredSecretKey('');
+      setEnteredExtraDiscount('');
+    } catch (err) {
+      showNotification(err.response?.data?.message || 'Invalid or expired OTP Key.', 'error');
+    } finally {
+      hideLoading();
+    }
+  };
 
   const pendingDOsForCustomer = useMemo(() => {
     if (!customerId || billingMode !== 'fromDO') return [];
@@ -401,6 +444,10 @@ function BillingPage({
     [billDiscount, lines, loyaltyRedeemed, couponDiscountAmount, creditNoteAmount, saleType, returnTotalCredit, promoItems, taxRules, adjustments],
   );
 
+  const negativeStockLines = useMemo(() => {
+    return lines.filter(l => toNumber(l.quantity) > toNumber(l.available) || toNumber(l.available) <= 0);
+  }, [lines]);
+
   // Real-time Offer Evaluation
   useEffect(() => {
     if (lines.length > 0) {
@@ -474,6 +521,7 @@ function BillingPage({
       setCustomerId(existingSale.customerId || '');
       setCustomerName(existingSale.customerName || '');
       setCustomerMobile(existingSale.customerMobile || '');
+      setCustomerGst(existingSale.customerGst || '');
       setStoreId(existingSale.storeId || existingSale.warehouseId || '');
       setBillDate(existingSale.saleDate?.slice(0, 10) || existingSale.date?.slice(0, 10) || getTodayDate());
       setSaleType(existingSale.saleType || 'retail');
@@ -644,7 +692,7 @@ function BillingPage({
             return line;
           }
 
-          const nextQty = Math.min(toNumber(line.quantity) + 1, toNumber(line.available));
+          const nextQty = toNumber(line.quantity) + 1;
           return { ...line, quantity: nextQty };
         });
       }
@@ -677,11 +725,6 @@ function BillingPage({
 
   const handleAddSelected = () => {
     if (!selectedOption) {
-      return;
-    }
-
-    if (toNumber(selectedOption.available) <= 0) {
-      setErrorMessage(`${selectedOption.itemName} (${selectedOption.size}/${selectedOption.color}) is Out of Stock.`);
       return;
     }
 
@@ -754,7 +797,7 @@ function BillingPage({
           const newQty = Math.max(limit, qty);
           return {
             ...line,
-            quantity: newQty > 0 ? Math.min(newQty, toNumber(line.available)) : newQty,
+            quantity: newQty,
           };
         }
 
@@ -805,7 +848,7 @@ function BillingPage({
     }
 
     const invalidQty = lines.find(
-      (line) => toNumber(line.quantity) <= 0 || toNumber(line.quantity) > toNumber(line.available),
+      (line) => toNumber(line.quantity) <= 0,
     );
     if (invalidQty) {
       setErrorMessage(`Quantity exceeds stock for ${invalidQty.sku}.`);
@@ -845,7 +888,7 @@ function BillingPage({
       // Calculate net price for this item individually to determine its correct SLAB rate
       const gross = toNumber(line.quantity) * toNumber(line.rate);
       const linePromoDiscount = toNumber(promo?.promoDiscount || 0);
-      const lineManualDiscount = (gross * toNumber(line.discount)) / 100;
+      const lineManualDiscount = (gross * (toNumber(line.discount) + toNumber(line.extraDiscount || 0))) / 100;
       const lineNetPayable = Math.max(0, gross - lineManualDiscount - linePromoDiscount);
       const unitNetPayable = lineNetPayable / toNumber(line.quantity || 1);
       const unitTaxableValue = unitNetPayable / 1.05;
@@ -867,7 +910,8 @@ function BillingPage({
         mrp: toNumber(line.mrp || line.rate),
         price: toNumber(line.rate),
         discount: toNumber(line.discount),
-        discountAmount: calcs.manualDiscount + (promo?.promoDiscount || 0),
+        extraDiscount: toNumber(line.extraDiscount || 0),
+        discountAmount: lineManualDiscount + linePromoDiscount,
         promoDiscount: promo?.promoDiscount || 0,
         taxPercentage: toNumber(calcs.taxRate || 5),
         taxAmount: calcs.taxAmount,
@@ -885,6 +929,7 @@ function BillingPage({
       customerName: selectedCustomer?.name || selectedCustomer?.customerName || customerName,
       customerMobile: selectedCustomer?.mobileNumber || mobileInput,
       customerAddress: selectedCustomer?.address || customerAddress,
+      customerGst: customerGst ? customerGst.trim().toUpperCase() : undefined,
       products: preparedProducts,
       subTotal: totals.netPayable - totals.taxAmount, // Actual Taxable Subtotal
       // Only include discounts that are NOT already in preparedProducts total
@@ -1230,7 +1275,20 @@ function BillingPage({
                 />
               </Grid>
 
-
+              <Grid item xs={12} md={6}>
+                <TextField
+                   fullWidth
+                   size="small"
+                   label="Customer GSTIN (B2B Invoice)"
+                   placeholder="e.g. 06AAJCR6675A1ZB"
+                   value={customerGst}
+                   autoComplete="off"
+                   inputProps={{ maxLength: 15, style: { textTransform: 'uppercase' } }}
+                   onChange={(e) => setCustomerGst(e.target.value.toUpperCase())}
+                   helperText={customerGst && customerGst.length !== 15 ? 'GSTIN must be 15 characters' : ''}
+                   error={Boolean(customerGst && customerGst.length !== 15)}
+                />
+              </Grid>
 
               <Grid item xs={12}>
                 <Button
@@ -1240,6 +1298,7 @@ function BillingPage({
                     setMobileInput('');
                     setCustomerName('');
                     setCustomerAddress('');
+                    setCustomerGst('');
                     setLoyaltyRedeemed('');
                     setCreditNoteId('');
                   }}
@@ -1299,6 +1358,19 @@ function BillingPage({
               Item Entry
             </Typography>
 
+            {negativeStockLines.length > 0 && (
+              <Alert severity="warning" sx={{ mb: 2, fontWeight: 700 }}>
+                ⚠️ Negative Stock Alert: The following items have negative/insufficient stock:
+                <ul style={{ margin: '4px 0 0 20px', padding: 0 }}>
+                  {negativeStockLines.map(l => (
+                    <li key={l.id}>
+                      {l.itemName} ({l.size}/{l.color}) - SKU: {l.sku} (Cart Qty: {l.quantity}, Available: {l.available || 0})
+                    </li>
+                  ))}
+                </ul>
+              </Alert>
+            )}
+
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mb: 1.5 }}>
               <Autocomplete
                 fullWidth
@@ -1308,11 +1380,6 @@ function BillingPage({
                 onChange={(_, value) => {
                     setSelectedOption(value);
                     if (value) {
-                        if (toNumber(value.available) <= 0) {
-                            setErrorMessage(`${value.itemName} (${value.size}/${value.color}) is Out of Stock.`);
-                            setSelectedOption(null);
-                            return;
-                        }
                         upsertLine(value);
                         setSelectedOption(null);
                         setErrorMessage('');
@@ -1389,6 +1456,9 @@ function BillingPage({
                       <TableCell sx={{ fontWeight: 700 }} align="center">
                         Disc %
                       </TableCell>
+                      <TableCell sx={{ fontWeight: 700 }} align="center">
+                        🔑 Extra Disc %
+                      </TableCell>
                       {!isStoreStaff && (
                         <TableCell sx={{ fontWeight: 700 }} align="right">
                           GST %
@@ -1406,6 +1476,8 @@ function BillingPage({
                         const itemRule = calculateGST(0, line.hsnCode || line.sku, line.category, taxRules);
                         const lineTaxRate = (itemRule.type === 'FLAT') ? itemRule.rate : (totals.gstRate || 5);
                         const lineRes = calculateLine(line, lineTaxRate, promo?.promoDiscount || 0);
+
+                        const isNegativeStock = toNumber(line.quantity) > toNumber(line.available) || toNumber(line.available) <= 0;
 
                         return (
                           <TableRow key={line.id}>
@@ -1428,6 +1500,11 @@ function BillingPage({
                               {promo?.appliedOffer && (
                                 <Typography variant="caption" sx={{ color: promo.promoDiscount > 0 ? '#10b981' : '#64748b', display: 'block', mt: 0.5, fontWeight: 700 }}>
                                   Scheme: {promo.appliedOffer}
+                                </Typography>
+                              )}
+                              {isNegativeStock && (
+                                <Typography variant="caption" sx={{ color: '#ef4444', fontWeight: 700, display: 'block', mt: 0.5 }}>
+                                  ⚠️ Negative Stock Alert (Available: {line.available || 0})
                                 </Typography>
                               )}
                             </TableCell>
@@ -1474,6 +1551,24 @@ function BillingPage({
                                 sx={{ width: 70 }}
                                 disabled={isStoreStaff}
                               />
+                            </TableCell>
+                            {/* Extra Disc % column */}
+                            <TableCell align="center">
+                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 700, minWidth: 24 }}>
+                                  {line.extraDiscount || 0}%
+                                </Typography>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => {
+                                    setSelectedLineForExtraDiscount(line);
+                                    setExtraDiscountDialogOpen(true);
+                                  }}
+                                  color="primary"
+                                >
+                                  🔑
+                                </IconButton>
+                              </Box>
                             </TableCell>
                             {/* GST% admin only */}
                             {!isStoreStaff && (
@@ -1916,6 +2011,37 @@ function BillingPage({
           }
         }}
       />
+      <Dialog open={extraDiscountDialogOpen} onClose={() => setExtraDiscountDialogOpen(false)}>
+        <DialogTitle sx={{ fontWeight: 800 }}>🔑 Extra Discount Authorization</DialogTitle>
+        <DialogContent sx={{ minWidth: 320 }}>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Typography variant="body2" color="textSecondary">
+              Admin OTP authorization is required to apply an extra manual discount on <strong>{selectedLineForExtraDiscount?.itemName}</strong>.
+            </Typography>
+            <TextField
+              fullWidth
+              label="Admin OTP Key"
+              placeholder="e.g. DISC-XXXXXX"
+              value={enteredSecretKey}
+              onChange={(e) => setEnteredSecretKey(e.target.value)}
+            />
+            <TextField
+              fullWidth
+              type="number"
+              label="Extra Discount (%)"
+              placeholder="e.g. 10"
+              value={enteredExtraDiscount}
+              onChange={(e) => setEnteredExtraDiscount(e.target.value)}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setExtraDiscountDialogOpen(false)}>Cancel</Button>
+          <Button variant="contained" color="success" onClick={handleApplyExtraDiscount} disabled={!enteredSecretKey || !enteredExtraDiscount}>
+            Apply Discount
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }

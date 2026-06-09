@@ -3,10 +3,23 @@
  */
 
 const sendSuccess = (res, data = {}, message = 'Success', statusCode = 200) => {
+    let responseData = data;
+    if (data && typeof data.toObject === 'function') {
+        responseData = data.toObject();
+    }
+
+    if (Array.isArray(responseData)) {
+        return res.status(statusCode).json({
+            success: true,
+            message,
+            data: responseData,
+        });
+    }
+
     return res.status(statusCode).json({
         success: true,
         message,
-        ...data,
+        ...responseData,
     });
 };
 

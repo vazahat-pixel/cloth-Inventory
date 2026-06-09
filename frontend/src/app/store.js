@@ -14,6 +14,7 @@ import dispatchReducer from '../modules/dispatch/dispatchSlice';
 import reportsReducer from '../modules/reports/reportsSlice';
 import productionReducer from '../modules/production/productionSlice';
 import accountsReducer from '../modules/accounts/accountsSlice';
+import stockReturnReducer from '../modules/inventory/stockReturnSlice';
 
 export const store = configureStore({
   reducer: {
@@ -32,5 +33,6 @@ export const store = configureStore({
     reports: reportsReducer,
     production: productionReducer,
     accounts: accountsReducer,
+    stockReturn: stockReturnReducer,
   },
 });

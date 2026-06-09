@@ -40,6 +40,10 @@ const saleItemSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    extraDiscount: {
+        type: Number,
+        default: 0
+    },
     discountAmount: {
         type: Number,
         default: 0
@@ -84,6 +88,12 @@ const saleSchema = new mongoose.Schema(
         customerAddress: {
             type: String,
             trim: true
+        },
+        customerGst: {
+            type: String,
+            trim: true,
+            uppercase: true,
+            default: ''
         },
         type: {
             type: String,

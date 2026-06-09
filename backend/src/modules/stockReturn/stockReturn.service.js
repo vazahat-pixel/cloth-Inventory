@@ -6,8 +6,8 @@ const { getNextSequence } = require('../../services/sequence.service');
 
 const generateReturnNumber = async (session = null) => {
     const year = new Date().getFullYear();
-    const seq = await getNextSequence(`STOCK_RETURN_${year}`, session);
-    return `STRT-${year}-${seq.toString().padStart(5, '0')}`;
+    const seq = await getNextSequence(`PURCHASE_RETURN_${year}`, session);
+    return `PR-${year}-${seq.toString().padStart(5, '0')}`;
 };
 
 /**

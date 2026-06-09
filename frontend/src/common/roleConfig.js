@@ -21,6 +21,7 @@ import StorefrontIcon from '@mui/icons-material/Storefront';
 import FileUploadOutlinedIcon from '@mui/icons-material/FileUploadOutlined';
 import LockClockIcon from '@mui/icons-material/LockClock';
 import WarehouseIcon from '@mui/icons-material/Store';
+import KeyboardReturnIcon from '@mui/icons-material/KeyboardReturn';
 
 import { purchaseMatchPaths, purchaseNavItems } from '../modules/purchase/purchaseNavConfig';
 import { itemsMatchPaths, itemsNavItems } from '../modules/items/itemsNavConfig';
@@ -87,6 +88,7 @@ export const adminNavConfig = {
     '/inventory/stock-overview': [
       { label: 'Garment Master', path: '/ho/items' },
       {label: 'Inventory Overview', path: '/ho/inventory/stock-overview'},
+      {label: 'Store Stock Returns (Inward)', path: '/ho/inventory/store-returns'},
       {label: 'Barcode Print', path: '/ho/setup/barcode-print'},
       {label: 'Scan-to-Receipt (GRN)', path: '/ho/inventory/grn'},
       {label: '📦 Opening Stock Entry', path: '/inventory/opening-stock'},
@@ -127,6 +129,7 @@ export const staffNavConfig = {
     { label: 'Billing POS', path: '/sales/sale-bill/new', icon: PointOfSaleIcon },
     { label: 'Sale Registry (Bills)', path: '/sales/sale-bill', icon: DescriptionOutlinedIcon },
     { label: 'Sales Returns', path: '/sales/sales-return', icon: ReceiptLongIcon },
+    { label: 'Purchase Return', path: '/inventory/purchase-return', icon: KeyboardReturnIcon },
     { label: 'Day-End Closure (Z-Report)', path: '/reports/closure', icon: LockClockIcon },
     { label: 'Stock Lookup', path: '/inventory/stock-overview', icon: Inventory2Icon },
     { label: 'Bulk Opening Stock', path: '/inventory/bulk-import-store-stock', icon: FileUploadOutlinedIcon },
@@ -137,6 +140,7 @@ export const staffNavConfig = {
       { label: 'Stock Overview', path: '/inventory/stock-overview' },
       { label: 'Bulk Import (Excel)', path: '/inventory/bulk-import-store-stock' },
       { label: 'Store Receipt', path: '/inventory/receipt' },
+      { label: 'Purchase Return', path: '/inventory/purchase-return' },
       { label: 'Barcode Info', path: '/inventory/audit-view' }
     ],
     '/reports': [

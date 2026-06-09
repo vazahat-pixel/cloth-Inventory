@@ -112,6 +112,9 @@ const VoucherListPage = lazy(() => import('../modules/accounts/VoucherListPage')
 const AccountMasterPage = lazy(() => import('../modules/accounts/AccountMasterPage'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
 
+const StoreReturnReceivePage = lazy(() => import('../modules/inventory/StoreReturnReceivePage'));
+const StorePurchaseReturnPage = lazy(() => import('../modules/store/PurchaseReturnPage'));
+
 // Placeholder for pages that are scaffolded but not yet built
 const PlaceholderPage = ({ title = 'Coming Soon' }) => (
   <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
@@ -229,6 +232,9 @@ function AppRoutes() {
             <Route path="inventory/grn/new" element={<GRNFormPage />} />
             <Route path="inventory/grn/edit/:id" element={<GRNFormPage />} />
             <Route path="inventory/grn/view/:id" element={<GRNFormPage mode="view" />} />
+
+            {/* Store Returns Receive */}
+            <Route path="inventory/store-returns" element={<StoreReturnReceivePage />} />
 
             {/* Transfer (placeholder until built) */}
             <Route path="inventory/transfer" element={<PlaceholderPage title="Stock Transfer" />} />
@@ -384,6 +390,7 @@ function AppRoutes() {
           <Route path="inventory/stock-overview" element={<StockOverviewPage />} />
           <Route path="inventory/bulk-import-store-stock" element={<StoreOpeningStockImport />} />
           <Route path="inventory/receipt" element={<DeliveryChallanPage />} />
+          <Route path="inventory/purchase-return" element={<StorePurchaseReturnPage />} />
           <Route path="inventory/audit-view" element={<StockAuditView />} />
           <Route path="sales/sale-bill/new" element={<SalesBillFormPage />} />
           <Route path="sales/sale-bill/:id/edit" element={<SalesBillFormPage mode="edit" />} />

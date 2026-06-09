@@ -363,7 +363,22 @@ function GRNFormPage({ mode = 'edit' }) {
 
   const addItemToLines = (item) => {
     if (!item || !item.sizes?.length) return;
-    const newLines = item.sizes.map(v => ({
+    
+    // Filter out size variants that are already in lines
+    const existingVariantIds = new Set(lines.map(l => {
+      const vId = l.variantId?._id || l.variantId || l.itemId?._id || l.itemId;
+      return (vId || "").toString();
+    }));
+    
+    const newVariants = item.sizes.filter(v => !existingVariantIds.has((v._id || v.id || "").toString()));
+    
+    if (newVariants.length === 0) {
+      setErrorMessage(`All sizes for ${item.itemName} are already added.`);
+      setTimeout(() => setErrorMessage(''), 3000);
+      return;
+    }
+
+    const newLines = newVariants.map(v => ({
       id: `temp-${Date.now()}-${Math.random()}`,
       itemId: item._id || item.id,
       variantId: v._id || v.id,
@@ -380,7 +395,7 @@ function GRNFormPage({ mode = 'edit' }) {
       category: item?.categoryName || item?.type || '',
       batchNumber: `B-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`
     }));
-    setLines([...lines, ...newLines]);
+    setLines(prev => [...prev, ...newLines]);
     setSelectedItem(null);
   };
 
@@ -434,9 +449,11 @@ function GRNFormPage({ mode = 'edit' }) {
           .map((l) => {
             const itemRule = calculateGST(0, l.sku || l.barcode, l.category, taxRules);
             const lineTaxRate = (itemRule.type === 'FLAT' ? itemRule.rate : totals.generalRate);
+            const rawItemId = l.itemId?._id || (typeof l.itemId === 'string' ? l.itemId : null) || l._id || l.id;
+            const rawVariantId = l.variantId?._id || (typeof l.variantId === 'string' ? l.variantId : null) || rawItemId;
             return {
-              itemId: l.itemId || l._id || l.id,
-              variantId: l.variantId || l.itemId || l._id || l.id,
+              itemId: rawItemId,
+              variantId: rawVariantId,
               sku: l.sku || l.itemCode || 'N/A',
               receivedQty: Number(l.receivedQty || 0),
               costPrice: Number(l.costPrice || 0),
@@ -844,40 +861,63 @@ function GRNFormPage({ mode = 'edit' }) {
 
         <Grid item xs={12}>
           {!isLocked && (
-            <Box sx={{ mb: 3, p: 2, bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderLeft: '4px solid #3b82f6', borderRadius: 2 }}>
-              <Stack direction="row" spacing={3} alignItems="center">
-                <Box>
-                  <Typography variant="caption" sx={{ fontWeight: 900, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: 1 }}>Scanning Active</Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 800, color: '#1e293b', lineHeight: 1 }}>Scan Barcodes</Typography>
-                </Box>
-                <TextField
-                  autoFocus
-                  placeholder="Scan finished items one by one..."
-                  size="medium"
-                  value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && searchText.trim()) {
-                      e.preventDefault();
-                      handleBarcodeScan(searchText.trim());
-                      setSearchText('');
-                    }
-                  }}
-                  sx={{ bgcolor: 'white', flex: 1 }}
-                  InputProps={{
-                    startAdornment: <SearchIcon sx={{ color: '#3b82f6', mr: 1, fontSize: 22 }} />
-                  }}
-                />
-                <Button
-                  variant="contained"
-                  color="info"
-                  startIcon={<FileUploadIcon />}
-                  onClick={() => setIsBulkUploadOpen(true)}
-                  sx={{ height: 56, px: 4, fontWeight: 700, borderRadius: 2, whiteSpace: 'nowrap', bgcolor: '#0284c7' }}
-                >
-                  Excel Upload
-                </Button>
-              </Stack>
+            <Box sx={{ mb: 3, p: 3, bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderLeft: '4px solid #3b82f6', borderRadius: 3 }}>
+              <Grid container spacing={3} alignItems="center">
+                <Grid item xs={12} md={3}>
+                  <Typography variant="caption" sx={{ fontWeight: 900, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: 1 }}>Inward Entry Mode</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 800, color: '#1e293b', lineHeight: 1 }}>Add Items to GRN</Typography>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <Autocomplete
+                    fullWidth
+                    size="medium"
+                    options={allItems}
+                    value={selectedItem}
+                    onChange={(_, value) => {
+                      if (value) {
+                        addItemToLines(value);
+                      }
+                    }}
+                    getOptionLabel={(option) => `${option.itemName} (${option.itemCode || ''})`}
+                    renderInput={(params) => (
+                      <TextField {...params} label="Search & Add Catalog Item" placeholder="Select item to add all sizes..." />
+                    )}
+                    sx={{ bgcolor: 'white' }}
+                  />
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    fullWidth
+                    placeholder="Scan barcodes..."
+                    size="medium"
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && searchText.trim()) {
+                        e.preventDefault();
+                        handleBarcodeScan(searchText.trim());
+                        setSearchText('');
+                      }
+                    }}
+                    sx={{ bgcolor: 'white' }}
+                    InputProps={{
+                      startAdornment: <SearchIcon sx={{ color: '#3b82f6', mr: 1, fontSize: 22 }} />
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={12} md={2}>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    color="info"
+                    startIcon={<FileUploadIcon />}
+                    onClick={() => setIsBulkUploadOpen(true)}
+                    sx={{ height: 56, fontWeight: 700, borderRadius: 2, whiteSpace: 'nowrap', bgcolor: '#0284c7' }}
+                  >
+                    Excel Upload
+                  </Button>
+                </Grid>
+              </Grid>
             </Box>
           )}
 

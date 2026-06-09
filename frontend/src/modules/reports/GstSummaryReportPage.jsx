@@ -11,8 +11,7 @@ import {
 } from '@mui/material';
 import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
-import axios from 'axios';
-import { useSelector } from 'react-redux';
+import api from '../../services/api';
 import { getFriendlyErrorMessage } from '../../utils/errorMessageHelper';
 
 function GstSummaryReportPage() {
@@ -24,18 +23,15 @@ function GstSummaryReportPage() {
     dateTo: new Date().toISOString().split('T')[0],
   });
 
-  const token = useSelector((state) => state.auth.token);
-
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/reports/gst-summary`, {
+      const response = await api.get('/reports/gst-summary', {
         params: {
             startDate: filters.dateFrom,
             endDate: filters.dateTo
         },
-        headers: { Authorization: `Bearer ${token}` }
       });
       setData(response.data.report);
     } catch (err) {

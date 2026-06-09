@@ -44,4 +44,7 @@ router.route('/print-templates')
 
 router.patch('/print-templates/:id', requireAdmin, settingsController.updatePrintTemplate);
 
+router.post('/generate-discount-key', requireAdmin, settingsController.generateDiscountKey);
+router.post('/verify-discount-key', settingsController.verifyDiscountKey);
+
 module.exports = router;

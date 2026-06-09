@@ -263,8 +263,14 @@ const createGRN = async (grnData, userId) => {
             const processedItems = [];
 
             for (const item of items) {
-                const itemId = item.itemId || item.productId;
+                let itemId = item.itemId || item.productId;
+                if (itemId && typeof itemId === 'object') {
+                    itemId = itemId._id || itemId.id;
+                }
                 let variantId = item.variantId;
+                if (variantId && typeof variantId === 'object') {
+                    variantId = variantId._id || variantId.id;
+                }
                 let sku = item.sku;
 
                 // 1. FAIL-SAFE: Recover SKU + itemName + uom from Item Master if missing
@@ -588,10 +594,15 @@ const updateGRN = async (id, updateData, userId) => {
         if (updateData.purchaseId === '') updateData.purchaseId = null;
         if (updateData.jobWorkId === '') updateData.jobWorkId = null;
 
-        // Re-compute tax if items changed and not GARMENT type
         if (updateData.items) {
             const grnType = updateData.grnType || grn.grnType;
             updateData.items = updateData.items.map(item => {
+                if (item.itemId && typeof item.itemId === 'object') {
+                    item.itemId = item.itemId._id || item.itemId.id;
+                }
+                if (item.variantId && typeof item.variantId === 'object') {
+                    item.variantId = item.variantId._id || item.variantId.id;
+                }
                 if (!item.sku) item.sku = 'N/A';
                 if (!item.variantId) item.variantId = item.sku || 'UNKNOWN';
                 if (!item.uom) item.uom = 'PCS';

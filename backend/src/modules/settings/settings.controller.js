@@ -129,6 +129,26 @@ const updatePrintTemplate = async (req, res, next) => {
     } catch (err) { next(err); }
 };
 
+const generateDiscountKey = async (req, res, next) => {
+    try {
+        const result = await settingsService.generateDiscountKey(req.user._id);
+        return sendSuccess(res, result, 'Discount OTP Key generated successfully');
+    } catch (err) { next(err); }
+};
+
+const verifyDiscountKey = async (req, res, next) => {
+    try {
+        const { key } = req.body;
+        if (!key) {
+            return sendError(res, 'Discount OTP key is required', 400);
+        }
+        await settingsService.verifyDiscountKey(key);
+        return sendSuccess(res, {}, 'Discount OTP Key verified and consumed successfully');
+    } catch (err) {
+        return sendError(res, err.message, 400);
+    }
+};
+
 module.exports = {
     getCompanyProfile,
     updateCompanyProfile,
@@ -146,5 +166,7 @@ module.exports = {
     updatePVConfig,
     getPrintTemplates,
     addPrintTemplate,
-    updatePrintTemplate
+    updatePrintTemplate,
+    generateDiscountKey,
+    verifyDiscountKey
 };
