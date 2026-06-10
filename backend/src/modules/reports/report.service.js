@@ -782,6 +782,16 @@ const getDetailedGstReport = async (startDate, endDate, storeId) => {
             totalGST += tax;
             grandTotal += netAmount;
 
+            const originalGross = (item.rate || item.mrp || 0) * item.quantity;
+            let itemDiscountPct = 0;
+            if (originalGross > 0) {
+                const discountAmt = item.discountAmount || (item.promoDiscount || 0) + ((originalGross * (item.discount || 0)) / 100);
+                itemDiscountPct = (discountAmt / originalGross) * 100;
+            } else if (item.discount) {
+                itemDiscountPct = item.discount;
+            }
+            itemDiscountPct = Number(itemDiscountPct.toFixed(2));
+
             // Detailed item-wise record
             itemWiseDetails.push({
                 invoice: invSummary.invoice,
@@ -791,7 +801,7 @@ const getDetailedGstReport = async (startDate, endDate, storeId) => {
                 category,
                 hsn,
                 mrp: item.mrp || 0,
-                discount: item.discount || 0,
+                discount: itemDiscountPct,
                 quantity: item.quantity,
                 taxable,
                 cgstRate: isInterstate ? 0 : rate / 2,
