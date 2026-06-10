@@ -9,6 +9,8 @@ const Ledger = require('../../models/ledger.model');
 const Purchase = require('../../models/purchase.model');
 const WarehouseInventory = require('../../models/warehouseInventory.model');
 const StockMovement = require('../../models/stockMovement.model');
+const { getFallbackHsn } = require('../../services/gst.service');
+
 
 /**
  * Daily Sales Report
@@ -712,9 +714,12 @@ const getDetailedGstReport = async (startDate, endDate, storeId) => {
         let saleIGSTSum = 0;
 
         sale.items.forEach((item, idx) => {
-            const hsn = item.hsnCode || item.itemId?.hsCodeId?.code || 'N/A';
-            const rate = item.taxPercentage || 0;
             const category = item.category || item.itemId?.categoryName || item.itemId?.categoryId?.name || 'GARMENT';
+            let hsn = item.hsnCode || item.itemId?.hsCodeId?.code || '';
+            if (!hsn || hsn.toUpperCase().trim() === 'N/A' || hsn.toUpperCase().trim() === 'UNDEFINED') {
+                hsn = getFallbackHsn(category, item.itemName || item.itemId?.itemName);
+            }
+            const rate = item.taxPercentage || 0;
 
             // Item taxable value (before invoice adjustments)
             const itemGross = item.total || 0;

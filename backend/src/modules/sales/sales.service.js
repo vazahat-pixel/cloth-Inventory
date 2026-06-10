@@ -15,7 +15,7 @@ const StorePricing = require('../../models/storePricing.model');
 const Customer = require('../../models/customer.model');
 const LoyaltyTransaction = require('../../models/loyaltyTransaction.model');
 const CreditNote = require('../../models/creditNote.model');
-const { calculateGST } = require('../../services/gst.service');
+const { calculateGST, getFallbackHsn } = require('../../services/gst.service');
 const { getNextSequence } = require('../../services/sequence.service');
 const Item = require('../../models/item.model');
 const toNumber = (val) => {
@@ -564,19 +564,6 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             totalIGST += gstData.igst;
             totalTax += gstData.totalTax;
 
-            // Ensure parentItem.hsCodeId is populated if it is a string ID
-            if (parentItem && parentItem.hsCodeId && typeof parentItem.hsCodeId !== 'object') {
-                const HSNCode = require('../../models/hsnCode.model');
-                parentItem.hsCodeId = await HSNCode.findById(parentItem.hsCodeId).session(session);
-            }
-            const masterHsn = parentItem.hsCodeId?.code || parentItem.hsnCode || '';
-
-            // Updated item object for sale record
-            item.itemId = parentItem._id;
-            item.variantId = inventory.variantId;
-            item.itemName = item.itemName || parentItem.itemName || parentItem.name;
-            item.sku = item.sku || variant?.sku || parentItem.sku;
-            item.hsnCode = masterHsn || item.hsnCode || '';
             // Safely clean/normalize category and brand to strings to avoid Cast to String Validation errors
             let finalCategory = '';
             if (item.category) {
@@ -600,6 +587,22 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
                 finalBrand = parentItem.brandName || parentItem.brand?.name || parentItem.brandId?.name || '';
             }
 
+            // Ensure parentItem.hsCodeId is populated if it is a string ID
+            if (parentItem && parentItem.hsCodeId && typeof parentItem.hsCodeId !== 'object') {
+                const HSNCode = require('../../models/hsnCode.model');
+                parentItem.hsCodeId = await HSNCode.findById(parentItem.hsCodeId).session(session);
+            }
+            let masterHsn = parentItem.hsCodeId?.code || parentItem.hsnCode || '';
+            if (!masterHsn || masterHsn.toUpperCase().trim() === 'N/A' || masterHsn.toUpperCase().trim() === 'UNDEFINED') {
+                masterHsn = getFallbackHsn(finalCategory, item.itemName || parentItem.itemName || parentItem.name);
+            }
+
+            // Updated item object for sale record
+            item.itemId = parentItem._id;
+            item.variantId = inventory.variantId;
+            item.itemName = item.itemName || parentItem.itemName || parentItem.name;
+            item.sku = item.sku || variant?.sku || parentItem.sku;
+            item.hsnCode = masterHsn;
             item.category = finalCategory;
             item.brand = finalBrand;
             item.size = item.size || variant?.size || 'N/A';
