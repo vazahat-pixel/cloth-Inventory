@@ -49,6 +49,11 @@ function Gstr1DetailedReportPage() {
   const [filters, setFilters] = useState({
     startDate: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
+    warehouseId: 'all',
+    brandId: 'all',
+    categoryId: 'all',
+    customerId: 'all',
+    salesmanId: 'all'
   });
 
   const fetchData = async () => {
@@ -322,7 +327,25 @@ function Gstr1DetailedReportPage() {
         </Box>
 
         <Paper elevation={0} sx={{ p: 2, border: '1px solid #e2e8f0', borderRadius: 3 }} className="no-print">
-          <ReportFilterPanel filters={filters} onFiltersChange={setFilters} />
+          <ReportFilterPanel 
+            filters={{
+              ...filters,
+              dateFrom: filters.startDate,
+              dateTo: filters.endDate
+            }} 
+            onFiltersChange={(newFilters) => {
+              setFilters({
+                ...newFilters,
+                startDate: newFilters.dateFrom,
+                endDate: newFilters.dateTo
+              });
+            }}
+            showWarehouse={true}
+            showBrand={true}
+            showCategory={true}
+            showCustomer={true}
+            showSalesman={true}
+          />
         </Paper>
 
         {loading ? (

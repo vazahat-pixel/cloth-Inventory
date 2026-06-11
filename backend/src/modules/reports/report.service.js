@@ -644,10 +644,46 @@ const getGstSummary = async (startDate, endDate, storeId) => {
 /**
  * Detailed GST Report (GSTR-1 Ready)
  */
-const getDetailedGstReport = async (startDate, endDate, storeId) => {
+const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) => {
     const match = { isDeleted: false, status: 'COMPLETED' };
-    if (storeId) match.storeId = new (require('mongoose').Types.ObjectId)(storeId);
+    if (storeId && storeId !== 'all') match.storeId = new (require('mongoose').Types.ObjectId)(storeId);
     
+    if (filters.warehouseId && filters.warehouseId !== 'all') {
+        match.storeId = new (require('mongoose').Types.ObjectId)(filters.warehouseId);
+    }
+    
+    if (filters.customerId && filters.customerId !== 'all') {
+        match.customerId = new (require('mongoose').Types.ObjectId)(filters.customerId);
+    }
+    
+    if (filters.salesmanId && filters.salesmanId !== 'all') {
+        match.cashierId = new (require('mongoose').Types.ObjectId)(filters.salesmanId);
+    }
+    
+    if (filters.paymentStatus && filters.paymentStatus !== 'all') {
+        if (filters.paymentStatus === 'Paid') {
+            match.dueAmount = { $lte: 0 };
+        } else if (filters.paymentStatus === 'Partial') {
+            match.dueAmount = { $gt: 0 };
+            match.amountPaid = { $gt: 0 };
+        } else if (filters.paymentStatus === 'Pending') {
+            match.amountPaid = { $lte: 0 };
+        }
+    }
+    
+    if ((filters.categoryId && filters.categoryId !== 'all') || (filters.brandId && filters.brandId !== 'all')) {
+        const itemMatch = { isDeleted: false };
+        if (filters.categoryId && filters.categoryId !== 'all') {
+            itemMatch.categoryId = new (require('mongoose').Types.ObjectId)(filters.categoryId);
+        }
+        if (filters.brandId && filters.brandId !== 'all') {
+            itemMatch.brand = new (require('mongoose').Types.ObjectId)(filters.brandId);
+        }
+        const matchingItems = await require('../../models/item.model').find(itemMatch).select('_id');
+        const itemIds = matchingItems.map(i => i._id);
+        match['items.itemId'] = { $in: itemIds };
+    }
+
     if (startDate || endDate) {
         match.saleDate = {};
         if (startDate) match.saleDate.$gte = new Date(startDate);
