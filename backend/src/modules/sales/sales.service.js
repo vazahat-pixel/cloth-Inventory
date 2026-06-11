@@ -738,7 +738,11 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
         const exchangeAdjustment = totalReturnValue || 0;
 
         const amountPaid = Number(saleData.amountPaid || 0);
-        const dueAmount = Number((finalGrandTotal - amountPaid).toFixed(2)) || 0;
+        let dueAmount = Number((finalGrandTotal - amountPaid).toFixed(2)) || 0;
+        // Absorb sub-rupee gaps from split payments / inclusive-tax rounding
+        if (dueAmount > 0 && dueAmount < 1) {
+            dueAmount = 0;
+        }
         const normalizedPayments = normalizeSalePayments(
             saleData.payments,
             saleData.paymentMode,
@@ -1416,7 +1420,11 @@ const applyCreditNote = async (saleId, creditNoteId, userId) => {
         const applyAmountFixed = Number(applyAmount.toFixed(2));
 
         // 4. Update sale
-        sale.dueAmount = Number((sale.dueAmount - applyAmountFixed).toFixed(2));
+        let remainingDue = Number((sale.dueAmount - applyAmountFixed).toFixed(2));
+        if (remainingDue > 0 && remainingDue < 1) {
+            remainingDue = 0;
+        }
+        sale.dueAmount = remainingDue;
         sale.creditNoteApplied = Number(((sale.creditNoteApplied || 0) + applyAmountFixed).toFixed(2));
         sale.creditNoteId = sale.creditNoteId || creditNoteId; 
         if (sale.dueAmount <= 0) sale.status = SaleStatus.COMPLETED;

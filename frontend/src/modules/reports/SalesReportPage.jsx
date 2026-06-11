@@ -130,6 +130,7 @@ function SalesReportPage() {
         !query ||
         (sale.invoiceNumber || '').toLowerCase().includes(query) ||
         (sale.customerName || '').toLowerCase().includes(query);
+      const matchesVoided = !['CANCELLED', 'REFUNDED'].includes(sale.status);
       return (
         matchesDateFrom &&
         matchesDateTo &&
@@ -138,7 +139,8 @@ function SalesReportPage() {
         matchesPayment &&
         matchesSalesman &&
         matchesCategory &&
-        matchesSearch
+        matchesSearch &&
+        matchesVoided
       );
     });
   }, [sales, filters, searchText, itemGroups, itemGroupMap]);

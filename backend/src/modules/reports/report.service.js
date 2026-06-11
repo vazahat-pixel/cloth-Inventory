@@ -11,6 +11,13 @@ const WarehouseInventory = require('../../models/warehouseInventory.model');
 const StockMovement = require('../../models/stockMovement.model');
 const { getFallbackHsn } = require('../../services/gst.service');
 
+/** Same base filter as the sales register (non-deleted, non-voided invoices). */
+const GST_SALE_MATCH = {
+    isDeleted: false,
+    status: { $nin: ['CANCELLED', 'REFUNDED'] },
+};
+
+const round2 = (n) => Number((Number(n) || 0).toFixed(2));
 
 /**
  * Daily Sales Report
@@ -573,7 +580,7 @@ const getPurchaseRegister = async (supplierId, startDate, endDate, storeId) => {
  * GST Summary Report
  */
 const getGstSummary = async (startDate, endDate, storeId) => {
-    const saleQuery = { isDeleted: false, status: 'COMPLETED' };
+    const saleQuery = { ...GST_SALE_MATCH };
     const purchaseQuery = { status: 'COMPLETED' };
 
     if (storeId) {
@@ -645,7 +652,7 @@ const getGstSummary = async (startDate, endDate, storeId) => {
  * Detailed GST Report (GSTR-1 Ready)
  */
 const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) => {
-    const match = { isDeleted: false, status: 'COMPLETED' };
+    const match = { ...GST_SALE_MATCH };
     if (storeId && storeId !== 'all') match.storeId = new (require('mongoose').Types.ObjectId)(storeId);
     
     if (filters.warehouseId && filters.warehouseId !== 'all') {
@@ -743,6 +750,12 @@ const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) =
 
         const isInterstate = sale.taxBreakup && (sale.taxBreakup.igst > 0);
 
+        const dateObj = new Date(sale.saleDate);
+        const month = dateObj.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+        const monthSortKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+        const branchName = sale.storeId?.name || 'N/A';
+        const groupKey = `${month}_${branchName}`;
+
         let saleTaxableSum = 0;
         let saleTaxSum = 0;
         let saleCGSTSum = 0;
@@ -815,14 +828,6 @@ const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) =
 
             const netAmount = Number((taxable + tax).toFixed(2));
 
-            // Totals Accumulation
-            totalTaxableValue += taxable;
-            totalCGST += cgst;
-            totalSGST += sgst;
-            totalIGST += igst;
-            totalGST += tax;
-            grandTotal += netAmount;
-
             const originalGross = (item.rate || item.mrp || 0) * item.quantity;
             let itemDiscountPct = 0;
             if (originalGross > 0) {
@@ -852,35 +857,6 @@ const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) =
                 netAmount
             });
 
-            // Month & Store Summary aggregation
-            const dateObj = new Date(sale.saleDate);
-            const month = dateObj.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-            const monthSortKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
-            const branchName = sale.storeId?.name || 'N/A';
-            const groupKey = `${month}_${branchName}`;
-
-            if (!monthStoreSummary[groupKey]) {
-                monthStoreSummary[groupKey] = {
-                    month,
-                    monthSortKey,
-                    branchName,
-                    qty: 0,
-                    taxable: 0,
-                    cgst: 0,
-                    sgst: 0,
-                    igst: 0,
-                    totalTax: 0,
-                    invoiceValue: 0
-                };
-            }
-            monthStoreSummary[groupKey].qty += item.quantity;
-            monthStoreSummary[groupKey].taxable += taxable;
-            monthStoreSummary[groupKey].cgst += cgst;
-            monthStoreSummary[groupKey].sgst += sgst;
-            monthStoreSummary[groupKey].igst += igst;
-            monthStoreSummary[groupKey].totalTax += tax;
-            monthStoreSummary[groupKey].invoiceValue += netAmount;
-
             // Slab Summary aggregation
             const slabKey = `${rate}%`;
             if (!slabSummary[slabKey]) {
@@ -893,21 +869,57 @@ const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) =
             slabSummary[slabKey].totalTax += tax;
             slabSummary[slabKey].invoiceValue += netAmount;
         });
+
+        // Invoice-level totals — must match sales register (subTotal / totalTax / grandTotal)
+        const invoiceTaxable = round2(sale.subTotal);
+        const invoiceTax = round2(sale.totalTax);
+        const invoiceCGST = round2(sale.taxBreakup?.cgst ?? (isInterstate ? 0 : invoiceTax / 2));
+        const invoiceSGST = round2(sale.taxBreakup?.sgst ?? (isInterstate ? 0 : invoiceTax / 2));
+        const invoiceIGST = round2(sale.taxBreakup?.igst ?? (isInterstate ? invoiceTax : 0));
+        const invoiceGrand = round2(sale.grandTotal);
+        const saleQty = (sale.items || []).reduce((sum, line) => sum + (line.quantity || 0), 0);
+
+        totalTaxableValue += invoiceTaxable;
+        totalCGST += invoiceCGST;
+        totalSGST += invoiceSGST;
+        totalIGST += invoiceIGST;
+        totalGST += invoiceTax;
+        grandTotal += invoiceGrand;
+
+        if (!monthStoreSummary[groupKey]) {
+            monthStoreSummary[groupKey] = {
+                month,
+                monthSortKey,
+                branchName,
+                qty: 0,
+                taxable: 0,
+                cgst: 0,
+                sgst: 0,
+                igst: 0,
+                totalTax: 0,
+                invoiceValue: 0
+            };
+        }
+        monthStoreSummary[groupKey].qty += saleQty;
+        monthStoreSummary[groupKey].taxable += invoiceTaxable;
+        monthStoreSummary[groupKey].cgst += invoiceCGST;
+        monthStoreSummary[groupKey].sgst += invoiceSGST;
+        monthStoreSummary[groupKey].igst += invoiceIGST;
+        monthStoreSummary[groupKey].totalTax += invoiceTax;
+        monthStoreSummary[groupKey].invoiceValue += invoiceGrand;
     });
 
-    // Derive totalGST from already-rounded components to avoid float rounding drift
-    // (e.g. summing tax/2 + tax/2 for many items can differ from summing raw tax)
-    const _rCGST = Number(totalCGST.toFixed(2));
-    const _rSGST = Number(totalSGST.toFixed(2));
-    const _rIGST = Number(totalIGST.toFixed(2));
+    const _rCGST = round2(totalCGST);
+    const _rSGST = round2(totalSGST);
+    const _rIGST = round2(totalIGST);
 
     const finalSummary = {
-        totalTaxableValue: Number(totalTaxableValue.toFixed(2)),
+        totalTaxableValue: round2(totalTaxableValue),
         totalCGST: _rCGST,
         totalSGST: _rSGST,
         totalIGST: _rIGST,
-        totalGST: Number((_rCGST + _rSGST + _rIGST).toFixed(2)),
-        grandTotal: Number(grandTotal.toFixed(2)),
+        totalGST: round2(_rCGST + _rSGST + _rIGST),
+        grandTotal: round2(grandTotal),
         totalB2B: b2bInvoices.length,
         totalB2C: b2cInvoices.length
     };

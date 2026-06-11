@@ -207,11 +207,13 @@ function ReportFilterPanel({
             onChange={(e) => update('warehouseId', e.target.value)}
           >
             <MenuItem value="all">All</MenuItem>
-            {availableLocations.map((w) => (
-              <MenuItem key={w.id} value={w.id}>
-                {w.name}
+            {availableLocations.map((w) => {
+              const locId = w.id || w._id;
+              return (
+              <MenuItem key={locId} value={locId}>
+                {w.name || w.storeName || w.warehouseName}
               </MenuItem>
-            ))}
+            );})}
           </TextField>
         </Grid>
       )}

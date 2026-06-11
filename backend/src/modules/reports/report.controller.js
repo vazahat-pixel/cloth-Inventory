@@ -139,7 +139,9 @@ const getGstSummary = async (req, res, next) => {
 const getDetailedGstReport = async (req, res, next) => {
     try {
         const { startDate, endDate } = req.query;
-        const storeId = req.user.role === 'store_staff' ? req.user.shopId : req.query.storeId;
+        const storeId = req.user.role === 'store_staff'
+            ? req.user.shopId
+            : (req.query.storeId || req.query.warehouseId);
         const report = await reportService.getDetailedGstReport(startDate, endDate, storeId, req.query);
         return sendSuccess(res, { report: report || [] }, 'Detailed GST report retrieved successfully');
     } catch (err) {
