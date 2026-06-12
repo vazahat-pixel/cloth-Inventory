@@ -79,27 +79,73 @@ function Gstr1DetailedReportPage() {
     if (!data) return;
 
     // 1. Detailed Sheet
-    const detailedData = data.itemWise.map(item => ({
-      'Bill No': item.invoice,
-      'Bill Date': new Date(item.date).toLocaleDateString(),
-      'Customer Name': item.customer,
-      'Branch / Store': item.storeName || 'N/A',
-      'Category / Group': item.category,
-      'HSN Code': item.hsn,
-      'MRP': item.mrp || 0,
-      'Discount %': `${item.discount || 0}%`,
-      'Total Quantity': item.quantity,
-      'Taxable Amount': item.taxable,
-      'CGST %': `${item.cgstRate}%`,
-      'CGST Amount': item.cgstAmount,
-      'SGST / IGST %': `${item.sgstIgstRate}%`,
-      'SGST / IGST Amount': item.sgstIgstAmount,
-      'Net Amount': item.netAmount
-    }));
+    const sortedItemsForExport = [...data.itemWise].sort((a, b) => (a.storeName || '').localeCompare(b.storeName || ''));
+    const detailedData = [];
+    
+    if (sortedItemsForExport.length > 0) {
+      let currentStore = sortedItemsForExport[0].storeName;
+      let storeTotals = { qty: 0, taxable: 0, cgst: 0, sgst: 0, net: 0 };
+      
+      const pushSubtotalToExport = (store) => {
+        detailedData.push({
+          'Bill No': `Subtotal`,
+          'Bill Date': '',
+          'Customer Name': '',
+          'Branch / Store': store || 'N/A',
+          'Category / Group': '',
+          'HSN Code': '',
+          'MRP': '',
+          'Discount %': '',
+          'Total Quantity': storeTotals.qty,
+          'Taxable Amount': Number(storeTotals.taxable.toFixed(2)),
+          'CGST %': '',
+          'CGST Amount': Number(storeTotals.cgst.toFixed(2)),
+          'SGST / IGST %': '',
+          'SGST / IGST Amount': Number(storeTotals.sgst.toFixed(2)),
+          'Net Amount': Number(storeTotals.net.toFixed(2))
+        });
+      };
+
+      sortedItemsForExport.forEach((item) => {
+        if (item.storeName !== currentStore) {
+          pushSubtotalToExport(currentStore);
+          currentStore = item.storeName;
+          storeTotals = { qty: 0, taxable: 0, cgst: 0, sgst: 0, net: 0 };
+        }
+        
+        storeTotals.qty += item.quantity || 0;
+        storeTotals.taxable += item.taxable || 0;
+        storeTotals.cgst += item.cgstAmount || 0;
+        storeTotals.sgst += item.sgstIgstAmount || 0;
+        storeTotals.net += item.netAmount || 0;
+
+        detailedData.push({
+          'Bill No': item.invoice,
+          'Bill Date': new Date(item.date).toLocaleDateString(),
+          'Customer Name': item.customer,
+          'Branch / Store': item.storeName || 'N/A',
+          'Category / Group': item.category,
+          'HSN Code': item.hsn,
+          'MRP': item.mrp || 0,
+          'Discount %': `${item.discount || 0}%`,
+          'Total Quantity': item.quantity,
+          'Taxable Amount': item.taxable,
+          'CGST %': `${item.cgstRate}%`,
+          'CGST Amount': item.cgstAmount,
+          'SGST / IGST %': `${item.sgstIgstRate}%`,
+          'SGST / IGST Amount': item.sgstIgstAmount,
+          'Net Amount': item.netAmount
+        });
+      });
+      
+      if (sortedItemsForExport.length > 0) {
+        pushSubtotalToExport(currentStore);
+      }
+    }
 
     // Add totals row
     detailedData.push({
-      'Bill No': 'Total',
+      'Bill No': 'Grand Total',
       'Bill Date': '',
       'Customer Name': '',
       'Branch / Store': '',
@@ -116,9 +162,8 @@ function Gstr1DetailedReportPage() {
       'Net Amount': data.summary.grandTotal
     });
 
-    // 2. Month & Branch Summary Sheet
+    // 2. Location Summary Sheet
     const monthStoreData = (data.monthStoreSummary || []).map(m => ({
-      'Month': m.month,
       'Branch / Store': m.branchName,
       'Quantity': m.qty,
       'Taxable Value': m.taxable,
@@ -130,8 +175,7 @@ function Gstr1DetailedReportPage() {
     }));
 
     monthStoreData.push({
-      'Month': 'Total',
-      'Branch / Store': '',
+      'Branch / Store': 'Total',
       'Quantity': (data.monthStoreSummary || []).reduce((sum, m) => sum + m.qty, 0),
       'Taxable Value': data.summary.totalTaxableValue,
       'CGST': data.summary.totalCGST,
@@ -168,7 +212,7 @@ function Gstr1DetailedReportPage() {
     const wsSlab = XLSX.utils.json_to_sheet(slabData);
 
     XLSX.utils.book_append_sheet(wb, wsDetailed, 'Detailed Item-wise');
-    XLSX.utils.book_append_sheet(wb, wsMonthStore, 'Month & Branch Summary');
+    XLSX.utils.book_append_sheet(wb, wsMonthStore, 'Location Summary');
     XLSX.utils.book_append_sheet(wb, wsSlab, 'Slab Summary');
 
     XLSX.writeFile(wb, `GST_Statutory_Report_${filters.startDate}_to_${filters.endDate}.xlsx`);
@@ -179,9 +223,8 @@ function Gstr1DetailedReportPage() {
     let headers, rows, filename;
 
     if (tab === 0) {
-      headers = ['Month', 'Branch Name', 'Quantity', 'Taxable Value', 'CGST', 'SGST', 'IGST', 'Total Tax', 'Invoice Value'];
+      headers = ['Branch Name', 'Quantity', 'Taxable Value', 'CGST', 'SGST', 'IGST', 'Total Tax', 'Invoice Value'];
       rows = (data.monthStoreSummary || []).map(m => ({
-        'Month': m.month,
         'Branch Name': m.branchName,
         'Quantity': m.qty,
         'Taxable Value': m.taxable,
@@ -191,7 +234,7 @@ function Gstr1DetailedReportPage() {
         'Total Tax': m.totalTax,
         'Invoice Value': m.invoiceValue
       }));
-      filename = `GST_Month_Branch_Summary_${filters.startDate}_to_${filters.endDate}.csv`;
+      filename = `GST_Location_Summary_${filters.startDate}_to_${filters.endDate}.csv`;
     } else if (tab === 1) {
       headers = ['Slab', 'Taxable Value', 'CGST', 'SGST', 'IGST', 'Total Tax', 'Invoice Value'];
       rows = data.slabSummary.map(s => ({
@@ -367,7 +410,7 @@ function Gstr1DetailedReportPage() {
 
             <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3, overflow: 'hidden' }}>
               <Tabs value={tab} onChange={(e, v) => setTab(v)} sx={{ bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }} className="no-print">
-                <Tab label="Month & Branch Summary" sx={{ fontWeight: 700, px: 3 }} />
+                <Tab label="Store / Location Summary" sx={{ fontWeight: 700, px: 3 }} />
                 <Tab label="GST Slab Summary" sx={{ fontWeight: 700, px: 3 }} />
                 <Tab label="Item-Wise Detailed" sx={{ fontWeight: 700, px: 3 }} />
                 <Tab label="B2B Invoice List" sx={{ fontWeight: 700, px: 3 }} />
@@ -379,7 +422,6 @@ function Gstr1DetailedReportPage() {
                     <Table size="small">
                       <TableHead sx={{ bgcolor: '#f1f5f9' }}>
                         <TableRow>
-                          <TableCell sx={{ fontWeight: 850 }}>Month</TableCell>
                           <TableCell sx={{ fontWeight: 850 }}>Branch/Store Name</TableCell>
                           <TableCell align="center" sx={{ fontWeight: 850 }}>Quantity</TableCell>
                           <TableCell align="right" sx={{ fontWeight: 850 }}>Taxable Value</TableCell>
@@ -393,7 +435,6 @@ function Gstr1DetailedReportPage() {
                       <TableBody>
                         {(data.monthStoreSummary || []).map((h, i) => (
                           <TableRow key={i} hover>
-                            <TableCell sx={{ fontWeight: 700 }}>{h.month}</TableCell>
                             <TableCell sx={{ fontWeight: 600 }}>{h.branchName}</TableCell>
                             <TableCell align="center">{h.qty}</TableCell>
                             <TableCell align="right">₹{h.taxable.toFixed(2)}</TableCell>
@@ -406,7 +447,6 @@ function Gstr1DetailedReportPage() {
                         ))}
                         <TableRow sx={{ bgcolor: '#f8fafc', '& td': { fontWeight: 900 } }}>
                           <TableCell>Total</TableCell>
-                          <TableCell></TableCell>
                           <TableCell align="center">{(data.monthStoreSummary || []).reduce((sum, h) => sum + h.qty, 0)}</TableCell>
                           <TableCell align="right">₹{data.summary.totalTaxableValue.toFixed(2)}</TableCell>
                           <TableCell align="right">₹{data.summary.totalCGST.toFixed(2)}</TableCell>
@@ -483,25 +523,71 @@ function Gstr1DetailedReportPage() {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {data.itemWise.map((item, i) => (
-                          <TableRow key={i} hover>
-                            <TableCell sx={{ fontWeight: 700 }}>{item.invoice}</TableCell>
-                            <TableCell sx={{ whiteSpace: 'nowrap' }}>{new Date(item.date).toLocaleDateString()}</TableCell>
-                            <TableCell>{item.customer}</TableCell>
-                            <TableCell>{item.storeName || 'N/A'}</TableCell>
-                            <TableCell>{item.category}</TableCell>
-                            <TableCell>{item.hsn}</TableCell>
-                            <TableCell align="right">₹{(item.mrp || 0).toFixed(2)}</TableCell>
-                            <TableCell align="right">{item.discount || 0}%</TableCell>
-                            <TableCell align="center">{item.quantity}</TableCell>
-                            <TableCell align="right">₹{item.taxable.toFixed(2)}</TableCell>
-                            <TableCell align="center">{item.cgstRate}%</TableCell>
-                            <TableCell align="right">₹{item.cgstAmount.toFixed(2)}</TableCell>
-                            <TableCell align="center">{item.sgstIgstRate}%</TableCell>
-                            <TableCell align="right">₹{item.sgstIgstAmount.toFixed(2)}</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 700 }}>₹{item.netAmount.toFixed(2)}</TableCell>
-                          </TableRow>
-                        ))}
+                        {(() => {
+                          if (!data.itemWise || data.itemWise.length === 0) return null;
+                          
+                          // Sort items by storeName to group them
+                          const sortedItems = [...data.itemWise].sort((a, b) => (a.storeName || '').localeCompare(b.storeName || ''));
+                          
+                          const rows = [];
+                          let currentStore = sortedItems[0].storeName;
+                          let storeTotals = { qty: 0, taxable: 0, cgst: 0, sgst: 0, net: 0 };
+                          
+                          const pushSubtotal = (store) => {
+                            rows.push(
+                              <TableRow key={`subtotal-${store}`} sx={{ bgcolor: '#e2e8f0', '& td': { fontWeight: 800, color: '#0f172a' } }}>
+                                <TableCell colSpan={8} align="right">Total for {store || 'N/A'}</TableCell>
+                                <TableCell align="center">{storeTotals.qty}</TableCell>
+                                <TableCell align="right">₹{storeTotals.taxable.toFixed(2)}</TableCell>
+                                <TableCell></TableCell>
+                                <TableCell align="right">₹{storeTotals.cgst.toFixed(2)}</TableCell>
+                                <TableCell></TableCell>
+                                <TableCell align="right">₹{storeTotals.sgst.toFixed(2)}</TableCell>
+                                <TableCell align="right">₹{storeTotals.net.toFixed(2)}</TableCell>
+                              </TableRow>
+                            );
+                          };
+                          
+                          sortedItems.forEach((item, i) => {
+                            if (item.storeName !== currentStore) {
+                              pushSubtotal(currentStore);
+                              currentStore = item.storeName;
+                              storeTotals = { qty: 0, taxable: 0, cgst: 0, sgst: 0, net: 0 };
+                            }
+                            
+                            storeTotals.qty += item.quantity || 0;
+                            storeTotals.taxable += item.taxable || 0;
+                            storeTotals.cgst += item.cgstAmount || 0;
+                            storeTotals.sgst += item.sgstIgstAmount || 0;
+                            storeTotals.net += item.netAmount || 0;
+                            
+                            rows.push(
+                              <TableRow key={`item-${i}`} hover>
+                                <TableCell sx={{ fontWeight: 700 }}>{item.invoice}</TableCell>
+                                <TableCell sx={{ whiteSpace: 'nowrap' }}>{new Date(item.date).toLocaleDateString()}</TableCell>
+                                <TableCell>{item.customer}</TableCell>
+                                <TableCell>{item.storeName || 'N/A'}</TableCell>
+                                <TableCell>{item.category}</TableCell>
+                                <TableCell>{item.hsn}</TableCell>
+                                <TableCell align="right">₹{(item.mrp || 0).toFixed(2)}</TableCell>
+                                <TableCell align="right">{item.discount || 0}%</TableCell>
+                                <TableCell align="center">{item.quantity}</TableCell>
+                                <TableCell align="right">₹{item.taxable.toFixed(2)}</TableCell>
+                                <TableCell align="center">{item.cgstRate}%</TableCell>
+                                <TableCell align="right">₹{item.cgstAmount.toFixed(2)}</TableCell>
+                                <TableCell align="center">{item.sgstIgstRate}%</TableCell>
+                                <TableCell align="right">₹{item.sgstIgstAmount.toFixed(2)}</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 700 }}>₹{item.netAmount.toFixed(2)}</TableCell>
+                              </TableRow>
+                            );
+                          });
+                          
+                          if (sortedItems.length > 0) {
+                            pushSubtotal(currentStore);
+                          }
+                          
+                          return rows;
+                        })()}
                         <TableRow sx={{ bgcolor: '#f8fafc', '& td': { fontWeight: 900 } }}>
                           <TableCell>Total</TableCell>
                           <TableCell></TableCell>

@@ -27,12 +27,15 @@ import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
 import { initiateStockReturn, fetchStockReturns } from '../inventory/stockReturnSlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchStockOverview } from '../inventory/inventorySlice';
+import api from '../../services/api';
+import { useNotification } from '../../context/NotificationProvider';
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
 
 function PurchaseReturnPage() {
     const dispatch = useDispatch();
     const navigate = useAppNavigate();
+    const { showNotification } = useNotification();
 
     const warehouses = useSelector((state) => state.masters.warehouses || []);
     const stockRows = useSelector((state) => state.inventory.stock || []);
@@ -62,15 +65,17 @@ function PurchaseReturnPage() {
 
     const myStoreStock = useMemo(() => {
         if (!user?.shopId) return stockRows;
-        return stockRows.filter(s => s.storeId === user.shopId);
+        return stockRows.filter(s => String(s.storeId) === String(user.shopId) || String(s.warehouseId) === String(user.shopId));
     }, [stockRows, user]);
 
     const variantOptions = useMemo(() => {
         return myStoreStock.map((s) => ({
+            productId: s.productId || s.itemId?._id || s.itemId?.id,
             variantId: s.variantId,
             itemName: s.itemName || s.itemId?.itemName || 'Item',
-            sku: s.sku || s.barcode || '',
-            barcode: s.barcode,
+            itemCode: s.itemCode || s.styleCode || s.sku || '',
+            sku: s.itemCode || s.sku || s.barcode || '',
+            barcode: s.barcode || s.itemCode || s.sku || '',
             size: s.size,
             color: s.color,
             available: s.available ?? s.quantity ?? s.availableStock ?? 0,
@@ -101,21 +106,46 @@ function PurchaseReturnPage() {
         setVariantPickerValue(null);
     };
 
-    const handleBarcodeAdd = (scannedValue) => {
+    const handleBarcodeAdd = async (scannedValue) => {
         const rawCode = typeof scannedValue === 'string' ? scannedValue : barcodeInput;
         const scannedCode = (rawCode || '').trim().toLowerCase();
         if (!scannedCode) return;
 
         setError('');
 
-        const matched = variantOptions.find(
+        let matched = variantOptions.find(
             (o) =>
                 (o.barcode && String(o.barcode).toLowerCase() === scannedCode) ||
-                (o.sku && String(o.sku).toLowerCase() === scannedCode)
+                (o.sku && String(o.sku).toLowerCase() === scannedCode) ||
+                (o.itemCode && String(o.itemCode).toLowerCase() === scannedCode)
         );
+
+        if (!matched && user?.shopId) {
+            // API Fallback for fetching item from backend directly
+            try {
+                const response = await api.get(`/sales/barcode/${scannedCode}?storeId=${user.shopId}`);
+                const product = response.data.product || response.data.data;
+                if (product) {
+                    matched = {
+                        productId: product.productId || product._id,
+                        variantId: product.variantId || product._id,
+                        itemName: product.name || 'Unknown Item',
+                        itemCode: product.sku || '',
+                        size: product.size || '',
+                        color: product.color || '',
+                        sku: product.sku || '',
+                        barcode: product.barcode || '',
+                        available: product.available || 0,
+                    };
+                }
+            } catch (err) {
+                console.warn('API fallback error for barcode:', err);
+            }
+        }
 
         if (!matched) {
             setError(`Item with barcode/SKU "${rawCode}" not found or has no available stock in this store.`);
+            showNotification(`Item "${rawCode}" not found or no stock available.`, 'error');
             return;
         }
 

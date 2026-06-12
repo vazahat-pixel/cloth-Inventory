@@ -43,20 +43,50 @@ function CollectionReportPage() {
     const to = filters.dateTo || '';
     const inRange = (d) => (!from || d >= from) && (!to || d <= to);
 
+    const getFormattedMode = (raw) => {
+      if (!raw) return 'Cash';
+      const r = String(raw).toUpperCase();
+      if (r === 'CASH') return 'Cash';
+      if (r === 'CARD') return 'Card';
+      if (r === 'UPI') return 'UPI';
+      if (r === 'GIFT_VOUCHER') return 'Gift Voucher';
+      if (r === 'CREDIT') return 'Credit';
+      return r.charAt(0).toUpperCase() + r.slice(1).toLowerCase();
+    };
+
     const list = [];
     sales.forEach((s) => {
       if (!inRange(s.date)) return;
       const paid = toNum(s.payment?.amountPaid);
       if (paid <= 0) return;
-      list.push({
-        date: s.date,
-        source: s.invoiceNumber,
-        sourceType: 'Invoice',
-        customerId: s.customerId,
-        customerName: s.customerName || customerMap[s.customerId] || 'Walk-in',
-        amount: paid,
-        mode: s.payment?.mode || 'Cash',
-      });
+      
+      const payments = s.payment?.payments || [];
+      if (s.payment?.mode === 'Split' && payments.length > 0) {
+        payments.forEach(p => {
+          const amt = toNum(p.amount);
+          if (amt > 0) {
+            list.push({
+              date: s.date,
+              source: s.invoiceNumber,
+              sourceType: 'Invoice',
+              customerId: s.customerId,
+              customerName: s.customerName || customerMap[s.customerId] || 'Walk-in',
+              amount: amt,
+              mode: getFormattedMode(p.mode),
+            });
+          }
+        });
+      } else {
+        list.push({
+          date: s.date,
+          source: s.invoiceNumber,
+          sourceType: 'Invoice',
+          customerId: s.customerId,
+          customerName: s.customerName || customerMap[s.customerId] || 'Walk-in',
+          amount: paid,
+          mode: getFormattedMode(s.payment?.mode),
+        });
+      }
     });
     bankReceipts.forEach((r) => {
       if (!inRange(r.date)) return;

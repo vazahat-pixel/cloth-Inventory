@@ -706,8 +706,24 @@ const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) =
             path: 'items.itemId',
             populate: { path: 'hsCodeId' }
         })
-        .populate('storeId', 'name gstin location')
-        .sort({ saleDate: -1 });
+        .lean();
+
+    // Map all stores and warehouses for fast lookup
+    const Store = require('../../models/store.model');
+    const Warehouse = require('../../models/warehouse.model');
+    const allStores = await Store.find().select('name gstin location').lean();
+    const allWarehouses = await Warehouse.find().select('name gstin location').lean();
+    
+    const locationMap = {};
+    allStores.forEach(s => locationMap[String(s._id)] = s);
+    allWarehouses.forEach(w => locationMap[String(w._id)] = w);
+
+    // Attach store details to sales
+    sales.forEach(sale => {
+        if (sale.storeId) {
+            sale.storeId = locationMap[String(sale.storeId)];
+        }
+    });
 
     const monthStoreSummary = {};
     
@@ -750,11 +766,8 @@ const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) =
 
         const isInterstate = sale.taxBreakup && (sale.taxBreakup.igst > 0);
 
-        const dateObj = new Date(sale.saleDate);
-        const month = dateObj.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-        const monthSortKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
         const branchName = sale.storeId?.name || 'N/A';
-        const groupKey = `${month}_${branchName}`;
+        const groupKey = branchName;
 
         let saleTaxableSum = 0;
         let saleTaxSum = 0;
@@ -828,11 +841,11 @@ const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) =
 
             const netAmount = Number((taxable + tax).toFixed(2));
 
-            const originalGross = (item.rate || item.mrp || 0) * item.quantity;
+            const originalGross = (item.mrp || item.rate || 0) * item.quantity;
             let itemDiscountPct = 0;
             if (originalGross > 0) {
-                const discountAmt = item.discountAmount || (item.promoDiscount || 0) + ((originalGross * (item.discount || 0)) / 100);
-                itemDiscountPct = (discountAmt / originalGross) * 100;
+                const totalDiscountForItem = originalGross - netAmount;
+                itemDiscountPct = Math.max(0, (totalDiscountForItem / originalGross) * 100);
             } else if (item.discount) {
                 itemDiscountPct = item.discount;
             }
@@ -888,8 +901,6 @@ const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) =
 
         if (!monthStoreSummary[groupKey]) {
             monthStoreSummary[groupKey] = {
-                month,
-                monthSortKey,
                 branchName,
                 qty: 0,
                 taxable: 0,
@@ -929,13 +940,12 @@ const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) =
         b2b: b2bInvoices,
         b2c: b2cInvoices,
         monthStoreSummary: Object.values(monthStoreSummary)
-            .sort((a, b) => a.monthSortKey.localeCompare(b.monthSortKey) || a.branchName.localeCompare(b.branchName))
+            .sort((a, b) => a.branchName.localeCompare(b.branchName))
             .map(m => {
                 const rCgst = Number(m.cgst.toFixed(2));
                 const rSgst = Number(m.sgst.toFixed(2));
                 const rIgst = Number(m.igst.toFixed(2));
                 return {
-                    month: m.month,
                     branchName: m.branchName,
                     qty: m.qty,
                     taxable: Number(m.taxable.toFixed(2)),
