@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
 import { normalizeResponse } from '../../services/normalization';
+import { extractPaginationMeta } from '../../utils/paginationMeta';
 
 const endpointMap = {
   suppliers: '/suppliers',
@@ -72,9 +73,20 @@ const sanitize = (data) => {
   }
 };
 
+const MASTERS_CACHE_TTL_MS = 5 * 60 * 1000;
+
 // Async Thunks for different master entities
-export const fetchMasters = createAsyncThunk('masters/fetchAll', async (entityKey, { rejectWithValue }) => {
+export const fetchMasters = createAsyncThunk(
+  'masters/fetchAll',
+  async (entityKey, { rejectWithValue, getState }) => {
   try {
+    const state = getState().masters;
+    const existing = state[entityKey];
+    const fetchedAt = state.fetchedAt?.[entityKey];
+    if (existing?.length > 0 && fetchedAt && Date.now() - fetchedAt < MASTERS_CACHE_TTL_MS) {
+      return { entityKey, data: existing, cached: true };
+    }
+
     const endpoint = endpointMap[entityKey];
     if (!endpoint) return rejectWithValue(`No endpoint defined for ${entityKey}`);
 
@@ -95,7 +107,47 @@ export const fetchMasters = createAsyncThunk('masters/fetchAll', async (entityKe
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
-});
+  },
+  {
+    condition: (entityKey, { getState }) => {
+      const state = getState().masters;
+      const existing = state[entityKey];
+      const fetchedAt = state.fetchedAt?.[entityKey];
+      if (existing?.length > 0 && fetchedAt && Date.now() - fetchedAt < MASTERS_CACHE_TTL_MS) {
+        return false;
+      }
+      return true;
+    },
+  },
+);
+
+export const fetchMasterList = createAsyncThunk(
+  'masters/fetchList',
+  async ({ entityKey, params = {} }, { rejectWithValue }) => {
+    try {
+      const endpoint = endpointMap[entityKey];
+      if (!endpoint) return rejectWithValue(`No endpoint defined for ${entityKey}`);
+
+      const response = await api.get(endpoint, { params });
+      const key = responseKeyMap[entityKey];
+      const singularKey = singularKeyMap[entityKey];
+      const raw = response.data[key] || response.data.data?.[key] || response.data[singularKey] || response.data.data?.[singularKey] || [];
+
+      const entityTypeMapping = {
+        warehouses: 'warehouse',
+        stores: 'store',
+        itemGroups: 'group',
+        categories: 'category',
+      };
+      const entityType = entityTypeMapping[entityKey] || entityKey.slice(0, -1);
+      const normalized = normalizeResponse(raw, entityType);
+      const meta = extractPaginationMeta(response.data);
+      return sanitize({ entityKey, records: normalized, meta });
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || error.message);
+    }
+  },
+);
 
 export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKey, record }, { rejectWithValue }) => {
   try {
@@ -366,6 +418,8 @@ const initialState = {
   salesmen: [],
   accounts: [],
   taxRules: [],
+  fetchedAt: {},
+  listPages: {},
   loading: false,
   error: null,
 };
@@ -387,8 +441,28 @@ const mastersSlice = createSlice({
         state.loading = false;
         const { entityKey, data } = action.payload;
         state[entityKey] = data || [];
+        if (!state.fetchedAt) state.fetchedAt = {};
+        state.fetchedAt[entityKey] = Date.now();
       })
       .addCase(fetchMasters.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      .addCase(fetchMasterList.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchMasterList.fulfilled, (state, action) => {
+        state.loading = false;
+        const { entityKey, records, meta } = action.payload;
+        state.listPages[entityKey] = {
+          records: records || [],
+          total: meta?.total ?? 0,
+          page: meta?.page ?? 1,
+          limit: meta?.limit ?? 20,
+        };
+      })
+      .addCase(fetchMasterList.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })

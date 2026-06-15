@@ -1,10 +1,18 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
+import { extractPaginationMeta } from '../../utils/paginationMeta';
 
-export const fetchGrns = createAsyncThunk('grn/fetchGrns', async (_, { rejectWithValue }) => {
+export const fetchGrns = createAsyncThunk('grn/fetchGrns', async (params = {}, { rejectWithValue }) => {
   try {
-    const response = await api.get('/grn');
-    return response.data.grns || response.data.data || [];
+    const response = await api.get('/grn', { params });
+    const meta = extractPaginationMeta(response.data);
+    const grns = response.data.grns || response.data.data?.grns || response.data.data || [];
+    return {
+      records: Array.isArray(grns) ? grns : [],
+      total: meta.total,
+      page: meta.page,
+      limit: meta.limit,
+    };
   } catch (err) {
     return rejectWithValue(err.response?.data?.message || 'Failed to fetch GRNs');
   }
@@ -59,6 +67,9 @@ const grnSlice = createSlice({
   name: 'grn',
   initialState: {
     records: [],
+    total: 0,
+    page: 1,
+    limit: 20,
     loading: false,
     error: null,
   },
@@ -70,7 +81,10 @@ const grnSlice = createSlice({
       })
       .addCase(fetchGrns.fulfilled, (state, action) => {
         state.loading = false;
-        state.records = action.payload;
+        state.records = action.payload.records || [];
+        state.total = action.payload.total ?? 0;
+        state.page = action.payload.page ?? 1;
+        state.limit = action.payload.limit ?? 20;
       })
       .addCase(fetchGrns.rejected, (state, action) => {
         state.loading = false;
@@ -82,6 +96,7 @@ const grnSlice = createSlice({
       .addCase(addGrn.fulfilled, (state, action) => {
         state.loading = false;
         state.records = [action.payload, ...state.records];
+        state.total += 1;
       })
       .addCase(addGrn.rejected, (state, action) => {
         state.loading = false;

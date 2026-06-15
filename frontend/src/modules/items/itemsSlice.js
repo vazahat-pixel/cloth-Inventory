@@ -1,25 +1,25 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
-import { normalizeResponse } from '../../services/normalization';
+import { extractPaginationMeta } from '../../utils/paginationMeta';
 
 // Async Thunks
 export const fetchItems = createAsyncThunk('items/fetchAll', async (params = {}, { rejectWithValue }) => {
   try {
     const response = await api.get('/items', { params });
     const resData = response.data.data || response.data || {};
-    // Extract from nested structure: data.items.items, data.items.total
-    const paginationData = resData.items || {};
+    const meta = extractPaginationMeta(response.data);
+    const items = resData.items || resData.records || [];
+    const records = Array.isArray(items) ? items : (items.items || []);
     return {
-      records: paginationData.items || [],
-      total: paginationData.total || 0,
-      page: paginationData.page || 1,
-      limit: paginationData.limit || 100000
+      records,
+      total: meta.total,
+      page: meta.page,
+      limit: meta.limit,
     };
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
   }
 });
-
 export const addItem = createAsyncThunk('items/add', async (itemPayload, { rejectWithValue }) => {
   try {
     const response = await api.post('/items', itemPayload);
@@ -41,7 +41,6 @@ export const updateItem = createAsyncThunk('items/update', async ({ id, item: it
 export const deleteItem = createAsyncThunk('items/delete', async (id, { rejectWithValue }) => {
   try {
     await api.delete(`/items/${id}`);
-    await api.delete(`/items/${id}`);
     return id;
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || error.message);
@@ -52,7 +51,7 @@ const initialState = {
   records: [],
   total: 0,
   page: 1,
-  limit: 100000,
+  limit: 20,
   loading: false,
   error: null,
 };
@@ -77,7 +76,7 @@ const itemsSlice = createSlice({
         state.records = action.payload.records || [];
         state.total = action.payload.total || 0;
         state.page = action.payload.page || 1;
-        state.limit = action.payload.limit || 100000;
+        state.limit = action.payload.limit || 20;
       })
       .addCase(fetchItems.rejected, (state, action) => {
         state.loading = false;

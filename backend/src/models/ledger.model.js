@@ -34,5 +34,6 @@ const ledgerSchema = new mongoose.Schema(
 );
 
 ledgerSchema.index({ voucherType: 1, voucherId: 1 });
+ledgerSchema.index({ accountId: 1, date: 1, _id: 1 });
 
 module.exports = mongoose.model("Ledger", ledgerSchema);

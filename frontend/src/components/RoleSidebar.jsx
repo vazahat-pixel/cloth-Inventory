@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo, useCallback } from 'react';
 import {
   Box,
   List,
@@ -18,10 +18,14 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import NotificationsNoneOutlinedIcon from '@mui/icons-material/NotificationsNoneOutlined';
 import MenuIcon from '@mui/icons-material/Menu';
-import MoreVertIcon from '@mui/icons-material/MoreVert';
+import { prefetchRoute } from '../utils/routePrefetch';
 
 const DRAWER_WIDTH = 280;
 const COLLAPSED_WIDTH = 88;
+
+const handleNavPrefetch = (path, basePath) => {
+  if (path) prefetchRoute(path, basePath);
+};
 
 const RoleSidebar = ({ navConfig, isCollapsed, onToggle }) => {
   const location = useLocation();
@@ -132,6 +136,8 @@ const RoleSidebar = ({ navConfig, isCollapsed, onToggle }) => {
               component={item.path && !hasChildren ? NavLink : 'div'}
               to={item.path && !hasChildren ? toFullPath(item.path) : undefined}
               onClick={hasChildren ? () => setDrilldown(item) : undefined}
+              onMouseEnter={item.path && !hasChildren ? () => handleNavPrefetch(toFullPath(item.path), basePath) : undefined}
+              onFocus={item.path && !hasChildren ? () => handleNavPrefetch(toFullPath(item.path), basePath) : undefined}
               sx={navItemStyle(isActive, isChild)}
               className={isActive ? 'active' : ''}
             >
@@ -357,4 +363,4 @@ const RoleSidebar = ({ navConfig, isCollapsed, onToggle }) => {
   );
 };
 
-export default RoleSidebar;
+export default memo(RoleSidebar);

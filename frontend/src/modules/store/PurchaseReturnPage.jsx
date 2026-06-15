@@ -38,7 +38,7 @@ function PurchaseReturnPage() {
     const { showNotification } = useNotification();
 
     const warehouses = useSelector((state) => state.masters.warehouses || []);
-    const stockRows = useSelector((state) => state.inventory.stock || []);
+    const stockRows = useSelector((state) => state.inventory.storeStock || state.inventory.stock || []);
     const user = useSelector((state) => state.auth.user);
     const returns = useSelector((state) => state.stockReturn.returns || []);
     const returnsLoading = useSelector((state) => state.stockReturn.loading);

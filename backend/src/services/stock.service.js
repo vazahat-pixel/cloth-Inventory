@@ -212,36 +212,46 @@ const _updateInventory = async ({ itemId, barcode, variantId, locationId, locati
     }
     
     const allowNegative = await systemConfigService.getConfigByKey('allowNegativeStock', false);
+    const purchaseRate = arguments[0]?.purchaseRate;
 
     if (!inventory) {
-        if (qty < 0 && !allowNegative) {
+        if (delta < 0 && !allowNegative) {
             const metadata = await _getItemMetadata(variantId, barcode, session);
             const itemNameStr = metadata.itemName ? ` (${metadata.itemName})` : '';
             throw new Error(`Insufficient stock for barcode "${barcode}"${itemNameStr} at ${locationType}`);
         }
-        const initData = { barcode, [locField]: locationId, itemId, variantId, quantity: 0 };
-        if (locationType === 'STORE') initData.quantityAvailable = 0;
-        inventory = new InventoryModel(initData);
-    }
-    
-    const newQty = (inventory.quantity || 0) + delta;
-    
-    if (!allowNegative && newQty < 0) {
-        const metadata = await _getItemMetadata(variantId, barcode, session);
-        const itemNameStr = metadata.itemName ? ` (${metadata.itemName})` : '';
-        throw new Error(`Negative stock not allowed at ${locationType} for barcode "${barcode}"${itemNameStr}. Requested Change: ${delta}, Current: ${inventory.quantity}`);
-    }
-    
-    inventory.quantity = newQty;
-    if (locationType === 'STORE') {
-        inventory.quantityAvailable = newQty;
-        // Update purchase history rate for COGS logic
-        if (arguments[0].purchaseRate && arguments[0].purchaseRate > 0) {
-            inventory.lastPurchaseRate = arguments[0].purchaseRate;
+        const initData = { barcode, [locField]: locationId, itemId, variantId, quantity: Math.max(0, delta) };
+        if (locationType === 'STORE') {
+            initData.quantityAvailable = initData.quantity;
+            if (purchaseRate && purchaseRate > 0) initData.lastPurchaseRate = purchaseRate;
         }
+        inventory = new InventoryModel(initData);
+        await inventory.save({ session });
+    } else {
+        const updateFilter = { _id: inventory._id };
+        if (!allowNegative && delta < 0) {
+            updateFilter.quantity = { $gte: -delta };
+        }
+
+        const updateOps = {
+            $inc: { quantity: delta },
+            $set: { lastUpdated: Date.now() },
+        };
+        if (locationType === 'STORE') {
+            updateOps.$inc.quantityAvailable = delta;
+            if (purchaseRate && purchaseRate > 0) {
+                updateOps.$set.lastPurchaseRate = purchaseRate;
+            }
+        }
+
+        const updated = await InventoryModel.findOneAndUpdate(updateFilter, updateOps, { new: true, session });
+        if (!updated) {
+            const metadata = await _getItemMetadata(variantId, barcode, session);
+            const itemNameStr = metadata.itemName ? ` (${metadata.itemName})` : '';
+            throw new Error(`Negative stock not allowed at ${locationType} for barcode "${barcode}"${itemNameStr}. Requested Change: ${delta}, Current: ${inventory.quantity}`);
+        }
+        inventory = updated;
     }
-    inventory.lastUpdated = Date.now();
-    await inventory.save({ session });
     
     console.log(`[INVENTORY-UPDATE] Location: ${locationId} (${locationType}), Barcode: ${barcode}, Balance: ${inventory.quantity} (Change: ${delta})`);
     
@@ -291,14 +301,15 @@ const addInTransit = async ({ itemId, barcode, variantId, locationId, locationTy
         InventoryModel = WarehouseInventory;
     }
 
-    let inventory = await InventoryModel.findOne(filter).session(session);
-    if (!inventory) {
-        inventory = new InventoryModel({ ...filter, itemId, variantId, quantity: 0, quantityInTransit: 0 });
-    }
-
-    inventory.quantityInTransit = (inventory.quantityInTransit || 0) + transitQty;
-    inventory.lastUpdated = Date.now();
-    await inventory.save({ session });
+    const inventory = await InventoryModel.findOneAndUpdate(
+        filter,
+        {
+            $inc: { quantityInTransit: transitQty },
+            $set: { lastUpdated: Date.now(), itemId, variantId },
+            $setOnInsert: { quantity: 0 },
+        },
+        { upsert: true, new: true, session },
+    );
     
     console.log(`[IN-TRANSIT-ADD] Location: ${locationId} (${locationType}), Barcode: ${barcode}, Balance: ${inventory.quantityInTransit}`);
     return inventory;

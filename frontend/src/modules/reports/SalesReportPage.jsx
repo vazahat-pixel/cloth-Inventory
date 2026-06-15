@@ -24,6 +24,9 @@ import { fetchSales } from '../sales/salesSlice';
 import { fetchItems } from '../items/itemsSlice';
 import { fetchStockOverview } from '../inventory/inventorySlice';
 import { fetchMasters } from '../masters/mastersSlice';
+import useDebouncedValue from '../../hooks/useDebouncedValue';
+import useServerPagination from '../../hooks/useServerPagination';
+import ServerTablePagination from '../../components/erp/ServerTablePagination';
 import {
   buildVariantItemMap,
   buildClosingStockMap,
@@ -40,21 +43,40 @@ const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 function SalesReportPage() {
   const dispatch = useDispatch();
   const sales = useSelector((state) => state.sales?.records || []);
+  const salesTotal = useSelector((state) => state.sales?.total || 0);
+  const salesLoading = useSelector((state) => state.sales?.loading);
   const salesReturns = useSelector((state) => state.sales?.returns || []);
   const warehouses = useSelector((state) => state.masters?.warehouses || []);
   const stores = useSelector((state) => state.masters?.stores || []);
-  const stock = useSelector((state) => state.inventory?.stock || []);
+  const stock = useSelector((state) => state.inventory?.storeStock || state.inventory?.stock || []);
   const itemGroups = useSelector((state) => state.masters?.itemGroups || []);
   const items = useSelector((state) => state.items?.records || []);
 
   const user = useSelector((state) => state.auth.user);
   const isStoreStaff = user?.role !== 'Admin' && user?.role !== 'admin';
 
+  const [filters, setFilters] = useState({});
+  const [searchText, setSearchText] = useState('');
+  const debouncedSearch = useDebouncedValue(searchText, 300);
+  const [viewMode, setViewMode] = useState('summary');
+  const serverPagination = useServerPagination({ defaultPageSize: 25 });
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+
   useEffect(() => {
-    dispatch(fetchSales());
-    dispatch(fetchItems({ limit: 100000 }));
-    dispatch(fetchStockOverview());
+    const storeFilter = filters.warehouseIds?.[0] || (filters.warehouseId && filters.warehouseId !== 'all' ? filters.warehouseId : undefined);
+    dispatch(fetchSales(serverPagination.buildParams({
+      startDate: filters.dateFrom,
+      endDate: filters.dateTo,
+      storeId: storeFilter,
+      search: debouncedSearch || undefined,
+      paymentStatus: filters.paymentStatus,
+    })));
+  }, [dispatch, serverPagination.page, serverPagination.rowsPerPage, filters.dateFrom, filters.dateTo, filters.warehouseId, filters.warehouseIds, filters.paymentStatus, debouncedSearch]);
+
+  useEffect(() => {
     dispatch(fetchMasters('stores'));
+    dispatch(fetchMasters('itemGroups'));
     if (isStoreStaff && user?.shopId) {
       setFilters((prev) => ({
         ...prev,
@@ -98,27 +120,14 @@ function SalesReportPage() {
     return map;
   }, [items, itemGroups]);
 
-  const [filters, setFilters] = useState({});
-  const [searchText, setSearchText] = useState('');
-  const [viewMode, setViewMode] = useState('summary'); // 'summary' | 'detail' | 'accountWise' | 'sizeWise' | 'groupWise'
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-
   const filteredRows = useMemo(() => {
-    const query = searchText.trim().toLowerCase();
     return sales.filter((sale) => {
-      const matchesDateFrom = !filters.dateFrom || sale.date >= filters.dateFrom;
-      const matchesDateTo = !filters.dateTo || sale.date <= filters.dateTo;
       const selectedLocations = filters.warehouseIds || [];
       const matchesWarehouse = selectedLocations.length
         ? matchesLocationFilter(sale, selectedLocations)
         : (!filters.warehouseId || filters.warehouseId === 'all' || sale.warehouseId === filters.warehouseId);
       const matchesCustomer =
         !filters.customerId || filters.customerId === 'all' || sale.customerId === filters.customerId;
-      const matchesPayment =
-        !filters.paymentStatus || filters.paymentStatus === 'all'
-          ? true
-          : (sale.payment?.status || '') === filters.paymentStatus;
       const matchesSalesman =
         !filters.salesmanId || filters.salesmanId === 'all' || sale.salesmanId === filters.salesmanId;
       const selectedGroupName = itemGroups.find((g) => g.id === filters.categoryId)?.groupName;
@@ -126,24 +135,16 @@ function SalesReportPage() {
         !filters.categoryId || filters.categoryId === 'all' || !selectedGroupName
           ? true
           : (sale.items || []).some((line) => itemGroupMap[line.variantId] === selectedGroupName);
-      const matchesSearch =
-        !query ||
-        (sale.invoiceNumber || '').toLowerCase().includes(query) ||
-        (sale.customerName || '').toLowerCase().includes(query);
       const matchesVoided = !['CANCELLED', 'REFUNDED'].includes(sale.status);
       return (
-        matchesDateFrom &&
-        matchesDateTo &&
         matchesWarehouse &&
         matchesCustomer &&
-        matchesPayment &&
         matchesSalesman &&
         matchesCategory &&
-        matchesSearch &&
         matchesVoided
       );
     });
-  }, [sales, filters, searchText, itemGroups, itemGroupMap]);
+  }, [sales, filters, itemGroups, itemGroupMap]);
 
   const groupedAndSortedRows = useMemo(() => {
     const salesByStore = {};
@@ -688,6 +689,14 @@ function SalesReportPage() {
             )}
           </Table>
         </TableContainer>
+        <ServerTablePagination
+          count={salesTotal}
+          page={serverPagination.page}
+          rowsPerPage={serverPagination.rowsPerPage}
+          onPageChange={serverPagination.handlePageChange}
+          onRowsPerPageChange={serverPagination.handleRowsPerPageChange}
+          rowsPerPageOptions={serverPagination.pageSizeOptions}
+        />
         <TablePagination
           component="div"
           count={

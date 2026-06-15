@@ -1,9 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams } from 'react-router-dom';
 import api from '../../services/api';
-import { updateChallan, updateChallanStatus } from './dispatchSlice';
+import { updateChallan, updateChallanStatus, addChallan } from './dispatchSlice';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
+import { extractApiErrorMessage } from '../../utils/apiError';
+import { createOperationIdempotencyKey, idempotencyHeaders } from '../../utils/idempotencyKey';
 import {
     Autocomplete,
     Box,
@@ -32,7 +34,6 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
-import { addChallan } from './dispatchSlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchWarehouseStock } from '../inventory/inventorySlice';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
@@ -93,7 +94,9 @@ function DeliveryChallanForm({
 
     const warehouses = useSelector((state) => state.masters.warehouses || []);
     const stores = useSelector((state) => state.masters.stores || []);
-    const stockRows = useSelector((state) => state.inventory.stock || []);
+    const stockRows = useSelector((state) => state.inventory.warehouseStock || []);
+    const scanLockRef = useRef(false);
+    const submitLockRef = useRef(false);
     const taxRules = useSelector((state) => state.masters.taxRules || []);
 
     const sourceDoc = useMemo(() => {
@@ -279,8 +282,10 @@ function DeliveryChallanForm({
     }, [stockRows, isReceiveMode]);
 
     const handleScanner = async (code) => {
-        if (!code) return;
+        if (!code || scanLockRef.current || isSubmitting) return;
+        scanLockRef.current = true;
 
+        try {
         // 1. Clean barcode — strip scanner quantity suffixes like ":1", ":2"
         let cleaned = String(code).trim().replace(/:(\d+)$/, '').trim();
         const normalizedCode = cleaned.toLowerCase();
@@ -305,12 +310,10 @@ function DeliveryChallanForm({
 
         // 3. Local match from preloaded warehouse stock (exact barcode/sku match first, then itemCode prefix match)
         const localMatch =
-            // Exact match on sku or barcode
             variantOptions.find(o =>
                 String(o.sku || '').toLowerCase() === normalizedCode ||
                 String(o.barcode || '').toLowerCase() === normalizedCode
             ) ||
-            // itemCode-only scan: "DA2139" matches sku "DA2139-M"
             variantOptions.find(o =>
                 String(o.sku || '').toLowerCase().startsWith(normalizedCode + '-') ||
                 String(o.barcode || '').toLowerCase().startsWith(normalizedCode + '-') ||
@@ -341,7 +344,6 @@ function DeliveryChallanForm({
             return;
         }
 
-        try {
             const res = await api.get(`/inventory/warehouse/${sourceId}/scan/${encodeURIComponent(cleaned)}`);
             const item = res.data.data || res.data;
             if (item) {
@@ -359,7 +361,6 @@ function DeliveryChallanForm({
                     barcode: item.barcode,
                     itemName: item.itemName || item.itemId?.itemName || 'Item',
                     itemCode: resolvedItemCode,
-                    // SKU = itemCode only (no size suffix)
                     sku: resolvedItemCode || item.sku || item.barcode,
                     size: item.size || '-',
                     color: item.color || '-',
@@ -376,7 +377,9 @@ function DeliveryChallanForm({
                 setError('');
             }
         } catch (err) {
-            setError(`"${cleaned}" warehouse mein nahi mila. Sahi barcode scan karein.`);
+            setError(extractApiErrorMessage(err, `"${String(code).trim()}" warehouse mein nahi mila. Sahi barcode scan karein.`));
+        } finally {
+            scanLockRef.current = false;
         }
     };
 
@@ -414,10 +417,13 @@ function DeliveryChallanForm({
     };
 
     useEffect(() => {
-        if (id) {
-            api.get(`/dispatch/${id}`).then(res => {
+        if (!id) return undefined;
+
+        const controller = new AbortController();
+        api.get(`/dispatch/${id}`, { signal: controller.signal })
+            .then(res => {
                 const data = res.data.dispatch || res.data.data;
-                if (data) {
+                if (!data) return;
                     setDate(data.dispatchedAt ? new Date(data.dispatchedAt).toISOString().slice(0, 10) : getTodayDate());
                     setSourceId(data.sourceWarehouseId?._id || data.sourceWarehouseId || '');
                     setStoreId(data.destinationStoreId?._id || data.destinationStoreId || '');
@@ -459,15 +465,24 @@ function DeliveryChallanForm({
                     setStatus(data.status || 'PENDING');
                     setChallanNumber(data.dispatchNumber || '');
                     setChallanRawData(data);
+            })
+            .catch((err) => {
+                if (err.name !== 'CanceledError' && err.code !== 'ERR_CANCELED') {
+                    setError('Failed to load challan details. Please try again.');
                 }
             });
-        }
+
+        return () => controller.abort();
     }, [id]);
 
     const handleSave = async (targetStatus = 'PENDING') => {
+        if (submitLockRef.current || isSubmitting) return;
         setError('');
         if (!sourceId || !storeId || !lines.length) { setError("Incomplete data"); return; }
+
+        submitLockRef.current = true;
         setIsSubmitting(true);
+        const idempotencyKey = createOperationIdempotencyKey(id ? 'challan-save' : 'challan-create', id || 'new');
 
         try {
             if (isReceiveMode) {
@@ -478,7 +493,7 @@ function DeliveryChallanForm({
                     }))
                 };
                 showLoading('Updating inventory stock...');
-                await api.post(`/dispatch/${id}/receive`, payload);
+                await api.post(`/dispatch/${id}/receive`, payload, { headers: idempotencyHeaders(idempotencyKey) });
                 showNotification("Stock successfully audited and added to inventory!", "success");
                 navigate(listPath);
                 return;
@@ -516,29 +531,37 @@ function DeliveryChallanForm({
             };
 
             showLoading(id ? 'Updating challan...' : 'Saving new challan...');
-            const action = id ? updateChallan({ id, data: payload }) : addChallan(payload);
+            const action = id
+                ? updateChallan({ id, data: payload, idempotencyKey })
+                : addChallan({ ...payload, idempotencyKey });
             await dispatch(action).unwrap();
             showNotification(id ? "Challan updated successfully!" : "Challan saved successfully!", "success");
             navigate(listPath);
         } catch (err) {
-            setError(err.message || "Failed to process");
+            setError(extractApiErrorMessage(err, "Failed to save challan. Please try again."));
         } finally {
             hideLoading();
+            submitLockRef.current = false;
             setIsSubmitting(false);
         }
     };
 
     const handleBillingDispatch = async () => {
+        if (submitLockRef.current || isSubmitting) return;
         setError('');
         if (!sourceId || !storeId || !lines.length) {
             setError('Dispatch karne se pehle items add/verify karna zaroori hai.');
             return;
         }
+
+        submitLockRef.current = true;
         setIsSubmitting(true);
+        const idempotencyKey = createOperationIdempotencyKey('billing-dispatch', id);
 
         try {
             await dispatch(updateChallan({
                 id,
+                idempotencyKey: createOperationIdempotencyKey('billing-update', id),
                 data: {
                     dcDate: date,
                     sourceId,
@@ -563,23 +586,15 @@ function DeliveryChallanForm({
                 }
             })).unwrap();
 
-            // Ensure backend status precondition before confirm dispatch.
-            if (status === 'PENDING') {
-                await dispatch(updateChallanStatus({ id, status: 'PACKED' })).unwrap();
-            }
-
             showLoading('Generating final invoice and completing dispatch...');
-            await dispatch(updateChallanStatus({ id, status: 'DISPATCHED' })).unwrap();
+            await dispatch(updateChallanStatus({ id, status: 'DISPATCHED', idempotencyKey })).unwrap();
             showNotification('Billing reviewed and dispatch completed.', 'success');
             navigate(listPath);
         } catch (err) {
-            const rawError = err?.message || '';
-            const friendlyError = rawError.includes('Only packed challans can be dispatched')
-                ? 'Dispatch se pehle challan ko PACKED karna zaroori hai. Please retry billing dispatch.'
-                : rawError || 'Failed to complete billing dispatch';
-            setError(friendlyError);
+            setError(extractApiErrorMessage(err, 'Failed to complete billing dispatch. Please try again.'));
         } finally {
             hideLoading();
+            submitLockRef.current = false;
             setIsSubmitting(false);
         }
     };

@@ -111,7 +111,7 @@ function PurchaseFormPage() {
     dispatch(fetchMasters('stores'));
     dispatch(fetchItems());
     dispatch(fetchPurchases());
-    dispatch(fetchGrns());
+    dispatch(fetchGrns({ limit: 100 }));
   }, [dispatch]);
 
   // Handle URL ?grnId= redirect (from GRN list "Generate Bill" button)

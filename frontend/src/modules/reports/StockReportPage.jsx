@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import useDebouncedValue from '../../hooks/useDebouncedValue';
+import useServerPagination from '../../hooks/useServerPagination';
+import ServerTablePagination from '../../components/erp/ServerTablePagination';
 import {
   Box,
   Button,
@@ -28,7 +31,8 @@ const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 function StockReportPage() {
   const dispatch = useDispatch();
-  const stock = useSelector((state) => state.inventory?.stock || []);
+  const stock = useSelector((state) => state.inventory?.storeStock || state.inventory?.stock || []);
+  const stockTotal = useSelector((state) => state.inventory?.total || 0);
   const warehouses = useSelector((state) => state.masters?.warehouses || []);
   const items = useSelector((state) => state.items?.records || []);
   const brands = useSelector((state) => state.masters?.brands || []);
@@ -39,16 +43,31 @@ function StockReportPage() {
   const currentUser = auth.user || {};
   const isAdmin = currentUser.role?.toLowerCase() === 'admin' || currentUser.role === 'HO';
 
-  useEffect(() => {
-    dispatch(fetchStockOverview());
-    dispatch(fetchMovements());
-  }, [dispatch]);
-
   const [filters, setFilters] = useState({});
   const [searchText, setSearchText] = useState('');
-  const [viewMode, setViewMode] = useState('detail'); // 'detail' | 'groupWise' | 'locationWise'
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const debouncedSearch = useDebouncedValue(searchText, 350);
+  const [viewMode, setViewMode] = useState('detail');
+  const {
+    page,
+    rowsPerPage,
+    resetPage,
+    handlePageChange,
+    handleRowsPerPageChange,
+    buildParams,
+    pageSizeOptions,
+  } = useServerPagination({ defaultPageSize: 10 });
+
+  useEffect(() => {
+    const params = buildParams({
+      search: debouncedSearch,
+      storeId: filters.storeId,
+      warehouseId: filters.warehouseId,
+      brand: filters.brand,
+      type: filters.category,
+    });
+    dispatch(fetchStockOverview(params));
+    dispatch(fetchMovements({ limit: 100 }));
+  }, [dispatch, debouncedSearch, filters, page, rowsPerPage, buildParams]);
 
   const variantPriceMap = useMemo(() => {
     const map = {};
@@ -192,10 +211,10 @@ function StockReportPage() {
     });
   }, [stockRows, filters, searchText, brands, itemGroups]);
 
-  const paginatedRows = useMemo(
-    () => filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
-    [filteredRows, page, rowsPerPage],
-  );
+  const paginatedRows = useMemo(() => {
+    if (viewMode === 'detail') return filteredRows;
+    return filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  }, [filteredRows, page, rowsPerPage, viewMode]);
 
   const summary = useMemo(() => {
     let totalClosing = 0;
@@ -446,17 +465,13 @@ function StockReportPage() {
             )}
           </Table>
         </TableContainer>
-        <TablePagination
-          component="div"
-          count={viewMode === 'groupWise' ? groupWiseRows.length : viewMode === 'locationWise' ? locationWiseRows.length : filteredRows.length}
+        <ServerTablePagination
+          count={viewMode === 'detail' ? stockTotal : viewMode === 'groupWise' ? groupWiseRows.length : locationWiseRows.length}
           page={page}
-          onPageChange={(_, p) => setPage(p)}
           rowsPerPage={rowsPerPage}
-          onRowsPerPageChange={(e) => {
-            setRowsPerPage(Number(e.target.value));
-            setPage(0);
-          }}
-          rowsPerPageOptions={[5, 10, 25]}
+          onPageChange={handlePageChange}
+          onRowsPerPageChange={handleRowsPerPageChange}
+          rowsPerPageOptions={pageSizeOptions}
         />
       </Paper>
     </Box>

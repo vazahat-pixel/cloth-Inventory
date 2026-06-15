@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import useDebouncedValue from '../../../hooks/useDebouncedValue';
+import useServerPagination from '../../../hooks/useServerPagination';
 import {
   Alert,
   Box,
@@ -22,8 +24,9 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import SearchIcon from '@mui/icons-material/Search';
-import { addMasterRecord, deleteMasterRecord, updateMasterRecord, fetchMasters, clearMastersError } from '../mastersSlice';
+import { addMasterRecord, deleteMasterRecord, updateMasterRecord, fetchMasterList, clearMastersError } from '../mastersSlice';
 import DeleteConfirmDialog from './DeleteConfirmDialog';
+import ServerTablePagination from '../../../components/erp/ServerTablePagination';
 
 function MasterListPage({
   entityKey,
@@ -31,44 +34,54 @@ function MasterListPage({
   singularLabel,
   description,
   primaryField,
-  searchKeys,
   columns,
   FormDialogComponent,
   addButtonLabel,
+  statusFilterKey,
 }) {
   const dispatch = useDispatch();
-  const { [entityKey]: records = [], error, loading } = useSelector((state) => state.masters || {});
+  const listState = useSelector((state) => state.masters?.listPages?.[entityKey] || {});
+  const records = listState.records || [];
+  const total = listState.total || 0;
+  const { error, loading } = useSelector((state) => state.masters || {});
 
   const [searchText, setSearchText] = useState('');
+  const debouncedSearch = useDebouncedValue(searchText, 350);
+  const [statusFilter, setStatusFilter] = useState('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRow, setEditingRow] = useState(null);
   const [deleteCandidate, setDeleteCandidate] = useState(null);
+  const {
+    page,
+    rowsPerPage,
+    resetPage,
+    handlePageChange,
+    handleRowsPerPageChange,
+    buildParams,
+    pageSizeOptions,
+  } = useServerPagination({ defaultPageSize: 20 });
+
   const singular = singularLabel || title;
 
-  const activeSearchKeys = searchKeys?.length ? searchKeys : [primaryField];
-
-  const filteredRecords = useMemo(() => {
-    const query = searchText.trim().toLowerCase();
-    if (!query) {
-      return records;
-    }
-
-    return records.filter((record) =>
-      activeSearchKeys.some((key) =>
-        String(record[key] ?? '')
-          .toLowerCase()
-          .includes(query),
-      ),
-    );
-  }, [activeSearchKeys, records, searchText]);
-
   useEffect(() => {
-    dispatch(fetchMasters(entityKey));
-  }, [dispatch, entityKey]);
+    const params = buildParams({ search: debouncedSearch });
+    if (statusFilterKey && statusFilter !== 'all') {
+      params[statusFilterKey] = statusFilter === 'Active' ? 'true' : 'false';
+    }
+    dispatch(fetchMasterList({ entityKey, params }));
+  }, [dispatch, entityKey, debouncedSearch, statusFilter, page, rowsPerPage, buildParams, statusFilterKey]);
 
   const closeDialog = () => {
     setIsDialogOpen(false);
     setEditingRow(null);
+  };
+
+  const refreshList = () => {
+    const params = buildParams({ search: debouncedSearch });
+    if (statusFilterKey && statusFilter !== 'all') {
+      params[statusFilterKey] = statusFilter === 'Active' ? 'true' : 'false';
+    }
+    dispatch(fetchMasterList({ entityKey, params }));
   };
 
   const openAddDialog = () => {
@@ -91,30 +104,16 @@ function MasterListPage({
           id: editingRow.id || editingRow._id,
           updates: payload,
         }),
-      ).unwrap().then(() => {
-        dispatch(fetchMasters(entityKey));
-      }).catch(() => {
-        dispatch(fetchMasters(entityKey));
-      });
+      ).unwrap().then(refreshList).catch(refreshList);
     } else {
       dispatch(addMasterRecord({ entityKey, record: payload }))
-      .unwrap().then(() => {
-        dispatch(fetchMasters(entityKey));
-      }).catch(() => {
-        dispatch(fetchMasters(entityKey));
-      });
+        .unwrap().then(refreshList).catch(refreshList);
     }
-
     closeDialog();
   };
 
-  const askDeleteRecord = (row) => {
-    setDeleteCandidate(row);
-  };
-
-  const cancelDeleteRecord = () => {
-    setDeleteCandidate(null);
-  };
+  const askDeleteRecord = (row) => setDeleteCandidate(row);
+  const cancelDeleteRecord = () => setDeleteCandidate(null);
 
   const confirmDeleteRecord = () => {
     if (deleteCandidate) {
@@ -123,14 +122,13 @@ function MasterListPage({
           entityKey,
           id: deleteCandidate.id || deleteCandidate._id,
         }),
-      );
+      ).unwrap().then(refreshList);
     }
-
     cancelDeleteRecord();
   };
 
-  const hasRows = records.length > 0;
-  const hasFilteredRows = filteredRecords.length > 0;
+  const hasRows = total > 0;
+  const hasFilteredRows = records.length > 0;
 
   return (
     <>
@@ -168,7 +166,7 @@ function MasterListPage({
               <TextField
                 size="small"
                 value={searchText}
-                onChange={(event) => setSearchText(event.target.value)}
+                onChange={(event) => { resetPage(); setSearchText(event.target.value); }}
                 placeholder={`Search ${title.toLowerCase()}`}
                 sx={{ width: { xs: '100%', sm: 260 } }}
                 InputProps={{
@@ -191,64 +189,75 @@ function MasterListPage({
         </Stack>
 
         {hasFilteredRows ? (
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  {columns.map((column) => (
-                    <TableCell
-                      key={column.field}
-                      sx={{
-                        fontWeight: 700,
-                        color: '#334155',
-                        minWidth: column.minWidth || 120,
-                        whiteSpace: 'nowrap',
-                      }}
-                      align={column.align || 'left'}
-                    >
-                      {column.headerName}
-                    </TableCell>
-                  ))}
-                  <TableCell sx={{ fontWeight: 700, color: '#334155', width: 120 }}>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredRecords.map((row) => (
-                  <TableRow key={row.id} hover>
+          <>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
                     {columns.map((column) => (
                       <TableCell
-                        key={`${row.id}-${column.field}`}
+                        key={column.field}
+                        sx={{
+                          fontWeight: 700,
+                          color: '#334155',
+                          minWidth: column.minWidth || 120,
+                          whiteSpace: 'nowrap',
+                        }}
                         align={column.align || 'left'}
-                        sx={{ color: '#0f172a' }}
                       >
-                        {column.render ? column.render(row[column.field], row) : row[column.field] || '--'}
+                        {column.headerName}
                       </TableCell>
                     ))}
-                    <TableCell>
-                      <Stack direction="row" spacing={0.5}>
-                        <IconButton
-                          size="small"
-                          color="primary"
-                          aria-label={`edit-${row[primaryField] || row.id}`}
-                          onClick={() => openEditDialog(row)}
-                        >
-                          <EditOutlinedIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          color="error"
-                          aria-label={`delete-${row[primaryField] || row.id}`}
-                          onClick={() => askDeleteRecord(row)}
-                        >
-                          <DeleteOutlineIcon fontSize="small" />
-                        </IconButton>
-                      </Stack>
-                    </TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: '#334155', width: 120 }}>Actions</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                </TableHead>
+                <TableBody>
+                  {records.map((row) => (
+                    <TableRow key={row.id || row._id} hover>
+                      {columns.map((column) => (
+                        <TableCell
+                          key={`${row.id || row._id}-${column.field}`}
+                          align={column.align || 'left'}
+                          sx={{ color: '#0f172a' }}
+                        >
+                          {column.render ? column.render(row[column.field], row) : row[column.field] || '--'}
+                        </TableCell>
+                      ))}
+                      <TableCell>
+                        <Stack direction="row" spacing={0.5}>
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            aria-label={`edit-${row[primaryField] || row.id}`}
+                            onClick={() => openEditDialog(row)}
+                          >
+                            <EditOutlinedIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            color="error"
+                            aria-label={`delete-${row[primaryField] || row.id}`}
+                            onClick={() => askDeleteRecord(row)}
+                          >
+                            <DeleteOutlineIcon fontSize="small" />
+                          </IconButton>
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            <ServerTablePagination
+              count={total}
+              page={page}
+              rowsPerPage={rowsPerPage}
+              onPageChange={handlePageChange}
+              onRowsPerPageChange={handleRowsPerPageChange}
+              rowsPerPageOptions={pageSizeOptions}
+              disabled={loading}
+            />
+          </>
         ) : (
           <Box sx={{ px: 3, py: 6, textAlign: 'center' }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0f172a', mb: 1 }}>

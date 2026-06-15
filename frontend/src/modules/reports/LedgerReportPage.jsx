@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import useDebouncedValue from '../../hooks/useDebouncedValue';
+import useServerPagination from '../../hooks/useServerPagination';
+import ServerTablePagination from '../../components/erp/ServerTablePagination';
+import api from '../../services/api';
+import { extractPaginationMeta } from '../../utils/paginationMeta';
 import {
   Box,
   MenuItem,
@@ -13,145 +18,73 @@ import {
   TableRow,
   TextField,
   Typography,
+  CircularProgress,
 } from '@mui/material';
 import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
 import { SummaryChip } from './SalesReportPage';
-import { fetchBankPayments, fetchBankReceipts } from '../accounts/accountsSlice';
-import { fetchSales } from '../sales/salesSlice';
-import { fetchPurchases, fetchPurchaseReturns } from '../purchase/purchaseSlice';
-
-const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+import { fetchMasters } from '../masters/mastersSlice';
 
 function LedgerReportPage() {
   const dispatch = useDispatch();
-  const sales = useSelector((state) => state.sales?.records || []);
-  const bankReceipts = useSelector((state) => state.accounts?.bankReceipts || []);
-  const purchases = useSelector((state) => state.purchase?.records || []);
-  const bankPayments = useSelector((state) => state.accounts?.bankPayments || []);
   const customers = useSelector((state) => state.masters?.customers || []);
   const suppliers = useSelector((state) => state.masters?.suppliers || []);
-  const returns = useSelector((state) => state.purchase?.returns || []);
-
-  useEffect(() => {
-    dispatch(fetchSales());
-    dispatch(fetchPurchases());
-    dispatch(fetchPurchaseReturns());
-    dispatch(fetchBankPayments());
-    dispatch(fetchBankReceipts());
-  }, [dispatch]);
 
   const [accountType, setAccountType] = useState('Customer');
   const [filters, setFilters] = useState({});
   const [partyId, setPartyId] = useState('all');
+  const [searchText, setSearchText] = useState('');
+  const debouncedSearch = useDebouncedValue(searchText, 350);
+  const [entries, setEntries] = useState([]);
+  const [summary, setSummary] = useState({ openingBalance: 0, currentBalance: 0 });
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
 
-  const ledgerEntries = useMemo(() => {
-    const from = filters.dateFrom || '';
-    const to = filters.dateTo || '';
-    const inRange = (d) => (!from || d >= from) && (!to || d <= to);
+  const {
+    page,
+    rowsPerPage,
+    resetPage,
+    handlePageChange,
+    handleRowsPerPageChange,
+    buildParams,
+    pageSizeOptions,
+  } = useServerPagination({ defaultPageSize: 20 });
 
-    if (accountType === 'Customer') {
-      const entries = [];
-      sales.forEach((s) => {
-        if (!inRange(s.date)) return;
-        if (partyId !== 'all' && s.customerId !== partyId) return;
-        const amt = toNum(s.totals?.netPayable);
-        if (amt <= 0) return;
-        entries.push({
-          date: s.date,
-          reference: s.invoiceNumber,
-          narration: `Sale ${s.invoiceNumber} - ${s.customerName || 'Walk-in'}`,
-          debit: amt,
-          credit: 0,
-          type: 'Sale',
+  useEffect(() => {
+    dispatch(fetchMasters('customers'));
+    dispatch(fetchMasters('suppliers'));
+  }, [dispatch]);
+
+  useEffect(() => {
+    const loadLedger = async () => {
+      setLoading(true);
+      try {
+        const params = buildParams({
+          accountType,
+          partyId,
+          search: debouncedSearch,
+          dateFrom: filters.dateFrom,
+          dateTo: filters.dateTo,
         });
-      });
-      bankReceipts.forEach((r) => {
-        if (!inRange(r.date)) return;
-        if (partyId !== 'all' && r.customerId !== partyId) return;
-        const amt = toNum(r.amount);
-        if (amt <= 0) return;
-        entries.push({
-          date: r.date,
-          reference: r.chequeNo ? `Chq ${r.chequeNo}` : 'Receipt',
-          narration: r.narration || 'Bank receipt',
-          debit: 0,
-          credit: amt,
-          type: 'Receipt',
-        });
-      });
-      entries.sort((a, b) => a.date.localeCompare(b.date) || (a.reference || '').localeCompare(b.reference || ''));
-      let balance = 0;
-      entries.forEach((e) => {
-        balance += toNum(e.debit) - toNum(e.credit);
-        e.balance = balance;
-      });
-      return entries;
-    }
-
-
-    const entries = [];
-    purchases.forEach((p) => {
-      if (!inRange(p.billDate)) return;
-      if (partyId !== 'all' && p.supplierId !== partyId) return;
-      const amt = toNum(p.totals?.netAmount);
-      if (amt <= 0) return;
-      entries.push({
-        date: p.billDate,
-        reference: p.billNumber,
-        narration: `Purchase Invoice: ${p.billNumber}`,
-        debit: 0,
-        credit: amt,
-        type: 'Purchase',
-      });
-    });
-
-    returns.forEach((r) => {
-      if (!inRange(r.createdAt?.slice(0, 10))) return;
-      if (partyId !== 'all' && r.supplierId !== partyId) return;
-      const amt = toNum(r.netAmount || r.totalAmount);
-      if (amt <= 0) return;
-      entries.push({
-        date: r.createdAt?.slice(0, 10),
-        reference: r.returnNumber,
-        narration: `Purchase Return (Debit Note): ${r.returnNumber}`,
-        debit: amt,
-        credit: 0,
-        type: 'Return',
-      });
-    });
-
-    bankPayments.forEach((r) => {
-      if (!inRange(r.date)) return;
-      if (partyId !== 'all' && r.supplierId !== partyId) return;
-      const amt = toNum(r.amount);
-      if (amt <= 0) return;
-      entries.push({
-        date: r.date,
-        reference: r.chequeNo ? `Chq ${r.chequeNo}` : 'Payment',
-        narration: r.narration || 'Bank payment',
-        debit: amt,
-        credit: 0,
-        type: 'Payment',
-      });
-    });
-    entries.sort((a, b) => a.date.localeCompare(b.date) || (a.reference || '').localeCompare(b.reference || ''));
-    let balance = 0;
-    entries.forEach((e) => {
-      balance += toNum(e.credit) - toNum(e.debit);
-      e.balance = balance;
-    });
-    return entries;
-  }, [accountType, filters.dateFrom, filters.dateTo, partyId, sales, bankReceipts, purchases, bankPayments]);
-
-  const currentBalance = useMemo(() => {
-    if (ledgerEntries.length === 0) return 0;
-    return ledgerEntries[ledgerEntries.length - 1].balance;
-  }, [ledgerEntries]);
+        const response = await api.get('/reports/party-ledger', { params });
+        const data = response.data.data || response.data;
+        setEntries(data.entries || []);
+        setSummary(data.summary || { openingBalance: 0, currentBalance: 0 });
+        setTotal(extractPaginationMeta(response.data).total);
+      } catch (err) {
+        console.error('Failed to load party ledger', err);
+        setEntries([]);
+        setTotal(0);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadLedger();
+  }, [accountType, partyId, filters, debouncedSearch, page, rowsPerPage, buildParams]);
 
   const exportRows = useMemo(
     () =>
-      ledgerEntries.map((e) => ({
+      entries.map((e) => ({
         Date: e.date,
         Reference: e.reference,
         Narration: e.narration,
@@ -159,7 +92,7 @@ function LedgerReportPage() {
         Credit: e.credit,
         Balance: e.balance,
       })),
-    [ledgerEntries],
+    [entries],
   );
 
   return (
@@ -180,7 +113,7 @@ function LedgerReportPage() {
             select
             label="Account Type"
             value={accountType}
-            onChange={(e) => setAccountType(e.target.value)}
+            onChange={(e) => { resetPage(); setAccountType(e.target.value); }}
             sx={{ minWidth: 160 }}
           >
             <MenuItem value="Customer">Customer</MenuItem>
@@ -191,53 +124,40 @@ function LedgerReportPage() {
             select
             label={accountType === 'Customer' ? 'Customer' : 'Supplier'}
             value={partyId}
-            onChange={(e) => setPartyId(e.target.value)}
+            onChange={(e) => { resetPage(); setPartyId(e.target.value); }}
             sx={{ minWidth: 220 }}
           >
             <MenuItem value="all">All</MenuItem>
             {accountType === 'Customer'
               ? customers.map((c) => (
-                <MenuItem key={c.id} value={c.id}>
-                  {c.customerName}
-                </MenuItem>
-              ))
+                  <MenuItem key={c.id || c._id} value={c.id || c._id}>{c.customerName || c.name}</MenuItem>
+                ))
               : suppliers.map((s) => (
-                <MenuItem key={s.id} value={s.id}>
-                  {s.supplierName}
-                </MenuItem>
-              ))}
+                  <MenuItem key={s.id || s._id} value={s.id || s._id}>{s.supplierName || s.name}</MenuItem>
+                ))}
           </TextField>
+          <TextField
+            size="small"
+            placeholder="Search reference or narration"
+            value={searchText}
+            onChange={(e) => { resetPage(); setSearchText(e.target.value); }}
+            sx={{ flex: 1 }}
+          />
         </Stack>
 
         <ReportFilterPanel
           filters={filters}
-          onFiltersChange={setFilters}
+          onFiltersChange={(next) => { resetPage(); setFilters(next); }}
           showDateRange
-          compact
         />
+
+        <Stack direction="row" spacing={2}>
+          <SummaryChip label="Opening Balance" value={`₹ ${summary.openingBalance?.toLocaleString() || 0}`} />
+          <SummaryChip label="Current Balance" value={`₹ ${summary.currentBalance?.toLocaleString() || 0}`} />
+        </Stack>
       </Stack>
 
-      {partyId !== 'all' && (
-        <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 2, mb: 2 }}>
-          <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
-            <SummaryChip
-              label="Current Balance"
-              value={accountType === 'Customer' ? (currentBalance >= 0 ? `₹${currentBalance.toFixed(2)} (Dr)` : `₹${Math.abs(currentBalance).toFixed(2)} (Cr)`) : (currentBalance >= 0 ? `₹${currentBalance.toFixed(2)} (Cr)` : `₹${Math.abs(currentBalance).toFixed(2)} (Dr)`)}
-              strong
-            />
-          </Stack>
-        </Paper>
-      )}
-
-      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2 }}>
-        <Stack direction="row" justifyContent="flex-end" sx={{ p: 1.5 }}>
-          <ReportExportButton
-            headers={['Date', 'Reference', 'Narration', 'Debit', 'Credit', 'Balance']}
-            headerKeys={['date', 'reference', 'narration', 'debit', 'credit', 'balance']}
-            rows={exportRows}
-            filename="ledger.csv"
-          />
-        </Stack>
+      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, overflow: 'hidden' }}>
         <TableContainer>
           <Table size="small">
             <TableHead>
@@ -251,28 +171,52 @@ function LedgerReportPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {ledgerEntries.length === 0 ? (
+              {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 4, color: '#64748b' }}>
-                    No ledger entries in the selected period.
+                  <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                    <CircularProgress size={28} />
                   </TableCell>
                 </TableRow>
-              ) : (
-                ledgerEntries.map((e, i) => (
-                  <TableRow key={`${e.date}-${e.reference}-${i}`} hover>
+              ) : entries.length ? (
+                entries.map((e, idx) => (
+                  <TableRow key={`${e.reference}-${idx}`} hover>
                     <TableCell>{e.date}</TableCell>
                     <TableCell>{e.reference}</TableCell>
-                    <TableCell sx={{ maxWidth: 280 }}>{e.narration}</TableCell>
-                    <TableCell align="right">{e.debit ? `₹${toNum(e.debit).toFixed(2)}` : '-'}</TableCell>
-                    <TableCell align="right">{e.credit ? `₹${toNum(e.credit).toFixed(2)}` : '-'}</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 600 }}>₹{toNum(e.balance).toFixed(2)}</TableCell>
+                    <TableCell>{e.narration}</TableCell>
+                    <TableCell align="right">{e.debit ? `₹ ${e.debit.toLocaleString()}` : '—'}</TableCell>
+                    <TableCell align="right">{e.credit ? `₹ ${e.credit.toLocaleString()}` : '—'}</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700 }}>₹ {(e.balance || 0).toLocaleString()}</TableCell>
                   </TableRow>
                 ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={6} align="center" sx={{ py: 6, color: '#64748b' }}>
+                    No ledger entries for the selected filters.
+                  </TableCell>
+                </TableRow>
               )}
             </TableBody>
           </Table>
         </TableContainer>
+        <ServerTablePagination
+          count={total}
+          page={page}
+          rowsPerPage={rowsPerPage}
+          onPageChange={handlePageChange}
+          onRowsPerPageChange={handleRowsPerPageChange}
+          rowsPerPageOptions={pageSizeOptions}
+          disabled={loading}
+        />
       </Paper>
+
+      <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+        <ReportExportButton
+          headers={['Date', 'Reference', 'Narration', 'Debit', 'Credit', 'Balance']}
+          headerKeys={['Date', 'Reference', 'Narration', 'Debit', 'Credit', 'Balance']}
+          rows={exportRows}
+          filename="ledger-report.csv"
+        />
+      </Box>
     </Box>
   );
 }

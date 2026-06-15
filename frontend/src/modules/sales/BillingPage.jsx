@@ -41,6 +41,7 @@ import { fetchPricingRules, fetchSchemes, fetchCoupons, evaluateOffers } from '.
 import { fetchItems } from '../items/itemsSlice';
 import { fetchLoyaltyConfig, fetchCreditNotes } from '../customers/customersSlice';
 import api from '../../services/api';
+import { extractApiErrorMessage } from '../../utils/apiError';
 import PaymentDialog from './PaymentDialog';
 import LoyaltyRedeemDialog from './LoyaltyRedeemDialog';
 import ExchangeInvoicePrint from './ExchangeInvoicePrint';
@@ -205,7 +206,7 @@ function BillingPage({
   const customers = useSelector((state) => state.masters.customers || EMPTY_ARR);
   const salesmen = useSelector((state) => state.masters.salesmen || EMPTY_ARR);
   const warehouses = useSelector((state) => state.masters.warehouses || EMPTY_ARR);
-  const stockRows = useSelector((state) => state.inventory.stock || EMPTY_ARR);
+  const stockRows = useSelector((state) => state.inventory.storeStock || state.inventory.stock || EMPTY_ARR);
   const items = useSelector((state) => state.items.records || EMPTY_ARR);
   const schemes = useSelector((state) => state.pricing.schemes || EMPTY_ARR);
   const coupons = useSelector((state) => state.pricing.coupons || EMPTY_ARR);
@@ -256,6 +257,7 @@ function BillingPage({
   const [lines, setLines] = useState([]);
   const [errorMessage, setErrorMessage] = useState('');
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [loyaltyRedeemOpen, setLoyaltyRedeemOpen] = useState(false);
   const [billingMode, setBillingMode] = useState('manual');
   const [deliveryOrderId, setDeliveryOrderId] = useState('');
@@ -336,14 +338,16 @@ function BillingPage({
     dispatch(fetchMasters('salesmen'));
     dispatch(fetchMasters('warehouses'));
     dispatch(fetchMasters('stores'));
-    dispatch(fetchItems());
-    dispatch(fetchStockOverview());
+    dispatch(fetchMasters('taxRules'));
     dispatch(fetchPricingRules());
     dispatch(fetchSchemes());
     dispatch(fetchCoupons());
-    dispatch(fetchSales());
-    dispatch(fetchMasters('taxRules'));
   }, [dispatch]);
+
+  useEffect(() => {
+    if (!storeId) return;
+    dispatch(fetchStockOverview({ storeId, limit: 200 }));
+  }, [dispatch, storeId]);
 
   // Synchronized Total Calculations (Moved up to prevent TDZ error)
   const customerMap = useMemo(
@@ -376,7 +380,10 @@ function BillingPage({
   );
   const creditNoteAmount = toNumber(selectedCreditNote?.amount);
 
-  const calculatedGross = lines.reduce((acc, l) => acc + (toNumber(l.quantity) * toNumber(l.rate)), 0);
+  const calculatedGross = useMemo(
+    () => lines.reduce((acc, l) => acc + (toNumber(l.quantity) * toNumber(l.rate)), 0),
+    [lines],
+  );
 
   const couponDiscountAmount = useMemo(() => {
     if (!appliedCoupon) return 0;
@@ -448,9 +455,13 @@ function BillingPage({
     return lines.filter(l => toNumber(l.quantity) > toNumber(l.available) || toNumber(l.available) <= 0);
   }, [lines]);
 
-  // Real-time Offer Evaluation
+  // Real-time Offer Evaluation (debounced to avoid request storms)
+  const offerDebounceRef = useRef(null);
   useEffect(() => {
-    if (lines.length > 0) {
+    if (lines.length === 0) return undefined;
+
+    if (offerDebounceRef.current) clearTimeout(offerDebounceRef.current);
+    offerDebounceRef.current = setTimeout(() => {
       const evaluationPayload = {
         items: lines.map(l => ({
           productId: l.productId,
@@ -464,7 +475,11 @@ function BillingPage({
         storeId
       };
       dispatch(evaluateOffers(evaluationPayload));
-    }
+    }, 400);
+
+    return () => {
+      if (offerDebounceRef.current) clearTimeout(offerDebounceRef.current);
+    };
   }, [lines, calculatedGross, storeId, customerId, dispatch]);
 
 
@@ -482,7 +497,7 @@ function BillingPage({
     if (storeId && mode === 'new') {
       api.get(`/sales/next-invoice-number?storeId=${storeId}`)
         .then((res) => {
-          setSaleNumber(res.data.data?.nextInvoiceNumber || '');
+          setSaleNumber(res.data.nextInvoiceNumber || res.data.data?.nextInvoiceNumber || '');
         })
         .catch((err) => {
           console.error('Failed to fetch next invoice number', err);
@@ -733,11 +748,19 @@ function BillingPage({
     setErrorMessage('');
   };
 
+  const barcodeScanLock = useRef(false);
+
   const handleBarcodeAdd = async (scannedValue) => {
+    if (barcodeScanLock.current) return;
     const rawCode = typeof scannedValue === 'string' ? scannedValue : barcodeInput;
     const scannedCode = (rawCode || '').trim();
     if (!scannedCode) return;
+    if (!storeId) {
+      setErrorMessage('Please select a store before scanning items.');
+      return;
+    }
 
+    barcodeScanLock.current = true;
     try {
       setErrorMessage('');
       // Use the dedicated Sales barcode endpoint that checks store specific stock
@@ -776,10 +799,11 @@ function BillingPage({
       });
       setBarcodeInput('');
     } catch (err) {
-      const errMsg = err.response?.data?.message || 'Error fetching product by barcode';
+      const errMsg = extractApiErrorMessage(err, 'Error fetching product by barcode');
       setErrorMessage(errMsg);
       showNotification(errMsg, 'error');
     } finally {
+      barcodeScanLock.current = false;
       setTimeout(() => {
         barcodeInputRef.current?.focus();
       }, 10);
@@ -883,6 +907,7 @@ function BillingPage({
   };
 
   const handlePaymentConfirm = (payment) => {
+    if (isSaving) return;
     // 1. Align with backend products array: [{ productId, quantity, price, total }]
     const preparedProducts = lines.map((line) => {
       const promo = promoItems?.find(pi => pi.variantId === line.productId || pi.variantId === line.variantId);
@@ -961,44 +986,36 @@ function BillingPage({
     };
 
     showLoading('Finalizing transaction and generating invoice...');
-    
-    const saveNewSale = () => {
-      dispatch(addSale(payload))
+    setIsSaving(true);
+
+    const onSaveSuccess = (res) => {
+      setCompletedSaleData(res);
+      setShowPrint(true);
+      setPaymentOpen(false);
+      showNotification(isEditMode ? 'Sale updated successfully!' : 'Sale completed successfully!', 'success');
+    };
+
+    const onSaveError = (err) => {
+      setErrorMessage(err || 'Failed to save sale');
+      showNotification(err || 'Failed to save sale', 'error');
+    };
+
+    const finalizeSave = (promise) => {
+      promise
         .unwrap()
-        .then((res) => {
-          setCompletedSaleData(res);
-          setShowPrint(true);
-          showNotification(isEditMode ? 'Sale updated successfully!' : 'Sale completed successfully!', 'success');
-        })
-        .catch((err) => {
-          setErrorMessage(err || 'Failed to save sale');
-          showNotification(err || 'Failed to save sale', 'error');
-        })
+        .then(onSaveSuccess)
+        .catch(onSaveError)
         .finally(() => {
           hideLoading();
+          setIsSaving(false);
         });
     };
 
     if (isEditMode && existingSale) {
-      dispatch(updateSale({ id: existingSale.id, saleData: payload }))
-        .unwrap()
-        .then((res) => {
-          setCompletedSaleData(res);
-          setShowPrint(true);
-          showNotification('Sale updated successfully!', 'success');
-        })
-        .catch((err) => {
-          setErrorMessage(err || 'Failed to update sale');
-          showNotification(err || 'Failed to update sale', 'error');
-        })
-        .finally(() => {
-          hideLoading();
-        });
+      finalizeSave(dispatch(updateSale({ id: existingSale.id, saleData: payload })));
     } else {
-      saveNewSale();
+      finalizeSave(dispatch(addSale(payload)));
     }
-
-    setPaymentOpen(false);
   };
 
   if (isDetailMode) {
@@ -1924,12 +1941,13 @@ function BillingPage({
 
       <PaymentDialog
         open={paymentOpen}
-        onClose={() => setPaymentOpen(false)}
+        onClose={() => !isSaving && setPaymentOpen(false)}
         totals={totals}
         onComplete={handlePaymentConfirm}
         store={selectedStore}
         customer={selectedCustomer}
         isEditMode={isEditMode}
+        saving={isSaving}
       />
 
       <LoyaltyRedeemDialog

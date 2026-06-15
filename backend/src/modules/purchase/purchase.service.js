@@ -416,29 +416,50 @@ const cancelPurchase = async (purchaseId, userId) => {
 };
 
 const getAllPurchases = async (query) => {
-    const page = parseInt(query.page) || 1;
-    const limit = query.limit ? parseInt(query.limit) : 50000;
-    const { supplierId, storeId, status } = query;
+    const { getPagination, getSort } = require('../../utils/pagination.helper');
+    const { page, limit, skip } = getPagination(query);
+    const { supplierId, storeId, status, search, dateFrom, dateTo, warehouseId } = query;
     const filter = {};
     if (supplierId) filter.supplierId = supplierId;
     if (storeId) filter.storeId = storeId;
+    if (warehouseId && warehouseId !== 'all') filter.storeId = warehouseId;
     if (status) filter.status = status;
+    if (search) {
+        filter.$or = [
+            { purchaseNumber: { $regex: search, $options: 'i' } },
+            { invoiceNumber: { $regex: search, $options: 'i' } },
+        ];
+    }
+    if (dateFrom || dateTo) {
+        filter.invoiceDate = {};
+        if (dateFrom) filter.invoiceDate.$gte = new Date(dateFrom);
+        if (dateTo) {
+            const end = new Date(dateTo);
+            end.setHours(23, 59, 59, 999);
+            filter.invoiceDate.$lte = end;
+        }
+    }
 
-    const skip = (page - 1) * limit;
+    const sort = getSort(query, {
+        invoiceDate: 'invoiceDate',
+        createdAt: 'createdAt',
+        purchaseNumber: 'purchaseNumber',
+    }, { createdAt: -1 });
+
     const [purchases, total] = await Promise.all([
         Purchase.find(filter)
-            .sort({ createdAt: -1 })
+            .sort(sort)
             .skip(skip)
-            .limit(parseInt(limit))
+            .limit(limit)
             .populate('supplierId', 'name supplierName contactPerson')
-            .populate('storeId', 'name location city') // Dynamic populate via refPath (Warehouse or Store)
+            .populate('storeId', 'name location city')
             .populate('grnId', 'grnNumber invoiceNumber')
             .populate('purchaseOrderId', 'poNumber orderNumber')
             .populate('products.itemId', 'itemName itemCode shade sizes'),
-        Purchase.countDocuments(filter)
+        Purchase.countDocuments(filter),
     ]);
 
-    return { purchases, total, page: parseInt(page), limit: parseInt(limit) };
+    return { purchases, total, page, limit };
 };
 
 const getPurchaseById = async (id) => {

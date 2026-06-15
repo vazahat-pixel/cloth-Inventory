@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useSelector } from "react-redux";
+import { useMemo, useState, useEffect, memo } from "react";
+import { useSelector, useDispatch, shallowEqual } from "react-redux";
 import { Box, Button, Grid, Typography, Stack, Paper, CircularProgress } from "@mui/material";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
@@ -11,8 +11,6 @@ import LowStockAlert from "./components/LowStockAlert";
 import RecentSalesTable from "./components/RecentSalesTable";
 import QuickActions from "./components/QuickActions";
 import { useAppNavigate } from "../../hooks/useAppNavigate";
-import { useEffect } from "react";
-import { useDispatch } from "react-redux";
 import { fetchSales } from "../../modules/sales/salesSlice";
 import { fetchPurchases } from "../../modules/purchase/purchaseSlice";
 import { fetchStockOverview } from "../../modules/inventory/inventorySlice";
@@ -83,9 +81,9 @@ function DashboardHome() {
     dispatch(fetchCompanyProfile());
   }, [dispatch]);
 
-  const sales = useSelector((state) => state.sales?.records ?? []);
-  const purchase = useSelector((state) => state.purchase?.records ?? []);
-  const stock = useSelector((state) => state.inventory?.stock ?? []);
+  const sales = useSelector((state) => state.sales?.records ?? [], shallowEqual);
+  const purchase = useSelector((state) => state.purchase?.records ?? [], shallowEqual);
+  const stock = useSelector((state) => state.inventory?.storeStock ?? state.inventory?.stock ?? [], shallowEqual);
   const preferences = useSelector((state) => state.settings?.preferences);
   const lowStockThreshold = preferences?.lowStockThreshold ?? 10;
   const user = useSelector((state) => state.auth?.user);
@@ -466,4 +464,4 @@ function DashboardHome() {
   );
 }
 
-export default DashboardHome;
+export default memo(DashboardHome);

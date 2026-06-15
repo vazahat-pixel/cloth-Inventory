@@ -28,8 +28,8 @@ const receive = async (req, res, next) => {
 
 const get = async (req, res, next) => {
     try {
-        const dispatches = await dispatchService.getDispatches(req.query, req.user);
-        return sendSuccess(res, { dispatches }, 'Dispatches retrieved');
+        const result = await dispatchService.getDispatches(req.query, req.user);
+        return sendSuccess(res, result, 'Dispatches retrieved');
     } catch (error) {
         next(error);
     }

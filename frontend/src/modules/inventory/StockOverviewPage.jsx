@@ -40,6 +40,7 @@ import { useAppNavigate } from '../../hooks/useAppNavigate';
 import stockOverviewExportColumns from '../../config/exportColumns/stockOverview';
 import { fetchStockOverview, clearStoreInventory, clearWarehouseInventory } from './inventorySlice';
 import { fetchMasters } from '../masters/mastersSlice';
+import useDebouncedValue from '../../hooks/useDebouncedValue';
 
 const normalizeStockRows = (rows = []) =>
   rows.map((row, index) => {
@@ -80,7 +81,7 @@ function StockOverviewPage() {
   const userRole = (authUser?.role || '').toLowerCase();
   const isStoreStaff = userRole.includes('staff') || userRole.includes('manager') || userRole.includes('accountant');
   const shopId = authUser?.shopId;
-  const backendRows = useSelector((state) => state.inventory.stock || []);
+  const backendRows = useSelector((state) => state.inventory.storeStock || state.inventory.stock || []);
   const loading = useSelector((state) => state.inventory.loading);
   const totalRows = useSelector((state) => state.inventory.total || 0);
   const totalQuantity = useSelector((state) => state.inventory.totalQuantity || 0);
@@ -88,6 +89,7 @@ function StockOverviewPage() {
   const warehouses = useSelector((state) => state.masters.warehouses || []);
 
   const [searchText, setSearchText] = useState('');
+  const debouncedApiSearch = useDebouncedValue(searchText, 400);
   const [warehouseFilter, setWarehouseFilter] = useState('all');
   const [itemFilter, setItemFilter] = useState('all');
   const [sizeFilter, setSizeFilter] = useState('all');
@@ -155,19 +157,18 @@ function StockOverviewPage() {
   };
 
 
-  // Debounced effect to fetch from backend when filters change
   useEffect(() => {
     const params = {
-      page: 1, // Always fetch first page when limit is high (local pagination)
+      page: 1,
       limit: 1000, 
-      search: searchText,
+      search: debouncedApiSearch,
       type: typeFilter === 'all' ? undefined : typeFilter,
     };
     
     dispatch(fetchStockOverview(params));
     dispatch(fetchMasters('warehouses'));
     dispatch(fetchMasters('sizes'));
-  }, [dispatch, searchText, typeFilter]); // Removed page from dependencies
+  }, [dispatch, debouncedApiSearch, typeFilter]);
 
   // Removed auto-select Head Office logic to prevent empty views when warehouse names don't match exactly.
   // Users can now see all stock by default and filter as needed.

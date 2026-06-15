@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import useDebouncedValue from '../../hooks/useDebouncedValue';
+import useServerPagination from '../../hooks/useServerPagination';
+import ServerTablePagination from '../../components/erp/ServerTablePagination';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import {
     Alert,
@@ -17,11 +20,15 @@ import {
     Typography,
     IconButton,
     Checkbox,
+    TextField,
+    InputAdornment,
 } from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { fetchChallans, updateChallanStatus, deleteChallan } from './dispatchSlice';
+import { extractApiErrorMessage } from '../../utils/apiError';
 import BillPrintDialog from '../../components/BillPrintDialog';
 import StandardInvoicePrint from '../sales/StandardInvoicePrint';
 import SaleChallanPrint from '../sales/SaleChallanPrint';
@@ -39,7 +46,7 @@ function DeliveryChallanPage({
 }) {
     const navigate = useAppNavigate();
     const dispatch = useDispatch();
-    const { records: rawChallans = [], loading, error } = useSelector((state) => state.dispatch);
+    const { records: rawChallans = [], total: challanTotal = 0, loading, error } = useSelector((state) => state.dispatch);
     const { user } = useSelector((state) => state.auth);
     const { showNotification } = useNotification();
     const { showLoading, hideLoading } = useLoading();
@@ -48,12 +55,19 @@ function DeliveryChallanPage({
     const normalizedRole = String(user?.role || '').toLowerCase();
     const isStoreUser = normalizedRole.includes('staff') || normalizedRole.includes('manager') || normalizedRole.includes('accountant');
 
-    const challans = isStoreUser 
-        ? rawChallans 
-        : (isTransferBill 
-            ? rawChallans.filter(c => (c.dispatchNumber || c.challanNumber || '').startsWith('DSP-'))
-            : rawChallans.filter(c => !(c.dispatchNumber || c.challanNumber || '').startsWith('DSP-')));
+    const challans = isStoreUser ? rawChallans : rawChallans;
 
+    const [searchText, setSearchText] = useState('');
+    const debouncedSearch = useDebouncedValue(searchText, 350);
+    const {
+        page,
+        rowsPerPage,
+        resetPage,
+        handlePageChange,
+        handleRowsPerPageChange,
+        buildParams,
+        pageSizeOptions,
+    } = useServerPagination({ defaultPageSize: 20 });
     const [printTarget, setPrintTarget] = useState(null);
     const [selectedChallanIds, setSelectedChallanIds] = useState([]);
 
@@ -83,8 +97,12 @@ function DeliveryChallanPage({
     };
 
     useEffect(() => {
-        dispatch(fetchChallans());
-    }, [dispatch]);
+        const params = buildParams({
+            search: debouncedSearch,
+            isTransferBill: isTransferBill ? 'true' : 'false',
+        });
+        dispatch(fetchChallans(params));
+    }, [dispatch, debouncedSearch, isTransferBill, page, rowsPerPage, buildParams]);
 
     const handleDelete = async (target) => {
         const id = target.id || target._id;
@@ -103,7 +121,7 @@ function DeliveryChallanPage({
             await dispatch(deleteChallan(id)).unwrap();
             showNotification('Challan deleted and stock reversed successfully.', 'success');
         } catch (err) {
-            showNotification(err?.message || 'Failed to delete challan.', 'error');
+            showNotification(extractApiErrorMessage(err, 'Failed to delete challan.'), 'error');
         } finally {
             hideLoading();
         }
@@ -117,7 +135,7 @@ function DeliveryChallanPage({
             await dispatch(updateChallanStatus({ id, status: 'RECEIVED' })).unwrap();
             showNotification('Stock received and updated successfully!', 'success');
         } catch (err) {
-            showNotification(err?.message || 'Failed to update receipt status.', 'error');
+            showNotification(extractApiErrorMessage(err, 'Failed to update receipt status.'), 'error');
         } finally {
             hideLoading();
         }
@@ -129,7 +147,7 @@ function DeliveryChallanPage({
             await dispatch(updateChallanStatus({ id, status: 'PACKED' })).unwrap();
             showNotification('Challan marked as packed.', 'success');
         } catch (err) {
-            showNotification(err?.message || 'Failed to update status.', 'error');
+            showNotification(extractApiErrorMessage(err, 'Failed to update status.'), 'error');
         } finally {
             hideLoading();
         }
@@ -211,9 +229,25 @@ function DeliveryChallanPage({
                             {error}
                         </Alert>
                     )}
+
+                    <TextField
+                        size="small"
+                        placeholder="Search challan number..."
+                        value={searchText}
+                        onChange={(e) => { resetPage(); setSearchText(e.target.value); }}
+                        sx={{ maxWidth: 320 }}
+                        InputProps={{
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchIcon fontSize="small" />
+                                </InputAdornment>
+                            ),
+                        }}
+                    />
                 </Stack>
 
                 {challans.length > 0 ? (
+                    <>
                     <TableContainer>
                         <Table size="small">
                             <TableHead>
@@ -330,6 +364,16 @@ function DeliveryChallanPage({
                             </TableBody>
                         </Table>
                     </TableContainer>
+                    <ServerTablePagination
+                        count={challanTotal}
+                        page={page}
+                        rowsPerPage={rowsPerPage}
+                        onPageChange={handlePageChange}
+                        onRowsPerPageChange={handleRowsPerPageChange}
+                        rowsPerPageOptions={pageSizeOptions}
+                        disabled={loading}
+                    />
+                    </>
                 ) : (
                     <Box sx={{ py: 10, textAlign: 'center' }}>
                         <Typography variant="h6" sx={{ color: '#64748b', mb: 2 }}>

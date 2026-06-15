@@ -94,6 +94,7 @@ const deliveryChallanSchema = new mongoose.Schema(
 );
 
 deliveryChallanSchema.index({ customerId: 1 });
-deliveryChallanSchema.index({ storeId: 1 });
+deliveryChallanSchema.index({ destinationStoreId: 1 });
+deliveryChallanSchema.index({ status: 1, createdAt: -1 });
 
 module.exports = mongoose.model('DeliveryChallan', deliveryChallanSchema);

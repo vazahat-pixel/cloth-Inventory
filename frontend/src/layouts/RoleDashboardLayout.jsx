@@ -1,7 +1,7 @@
+import { memo, useCallback, useState } from 'react';
 import { Box } from '@mui/material';
 import { Outlet, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { useState } from 'react';
 import RoleSidebar from '../components/RoleSidebar';
 import Topbar from '../components/Topbar';
 import { getNavConfigForRole, getRoleFromPath } from '../common/roleConfig';
@@ -18,6 +18,8 @@ function RoleDashboardLayout() {
   const pathRole = getRoleFromPath(location.pathname);
   const navConfig = getNavConfigForRole(pathRole || role) || getNavConfigForRole('admin');
 
+  const handleToggle = useCallback(() => setIsCollapsed((prev) => !prev), []);
+
   const sidebarWidth = isCollapsed ? COLLAPSED_WIDTH : DRAWER_WIDTH;
 
   return (
@@ -31,7 +33,7 @@ function RoleDashboardLayout() {
       <RoleSidebar 
         navConfig={navConfig} 
         isCollapsed={isCollapsed} 
-        onToggle={() => setIsCollapsed(!isCollapsed)} 
+        onToggle={handleToggle} 
       />
       
       {/* Dynamic spacer for the fixed sidebar */}
@@ -68,4 +70,4 @@ function RoleDashboardLayout() {
   );
 }
 
-export default RoleDashboardLayout;
+export default memo(RoleDashboardLayout);

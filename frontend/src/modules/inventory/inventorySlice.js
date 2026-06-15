@@ -212,6 +212,9 @@ export const applyPurchaseReturn = createAsyncThunk(
 
 const initialState = {
   warehouses: [],
+  storeStock: [],
+  warehouseStock: [],
+  /** @deprecated use storeStock or warehouseStock */
   stock: [],
   total: 0,
   totalQuantity: 0,
@@ -238,7 +241,8 @@ const inventorySlice = createSlice({
       })
       .addCase(fetchStockOverview.fulfilled, (state, action) => {
         state.loading = false;
-        state.stock = action.payload.stock || [];
+        state.storeStock = action.payload.stock || [];
+        state.stock = state.storeStock;
         state.total = action.payload.total || 0;
         state.totalQuantity = action.payload.totalQuantity || 0;
       })
@@ -264,7 +268,7 @@ const inventorySlice = createSlice({
       })
       .addCase(fetchWarehouseStock.fulfilled, (state, action) => {
         state.loading = false;
-        state.stock = action.payload || [];
+        state.warehouseStock = action.payload || [];
       })
       .addCase(fetchWarehouseStock.rejected, (state, action) => {
         state.loading = false;

@@ -24,27 +24,31 @@ const populateDispatchItemsManual = async (dispatches) => {
     const docs = isSingle ? [dispatches] : dispatches;
     const plainDocs = [];
 
+    const allVariantIds = new Set();
+    const allItemIds = new Set();
+    const allBarcodes = new Set();
+
     for (const doc of docs) {
         if (!doc) continue;
         const plainDoc = doc.toObject ? doc.toObject() : JSON.parse(JSON.stringify(doc));
         plainDocs.push(plainDoc);
 
-        if (!plainDoc.items || plainDoc.items.length === 0) continue;
+        (plainDoc.items || []).forEach((di) => {
+            const vid = di.variantId?._id || di.variantId;
+            if (vid) allVariantIds.add(String(vid));
+            const iid = di.itemId?._id || di.itemId;
+            if (iid) allItemIds.add(String(iid));
+            if (di.barcode) allBarcodes.add(String(di.barcode).trim());
+        });
+    }
 
-        const variantIds = plainDoc.items.map(i => {
-            const v = i.variantId?._id || i.variantId;
-            return v ? String(v) : null;
-        }).filter(Boolean);
-        const itemIds = plainDoc.items.map(i => {
-            const itm = i.itemId?._id || i.itemId;
-            return itm ? String(itm) : null;
-        }).filter(Boolean);
-        const barcodes = plainDoc.items.map(i => {
-            const b = i.barcode;
-            return b ? String(b).trim() : null;
-        }).filter(Boolean);
+    const variantIds = [...allVariantIds];
+    const itemIds = [...allItemIds];
+    const barcodes = [...allBarcodes];
 
-        const items = await Item.find({
+    let itemMasterList = [];
+    if (variantIds.length || itemIds.length || barcodes.length) {
+        itemMasterList = await Item.find({
             $or: [
                 { "sizes._id": { $in: variantIds } },
                 { "_id": { $in: itemIds } },
@@ -57,43 +61,48 @@ const populateDispatchItemsManual = async (dispatches) => {
             .populate('categoryId', 'name')
             .populate('groupIds', 'name groupType groupName')
             .lean();
+    }
 
-        plainDoc.items = (plainDoc.items || []).map(di => {
-            const vid = String(di.variantId?._id || di.variantId);
-            const iid = String(di.itemId?._id || di.itemId || '');
-            let parentItem = items.find(it => (it.sizes || []).some(sz => String(sz._id) === vid));
-            if (!parentItem && iid) {
-                parentItem = items.find(it => String(it._id) === iid);
-            }
-            if (!parentItem && di.barcode) {
-                parentItem = items.find(it => (it.sizes || []).some(sz =>
-                    String(sz.barcode || '').toLowerCase() === String(di.barcode || '').toLowerCase() ||
-                    String(sz.sku || '').toLowerCase() === String(di.barcode || '').toLowerCase()
-                ));
-            }
-            if (parentItem) {
-                const variant = (parentItem.sizes || []).find(sz => String(sz._id) === vid);
-                const finalCategory = parentItem.categoryName || parentItem.category || (parentItem.categoryId && (parentItem.categoryId.name || parentItem.categoryId.itemName)) || 'OTHERS';
-                const finalHsn = parentItem.hsCodeId?.code || parentItem.hsnCode || '';
-                return {
-                    ...di,
-                    category: finalCategory,
-                    hsnCode: finalHsn,
-                    brand: parentItem.brandName || (parentItem.brand && (parentItem.brand.name || parentItem.brand.brandName)) || '',
-                    variantId: {
-                        _id: variant?._id || (di.variantId?._id || di.variantId),
-                        itemId: parentItem._id,
-                        itemName: parentItem.itemName,
-                        itemCode: parentItem.itemCode,
-                        sku: variant?.sku || di.barcode || parentItem.itemCode,
-                        barcode: variant?.barcode || variant?.sku || di.barcode || parentItem.itemCode,
-                        size: variant?.size || 'N/A',
-                        color: variant?.color || parentItem.shade || 'N/A'
-                    }
-                };
-            }
-            return di;
-        });
+    const enrichLineItem = (di) => {
+        const vid = String(di.variantId?._id || di.variantId);
+        const iid = String(di.itemId?._id || di.itemId || '');
+        let parentItem = itemMasterList.find(it => (it.sizes || []).some(sz => String(sz._id) === vid));
+        if (!parentItem && iid) {
+            parentItem = itemMasterList.find(it => String(it._id) === iid);
+        }
+        if (!parentItem && di.barcode) {
+            parentItem = itemMasterList.find(it => (it.sizes || []).some(sz =>
+                String(sz.barcode || '').toLowerCase() === String(di.barcode || '').toLowerCase() ||
+                String(sz.sku || '').toLowerCase() === String(di.barcode || '').toLowerCase()
+            ));
+        }
+        if (parentItem) {
+            const variant = (parentItem.sizes || []).find(sz => String(sz._id) === vid);
+            const finalCategory = parentItem.categoryName || parentItem.category || (parentItem.categoryId && (parentItem.categoryId.name || parentItem.categoryId.itemName)) || 'OTHERS';
+            const finalHsn = parentItem.hsCodeId?.code || parentItem.hsnCode || '';
+            return {
+                ...di,
+                category: finalCategory,
+                hsnCode: finalHsn,
+                brand: parentItem.brandName || (parentItem.brand && (parentItem.brand.name || parentItem.brand.brandName)) || '',
+                variantId: {
+                    _id: variant?._id || (di.variantId?._id || di.variantId),
+                    itemId: parentItem._id,
+                    itemName: parentItem.itemName,
+                    itemCode: parentItem.itemCode,
+                    sku: variant?.sku || di.barcode || parentItem.itemCode,
+                    barcode: variant?.barcode || variant?.sku || di.barcode || parentItem.itemCode,
+                    size: variant?.size || 'N/A',
+                    color: variant?.color || parentItem.shade || 'N/A'
+                }
+            };
+        }
+        return di;
+    };
+
+    for (const plainDoc of plainDocs) {
+        if (!plainDoc.items || plainDoc.items.length === 0) continue;
+        plainDoc.items = (plainDoc.items || []).map(enrichLineItem);
     }
 
     return isSingle ? plainDocs[0] : plainDocs;
@@ -189,7 +198,7 @@ const createDispatch = async (dispatchData, userId) => {
         const isSameEntity = sourceGst !== '' && sourceGst === destGst;
         const transferDiscountPct = destination.transferDiscountPct || 0;
 
-        // 2. Prepare Detailed Items (Using Item Master Sizes)
+        // 2. Prepare Detailed Items (Using Item Master Sizes) — batch item lookup
         const { calculateGST } = require('../../services/gst.service');
         const enrichedItems = [];
         let totalSubTotal = 0;
@@ -198,14 +207,20 @@ const createDispatch = async (dispatchData, userId) => {
         let totalSGST = 0;
         let totalIGST = 0;
 
+        const variantIds = finalProducts.map(p => p.variantId || p.productId).filter(Boolean);
+        const itemDocs = await Item.find({ "sizes._id": { $in: variantIds } })
+            .populate('hsCodeId')
+            .session(session);
+        const itemByVariant = new Map();
+        itemDocs.forEach((doc) => {
+            (doc.sizes || []).forEach((sz) => itemByVariant.set(String(sz._id), doc));
+        });
+
         for (const p of finalProducts) {
             const variantId = p.variantId || p.productId;
             if (!variantId) throw new Error("Item variant ID missing in request");
 
-            const itemDoc = await Item.findOne({ "sizes._id": variantId })
-                .populate('hsCodeId')
-                .session(session);
-
+            const itemDoc = itemByVariant.get(String(variantId));
             if (!itemDoc) throw new Error(`Item master record not found for variant ID: ${variantId}`);
 
             const variant = itemDoc.sizes.id(variantId);
@@ -536,12 +551,16 @@ const updateDispatch = async (id, dispatchData, userId) => {
 ───────────────────────────────────────────── */
 const packDispatch = async (id, userId) => {
     return await withTransaction(async (session) => {
-        const dispatch = await Dispatch.findById(id).session(session);
-        if (!dispatch) throw new Error('Dispatch record not found');
-        if (dispatch.status !== 'PENDING') throw new Error(`Only Sale Challan drafts can be packed. Current status: ${dispatch.status}`);
-
-        dispatch.status = 'PACKED';
-        await dispatch.save({ session });
+        const dispatch = await Dispatch.findOneAndUpdate(
+            { _id: id, status: 'PENDING' },
+            { $set: { status: 'PACKED' } },
+            { new: true, session }
+        );
+        if (!dispatch) {
+            const existing = await Dispatch.findById(id).session(session);
+            if (existing?.status === 'PACKED') return existing;
+            throw new Error(`Only Sale Challan drafts can be packed. Current status: ${existing?.status || 'unknown'}`);
+        }
 
         return dispatch;
     });
@@ -549,15 +568,23 @@ const packDispatch = async (id, userId) => {
 
 const confirmDispatch = async (id, userId) => {
     return await withTransaction(async (session) => {
-        const dispatch = await Dispatch.findById(id).session(session);
-        if (!dispatch) throw new Error('Dispatch record not found');
-        if (!['PENDING', 'PACKED'].includes(dispatch.status)) {
-            throw new Error(`Only pending or packed challans can be dispatched. Current status: ${dispatch.status}`);
-        }
-        if (dispatch.status === 'PENDING') {
-            // Backward-compatible fallback for older clients that call confirm directly.
-            dispatch.status = 'PACKED';
-            await dispatch.save({ session });
+        // Normalize PENDING → PACKED before atomic claim
+        await Dispatch.updateOne(
+            { _id: id, status: 'PENDING' },
+            { $set: { status: 'PACKED' } },
+            { session }
+        );
+
+        const dispatch = await Dispatch.findOneAndUpdate(
+            { _id: id, status: 'PACKED' },
+            { $set: { status: 'DISPATCHED', dispatchedAt: new Date() } },
+            { new: false, session }
+        );
+
+        if (!dispatch) {
+            const existing = await Dispatch.findById(id).session(session);
+            if (existing?.status === 'DISPATCHED') return existing;
+            throw new Error(`Only pending or packed challans can be dispatched. Current status: ${existing?.status || 'unknown'}`);
         }
 
         const hadBillingBefore = !!(dispatch.referenceId && dispatch.referenceType);
@@ -584,8 +611,15 @@ const confirmDispatch = async (id, userId) => {
             let totalIGST = 0;
             const { calculateGST } = require('../../services/gst.service');
 
+            const confirmItemIds = (dispatch.items || []).map(i => i.itemId).filter(Boolean);
+            const confirmItemDocs = await Item.find({ _id: { $in: confirmItemIds } })
+                .populate('hsCodeId')
+                .populate('categoryId')
+                .session(session);
+            const confirmItemMap = new Map(confirmItemDocs.map(doc => [String(doc._id), doc]));
+
             for (const item of dispatch.items) {
-                const itemDoc = await Item.findById(item.itemId).populate('hsCodeId').populate('categoryId').session(session);
+                const itemDoc = confirmItemMap.get(String(item.itemId));
                 if (!itemDoc) throw new Error(`Item not found: ${item.itemId}`);
 
                 const variant = itemDoc.sizes.id(item.variantId);
@@ -683,6 +717,17 @@ const confirmDispatch = async (id, userId) => {
                 dispatch.referenceId = sale._id;
                 dispatch.referenceType = 'Sale';
             }
+
+            await Dispatch.updateOne(
+                { _id: dispatch._id },
+                {
+                    $set: {
+                        referenceId: dispatch.referenceId,
+                        referenceType: dispatch.referenceType,
+                    },
+                },
+                { session }
+            );
         }
 
         // Process each item: move stock to destination in-transit.
@@ -730,10 +775,9 @@ const confirmDispatch = async (id, userId) => {
             });
         }
 
-        // Update Dispatch Status
+        // Status already set to DISPATCHED via atomic claim at start
         dispatch.status = 'DISPATCHED';
-        dispatch.dispatchedAt = new Date();
-        await dispatch.save({ session });
+        dispatch.dispatchedAt = dispatch.dispatchedAt || new Date();
 
         // Update related billing document if exists
         if (dispatch.referenceType === 'DeliveryChallan' && dispatch.referenceId) {
@@ -756,15 +800,20 @@ const combineAndConfirmDispatch = async ({ dispatchIds, notes, date, vehicleNumb
             throw new Error('Please select at least two dispatches to combine');
         }
 
-        // 1. Fetch and validate all dispatches
+        // 1. Atomically claim source dispatches (prevents concurrent double-combine)
         const dispatches = [];
         for (const id of dispatchIds) {
-            const disp = await Dispatch.findById(id).session(session);
-            if (!disp) throw new Error(`Dispatch record not found: ${id}`);
-            if (!['PENDING', 'PACKED'].includes(disp.status)) {
-                throw new Error(`Only pending or packed dispatches can be combined. Dispatch ${disp.dispatchNumber} is ${disp.status}`);
+            const claimed = await Dispatch.findOneAndUpdate(
+                { _id: id, status: { $in: ['PENDING', 'PACKED'] } },
+                { $set: { status: 'DISPATCHED', dispatchedAt: new Date() } },
+                { new: false, session }
+            );
+            if (!claimed) {
+                const existing = await Dispatch.findById(id).session(session);
+                if (!existing) throw new Error(`Dispatch record not found: ${id}`);
+                throw new Error(`Only pending or packed dispatches can be combined. Dispatch ${existing.dispatchNumber} is ${existing.status}`);
             }
-            dispatches.push(disp);
+            dispatches.push(claimed);
         }
 
         // 2. Validate same source and destination
@@ -964,15 +1013,19 @@ const combineAndConfirmDispatch = async ({ dispatchIds, notes, date, vehicleNumb
         });
         await combinedDispatch.save({ session });
 
-        // 7. Update original dispatches and handle stock movement
-        // 7. Update original dispatches and handle stock movement in parallel
+        // 7. Link original dispatches to combined billing (status already claimed in step 1)
         await Promise.all(dispatches.map(async (disp) => {
-            disp.status = 'DISPATCHED';
-            disp.dispatchedAt = new Date();
-            disp.referenceId = referenceId;
-            disp.referenceType = referenceType;
-            disp.notes = `${disp.notes || ''} [Combined into ${finalDspNumber}]`.trim();
-            await disp.save({ session });
+            await Dispatch.updateOne(
+                { _id: disp._id },
+                {
+                    $set: {
+                        referenceId,
+                        referenceType,
+                        notes: `${disp.notes || ''} [Combined into ${finalDspNumber}]`.trim(),
+                    },
+                },
+                { session }
+            );
         }));
 
         // 8. Billing document (Sale / DeliveryChallan) already deducted warehouse stock above.
@@ -1085,11 +1138,11 @@ const enrichDispatchesWithBillingMeta = async (plainDocs) => {
    GET DISPATCHES (list)
 ───────────────────────────────────────────── */
 const getDispatches = async (query, user) => {
-    const { status, sourceId, destinationId } = query;
+    const { status, sourceId, destinationId, search, isTransferBill } = query;
+    const { getPagination, buildPaginationMeta, getSort } = require('../../utils/pagination.helper');
+    const { page, limit, skip } = getPagination(query);
     const filter = {};
 
-    // Security: Filter by shopId for store-based roles
-    const storeRoles = ['store_staff', 'store_manager', 'accountant', 'Staff', 'Manager', 'Accountant'];
     const normalizedRole = (user?.role || '').toLowerCase();
     const isStoreRole = normalizedRole.includes('staff') || normalizedRole.includes('manager') || normalizedRole.includes('accountant');
 
@@ -1097,7 +1150,7 @@ const getDispatches = async (query, user) => {
         if (!user.shopId) throw new Error('User is not linked to any store.');
         filter.$or = [
             { sourceWarehouseId: user.shopId },
-            { destinationStoreId: user.shopId }
+            { destinationStoreId: user.shopId },
         ];
     }
 
@@ -1105,15 +1158,46 @@ const getDispatches = async (query, user) => {
     if (sourceId) filter.sourceWarehouseId = sourceId;
     if (destinationId) filter.destinationStoreId = destinationId;
 
-    const dispatches = await Dispatch.find(filter)
-        .sort({ createdAt: -1 })
-        .populate('sourceWarehouseId')
-        .populate('destinationStoreId')
-        .populate('createdBy', 'name');
+    if (isTransferBill === 'true') {
+        filter.dispatchNumber = { $regex: /^DSP-/i };
+    } else if (isTransferBill === 'false') {
+        filter.dispatchNumber = { $not: { $regex: /^DSP-/i } };
+    }
+
+    if (search) {
+        const searchOr = [
+            { dispatchNumber: { $regex: search, $options: 'i' } },
+            { challanNumber: { $regex: search, $options: 'i' } },
+        ];
+        if (filter.$or) {
+            filter.$and = [{ $or: filter.$or }, { $or: searchOr }];
+            delete filter.$or;
+        } else {
+            filter.$or = searchOr;
+        }
+    }
+
+    const sort = getSort(query, {
+        createdAt: 'createdAt',
+        dispatchNumber: 'dispatchNumber',
+        status: 'status',
+    }, { createdAt: -1 });
+
+    const [dispatches, total] = await Promise.all([
+        Dispatch.find(filter)
+            .sort(sort)
+            .skip(skip)
+            .limit(limit)
+            .populate('sourceWarehouseId')
+            .populate('destinationStoreId')
+            .populate('createdBy', 'name'),
+        Dispatch.countDocuments(filter),
+    ]);
 
     const populated = await populateDispatchItemsManual(dispatches);
     const plainList = Array.isArray(populated) ? populated : [];
-    return await enrichDispatchesWithBillingMeta(plainList);
+    const enriched = await enrichDispatchesWithBillingMeta(plainList);
+    return { dispatches: enriched, pagination: buildPaginationMeta(total, page, limit) };
 };
 
 /* ─────────────────────────────────────────────
@@ -1162,9 +1246,10 @@ const getDispatchById = async (id) => {
 ───────────────────────────────────────────── */
 const receiveDispatch = async (id, userId, receivedItems = []) => {
     return await withTransaction(async (session) => {
-        const dispatch = await Dispatch.findById(id).session(session);
+        let dispatch = await Dispatch.findById(id).session(session);
         if (!dispatch) throw new Error('Dispatch not found');
-        if (dispatch.status !== 'DISPATCHED') throw new Error('Only dispatched items can be received');
+
+        if (dispatch.status === 'RECEIVED') return dispatch;
 
         if ((!dispatch.items || dispatch.items.length === 0) && dispatch.referenceId && dispatch.referenceType) {
             const rebuiltItems = await buildItemsFromReference(dispatch, session);
@@ -1175,17 +1260,17 @@ const receiveDispatch = async (id, userId, receivedItems = []) => {
             await dispatch.save({ session });
         }
 
-        // STRICT VALIDATION FOR QUANTITY MISMATCH
+        // STRICT VALIDATION FOR QUANTITY MISMATCH (before atomic claim)
         if (receivedItems && receivedItems.length > 0) {
             for (const item of dispatch.items) {
                 const verified = receivedItems.find(ri => String(ri.variantId) === String(item.variantId));
                 const receivedQty = verified ? Number(verified.receivedQty || 0) : 0;
-                
+
                 if (receivedQty !== Number(item.qty)) {
                     throw new Error(`Quantity Mismatch: Item (${item.barcode || 'N/A'}) was dispatched with quantity ${item.qty}, but store entered ${receivedQty}. You must receive exact dispatched quantity.`);
                 }
             }
-            
+
             for (const ri of receivedItems) {
                 const isDispatched = dispatch.items.find(item => String(item.variantId) === String(ri.variantId));
                 if (!isDispatched && Number(ri.receivedQty) > 0) {
@@ -1194,10 +1279,28 @@ const receiveDispatch = async (id, userId, receivedItems = []) => {
             }
         }
 
+        dispatch = await Dispatch.findOneAndUpdate(
+            { _id: id, status: 'DISPATCHED' },
+            { $set: { status: 'RECEIVED', receivedAt: new Date() } },
+            { new: true, session }
+        );
+
+        if (!dispatch) {
+            const existing = await Dispatch.findById(id).session(session);
+            if (existing?.status === 'RECEIVED') return existing;
+            throw new Error('Only dispatched items can be received');
+        }
+
         const itemsToProcess = dispatch.items || [];
         const Item = require('../../models/item.model');
         const Store = require('../../models/store.model');
         const stockService = require('../../services/stock.service');
+        const systemConfigService = require('../systemConfig/systemConfig.service');
+        const relabelOnTransfer = await systemConfigService.getConfigByKey('relabelOnTransfer', false);
+        let destinationStore = null;
+        if (relabelOnTransfer) {
+            destinationStore = await Store.findById(dispatch.destinationStoreId).session(session);
+        }
 
         for (const item of itemsToProcess) {
             // Fallback for legacy dispatches missing itemId/barcode
@@ -1237,14 +1340,9 @@ const receiveDispatch = async (id, userId, receivedItems = []) => {
             const qtyToReceive = verified ? Number(verified.receivedQty) : item.qty;
 
             if (qtyToReceive > 0) {
-                // Check if relabeling is required
-                const systemConfigService = require('../systemConfig/systemConfig.service');
-                const relabelOnTransfer = await systemConfigService.getConfigByKey('relabelOnTransfer', false);
-
                 let targetBarcode = bcode;
                 if (relabelOnTransfer) {
-                    const store = await Store.findById(dispatch.destinationStoreId).session(session);
-                    const storeCode = store ? store.storeCode : 'STR';
+                    const storeCode = destinationStore ? destinationStore.storeCode : 'STR';
                     targetBarcode = `${storeCode}-${bcode}`;
                 }
 
@@ -1268,11 +1366,6 @@ const receiveDispatch = async (id, userId, receivedItems = []) => {
                 });
             }
         }
-
-        // Update Dispatch Status
-        dispatch.status = 'RECEIVED';
-        dispatch.receivedAt = new Date();
-        await dispatch.save({ session });
 
         return dispatch;
     });

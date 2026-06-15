@@ -177,6 +177,13 @@ const itemSchema = new mongoose.Schema({
 
 // Full-text search on code and name
 itemSchema.index({ itemName: 'text', itemCode: 'text', shadeNo: 'text' });
+itemSchema.index({ 'sizes._id': 1 });
+itemSchema.index({ 'sizes.barcode': 1 });
+itemSchema.index({ 'sizes.sku': 1 });
+itemSchema.index({ brandName: 1 });
+itemSchema.index({ sectionName: 1 });
+itemSchema.index({ createdAt: -1 });
+itemSchema.index({ itemCode: 1 });
 
 const Item = mongoose.model('Item', itemSchema);
 

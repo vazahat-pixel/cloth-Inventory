@@ -30,7 +30,10 @@ import FilterBar from '../../../components/erp/FilterBar';
 import ExportButton from '../../../components/erp/ExportButton';
 import StatusBadge from '../../../components/erp/StatusBadge';
 import suppliersExportColumns from '../../../config/exportColumns/suppliers';
-import { fetchMasters, addMasterRecord, updateMasterRecord, deleteMasterRecord } from '../mastersSlice';
+import { fetchMasterList, addMasterRecord, updateMasterRecord, deleteMasterRecord } from '../mastersSlice';
+import useDebouncedValue from '../../../hooks/useDebouncedValue';
+import useServerPagination from '../../../hooks/useServerPagination';
+import ServerTablePagination from '../../../components/erp/ServerTablePagination';
 import BulkSupplierUploadDialog from './components/BulkSupplierUploadDialog';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 
@@ -124,11 +127,14 @@ const toExportRows = (rows) =>
 
 function SuppliersListPage() {
   const dispatch = useDispatch();
-  const masterRows = useSelector((state) => state.masters?.suppliers || []);
+  const listState = useSelector((state) => state.masters?.listPages?.suppliers || {});
+  const masterRows = listState.records || [];
+  const supplierTotal = listState.total || 0;
   const masterLoading = useSelector((state) => state.masters?.loading);
 
   const [rows, setRows] = useState([]);
   const [searchText, setSearchText] = useState('');
+  const debouncedSearch = useDebouncedValue(searchText, 350);
   const [statusFilter, setStatusFilter] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
@@ -136,29 +142,31 @@ function SuppliersListPage() {
   const [formValues, setFormValues] = useState(defaultFormValues);
   const [formErrors, setFormErrors] = useState({});
 
+  const {
+    page,
+    rowsPerPage,
+    resetPage,
+    handlePageChange,
+    handleRowsPerPageChange,
+    buildParams,
+    pageSizeOptions,
+  } = useServerPagination({ defaultPageSize: 20 });
+
+  const refreshList = () => {
+    const params = buildParams({ search: debouncedSearch });
+    if (statusFilter !== 'all') params.isActive = statusFilter === 'Active' ? 'true' : 'false';
+    dispatch(fetchMasterList({ entityKey: 'suppliers', params }));
+  };
+
   useEffect(() => {
-    dispatch(fetchMasters('suppliers'));
-  }, [dispatch]);
+    refreshList();
+  }, [dispatch, debouncedSearch, statusFilter, page, rowsPerPage]);
 
   useEffect(() => {
     setRows(toLocalRows(masterRows));
   }, [masterRows]);
 
-  const filteredRows = useMemo(() => {
-    const query = searchText.trim().toLowerCase();
-
-    return rows.filter((row) => {
-      const matchesSearch = query
-        ? [row.supplierName, row.contactPerson, row.phone, row.gstNo, row.city, row.state]
-            .filter(Boolean)
-            .some((value) => String(value).toLowerCase().includes(query))
-        : true;
-      const matchesStatus = statusFilter === 'all' ? true : row.status === statusFilter;
-      return matchesSearch && matchesStatus;
-    });
-  }, [rows, searchText, statusFilter]);
-
-  const exportRows = useMemo(() => toExportRows(filteredRows), [filteredRows]);
+  const exportRows = useMemo(() => toExportRows(rows), [rows]);
 
   const openDialog = (row = null) => {
     setFormErrors({});
@@ -245,7 +253,7 @@ function SuppliersListPage() {
       <BulkSupplierUploadDialog 
         open={bulkDialogOpen} 
         onClose={() => setBulkDialogOpen(false)} 
-        onUploadSuccess={() => dispatch(fetchMasters('suppliers'))} 
+        onUploadSuccess={refreshList} 
       />
 
       <FilterBar sx={{ mb: 2 }}>
@@ -253,7 +261,7 @@ function SuppliersListPage() {
           size="small"
           placeholder="Search supplier, contact, GST, phone, or city"
           value={searchText}
-          onChange={(event) => setSearchText(event.target.value)}
+          onChange={(event) => { resetPage(); setSearchText(event.target.value); }}
           sx={{ flex: 1 }}
           InputProps={{
             startAdornment: (
@@ -268,7 +276,7 @@ function SuppliersListPage() {
           select
           label="Status"
           value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value)}
+          onChange={(event) => { resetPage(); setStatusFilter(event.target.value); }}
           sx={{ minWidth: 160 }}
         >
           <MenuItem value="all">All Statuses</MenuItem>
@@ -293,7 +301,7 @@ function SuppliersListPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredRows.map((row) => (
+              {rows.map((row) => (
                 <TableRow key={row.id} hover>
                   <TableCell>
                     <Typography sx={{ fontWeight: 700, color: '#0f172a' }}>{row.supplierName}</Typography>
@@ -318,7 +326,7 @@ function SuppliersListPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {!filteredRows.length ? (
+              {!rows.length ? (
                 <TableRow>
                   <TableCell colSpan={8} sx={{ py: 5, textAlign: 'center', color: '#64748b' }}>
                     No suppliers found for the selected filters.
@@ -328,6 +336,15 @@ function SuppliersListPage() {
             </TableBody>
           </Table>
         </TableContainer>
+        <ServerTablePagination
+          count={supplierTotal}
+          page={page}
+          rowsPerPage={rowsPerPage}
+          onPageChange={handlePageChange}
+          onRowsPerPageChange={handleRowsPerPageChange}
+          rowsPerPageOptions={pageSizeOptions}
+          disabled={masterLoading}
+        />
       </Paper>
 
       <Dialog open={dialogOpen} onClose={closeDialog} fullWidth maxWidth="md">

@@ -120,6 +120,7 @@ const dispatchSchema = new mongoose.Schema(
 dispatchSchema.index({ sourceWarehouseId: 1 });
 dispatchSchema.index({ destinationStoreId: 1 });
 dispatchSchema.index({ status: 1 });
+dispatchSchema.index({ status: 1, createdAt: -1 });
 dispatchSchema.index({ referenceId: 1 });
 dispatchSchema.index({ referenceType: 1 });
 

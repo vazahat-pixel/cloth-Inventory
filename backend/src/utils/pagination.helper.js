@@ -20,9 +20,32 @@ const buildPaginationMeta = (total, page, limit) => ({
     total,
     page,
     limit,
-    totalPages: Math.ceil(total / limit),
+    totalPages: Math.ceil(total / limit) || 0,
     hasNextPage: page * limit < total,
     hasPrevPage: page > 1,
 });
 
-module.exports = { getPagination, buildPaginationMeta };
+/**
+ * Build a safe Mongo sort object from query.sortBy / query.sortOrder.
+ * @param {object} query - req.query
+ * @param {Record<string, string>} allowedFields - client field -> DB field
+ * @param {object} defaultSort - fallback sort e.g. { createdAt: -1 }
+ */
+const getSort = (query = {}, allowedFields = {}, defaultSort = { createdAt: -1 }) => {
+    const sortBy = query.sortBy;
+    if (sortBy && allowedFields[sortBy]) {
+        const order = query.sortOrder === 'asc' ? 1 : -1;
+        return { [allowedFields[sortBy]]: order };
+    }
+    return defaultSort;
+};
+
+const PAGINATION_QUERY_KEYS = new Set(['page', 'limit', 'sortBy', 'sortOrder', 'search']);
+
+const stripPaginationKeys = (query = {}) => {
+    const filter = { ...query };
+    PAGINATION_QUERY_KEYS.forEach((key) => delete filter[key]);
+    return filter;
+};
+
+module.exports = { getPagination, buildPaginationMeta, getSort, stripPaginationKeys, PAGINATION_QUERY_KEYS };

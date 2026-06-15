@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import useRoleBasePath from '../../../hooks/useRoleBasePath';
 import {
@@ -152,4 +153,4 @@ function LowStockAlert({ items, threshold = 10 }) {
   );
 }
 
-export default LowStockAlert;
+export default memo(LowStockAlert);

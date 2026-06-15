@@ -34,7 +34,7 @@ function StockAuditPage({
 }) {
   const dispatch = useDispatch();
   const stores = useSelector((state) => state.masters.stores || []);
-  const stockRows = useSelector((state) => state.inventory.stock || []);
+  const stockRows = useSelector((state) => state.inventory.storeStock || state.inventory.stock || []);
   const audits = useSelector((state) => state.inventory.audits || []);
 
   const [warehouseId, setWarehouseId] = useState('');

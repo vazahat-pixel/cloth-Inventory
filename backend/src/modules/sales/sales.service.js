@@ -1090,12 +1090,11 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
  * List Sales
  */
 const getAllSales = async (query, user) => {
-    const page = parseInt(query.page) || 1;
-    const limit = query.limit ? parseInt(query.limit) : 50000;
-    const { storeId, startDate, endDate } = query;
+    const { getPagination, getSort } = require('../../utils/pagination.helper');
+    const { page, limit, skip } = getPagination(query);
+    const { storeId, startDate, endDate, search, paymentStatus, date } = query;
     const filter = { isDeleted: false };
 
-    // If store staff, enforce their own store only
     if (user.role === 'store_staff') {
         if (!user.shopId) {
             throw new Error('User is not linked to any store. Please contact administrator.');
@@ -1115,27 +1114,47 @@ const getAllSales = async (query, user) => {
         }
     }
 
-    const skip = (page - 1) * limit;
+    if (date) {
+        const dayStart = new Date(date);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(date);
+        dayEnd.setHours(23, 59, 59, 999);
+        filter.saleDate = { $gte: dayStart, $lte: dayEnd };
+    }
+
+    if (search) {
+        filter.$or = [
+            { saleNumber: { $regex: search, $options: 'i' } },
+            { customerName: { $regex: search, $options: 'i' } },
+            { customerMobile: { $regex: search, $options: 'i' } },
+        ];
+    }
+
+    if (paymentStatus && paymentStatus !== 'all') {
+        filter.paymentStatus = paymentStatus.toUpperCase();
+    }
+
+    const sort = getSort(query, {
+        saleDate: 'saleDate',
+        saleNumber: 'saleNumber',
+        createdAt: 'createdAt',
+    }, { saleDate: -1 });
 
     const [sales, total] = await Promise.all([
         Sale.find(filter)
-            .sort({ saleDate: -1 })
+            .sort(sort)
             .skip(skip)
-            .limit(parseInt(limit))
+            .limit(limit)
             .populate('storeId', 'name')
             .populate('cashierId', 'name')
             .populate({
                 path: 'items.itemId',
-                select: 'itemName itemCode shade gstTax sizes categoryId hsCodeId',
-                populate: [
-                    { path: 'categoryId', select: 'name' },
-                    { path: 'hsCodeId', select: 'code gstPercent' }
-                ]
+                select: 'itemName itemCode shade hsnCode gstPercent categoryName',
             }),
-        Sale.countDocuments(filter)
+        Sale.countDocuments(filter),
     ]);
 
-    return { sales, total, page: parseInt(page), limit: parseInt(limit) };
+    return { sales, total, page, limit };
 };
 
 const getSaleById = async (id, user = null) => {

@@ -1,5 +1,6 @@
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch, useSelector, shallowEqual } from 'react-redux';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { memo, useCallback, useMemo } from 'react';
 import { Box, Button, Divider, Stack, Typography } from '@mui/material';
 import { getPageTitle } from '../common/navigation';
 import { logout } from '../app/features/auth/authSlice';
@@ -14,16 +15,16 @@ function Topbar() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, role } = useSelector((state) => state.auth);
+  const { user, role } = useSelector((state) => state.auth, shallowEqual);
   const basePath = useRoleBasePath();
 
-  const title = getPageTitle(location.pathname);
+  const title = useMemo(() => getPageTitle(location.pathname), [location.pathname]);
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     const isHo = location.pathname.startsWith('/ho');
     dispatch(logout());
     navigate(isHo ? '/login/ho' : '/login/store', { replace: true });
-  };
+  }, [dispatch, location.pathname, navigate]);
 
   const isDashboardHome = location.pathname === '/ho' || location.pathname === '/store' || location.pathname === '/ho/' || location.pathname === '/store/';
 
@@ -156,4 +157,4 @@ function Topbar() {
   );
 }
 
-export default Topbar;
+export default memo(Topbar);

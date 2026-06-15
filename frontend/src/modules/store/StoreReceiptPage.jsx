@@ -75,10 +75,13 @@ function StoreReceiptPage() {
       const res = await api.get('/dispatch', { 
         params: { 
           destinationId: shopId,
-          status: 'DISPATCHED' 
+          status: 'DISPATCHED',
+          page: 1,
+          limit: 50,
         } 
       });
-      setDispatches(res.data?.data || res.data || []);
+      const payload = res.data?.data || res.data || {};
+      setDispatches(payload.dispatches || payload.records || (Array.isArray(payload) ? payload : []));
     } catch (err) {
       console.error('Failed to fetch shipments', err);
     } finally {

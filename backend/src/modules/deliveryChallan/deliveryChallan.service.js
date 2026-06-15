@@ -56,19 +56,54 @@ const createChallan = async (challanData, userId, sessionOuter = null) => {
     return await withTransaction(handle);
 };
 
-const getChallans = async (filter = {}) => {
-    const challans = await DeliveryChallan.find(filter)
-        .sort({ createdAt: -1 })
-        .populate('sourceId', 'name')
-        .populate('destinationStoreId', 'name')
-        .populate({
-            path: 'items.itemId',
-            select: 'itemName itemCode shade sizes categoryId hsCodeId hsnCode brandName brand',
-            populate: [
-                { path: 'categoryId', select: 'name' },
-                { path: 'hsCodeId', select: 'code gstPercent' }
-            ]
-        });
+const getChallans = async (query = {}) => {
+    const { getPagination, buildPaginationMeta, getSort, stripPaginationKeys } = require('../../utils/pagination.helper');
+    const { page, limit, skip } = getPagination(query);
+    const { search, status, sourceId, destinationStoreId, dateFrom, dateTo } = query;
+    const filter = {};
+
+    if (status) filter.status = status;
+    if (sourceId) filter.sourceId = sourceId;
+    if (destinationStoreId) filter.destinationStoreId = destinationStoreId;
+    if (dateFrom || dateTo) {
+        filter.dcDate = {};
+        if (dateFrom) filter.dcDate.$gte = new Date(dateFrom);
+        if (dateTo) {
+            const end = new Date(dateTo);
+            end.setHours(23, 59, 59, 999);
+            filter.dcDate.$lte = end;
+        }
+    }
+    if (search) {
+        filter.$or = [
+            { dcNumber: { $regex: search, $options: 'i' } },
+            { challanNo: { $regex: search, $options: 'i' } },
+        ];
+    }
+
+    const sort = getSort(query, {
+        dcDate: 'dcDate',
+        createdAt: 'createdAt',
+        dcNumber: 'dcNumber',
+    }, { createdAt: -1 });
+
+    const [challans, total] = await Promise.all([
+        DeliveryChallan.find(filter)
+            .sort(sort)
+            .skip(skip)
+            .limit(limit)
+            .populate('sourceId', 'name')
+            .populate('destinationStoreId', 'name')
+            .populate({
+                path: 'items.itemId',
+                select: 'itemName itemCode shade sizes categoryId hsCodeId hsnCode brandName brand',
+                populate: [
+                    { path: 'categoryId', select: 'name' },
+                    { path: 'hsCodeId', select: 'code gstPercent' },
+                ],
+            }),
+        DeliveryChallan.countDocuments(filter),
+    ]);
     challans.forEach(challan => {
         if (challan.items) {
             challan.items.forEach(item => {
@@ -79,7 +114,7 @@ const getChallans = async (filter = {}) => {
             });
         }
     });
-    return challans;
+    return { challans, pagination: buildPaginationMeta(total, page, limit) };
 };
 
 const receiveChallan = async (challanId, userId) => {

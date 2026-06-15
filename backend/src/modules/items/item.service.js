@@ -71,6 +71,11 @@ const isPlaceholderSku = (sku) => {
 };
 
 const syncBmCounterFromDatabase = async () => {
+  const counter = await Counter.findOne({ name: BM_COUNTER_NAME });
+  if (counter?.seq >= BM_MIN_SEQ - 1) {
+    return counter.seq;
+  }
+
   const items = await Item.find({
     $or: [{ itemCode: /^BM\d+$/i }, { 'sizes.sku': /^BM\d+$/i }, { 'sizes.barcode': /^BM\d+$/i }],
   })
@@ -97,7 +102,8 @@ const syncBmCounterFromDatabase = async () => {
 
 const peekBmCodes = async (count = 1) => {
   const safeCount = Math.max(1, Number(count) || 1);
-  const maxSeq = await syncBmCounterFromDatabase();
+  const counter = await Counter.findOne({ name: BM_COUNTER_NAME });
+  const maxSeq = counter?.seq >= BM_MIN_SEQ - 1 ? counter.seq : await syncBmCounterFromDatabase();
   const startSeq = Math.max(maxSeq, BM_MIN_SEQ - 1) + 1;
   return Array.from({ length: safeCount }, (_, index) => formatBmCode(startSeq + index));
 };
@@ -353,28 +359,31 @@ class ItemService {
   }
 
   async getAllItems(query = {}, user = null) {
-    const { page = 1, limit = 100000, search, brand, section } = query;
+    const { getPagination, getSort } = require('../../utils/pagination.helper');
+    const { page, limit, skip } = getPagination(query);
+    const { search, brand, section } = query;
     const filter = {};
     if (user?.role === 'store_staff') { filter.type = { $in: ['GARMENT', 'ACCESSORY'] }; filter.isActive = true; }
     if (search) filter.$or = [{ itemCode: { $regex: search, $options: 'i' } }, { itemName: { $regex: search, $options: 'i' } }, { hsnCode: { $regex: search, $options: 'i' } }];
     if (brand && brand !== 'all') filter.brandName = brand;
     if (section && section !== 'all') filter.sectionName = section;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const sort = getSort(query, {
+      itemCode: 'itemCode',
+      itemName: 'itemName',
+      brand: 'brandName',
+      createdAt: 'createdAt',
+    }, { createdAt: -1 });
+    const listSelect = 'itemCode itemName brandName sectionName categoryName hsnCode gstPercent sizes type isActive createdAt';
     const [items, total] = await Promise.all([
       Item.find(filter)
-        .populate('brand', 'name brandName')
-        .populate('sectionId', 'name groupName groupType')
-        .populate('categoryId', 'name groupName groupType')
-        .populate('subCategoryId', 'name groupName groupType')
-        .populate('styleId', 'name groupName groupType')
-        .populate('hsCodeId', 'code hsnCode gstRate gstPercent')
-        .sort({ createdAt: -1 })
+        .select(listSelect)
+        .sort(sort)
         .skip(skip)
-        .limit(parseInt(limit))
+        .limit(limit)
         .lean(),
       Item.countDocuments(filter)
     ]);
-    return { items, total, page: parseInt(page), limit: parseInt(limit) };
+    return { items, total, page, limit };
   }
 
   async getItemById(id) {

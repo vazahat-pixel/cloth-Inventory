@@ -83,7 +83,7 @@ function StockTransferFormPage({ mode = 'edit' }) {
   const isViewMode = mode === 'view';
   const isEditMode = Boolean(id);
 
-  const backendStock = useSelector((state) => state.inventory.stock || []);
+  const backendStock = useSelector((state) => state.inventory.warehouseStock || []);
   const sizes = useSelector((state) => state.masters.sizes || []);
   const warehouses = useSelector((state) => state.masters.warehouses || []);
   const stores = useSelector((state) => state.masters.stores || []);

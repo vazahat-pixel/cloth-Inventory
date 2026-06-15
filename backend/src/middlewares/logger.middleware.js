@@ -5,7 +5,11 @@ const SystemLog = require('../models/systemLog.model');
  */
 const activityLogger = (moduleName) => {
   return async (req, res, next) => {
-    // We only log successful state-changing operations
+    // Only log state-changing operations to reduce DB write amplification
+    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+      return next();
+    }
+
     const originalSend = res.send;
     
     res.send = function(data) {

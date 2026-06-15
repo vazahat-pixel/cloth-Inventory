@@ -59,29 +59,37 @@ const createVoucher = async (voucherData, userId) => {
     });
 };
 
+const { getPagination, buildPaginationMeta } = require('../../utils/pagination.helper');
+
 const getAllVouchers = async (query) => {
-    console.log('[DEBUG] getAllVouchers called with query:', query);
-    const { page = 1, limit = 10, type, status, startDate, endDate } = query;
+    const { page, limit, skip } = getPagination(query);
+    const { type, status, startDate, endDate, search } = query;
     const filter = {};
     if (type) filter.type = type;
     if (status) filter.status = status;
     if (startDate && endDate) {
         filter.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
     }
+    if (search) {
+        filter.$or = [
+            { voucherNumber: { $regex: search, $options: 'i' } },
+            { narration: { $regex: search, $options: 'i' } },
+        ];
+    }
 
-    const skip = (page - 1) * limit;
     const [vouchers, total] = await Promise.all([
         AccountingVoucher.find(filter)
             .sort({ date: -1, createdAt: -1 })
             .skip(skip)
-            .limit(parseInt(limit))
+            .limit(limit)
             .populate('entries.accountId', 'name')
             .populate('entityId', 'name supplierName customerName')
-            .populate('createdBy', 'name'),
+            .populate('createdBy', 'name')
+            .lean(),
         AccountingVoucher.countDocuments(filter)
     ]);
 
-    return { vouchers, total, page: parseInt(page), limit: parseInt(limit) };
+    return { vouchers, total, page, limit, meta: buildPaginationMeta(total, page, limit) };
 };
 
 const getVoucherById = async (id) => {

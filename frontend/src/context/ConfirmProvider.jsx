@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, useMemo } from 'react';
 import { 
   Dialog, 
   DialogTitle, 
@@ -49,8 +49,10 @@ export const ConfirmProvider = ({ children }) => {
     }
   }, []);
 
+  const contextValue = useMemo(() => ({ showConfirm }), [showConfirm]);
+
   return (
-    <ConfirmContext.Provider value={{ showConfirm }}>
+    <ConfirmContext.Provider value={contextValue}>
       {children}
       <Dialog
         open={open}

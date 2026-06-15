@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import { useDispatch, useSelector } from 'react-redux';
+import useDebouncedValue from '../../hooks/useDebouncedValue';
+import useServerPagination from '../../hooks/useServerPagination';
+import ServerTablePagination from '../../components/erp/ServerTablePagination';
 import { fetchSales, deleteSale } from './salesSlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import {
@@ -56,6 +59,8 @@ function SalesListPage({
   const navigate = useAppNavigate();
   const dispatch = useDispatch();
   const sales = useSelector((state) => state.sales.records || []);
+  const salesTotal = useSelector((state) => state.sales.total || 0);
+  const salesLoading = useSelector((state) => state.sales.loading);
   const customers = useSelector((state) => state.masters.customers || []);
   const warehouses = useSelector((state) => state.masters.warehouses || []);
   const user = useSelector((state) => state.auth.user);
@@ -63,10 +68,18 @@ function SalesListPage({
   const canCancelOrDelete = user?.role && user.role !== 'store_staff';
 
   const [searchText, setSearchText] = useState('');
+  const debouncedSearch = useDebouncedValue(searchText, 350);
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('');
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const {
+    page,
+    rowsPerPage,
+    resetPage,
+    handlePageChange,
+    handleRowsPerPageChange,
+    buildParams,
+    pageSizeOptions,
+  } = useServerPagination({ defaultPageSize: 10 });
   const [selectedSale, setSelectedSale] = useState(null);
   const [printTarget, setPrintTarget] = useState(null);
 
@@ -94,7 +107,7 @@ function SalesListPage({
       dispatch(cancelSale({ id: actionTargetId, reason: reasonText.trim() })).unwrap()
         .then(() => {
           setReasonDialogOpen(false);
-          dispatch(fetchSales());
+          dispatch(refreshSales());
         })
         .catch((err) => {
           alert(err || 'Failed to cancel sale');
@@ -103,7 +116,7 @@ function SalesListPage({
       dispatch(deleteSale({ id: actionTargetId, reason: reasonText.trim() })).unwrap()
         .then(() => {
           setReasonDialogOpen(false);
-          dispatch(fetchSales());
+          dispatch(refreshSales());
         })
         .catch((err) => {
           alert(err || 'Failed to delete sale');
@@ -112,10 +125,24 @@ function SalesListPage({
   };
 
   useEffect(() => {
-    dispatch(fetchSales());
+    const params = buildParams({
+      search: debouncedSearch,
+      ...(paymentStatusFilter !== 'all' ? { paymentStatus: paymentStatusFilter } : {}),
+      ...(dateFilter ? { date: dateFilter } : {}),
+    });
+    dispatch(fetchSales(params));
     dispatch(fetchMasters('customers'));
     dispatch(fetchMasters('warehouses'));
-  }, [dispatch]);
+  }, [dispatch, debouncedSearch, paymentStatusFilter, dateFilter, page, rowsPerPage, buildParams]);
+
+  const refreshSales = () => {
+    const params = buildParams({
+      search: debouncedSearch,
+      ...(paymentStatusFilter !== 'all' ? { paymentStatus: paymentStatusFilter } : {}),
+      ...(dateFilter ? { date: dateFilter } : {}),
+    });
+    dispatch(fetchSales(params));
+  };
 
   const customerMap = useMemo(
     () =>
@@ -135,38 +162,7 @@ function SalesListPage({
     [warehouses],
   );
 
-  const filteredRows = useMemo(() => {
-    const query = searchText.trim().toLowerCase();
-
-    return sales
-      .slice()
-      .sort((a, b) => String(b.date).localeCompare(String(a.date)))
-      .filter((row) => {
-        const customer = customerMap[row.customerId];
-        const customerName = row.customerName || customer?.customerName || 'Walk-in Customer';
-        const customerMobile = row.customerMobile || customer?.mobileNumber || '';
-
-        const matchesSearch = query
-          ? row.invoiceNumber.toLowerCase().includes(query) ||
-          customerName.toLowerCase().includes(query) ||
-          customerMobile.toLowerCase().includes(query)
-          : true;
-
-        const matchesStatus =
-          paymentStatusFilter === 'all'
-            ? true
-            : (row.payment?.status || '').toLowerCase() === paymentStatusFilter.toLowerCase();
-
-        const matchesDate = dateFilter ? row.date === dateFilter : true;
-
-        return matchesSearch && matchesStatus && matchesDate;
-      });
-  }, [customerMap, dateFilter, paymentStatusFilter, sales, searchText]);
-
-  const paginatedRows = useMemo(() => {
-    const startIndex = page * rowsPerPage;
-    return filteredRows.slice(startIndex, startIndex + rowsPerPage);
-  }, [filteredRows, page, rowsPerPage]);
+  const displayRows = useMemo(() => sales.slice().sort((a, b) => String(b.date).localeCompare(String(a.date))), [sales]);
 
   return (
     <>
@@ -202,7 +198,7 @@ function SalesListPage({
               size="small"
               value={searchText}
               onChange={(event) => {
-                setPage(0);
+                resetPage();
                 setSearchText(event.target.value);
               }}
               placeholder="Search by invoice, customer, or mobile"
@@ -222,7 +218,7 @@ function SalesListPage({
               label="Payment Status"
               value={paymentStatusFilter}
               onChange={(event) => {
-                setPage(0);
+                resetPage();
                 setPaymentStatusFilter(event.target.value);
               }}
               sx={{ minWidth: 180 }}
@@ -241,7 +237,7 @@ function SalesListPage({
               label="Date"
               value={dateFilter}
               onChange={(event) => {
-                setPage(0);
+                resetPage();
                 setDateFilter(event.target.value);
               }}
               InputLabelProps={{ shrink: true }}
@@ -249,7 +245,7 @@ function SalesListPage({
           </Stack>
         </Stack>
 
-        {filteredRows.length ? (
+        {displayRows.length ? (
           <>
             <TableContainer>
               <Table size="small">
@@ -271,7 +267,7 @@ function SalesListPage({
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {paginatedRows.map((row) => {
+                  {displayRows.map((row) => {
                     const customer = customerMap[row.customerId];
                     const customerName =
                       row.customerName || customer?.customerName || 'Walk-in Customer';
@@ -367,17 +363,14 @@ function SalesListPage({
               </Table>
             </TableContainer>
 
-            <TablePagination
-              component="div"
-              count={filteredRows.length}
+            <ServerTablePagination
+              count={salesTotal}
               page={page}
-              onPageChange={(_, nextPage) => setPage(nextPage)}
               rowsPerPage={rowsPerPage}
-              onRowsPerPageChange={(event) => {
-                setRowsPerPage(Number(event.target.value));
-                setPage(0);
-              }}
-              rowsPerPageOptions={[5, 10, 20]}
+              onPageChange={handlePageChange}
+              onRowsPerPageChange={handleRowsPerPageChange}
+              rowsPerPageOptions={pageSizeOptions}
+              disabled={salesLoading}
             />
           </>
         ) : (

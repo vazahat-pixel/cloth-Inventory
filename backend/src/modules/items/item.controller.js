@@ -53,8 +53,9 @@ class ItemController {
 
   getAllItems = async (req, res) => {
     try {
-      const items = await itemService.getAllItems(req.query, req.user);
-      return sendSuccess(res, { items }, 'Items fetched successfully');
+      const { items, total, page, limit } = await itemService.getAllItems(req.query, req.user);
+      const { buildPaginationMeta } = require('../../utils/pagination.helper');
+      return sendSuccess(res, { items, meta: buildPaginationMeta(total, page, limit) }, 'Items fetched successfully');
     } catch (error) {
       return sendError(res, error.message);
     }

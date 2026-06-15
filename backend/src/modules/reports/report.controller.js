@@ -106,8 +106,8 @@ const getStockHistory = async (req, res, next) => {
 
 const getAuditLogs = async (req, res, next) => {
     try {
-        const logs = await reportService.getAuditLogs(req.query);
-        return sendSuccess(res, { logs }, 'Audit logs retrieved successfully');
+        const { logs, meta } = await reportService.getAuditLogs(req.query);
+        return sendSuccess(res, { logs, meta }, 'Audit logs retrieved successfully');
     } catch (err) {
         next(err);
     }
@@ -117,8 +117,26 @@ const getLedgerReport = async (req, res, next) => {
     try {
         const { accountId } = req.params;
         if (!accountId) return sendError(res, 'Account ID is required', 400);
-        const report = await reportService.getLedgerReport(accountId);
-        return sendSuccess(res, { report }, 'Ledger report retrieved successfully');
+        const { report, summary, meta } = await reportService.getLedgerReport(accountId, req.query);
+        return sendSuccess(res, { report, summary, meta }, 'Ledger report retrieved successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
+const getPartyLedgerReport = async (req, res, next) => {
+    try {
+        const { entries, summary, meta } = await reportService.getPartyLedgerReport(req.query);
+        return sendSuccess(res, { entries, summary, meta }, 'Party ledger retrieved successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
+const getVisitLogs = async (req, res, next) => {
+    try {
+        const { visits, meta } = await reportService.getVisitLogs(req.query);
+        return sendSuccess(res, { visits, meta }, 'Visit logs retrieved successfully');
     } catch (err) {
         next(err);
     }
@@ -419,6 +437,8 @@ module.exports = {
     getStockHistory,
     getAuditLogs,
     getLedgerReport,
+    getPartyLedgerReport,
+    getVisitLogs,
     getGstSummary,
     getPurchaseRegister,
     getTrialBalance,

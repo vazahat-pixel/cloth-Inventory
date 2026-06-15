@@ -25,7 +25,7 @@ const toNumber = (value, fallback = 0) => {
   return Number.isFinite(numeric) ? numeric : fallback;
 };
 
-function PaymentDialog({ open, onClose, totals, onComplete, store, customer, isEditMode = false }) {
+function PaymentDialog({ open, onClose, totals, onComplete, store, customer, isEditMode = false, saving = false }) {
   const netAmount = totals?.netPayable || 0;
   const onConfirm = onComplete; // Alias for internal use
   const [payments, setPayments] = useState([{ mode: 'Cash', amount: '' }]);
@@ -41,6 +41,7 @@ function PaymentDialog({ open, onClose, totals, onComplete, store, customer, isE
   const paymentStatus = dueAmount > 0 ? 'Partial' : 'Paid';
 
   const handleConfirm = () => {
+    if (saving) return;
     const activePayments = payments
       .map((p) => ({
         mode: p.mode === 'Gift Voucher' ? 'GIFT_VOUCHER' : p.mode.toUpperCase(),
@@ -155,9 +156,9 @@ function PaymentDialog({ open, onClose, totals, onComplete, store, customer, isE
       </DialogContent>
 
       <DialogActions sx={{ p: 2 }}>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" onClick={handleConfirm}>
-          {isEditMode ? 'Save & Update Bill' : 'Confirm Payment'}
+        <Button onClick={onClose} disabled={saving}>Cancel</Button>
+        <Button variant="contained" onClick={handleConfirm} disabled={saving}>
+          {saving ? 'Saving...' : (isEditMode ? 'Save & Update Bill' : 'Confirm Payment')}
         </Button>
       </DialogActions>
     </Dialog>

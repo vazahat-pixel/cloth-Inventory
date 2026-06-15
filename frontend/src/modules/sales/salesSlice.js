@@ -1,17 +1,27 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
 import { normalizeResponse } from '../../services/normalization';
+import { extractPaginationMeta } from '../../utils/paginationMeta';
 
 // Async Thunks
-export const fetchSales = createAsyncThunk('sales/fetchAll', async (_, { rejectWithValue }) => {
+export const fetchSales = createAsyncThunk(
+  'sales/fetchAll',
+  async (params = {}, { rejectWithValue }) => {
   try {
-    const response = await api.get('/sales');
-    const raw = response.data.sales || response.data.data || [];
-    return normalizeResponse(raw, 'sale');
+    const response = await api.get('/sales', { params });
+    const raw = response.data.sales || response.data.data?.sales || [];
+    const meta = extractPaginationMeta(response.data);
+    return {
+      records: normalizeResponse(raw, 'sale'),
+      total: meta.total,
+      page: meta.page,
+      limit: meta.limit,
+    };
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || 'Failed to fetch sales');
   }
-});
+  },
+);
 
 export const addSale = createAsyncThunk('sales/add', async (saleData, { rejectWithValue }) => {
   try {
@@ -91,8 +101,12 @@ export const addSalesReturn = createAsyncThunk('sales/addReturn', async (returnD
 const initialState = {
   records: [],
   returns: [],
+  total: 0,
+  page: 1,
+  limit: 20,
   loading: false,
   error: null,
+  lastFetchedAt: null,
 };
 
 const salesSlice = createSlice({
@@ -112,7 +126,11 @@ const salesSlice = createSlice({
       })
       .addCase(fetchSales.fulfilled, (state, action) => {
         state.loading = false;
-        state.records = action.payload || [];
+        state.records = action.payload.records || [];
+        state.total = action.payload.total ?? 0;
+        state.page = action.payload.page ?? 1;
+        state.limit = action.payload.limit ?? 20;
+        state.lastFetchedAt = Date.now();
       })
       .addCase(fetchSales.rejected, (state, action) => {
         state.loading = false;

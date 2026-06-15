@@ -119,7 +119,9 @@ const populateInventoryManual = async (inventoryItems) => {
  * Get store inventory with pagination and filters
  */
 const getStoreInventory = async (query, user) => {
-    const { page = 1, limit = 50000, search, storeId, warehouseId, lowStock, type } = query;
+    const { getPagination } = require('../../utils/pagination.helper');
+    const { page, limit, skip } = getPagination(query);
+    const { search, storeId, warehouseId, lowStock, type } = query;
 
     const storeFilter = {};
     const warehouseFilter = {};
@@ -193,8 +195,6 @@ const getStoreInventory = async (query, user) => {
         storeFilter.itemId = { $in: itemIds };
         warehouseFilter.itemId = { $in: itemIds };
     }
-
-    const skip = (page - 1) * parseInt(limit);
 
     console.log('[STOCK-OVERVIEW-DEBUG] Filters:', { storeFilter, warehouseFilter });
 

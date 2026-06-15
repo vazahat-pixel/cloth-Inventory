@@ -1,4 +1,5 @@
 import { Box, Button, Card, CardContent, Stack, Typography } from '@mui/material';
+import { memo } from 'react';
 import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
@@ -97,4 +98,4 @@ function QuickActions() {
   );
 }
 
-export default QuickActions;
+export default memo(QuickActions);

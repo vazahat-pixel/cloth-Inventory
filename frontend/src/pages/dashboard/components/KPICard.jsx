@@ -1,4 +1,5 @@
 import { Box, Card, CardContent, Typography } from '@mui/material';
+import { memo } from 'react';
 
 function KPICard({ title, value, subtitle, icon: Icon, color = 'primary', onClick }) {
   const colorMap = {
@@ -87,4 +88,4 @@ function KPICard({ title, value, subtitle, icon: Icon, color = 'primary', onClic
   );
 }
 
-export default KPICard;
+export default memo(KPICard);

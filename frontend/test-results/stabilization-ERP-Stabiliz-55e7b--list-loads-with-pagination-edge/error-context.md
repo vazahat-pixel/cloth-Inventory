@@ -1,0 +1,50 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e6]:
+  - generic [ref=e7]:
+    - generic [ref=e10]:
+      - paragraph [ref=e12]: H
+      - generic [ref=e13]:
+        - heading "Inventory ERP" [level=6] [ref=e14]
+        - text: Apparel & Retail Management Suite
+    - generic [ref=e15]:
+      - heading "Welcome back!" [level=2] [ref=e16]
+      - heading "Streamline your apparel operations with our industrial-grade ERP suite designed for speed and precision." [level=6] [ref=e17]
+      - generic [ref=e18]:
+        - generic [ref=e19]:
+          - img [ref=e21]
+          - img [ref=e24]
+          - img [ref=e27]
+        - paragraph [ref=e29]: Trusted by 500+ Retailers
+    - generic [ref=e31]: Copyright 2026 Inventory ERP. Industrial Excellence.
+  - generic [ref=e33]:
+    - generic [ref=e34]:
+      - heading "HO Login" [level=4] [ref=e35]
+      - paragraph [ref=e36]: Sign in to continue to your head office workspace.
+    - generic [ref=e37]:
+      - generic [ref=e38]:
+        - generic [ref=e39]:
+          - text: Work Email
+          - generic [ref=e40]: "*"
+        - generic [ref=e41]:
+          - img [ref=e43]
+          - textbox "Work Email" [ref=e45]:
+            - /placeholder: you@company.com
+            - text: admin@clothinventory.com
+          - group:
+            - generic: Work Email *
+      - generic [ref=e46]:
+        - generic [ref=e47]:
+          - text: Password
+          - generic [ref=e48]: "*"
+        - generic [ref=e49]:
+          - img [ref=e51]
+          - textbox "Password" [active] [ref=e53]:
+            - /placeholder: "********"
+            - text: Admin@1234
+          - group:
+            - generic: Password *
+      - button "Sign in to Account" [ref=e55] [cursor=pointer]
+    - paragraph [ref=e57]: Having trouble signing in? Contact Administrator
+```

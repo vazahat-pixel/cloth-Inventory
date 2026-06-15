@@ -1,33 +1,60 @@
 const { body } = require('express-validator');
 
 const createDispatchValidation = [
-    body('sourceWarehouseId')
-        .notEmpty().withMessage('Source Warehouse ID is required')
-        .isMongoId().withMessage('Invalid Warehouse ID'),
-
     body('destinationStoreId')
         .notEmpty().withMessage('Destination Store ID is required')
         .isMongoId().withMessage('Invalid Store ID'),
-    
+
+    body('sourceId')
+        .optional()
+        .isMongoId().withMessage('Invalid Source ID'),
+
+    body('sourceWarehouseId')
+        .optional()
+        .isMongoId().withMessage('Invalid Warehouse ID'),
+
+    body().custom((_, { req }) => {
+        const source = req.body.sourceId || req.body.sourceWarehouseId;
+        if (!source) throw new Error('Source warehouse ID is required');
+        return true;
+    }),
+
+    body('items')
+        .optional()
+        .isArray()
+        .withMessage('Items must be an array'),
+
     body('products')
-        .isArray({ min: 1 }).withMessage('At least one product is required for dispatch'),
-    
-    body('products.*.productId')
-        .notEmpty().withMessage('Product ID is required')
-        .isMongoId().withMessage('Invalid Product ID'),
-    
-    body('products.*.quantity')
-        .notEmpty().withMessage('Quantity is required')
+        .optional()
+        .isArray()
+        .withMessage('Products must be an array'),
+
+    body().custom((_, { req }) => {
+        const finalItems = req.body.items || req.body.products || [];
+        if (!finalItems.length) throw new Error('At least one item is required for dispatch');
+        return true;
+    }),
+
+    body('items.*.variantId')
+        .optional()
+        .isMongoId().withMessage('Invalid variant ID'),
+
+    body('items.*.quantity')
+        .optional()
         .isInt({ min: 1 }).withMessage('Quantity must be at least 1'),
 ];
 
-const updateStatusValidation = [
-    body('status')
-        .notEmpty().withMessage('Status is required')
-        .isIn(['SHIPPED', 'RECEIVED']).withMessage('Invalid status value'),
+const updateDispatchValidation = [
+    body('destinationStoreId')
+        .optional()
+        .isMongoId().withMessage('Invalid Store ID'),
+
+    body('sourceId')
+        .optional()
+        .isMongoId().withMessage('Invalid Source ID'),
 ];
 
 module.exports = {
     createDispatchValidation,
-    updateStatusValidation
+    updateDispatchValidation,
 };

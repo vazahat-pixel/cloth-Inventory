@@ -17,6 +17,8 @@ router.get('/returns', reportController.getReturnSummary);
 router.get('/stock-history', reportController.getStockHistory);
 router.get('/audit-logs', requireAdmin, reportController.getAuditLogs);
 router.get('/ledger/:accountId', reportController.getLedgerReport);
+router.get('/party-ledger', reportController.getPartyLedgerReport);
+router.get('/visit-logs', reportController.getVisitLogs);
 router.get('/gst-summary', requireAdmin, reportController.getGstSummary);
 router.get('/detailed-gst', requireAdmin, reportController.getDetailedGstReport);
 router.get('/branch-sales-stock', reportController.getBranchSalesStock);

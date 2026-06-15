@@ -490,26 +490,75 @@ const getGrnsByPurchase = async (purchaseId) => {
     return await GRN.find({ purchaseId, isDeleted: false }).sort({ createdAt: -1 });
 };
 
-const getAllGrns = async (filters = {}) => {
-    const query = { isDeleted: false };
-    if (filters.grnType) query.grnType = filters.grnType;
-    if (filters.supplierId) query.supplierId = filters.supplierId;
-    if (filters.status) query.status = filters.status;
+const getAllGrns = async (query = {}) => {
+    const { getPagination, buildPaginationMeta, getSort } = require('../../utils/pagination.helper');
+    const { page, limit, skip } = getPagination(query);
+    const { search, status, grnType, supplierId } = query;
 
-    const grns = await GRN.find(query)
-        .populate('supplierId', 'name supplierName')
-        .populate('warehouseId', 'name')
-        .populate('items.itemId', 'itemName itemCode uom')
-        .sort({ createdAt: -1 });
+    const match = { isDeleted: false };
+    if (status) match.status = status;
+    if (grnType) match.grnType = grnType;
+    if (supplierId) match.supplierId = supplierId;
+    if (search) {
+        match.$or = [
+            { grnNumber: { $regex: search, $options: 'i' } },
+            { invoiceNumber: { $regex: search, $options: 'i' } },
+        ];
+    }
 
-    // Deduplicate by grnNumber (safety net — each grnNumber must be unique)
-    const seen = new Set();
-    return grns.filter(grn => {
-        const key = grn.grnNumber;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-    });
+    const sort = getSort(query, {
+        grnNumber: 'grnNumber',
+        createdAt: 'createdAt',
+        status: 'status',
+        invoiceNumber: 'invoiceNumber',
+    }, { createdAt: -1 });
+
+    const [facet] = await GRN.aggregate([
+        { $match: match },
+        { $sort: sort },
+        {
+            $facet: {
+                data: [
+                    { $skip: skip },
+                    { $limit: limit },
+                    {
+                        $project: {
+                            grnNumber: 1,
+                            grnType: 1,
+                            createdAt: 1,
+                            invoiceNumber: 1,
+                            status: 1,
+                            supplierId: 1,
+                            warehouseId: 1,
+                            totalQty: 1,
+                            grandTotal: 1,
+                            itemLineCount: { $size: { $ifNull: ['$items', []] } },
+                        },
+                    },
+                    {
+                        $lookup: {
+                            from: 'suppliers',
+                            localField: 'supplierId',
+                            foreignField: '_id',
+                            as: 'supplierDoc',
+                            pipeline: [{ $project: { name: 1, supplierName: 1 } }],
+                        },
+                    },
+                    {
+                        $addFields: {
+                            supplierId: { $arrayElemAt: ['$supplierDoc', 0] },
+                        },
+                    },
+                    { $project: { supplierDoc: 0 } },
+                ],
+                total: [{ $count: 'count' }],
+            },
+        },
+    ]);
+
+    const grns = facet?.data || [];
+    const total = facet?.total?.[0]?.count || 0;
+    return { grns, total, page, limit, meta: buildPaginationMeta(total, page, limit) };
 };
 
 const getNextSuggestedNumber = async () => {

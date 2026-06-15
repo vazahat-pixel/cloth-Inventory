@@ -28,8 +28,9 @@ const getAllPurchases = async (req, res, next) => {
         if (req.user.role === 'store_staff') {
             query.storeId = req.user.shopId;
         }
-        const result = await purchaseService.getAllPurchases(query);
-        return sendSuccess(res, result, 'Purchases retrieved successfully');
+        const { purchases, total, page, limit } = await purchaseService.getAllPurchases(query);
+        const { buildPaginationMeta } = require('../../utils/pagination.helper');
+        return sendSuccess(res, { purchases, meta: buildPaginationMeta(total, page, limit) }, 'Purchases retrieved successfully');
     } catch (err) {
         next(err);
     }

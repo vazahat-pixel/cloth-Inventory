@@ -1,11 +1,11 @@
 const logger = require('../config/logger');
-const fs = require('fs');
+const fs = require('fs').promises;
 const path = require('path');
 
-const errorHandler = (err, req, res, next) => {
+const errorHandler = async (err, req, res, next) => {
     try {
         const logPath = path.join(__dirname, '..', '..', 'temp_err.log');
-        fs.appendFileSync(logPath, new Date().toISOString() + ' ' + err.message + '\n' + err.stack + '\n\n');
+        await fs.appendFile(logPath, new Date().toISOString() + ' ' + err.message + '\n' + err.stack + '\n\n');
     } catch (logErr) {
         console.error('Failed to write to temp log:', logErr.message);
     }
@@ -45,7 +45,11 @@ const errorHandler = (err, req, res, next) => {
         err.message.includes('must have the same') ||
         err.message.includes('Only pending or packed') ||
         err.message.includes('Dispatch record not found') ||
-        err.message.includes('No items found')
+        err.message.includes('No items found') ||
+        err.message.includes('Quantity Mismatch') ||
+        err.message.includes('Mismatch Alert') ||
+        err.message.includes('no longer available to combine') ||
+        err.message.includes('already being processed')
     )) {
         err.statusCode = 400;
     }

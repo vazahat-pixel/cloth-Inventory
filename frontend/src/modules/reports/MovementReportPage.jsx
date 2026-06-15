@@ -30,7 +30,7 @@ const SLOW_MOVING_DAYS = 90;
 function MovementReportPage() {
   const sales = useSelector((state) => state.sales?.records || []);
   const items = useSelector((state) => state.items?.records || []);
-  const stock = useSelector((state) => state.inventory?.stock || []);
+  const stock = useSelector((state) => state.inventory?.storeStock || state.inventory?.stock || []);
 
   const [filters, setFilters] = useState({});
   const [searchText, setSearchText] = useState('');

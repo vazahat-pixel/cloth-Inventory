@@ -108,5 +108,8 @@ grnSchema.index({ jobWorkId: 1 });
 grnSchema.index({ status: 1 });
 grnSchema.index({ grnType: 1 });
 grnSchema.index({ supplierId: 1 });
+grnSchema.index({ createdAt: -1 });
+grnSchema.index({ grnNumber: 1 });
+grnSchema.index({ isDeleted: 1, createdAt: -1 });
 
 module.exports = mongoose.model('GRN', grnSchema);

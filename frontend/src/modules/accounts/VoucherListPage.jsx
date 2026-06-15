@@ -1,22 +1,37 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import useDebouncedValue from '../../hooks/useDebouncedValue';
+import useServerPagination from '../../hooks/useServerPagination';
+import ServerTablePagination from '../../components/erp/ServerTablePagination';
 import {
   Box,
   Button,
   Chip,
+  InputAdornment,
   Paper,
   Stack,
+  Tab,
+  Tabs,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
+  TextField,
   Typography,
 } from '@mui/material';
-import { Add as AddIcon, Receipt as ReceiptIcon } from '@mui/icons-material';
+import { Add as AddIcon, Receipt as ReceiptIcon, Search as SearchIcon } from '@mui/icons-material';
 import { fetchVouchers, clearAccountsError } from './accountsSlice';
 import VoucherFormDialog from './VoucherFormDialog';
+
+const TYPE_TABS = [
+  { value: 'all', label: 'All' },
+  { value: 'BANK_RECEIPT', label: 'Receipts' },
+  { value: 'BANK_PAYMENT', label: 'Payments' },
+  { value: 'CASH_RECEIPT', label: 'Cash Receipts' },
+  { value: 'CASH_PAYMENT', label: 'Cash Payments' },
+];
 
 const getVoucherTypeColor = (type) => {
   switch (type) {
@@ -33,12 +48,25 @@ const getVoucherTypeColor = (type) => {
 
 function VoucherListPage() {
   const dispatch = useDispatch();
-  const { vouchers, loading, error } = useSelector((state) => state.accounts);
+  const { vouchers, total, loading, error } = useSelector((state) => state.accounts);
   const [openDialog, setOpenDialog] = useState(false);
+  const [searchText, setSearchText] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const debouncedSearch = useDebouncedValue(searchText, 300);
+  const pagination = useServerPagination({ defaultPageSize: 20 });
 
   useEffect(() => {
-    dispatch(fetchVouchers());
-  }, [dispatch]);
+    dispatch(clearAccountsError());
+    dispatch(fetchVouchers(pagination.buildParams({
+      search: debouncedSearch || undefined,
+      type: typeFilter !== 'all' ? typeFilter : undefined,
+    })));
+  }, [dispatch, pagination.page, pagination.rowsPerPage, debouncedSearch, typeFilter]);
+
+  const handleTypeChange = (_, value) => {
+    setTypeFilter(value);
+    pagination.resetPage();
+  };
 
   return (
     <Box>
@@ -55,17 +83,39 @@ function VoucherListPage() {
           variant="contained"
           startIcon={<AddIcon />}
           onClick={() => setOpenDialog(true)}
-          sx={{
-            borderRadius: 2,
-            textTransform: 'none',
-            fontWeight: 600,
-            boxShadow: 'none',
-            '&:hover': { boxShadow: 'none' },
-          }}
+          sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, boxShadow: 'none' }}
         >
           New Voucher
         </Button>
       </Stack>
+
+      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, overflow: 'hidden', mb: 2 }}>
+        <Tabs value={typeFilter} onChange={handleTypeChange} sx={{ px: 2, borderBottom: '1px solid #e2e8f0' }}>
+          {TYPE_TABS.map((tab) => (
+            <Tab key={tab.value} value={tab.value} label={tab.label} sx={{ textTransform: 'none', fontWeight: 600 }} />
+          ))}
+        </Tabs>
+        <Box sx={{ p: 2 }}>
+          <TextField
+            size="small"
+            fullWidth
+            placeholder="Search voucher number or narration..."
+            value={searchText}
+            onChange={(e) => { setSearchText(e.target.value); pagination.resetPage(); }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" />
+                </InputAdornment>
+              ),
+            }}
+          />
+        </Box>
+      </Paper>
+
+      {error && (
+        <Typography color="error" sx={{ mb: 2 }}>{error}</Typography>
+      )}
 
       <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, overflow: 'hidden' }}>
         <TableContainer>
@@ -127,6 +177,14 @@ function VoucherListPage() {
             </TableBody>
           </Table>
         </TableContainer>
+        <ServerTablePagination
+          count={total}
+          page={pagination.page}
+          rowsPerPage={pagination.rowsPerPage}
+          onPageChange={pagination.handlePageChange}
+          onRowsPerPageChange={pagination.handleRowsPerPageChange}
+          rowsPerPageOptions={pagination.pageSizeOptions}
+        />
       </Paper>
 
       <VoucherFormDialog open={openDialog} onClose={() => setOpenDialog(false)} />

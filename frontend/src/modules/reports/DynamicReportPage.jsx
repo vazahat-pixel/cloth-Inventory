@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Paper,
@@ -8,7 +8,6 @@ import {
   TableCell,
   TableContainer,
   TableHead,
-  TablePagination,
   TableRow,
   TextField,
   Typography,
@@ -20,22 +19,26 @@ import SearchIcon from '@mui/icons-material/Search';
 import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
 import api from '../../services/api';
+import useDebouncedValue from '../../hooks/useDebouncedValue';
+import useServerPagination from '../../hooks/useServerPagination';
+import ServerTablePagination from '../../components/erp/ServerTablePagination';
+import { extractListPayload, extractPaginationMeta } from '../../utils/paginationMeta';
 
-/**
- * DynamicReportPage - A reusable engine for various ERP reports.
- * 
- * @param {object} config - Configuration object
- * @param {string} config.title - Page title
- * @param {string} config.description - Page subtitle
- * @param {string} config.endpoint - Backend API endpoint (relative to /api)
- * @param {array} config.columns - Column definitions { field, headerName, align, render, transform }
- * @param {object} config.filterConfig - Boolean flags for ReportFilterPanel (showWarehouse, etc.)
- * @param {string} config.dataKey - Key in response JSON that contains the data array (default: 'report')
- */
 function DynamicReportPage({ config }) {
-  const { title, description, endpoint, columns = [], filterConfig = {}, dataKey = 'report' } = config;
+  const {
+    title,
+    description,
+    endpoint,
+    columns = [],
+    filterConfig = {},
+    dataKey = 'report',
+    apiBase = '/reports',
+    serverPagination = false,
+    listKeys,
+  } = config;
 
   const [data, setData] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [filters, setFilters] = useState({
@@ -43,58 +46,81 @@ function DynamicReportPage({ config }) {
     dateTo: new Date().toISOString().split('T')[0],
   });
   const [searchText, setSearchText] = useState('');
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const debouncedSearch = useDebouncedValue(searchText, 300);
+  const {
+    page,
+    rowsPerPage,
+    resetPage,
+    handlePageChange,
+    handleRowsPerPageChange,
+    buildParams,
+    pageSizeOptions,
+  } = useServerPagination({ defaultPageSize: 10 });
 
-  const fetchData = async () => {
+  const resolvedListKeys = listKeys || [dataKey, 'report', 'records', 'challans', 'entries', 'visits', 'logs'];
+
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get(`/reports${endpoint}`, {
-        params: filters,
-      });
-      
-      const result = response.data.data?.[dataKey] || response.data.data || [];
-      setData(Array.isArray(result) ? result : [result]);
+      const params = {
+        ...filters,
+        ...(serverPagination ? buildParams({ search: debouncedSearch }) : {}),
+      };
+      const url = apiBase ? `${apiBase}${endpoint}` : endpoint;
+      const response = await api.get(url, { params });
+
+      const rows = extractListPayload(response.data, resolvedListKeys);
+      setData(Array.isArray(rows) ? rows : []);
+
+      if (serverPagination) {
+        const meta = extractPaginationMeta(response.data);
+        setTotal(meta.total);
+      } else {
+        setTotal(Array.isArray(rows) ? rows.length : 0);
+      }
     } catch (err) {
       console.error(`Error fetching ${title}:`, err);
       setError(err.response?.data?.message || 'Failed to fetch report data.');
+      setData([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
-  };
+  }, [apiBase, buildParams, debouncedSearch, endpoint, filters, resolvedListKeys, serverPagination, title]);
 
   useEffect(() => {
     fetchData();
-  }, [filters, endpoint]);
+  }, [fetchData]);
 
   const filteredRows = useMemo(() => {
-    const query = searchText.toLowerCase();
+    if (serverPagination) return data;
+    const query = debouncedSearch.toLowerCase();
     if (!query) return data;
     return data.filter((row) =>
       columns.some((col) => {
         const val = row[col.field];
         return String(val || '').toLowerCase().includes(query);
-      })
+      }),
     );
-  }, [data, searchText, columns]);
+  }, [columns, data, debouncedSearch, serverPagination]);
 
-  const paginatedRows = useMemo(
-    () => filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
-    [filteredRows, page, rowsPerPage]
-  );
+  const paginatedRows = useMemo(() => {
+    if (serverPagination) return filteredRows;
+    return filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  }, [filteredRows, page, rowsPerPage, serverPagination]);
 
-  const exportRows = useMemo(() => {
-    return filteredRows.map(row => {
-      const exportRow = {};
-      columns.forEach(col => {
-        let val = row[col.field];
-        if (col.transform) val = col.transform(val, row);
-        exportRow[col.headerName] = val;
-      });
-      return exportRow;
+  const exportRows = useMemo(() => filteredRows.map((row) => {
+    const exportRow = {};
+    columns.forEach((col) => {
+      let val = row[col.field];
+      if (col.transform) val = col.transform(val, row);
+      exportRow[col.headerName] = val;
     });
-  }, [filteredRows, columns]);
+    return exportRow;
+  }), [columns, filteredRows]);
+
+  const paginationCount = serverPagination ? total : filteredRows.length;
 
   return (
     <Box>
@@ -111,7 +137,7 @@ function DynamicReportPage({ config }) {
         <Paper elevation={0} sx={{ p: 2, border: '1px solid #e2e8f0', borderRadius: 3, bgcolor: '#ffffff' }}>
           <ReportFilterPanel
             filters={filters}
-            onFiltersChange={setFilters}
+            onFiltersChange={(next) => { resetPage(); setFilters(next); }}
             {...filterConfig}
           />
         </Paper>
@@ -121,7 +147,7 @@ function DynamicReportPage({ config }) {
             size="small"
             placeholder="Search report..."
             value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
+            onChange={(e) => { resetPage(); setSearchText(e.target.value); }}
             sx={{ maxWidth: 300 }}
             InputProps={{
               startAdornment: (
@@ -129,13 +155,13 @@ function DynamicReportPage({ config }) {
                   <SearchIcon fontSize="small" sx={{ color: '#94a3b8' }} />
                 </InputAdornment>
               ),
-              sx: { borderRadius: 2, bgcolor: '#ffffff' }
+              sx: { borderRadius: 2, bgcolor: '#ffffff' },
             }}
           />
-          
+
           <ReportExportButton
-            headers={columns.map(c => c.headerName)}
-            headerKeys={columns.map(c => c.headerName)}
+            headers={columns.map((c) => c.headerName)}
+            headerKeys={columns.map((c) => c.headerName)}
             rows={exportRows}
             filename={`${title.toLowerCase().replace(/\s+/g, '-')}.csv`}
           />
@@ -165,7 +191,7 @@ function DynamicReportPage({ config }) {
                       textTransform: 'uppercase',
                       fontSize: '0.7rem',
                       letterSpacing: '0.05em',
-                      borderBottom: '2px solid #e2e8f0'
+                      borderBottom: '2px solid #e2e8f0',
                     }}
                   >
                     {col.headerName}
@@ -193,7 +219,7 @@ function DynamicReportPage({ config }) {
                 </TableRow>
               ) : (
                 paginatedRows.map((row, index) => (
-                  <TableRow key={index} hover sx={{ '&:last-child td': { border: 0 } }}>
+                  <TableRow key={row.id || row._id || index} hover sx={{ '&:last-child td': { border: 0 } }}>
                     {columns.map((col) => (
                       <TableCell key={col.field} align={col.align || 'left'} sx={{ py: 1.25, color: '#1e293b', fontWeight: 500 }}>
                         {col.render ? col.render(row[col.field], row) : (col.transform ? col.transform(row[col.field], row) : row[col.field])}
@@ -205,17 +231,14 @@ function DynamicReportPage({ config }) {
             </TableBody>
           </Table>
         </TableContainer>
-        <TablePagination
-          component="div"
-          count={filteredRows.length}
+        <ServerTablePagination
+          count={paginationCount}
           page={page}
-          onPageChange={(_, p) => setPage(p)}
           rowsPerPage={rowsPerPage}
-          onRowsPerPageChange={(e) => {
-            setRowsPerPage(parseInt(e.target.value, 10));
-            setPage(0);
-          }}
-          sx={{ borderTop: '1px solid #e2e8f0' }}
+          onPageChange={handlePageChange}
+          onRowsPerPageChange={handleRowsPerPageChange}
+          rowsPerPageOptions={pageSizeOptions}
+          disabled={loading}
         />
       </Paper>
     </Box>

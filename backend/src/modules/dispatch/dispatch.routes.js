@@ -1,32 +1,27 @@
 const express = require('express');
 const dispatchController = require('./dispatch.controller');
 const { protect } = require('../../middlewares/auth.middleware');
-const { requireAdmin } = require('../../middlewares/role.middleware');
+const { validateRequest } = require('../../middlewares/validation.middleware');
+const { idempotency } = require('../../middlewares/idempotency.middleware');
+const {
+    createDispatchValidation,
+    updateDispatchValidation,
+} = require('./dispatch.validation');
 
 const router = express.Router();
 
 router.use(protect);
 
-router.post('/', dispatchController.create);
+router.post('/', idempotency, createDispatchValidation, validateRequest, dispatchController.create);
 router.get('/', dispatchController.get);
 router.get('/:id', dispatchController.getById);
-router.put('/:id', dispatchController.update);
+router.put('/:id', idempotency, updateDispatchValidation, validateRequest, dispatchController.update);
 
-// Combine multiple dispatches into one and confirm
-router.post('/combine-dispatch', dispatchController.combineAndConfirm);
-
-// Mark as PACKED (from DRAFT / Sale Challan)
-router.post('/:id/pack', dispatchController.pack);
-
-// Mark as DISPATCHED (from DRAFT)
-router.post('/:id/confirm', dispatchController.confirm);
-
-// Mark as CANCELLED (from DRAFT)
-router.post('/:id/cancel-draft', dispatchController.cancel);
-
-// Mark as RECEIVED and Update Inventory
-router.post('/:id/receive', dispatchController.receive);
-
+router.post('/combine-dispatch', idempotency, dispatchController.combineAndConfirm);
+router.post('/:id/pack', idempotency, dispatchController.pack);
+router.post('/:id/confirm', idempotency, dispatchController.confirm);
+router.post('/:id/cancel-draft', idempotency, dispatchController.cancel);
+router.post('/:id/receive', idempotency, dispatchController.receive);
 router.delete('/:id', dispatchController.remove);
 
 module.exports = router;

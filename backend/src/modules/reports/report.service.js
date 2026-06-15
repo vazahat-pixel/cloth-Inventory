@@ -298,27 +298,62 @@ const getReturnSummary = async (storeId) => {
 /**
  * Ledger Report with Running Balance
  */
-const getLedgerReport = async (accountId) => {
-    const entries = await Ledger.find({ accountId })
-        .sort({ date: 1 })
-        .populate('accountId', 'name type code')
-        .populate('createdBy', 'name');
+const getLedgerReport = async (accountId, query = {}) => {
+    const { getPagination, buildPaginationMeta } = require('../../utils/pagination.helper');
+    const { page, limit, skip } = getPagination(query);
+    const { search, dateFrom, dateTo } = query;
+
+    const filter = { accountId };
+    if (dateFrom || dateTo) {
+        filter.date = {};
+        if (dateFrom) filter.date.$gte = new Date(dateFrom);
+        if (dateTo) {
+            const end = new Date(dateTo);
+            end.setHours(23, 59, 59, 999);
+            filter.date.$lte = end;
+        }
+    }
+    if (search) {
+        filter.$or = [
+            { narration: { $regex: search, $options: 'i' } },
+            { reference: { $regex: search, $options: 'i' } },
+        ];
+    }
+
+    const account = await Account.findById(accountId).select('type').lean();
+    const accountType = account?.type || 'ASSET';
+    const isDebitNormal = ['ASSET', 'EXPENSE'].includes(accountType);
+
+    const [allEntries, total] = await Promise.all([
+        Ledger.find(filter)
+            .sort({ date: 1, _id: 1 })
+            .populate('accountId', 'name type code')
+            .populate('createdBy', 'name')
+            .lean(),
+        Ledger.countDocuments(filter),
+    ]);
 
     let runningBalance = 0;
-    return entries.map(entry => {
-        const accountType = entry.accountId.type;
-        // For Assets and Expenses: Balance = Debit - Credit
-        // For Liabilities, Income, and Equity: Balance = Credit - Debit
-        const isDebitNormal = ['ASSET', 'EXPENSE'].includes(accountType);
+    const withBalance = allEntries.map((entry) => {
         const change = isDebitNormal ? (entry.debit - entry.credit) : (entry.credit - entry.debit);
-
         runningBalance += change;
-
         return {
-            ...entry.toObject(),
-            runningBalance: Number(runningBalance.toFixed(2))
+            ...entry,
+            runningBalance: Number(runningBalance.toFixed(2)),
         };
     });
+
+    const pageEntries = withBalance.slice(skip, skip + limit);
+    const openingBalance = skip > 0 && withBalance[skip - 1]
+        ? withBalance[skip - 1].runningBalance
+        : 0;
+    const currentBalance = withBalance.length ? withBalance[withBalance.length - 1].runningBalance : 0;
+
+    return {
+        report: pageEntries,
+        summary: { openingBalance, currentBalance },
+        meta: buildPaginationMeta(total, page, limit),
+    };
 };
 
 /**
@@ -531,16 +566,42 @@ const getStockHistory = async (query = {}) => {
  * Audit Log Report
  */
 const getAuditLogs = async (query = {}) => {
-    const { module, action, performedBy } = query;
+    const { getPagination, buildPaginationMeta, getSort } = require('../../utils/pagination.helper');
+    const { page, limit, skip } = getPagination(query);
+    const { module, action, performedBy, search, dateFrom, dateTo } = query;
     const filter = {};
-    if (module) filter.module = module;
-    if (action) filter.action = action;
-    if (performedBy) filter.performedBy = performedBy;
+    if (module && module !== 'all') filter.module = module;
+    if (action && action !== 'all') filter.action = action;
+    if (performedBy && performedBy !== 'all') filter.performedBy = performedBy;
+    if (dateFrom || dateTo) {
+        filter.createdAt = {};
+        if (dateFrom) filter.createdAt.$gte = new Date(dateFrom);
+        if (dateTo) {
+            const end = new Date(dateTo);
+            end.setHours(23, 59, 59, 999);
+            filter.createdAt.$lte = end;
+        }
+    }
+    if (search) {
+        filter.$or = [
+            { action: { $regex: search, $options: 'i' } },
+            { module: { $regex: search, $options: 'i' } },
+        ];
+    }
 
-    return await require('../../models/auditLog.model').find(filter)
-        .sort({ createdAt: -1 })
-        .populate('performedBy', 'name email')
-        .limit(100);
+    const AuditLog = require('../../models/auditLog.model');
+    const sort = getSort(query, { createdAt: 'createdAt', action: 'action', module: 'module' }, { createdAt: -1 });
+
+    const [logs, total] = await Promise.all([
+        AuditLog.find(filter)
+            .sort(sort)
+            .skip(skip)
+            .limit(limit)
+            .populate('performedBy', 'name email'),
+        AuditLog.countDocuments(filter),
+    ]);
+
+    return { logs, meta: buildPaginationMeta(total, page, limit) };
 };
 
 /**
@@ -1765,7 +1826,253 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
     return rows;
 };
 
+/**
+ * Party ledger (Customer / Supplier) — mirrors frontend LedgerReportPage calculations.
+ */
+const getPartyLedgerReport = async (query = {}) => {
+    const { getPagination, buildPaginationMeta } = require('../../utils/pagination.helper');
+    const { page, limit, skip } = getPagination(query);
+    const { accountType = 'Customer', partyId, dateFrom, dateTo, search } = query;
+    const AccountingVoucher = require('../../models/accountingVoucher.model');
+    const PurchaseReturn = require('../../models/purchaseReturn.model');
+
+    const buildMongoDateRange = () => {
+        if (!dateFrom && !dateTo) return null;
+        const range = {};
+        if (dateFrom) range.$gte = new Date(dateFrom);
+        if (dateTo) {
+            const end = new Date(dateTo);
+            end.setHours(23, 59, 59, 999);
+            range.$lte = end;
+        }
+        return range;
+    };
+    const mongoDateRange = buildMongoDateRange();
+
+    const inRange = (d) => {
+        const ds = String(d || '').slice(0, 10);
+        return (!dateFrom || ds >= dateFrom) && (!dateTo || ds <= dateTo);
+    };
+
+    let entries = [];
+
+    if (accountType === 'Customer') {
+        const saleFilter = { isDeleted: false };
+        if (partyId && partyId !== 'all') saleFilter.customerId = partyId;
+        if (mongoDateRange) saleFilter.saleDate = mongoDateRange;
+        const sales = await Sale.find(saleFilter)
+            .select('saleDate saleNumber customerName customerId totals')
+            .lean();
+
+        sales.forEach((s) => {
+            const date = String(s.saleDate || '').slice(0, 10);
+            if (!inRange(date)) return;
+            if (partyId !== 'all' && String(s.customerId || '') !== String(partyId)) return;
+            const amt = toNum(s.totals?.netPayable ?? s.totals?.grandTotal);
+            if (amt <= 0) return;
+            entries.push({
+                date,
+                reference: s.saleNumber,
+                narration: `Sale ${s.saleNumber} - ${s.customerName || 'Walk-in'}`,
+                debit: amt,
+                credit: 0,
+                type: 'Sale',
+            });
+        });
+
+        const receiptFilter = { type: 'BANK_RECEIPT', status: { $ne: 'CANCELLED' } };
+        if (partyId && partyId !== 'all') {
+            receiptFilter.entityId = partyId;
+            receiptFilter.entityModel = 'Customer';
+        }
+        if (mongoDateRange) receiptFilter.date = mongoDateRange;
+        const receipts = await AccountingVoucher.find(receiptFilter)
+            .select('date voucherNumber totalAmount referenceId entityId entries')
+            .lean();
+
+        receipts.forEach((r) => {
+            const date = String(r.date || '').slice(0, 10);
+            if (!inRange(date)) return;
+            if (partyId !== 'all' && String(r.entityId || '') !== String(partyId)) return;
+            const amt = toNum(r.totalAmount);
+            if (amt <= 0) return;
+            entries.push({
+                date,
+                reference: r.referenceId || r.voucherNumber || 'Receipt',
+                narration: r.entries?.[0]?.narration || 'Bank receipt',
+                debit: 0,
+                credit: amt,
+                type: 'Receipt',
+            });
+        });
+    } else {
+        const purchaseFilter = {};
+        if (partyId && partyId !== 'all') purchaseFilter.supplierId = partyId;
+        if (mongoDateRange) purchaseFilter.invoiceDate = mongoDateRange;
+        const purchases = await Purchase.find(purchaseFilter)
+            .select('invoiceDate purchaseNumber supplierId totals')
+            .lean();
+
+        purchases.forEach((p) => {
+            const date = String(p.invoiceDate || '').slice(0, 10);
+            if (!inRange(date)) return;
+            if (partyId !== 'all' && String(p.supplierId || '') !== String(partyId)) return;
+            const amt = toNum(p.totals?.netAmount ?? p.totals?.grandTotal);
+            if (amt <= 0) return;
+            entries.push({
+                date,
+                reference: p.purchaseNumber,
+                narration: `Purchase Invoice: ${p.purchaseNumber}`,
+                debit: 0,
+                credit: amt,
+                type: 'Purchase',
+            });
+        });
+
+        const returnFilter = {};
+        if (partyId && partyId !== 'all') returnFilter.supplierId = partyId;
+        const returns = await PurchaseReturn.find(returnFilter)
+            .select('createdAt returnNumber supplierId netAmount totalAmount')
+            .lean();
+
+        returns.forEach((r) => {
+            const date = String(r.createdAt || '').slice(0, 10);
+            if (!inRange(date)) return;
+            if (partyId !== 'all' && String(r.supplierId || '') !== String(partyId)) return;
+            const amt = toNum(r.netAmount ?? r.totalAmount);
+            if (amt <= 0) return;
+            entries.push({
+                date,
+                reference: r.returnNumber,
+                narration: `Purchase Return (Debit Note): ${r.returnNumber}`,
+                debit: amt,
+                credit: 0,
+                type: 'Return',
+            });
+        });
+
+        const paymentFilter = { type: 'BANK_PAYMENT', status: { $ne: 'CANCELLED' } };
+        if (partyId && partyId !== 'all') {
+            paymentFilter.entityId = partyId;
+            paymentFilter.entityModel = 'Supplier';
+        }
+        const payments = await AccountingVoucher.find(paymentFilter)
+            .select('date voucherNumber totalAmount referenceId entityId entries')
+            .lean();
+
+        payments.forEach((r) => {
+            const date = String(r.date || '').slice(0, 10);
+            if (!inRange(date)) return;
+            if (partyId !== 'all' && String(r.entityId || '') !== String(partyId)) return;
+            const amt = toNum(r.totalAmount);
+            if (amt <= 0) return;
+            entries.push({
+                date,
+                reference: r.referenceId || r.voucherNumber || 'Payment',
+                narration: r.entries?.[0]?.narration || 'Bank payment',
+                debit: amt,
+                credit: 0,
+                type: 'Payment',
+            });
+        });
+    }
+
+    if (search) {
+        const q = String(search).toLowerCase();
+        entries = entries.filter((e) =>
+            [e.reference, e.narration, e.type].some((f) => String(f || '').toLowerCase().includes(q)),
+        );
+    }
+
+    entries.sort((a, b) => a.date.localeCompare(b.date) || String(a.reference || '').localeCompare(String(b.reference || '')));
+
+    let openingBalance = 0;
+    entries.slice(0, skip).forEach((e) => {
+        if (accountType === 'Customer') openingBalance += toNum(e.debit) - toNum(e.credit);
+        else openingBalance += toNum(e.credit) - toNum(e.debit);
+    });
+
+    const pageEntries = entries.slice(skip, skip + limit);
+    let balance = openingBalance;
+    pageEntries.forEach((e) => {
+        if (accountType === 'Customer') balance += toNum(e.debit) - toNum(e.credit);
+        else balance += toNum(e.credit) - toNum(e.debit);
+        e.balance = Number(balance.toFixed(2));
+    });
+
+    let currentBalance = 0;
+    entries.forEach((e) => {
+        if (accountType === 'Customer') currentBalance += toNum(e.debit) - toNum(e.credit);
+        else currentBalance += toNum(e.credit) - toNum(e.debit);
+    });
+
+    return {
+        entries: pageEntries,
+        summary: { openingBalance: Number(openingBalance.toFixed(2)), currentBalance: Number(currentBalance.toFixed(2)) },
+        meta: buildPaginationMeta(entries.length, page, limit),
+    };
+};
+
+const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+
+/**
+ * Visit logs — retail store visits derived from completed sales.
+ */
+const getVisitLogs = async (query = {}) => {
+    const { getPagination, buildPaginationMeta, getSort } = require('../../utils/pagination.helper');
+    const { page, limit, skip } = getPagination(query);
+    const { search, storeId, dateFrom, dateTo } = query;
+    const filter = { isDeleted: false, status: { $nin: ['CANCELLED', 'REFUNDED'] } };
+
+    if (storeId && storeId !== 'all') filter.storeId = storeId;
+    if (dateFrom || dateTo) {
+        filter.saleDate = {};
+        if (dateFrom) filter.saleDate.$gte = new Date(dateFrom);
+        if (dateTo) {
+            const end = new Date(dateTo);
+            end.setHours(23, 59, 59, 999);
+            filter.saleDate.$lte = end;
+        }
+    }
+    if (search) {
+        filter.$or = [
+            { saleNumber: { $regex: search, $options: 'i' } },
+            { customerName: { $regex: search, $options: 'i' } },
+            { customerMobile: { $regex: search, $options: 'i' } },
+        ];
+    }
+
+    const sort = getSort(query, { saleDate: 'saleDate', customerName: 'customerName' }, { saleDate: -1 });
+
+    const [sales, total] = await Promise.all([
+        Sale.find(filter)
+            .sort(sort)
+            .skip(skip)
+            .limit(limit)
+            .populate('storeId', 'name')
+            .populate('customerId', 'name phone')
+            .select('saleDate saleNumber customerName customerMobile storeId customerId totals paymentMode')
+            .lean(),
+        Sale.countDocuments(filter),
+    ]);
+
+    const visits = sales.map((s) => ({
+        id: s._id,
+        visitDate: s.saleDate,
+        customerName: s.customerName || s.customerId?.name || 'Walk-in',
+        customerMobile: s.customerMobile || s.customerId?.phone || '',
+        storeName: s.storeId?.name || '',
+        invoiceNumber: s.saleNumber,
+        amount: toNum(s.totals?.netPayable ?? s.totals?.grandTotal),
+        paymentMode: s.paymentMode || '',
+    }));
+
+    return { visits, meta: buildPaginationMeta(total, page, limit) };
+};
+
 module.exports = {
+    getPartyLedgerReport,
+    getVisitLogs,
     getDailySalesReport,
     getMonthlySalesReport,
     getStoreWiseSales,

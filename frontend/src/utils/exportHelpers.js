@@ -1,5 +1,3 @@
-import * as XLSX from 'xlsx';
-
 const defaultFormatter = (value) => (value == null ? '' : value);
 
 export const mapRowsForExport = (rows, columns) =>
@@ -11,7 +9,7 @@ export const mapRowsForExport = (rows, columns) =>
     }, {}),
   );
 
-export function exportRowsToWorkbook({
+export async function exportRowsToWorkbook({
   rows = [],
   columns = [],
   filename = 'export.xlsx',
@@ -21,6 +19,7 @@ export function exportRowsToWorkbook({
     return false;
   }
 
+  const XLSX = await import('xlsx');
   const worksheet = XLSX.utils.json_to_sheet(mapRowsForExport(rows, columns));
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
@@ -29,4 +28,3 @@ export function exportRowsToWorkbook({
 }
 
 export const buildTemplateRows = (columns) => columns.map((column) => ({ key: column.key, label: column.label }));
-

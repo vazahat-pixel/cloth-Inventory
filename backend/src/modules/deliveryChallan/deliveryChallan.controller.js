@@ -13,8 +13,8 @@ const create = async (req, res, next) => {
 
 const list = async (req, res, next) => {
     try {
-        const challans = await challanService.getChallans(req.query);
-        return sendSuccess(res, { challans }, 'Delivery Challans retrieved');
+        const result = await challanService.getChallans(req.query);
+        return sendSuccess(res, result, 'Delivery Challans retrieved');
     } catch (err) {
         next(err);
     }

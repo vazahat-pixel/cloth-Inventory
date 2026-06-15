@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import { useDispatch, useSelector } from 'react-redux';
+import useDebouncedValue from '../../hooks/useDebouncedValue';
+import useServerPagination from '../../hooks/useServerPagination';
+import ServerTablePagination from '../../components/erp/ServerTablePagination';
 import { fetchPurchases, generatePOFromVoucher } from './purchaseSlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
@@ -41,17 +44,27 @@ function PurchaseListPage() {
   const basePath = useRoleBasePath();
   const dispatch = useDispatch();
   const purchases = useSelector((state) => state.purchase.records || []);
+  const purchaseTotal = useSelector((state) => state.purchase.total || 0);
+  const purchaseLoading = useSelector((state) => state.purchase.loading);
   const suppliers = useSelector((state) => state.masters.suppliers || []);
   const warehouses = useSelector((state) => state.masters.warehouses || []);
   const stores = useSelector((state) => state.masters.stores || []);
   const user = useSelector((state) => state.auth.user);
 
   const [searchText, setSearchText] = useState('');
+  const debouncedSearch = useDebouncedValue(searchText, 350);
   const [warehouseFilter, setWarehouseFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const {
+    page,
+    rowsPerPage,
+    resetPage,
+    handlePageChange,
+    handleRowsPerPageChange,
+    buildParams,
+    pageSizeOptions,
+  } = useServerPagination({ defaultPageSize: 10 });
   const [selectedPurchase, setSelectedPurchase] = useState(null);
   const [barcodePrintPurchase, setBarcodePrintPurchase] = useState(null);
 
@@ -63,11 +76,17 @@ function PurchaseListPage() {
   const addButtonLabel = "Add Purchase Voucher";
 
   useEffect(() => {
-    dispatch(fetchPurchases());
+    const params = buildParams({
+      search: debouncedSearch,
+      ...(warehouseFilter !== 'all' ? { warehouseId: warehouseFilter } : {}),
+      ...(dateFrom ? { dateFrom } : {}),
+      ...(dateTo ? { dateTo } : {}),
+    });
+    dispatch(fetchPurchases(params));
     dispatch(fetchMasters('suppliers'));
     dispatch(fetchMasters('warehouses'));
     dispatch(fetchMasters('stores'));
-  }, [dispatch]);
+  }, [dispatch, debouncedSearch, warehouseFilter, dateFrom, dateTo, page, rowsPerPage, buildParams]);
 
   const availableLocations = useMemo(() => {
     // Procurement receipts (Purchases) go to Warehouses only
@@ -93,22 +112,7 @@ function PurchaseListPage() {
     return locationMap[id] || '—';
   };
 
-  const filteredRows = useMemo(() => {
-    const query = searchText.trim().toLowerCase();
-    return (purchases || []).filter((row) => {
-      if (!row) return false; // guard against undefined entries in Redux state
-      const sName = supplierMap[row.supplierId?._id || row.supplierId] || '';
-      const invNo = row.purchaseNumber || row.invoiceNumber || '';
-      const matchesSearch = query ? (invNo.toLowerCase().includes(query) || sName.toLowerCase().includes(query)) : true;
-      const matchesWarehouse = warehouseFilter === 'all' ? true : row.storeId === warehouseFilter || row.warehouseId === warehouseFilter;
-      const date = row.invoiceDate || row.createdAt;
-      const matchesFrom = dateFrom ? date >= dateFrom : true;
-      const matchesTo = dateTo ? date <= dateTo : true;
-      return matchesSearch && matchesWarehouse && matchesFrom && matchesTo;
-    });
-  }, [purchases, searchText, supplierMap, warehouseFilter, dateFrom, dateTo]);
-
-  const paginatedRows = useMemo(() => filteredRows.slice(page * rowsPerPage, (page + 1) * rowsPerPage), [filteredRows, page, rowsPerPage]);
+  const displayRows = purchases || [];
 
   return (
     <>
@@ -127,22 +131,22 @@ function PurchaseListPage() {
               size="small"
               placeholder="Search PV # or Supplier"
               value={searchText}
-              onChange={(e) => { setSearchText(e.target.value); setPage(0); }}
+              onChange={(e) => { setSearchText(e.target.value); resetPage(); }}
               sx={{ flex: 1 }}
               InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
             />
             {availableLocations.length > 1 && (
-              <TextField select size="small" label="Location" value={warehouseFilter} onChange={(e) => { setWarehouseFilter(e.target.value); setPage(0); }} sx={{ minWidth: 180 }}>
+              <TextField select size="small" label="Location" value={warehouseFilter} onChange={(e) => { setWarehouseFilter(e.target.value); resetPage(); }} sx={{ minWidth: 180 }}>
                 <MenuItem value="all">All Locations</MenuItem>
                 {availableLocations.map(l => <MenuItem key={l.id} value={l.id}>{l.name}</MenuItem>)}
               </TextField>
             )}
-            <TextField size="small" type="date" label="From" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(0); }} InputLabelProps={{ shrink: true }} />
-            <TextField size="small" type="date" label="To" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(0); }} InputLabelProps={{ shrink: true }} />
+            <TextField size="small" type="date" label="From" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); resetPage(); }} InputLabelProps={{ shrink: true }} />
+            <TextField size="small" type="date" label="To" value={dateTo} onChange={(e) => { setDateTo(e.target.value); resetPage(); }} InputLabelProps={{ shrink: true }} />
           </Stack>
         </Stack>
 
-        {filteredRows.length > 0 ? (
+        {displayRows.length > 0 ? (
           <>
             <TableContainer>
               <Table size="small">
@@ -159,7 +163,7 @@ function PurchaseListPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {paginatedRows.filter(Boolean).map((row) => (
+                  {displayRows.filter(Boolean).map((row) => (
                     <TableRow key={row._id || row.id} hover>
                       <TableCell sx={{ py: 1.5 }}>
                         <Box>
@@ -221,7 +225,15 @@ function PurchaseListPage() {
                 </TableBody>
               </Table>
             </TableContainer>
-            <TablePagination component="div" count={filteredRows.length} page={page} onPageChange={(_, p) => setPage(p)} rowsPerPage={rowsPerPage} onRowsPerPageChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(0); }} rowsPerPageOptions={[10, 25, 50]} />
+            <ServerTablePagination
+              count={purchaseTotal}
+              page={page}
+              rowsPerPage={rowsPerPage}
+              onPageChange={handlePageChange}
+              onRowsPerPageChange={handleRowsPerPageChange}
+              rowsPerPageOptions={pageSizeOptions}
+              disabled={purchaseLoading}
+            />
           </>
         ) : (
           <Box sx={{ py: 10, textAlign: 'center' }}>

@@ -8,7 +8,9 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:e2e": "playwright test"
+    "test": "node --test src/utils/*.test.js",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install msedge"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { Snackbar, Alert } from '@mui/material';
 
 const NotificationContext = createContext(null);
@@ -22,13 +22,15 @@ export const NotificationProvider = ({ children }) => {
     setOpen(true);
   }, []);
 
-  const handleClose = (event, reason) => {
+  const handleClose = useCallback((event, reason) => {
     if (reason === 'clickaway') return;
     setOpen(false);
-  };
+  }, []);
+
+  const contextValue = useMemo(() => ({ showNotification }), [showNotification]);
 
   return (
-    <NotificationContext.Provider value={{ showNotification }}>
+    <NotificationContext.Provider value={contextValue}>
       {children}
       <Snackbar 
         open={open} 

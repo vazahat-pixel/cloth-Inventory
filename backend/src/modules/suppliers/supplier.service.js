@@ -1,4 +1,5 @@
 const Supplier = require('../../models/supplier.model');
+const { getPagination, getSort } = require('../../utils/pagination.helper');
 
 /**
  * Create a new supplier
@@ -21,7 +22,8 @@ const createSupplier = async (supplierData, userId) => {
  * Get all suppliers with pagination and search
  */
 const getAllSuppliers = async (query) => {
-    const { page = 1, limit = 10, search, isActive } = query;
+    const { page, limit, skip } = getPagination(query);
+    const { search, isActive } = query;
 
     const filter = { isDeleted: false };
 
@@ -29,24 +31,33 @@ const getAllSuppliers = async (query) => {
         filter.$or = [
             { name: { $regex: search, $options: 'i' } },
             { contactPerson: { $regex: search, $options: 'i' } },
-            { email: { $regex: search, $options: 'i' } }
+            { email: { $regex: search, $options: 'i' } },
+            { phone: { $regex: search, $options: 'i' } },
+            { gstNumber: { $regex: search, $options: 'i' } },
+            { city: { $regex: search, $options: 'i' } },
         ];
     }
 
-    if (isActive !== undefined) filter.isActive = isActive === 'true';
+    if (isActive !== undefined && isActive !== 'all') {
+        filter.isActive = isActive === 'true' || isActive === 'Active';
+    }
 
-    const skip = (page - 1) * limit;
+    const sort = getSort(query, {
+        name: 'name',
+        city: 'city',
+        createdAt: 'createdAt',
+    }, { name: 1 });
 
     const [suppliers, total] = await Promise.all([
         Supplier.find(filter)
-            .sort({ name: 1 })
+            .sort(sort)
             .skip(skip)
-            .limit(parseInt(limit))
+            .limit(limit)
             .populate('createdBy', 'name email'),
-        Supplier.countDocuments(filter)
+        Supplier.countDocuments(filter),
     ]);
 
-    return { suppliers, total, page: parseInt(page), limit: parseInt(limit) };
+    return { suppliers, total, page, limit };
 };
 
 /**

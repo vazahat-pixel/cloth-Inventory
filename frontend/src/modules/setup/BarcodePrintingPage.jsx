@@ -18,7 +18,9 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  CircularProgress
+  CircularProgress,
+  TablePagination,
+  InputAdornment,
 } from '@mui/material';
 import {
   PrintOutlined as PrintIcon,
@@ -178,7 +180,11 @@ function BarcodePrintingPage() {
   
   // History State
   const [history, setHistory] = useState([]);
+  const [historyTotal, setHistoryTotal] = useState(0);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historySearch, setHistorySearch] = useState('');
+  const [historyPage, setHistoryPage] = useState(0);
+  const [historyRowsPerPage, setHistoryRowsPerPage] = useState(20);
 
   // Flatten allItems (styles) into products (variants) for single print
   const products = useMemo(() => {
@@ -218,8 +224,16 @@ function BarcodePrintingPage() {
   const fetchHistory = async () => {
     setHistoryLoading(true);
     try {
-      const res = await api.get('/barcodes');
-      setHistory(res.data?.data?.barcodes || []);
+      const res = await api.get('/barcodes', {
+        params: {
+          page: historyPage + 1,
+          limit: historyRowsPerPage,
+          search: historySearch,
+        },
+      });
+      setHistory(res.data?.barcodes || res.data?.data?.barcodes || []);
+      const meta = res.data?.meta || res.data?.data?.meta || {};
+      setHistoryTotal(meta.total || 0);
     } catch (err) {
       console.error('Failed to fetch history', err);
     } finally {
@@ -317,10 +331,10 @@ function BarcodePrintingPage() {
     if (activeTab === 2) {
       fetchHistory();
     }
-  }, [activeTab]);
+  }, [activeTab, historyPage, historyRowsPerPage, historySearch]);
   
   useEffect(() => {
-    dispatch(fetchGrns());
+    dispatch(fetchGrns({ limit: 100 }));
     import('../items/itemsSlice').then(m => dispatch(m.fetchItems()));
   }, [dispatch]);
 
@@ -780,11 +794,20 @@ function BarcodePrintingPage() {
                 </Button>
               </Box>
 
+              <TextField
+                size="small"
+                placeholder="Search barcode or batch..."
+                value={historySearch}
+                onChange={(e) => { setHistoryPage(0); setHistorySearch(e.target.value); }}
+                sx={{ maxWidth: 320 }}
+              />
+
               {historyLoading ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
                   <CircularProgress />
                 </Box>
               ) : history.length > 0 ? (
+                <>
                 <TableContainer component={Paper} variant="outlined">
                   <Table size="small">
                     <TableHead sx={{ bgcolor: '#f1f5f9' }}>
@@ -824,6 +847,19 @@ function BarcodePrintingPage() {
                     </TableBody>
                   </Table>
                 </TableContainer>
+                <TablePagination
+                  component="div"
+                  count={historyTotal}
+                  page={historyPage}
+                  onPageChange={(_, p) => setHistoryPage(p)}
+                  rowsPerPage={historyRowsPerPage}
+                  onRowsPerPageChange={(e) => {
+                    setHistoryRowsPerPage(parseInt(e.target.value, 10));
+                    setHistoryPage(0);
+                  }}
+                  rowsPerPageOptions={[10, 20, 50, 100]}
+                />
+                </>
               ) : (
                 <Box sx={{ py: 10, textAlign: 'center', border: '1px dashed #cbd5e1', borderRadius: 4 }}>
                    <Typography variant="body1" color="textSecondary">No history found. Generate barcodes via GRN or Bulk print to see records here.</Typography>

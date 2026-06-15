@@ -74,7 +74,7 @@ function ReportExportButton({
     onDownload?.();
   };
 
-  const handleExcelDownload = () => {
+  const handleExcelDownload = async () => {
     const keys = headerKeys && headerKeys.length ? headerKeys : headers;
     const columns = headers.map((header, index) => ({
       key: keys[index],
@@ -82,7 +82,7 @@ function ReportExportButton({
     }));
 
     const excelFilename = (filename || 'report.csv').replace(/\.csv$/i, '.xlsx');
-    exportRowsToWorkbook({
+    await exportRowsToWorkbook({
       rows,
       columns,
       filename: excelFilename,

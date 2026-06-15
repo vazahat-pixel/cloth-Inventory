@@ -1,5 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import useDebouncedValue from '../../hooks/useDebouncedValue';
+import useServerPagination from '../../hooks/useServerPagination';
+import ServerTablePagination from '../../components/erp/ServerTablePagination';
 import {
   Box,
   Typography,
@@ -16,6 +20,8 @@ import {
   IconButton,
   CircularProgress,
   Tooltip,
+  TextField,
+  InputAdornment,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ReceiptIcon from '@mui/icons-material/Receipt';
@@ -23,42 +29,33 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import PrintIcon from '@mui/icons-material/Print';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import SearchIcon from '@mui/icons-material/Search';
 import api from '../../services/api';
+import { fetchGrns } from './grnSlice';
 import { useNotification } from '../../context/NotificationProvider';
 import { useLoading } from '../../context/LoadingProvider';
 import { useConfirm } from '../../context/ConfirmProvider';
 
 const GRNListPage = () => {
   const navigate = useNavigate();
-  const [grns, setGrns] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const dispatch = useDispatch();
+  const { records: grns, total, loading } = useSelector((state) => state.grn);
   const { showNotification } = useNotification();
   const { showLoading, hideLoading } = useLoading();
   const { showConfirm } = useConfirm();
+  const [searchText, setSearchText] = useState('');
+  const debouncedSearch = useDebouncedValue(searchText, 300);
+  const pagination = useServerPagination({ defaultPageSize: 20 });
+
+  const loadGrns = useCallback(() => {
+    dispatch(fetchGrns(pagination.buildParams({
+      search: debouncedSearch || undefined,
+    })));
+  }, [dispatch, pagination.page, pagination.rowsPerPage, debouncedSearch]);
 
   useEffect(() => {
-    fetchGrns();
-  }, []);
-
-  const fetchGrns = async () => {
-    try {
-      const res = await api.get('/grn');
-      const raw = res.data.grns || res.data.data || [];
-      // Deduplicate by _id (safety net against any backend duplicates)
-      const seen = new Set();
-      const unique = raw.filter(grn => {
-        const key = grn._id?.toString();
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-      setGrns(unique);
-    } catch (err) {
-      console.error('Fetch GRNs failed', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    loadGrns();
+  }, [loadGrns]);
 
   const handleApprove = async (id) => {
     const confirmed = await showConfirm({
@@ -67,16 +64,15 @@ const GRNListPage = () => {
       confirmText: 'Approve & Post',
       severity: 'warning'
     });
-    
+
     if (!confirmed) return;
 
     showLoading('Approving and posting stock to inventory...');
     try {
       await api.patch(`/grn/${id}/approve`);
       showNotification('GRN approved and stock posted successfully!', 'success');
-      fetchGrns();
+      loadGrns();
     } catch (err) {
-      console.error('Approve failed', err);
       showNotification(err.response?.data?.message || 'Failed to approve GRN', 'error');
     } finally {
       hideLoading();
@@ -92,6 +88,8 @@ const GRNListPage = () => {
       default: return 'default';
     }
   };
+
+  const getItemCount = (grn) => grn.itemLineCount ?? grn.items?.length ?? 0;
 
   return (
     <Box sx={{ p: 4 }}>
@@ -114,6 +112,23 @@ const GRNListPage = () => {
         </Button>
       </Stack>
 
+      <Paper sx={{ borderRadius: 2, mb: 2, p: 2, border: '1px solid #e2e8f0' }}>
+        <TextField
+          size="small"
+          fullWidth
+          placeholder="Search GRN number or invoice..."
+          value={searchText}
+          onChange={(e) => { setSearchText(e.target.value); pagination.resetPage(); }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon fontSize="small" />
+              </InputAdornment>
+            ),
+          }}
+        />
+      </Paper>
+
       <Paper sx={{ borderRadius: 4, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
         <TableContainer>
           <Table>
@@ -129,7 +144,7 @@ const GRNListPage = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {loading ? (
+              {loading && grns.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} align="center" sx={{ py: 10 }}>
                     <CircularProgress size={30} sx={{ mb: 2 }} />
@@ -146,9 +161,9 @@ const GRNListPage = () => {
                 <TableRow key={grn._id} hover>
                   <TableCell sx={{ fontWeight: 700, color: '#1e293b' }}>{grn.grnNumber}</TableCell>
                   <TableCell sx={{ color: '#64748b' }}>{new Date(grn.createdAt).toLocaleDateString()}</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>{grn.supplierId?.name || 'Manual Supplier'}</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>{grn.supplierId?.name || grn.supplierId?.supplierName || 'Manual Supplier'}</TableCell>
                   <TableCell>{grn.invoiceNumber}</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700 }}>{grn.items?.length || 0}</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700 }}>{getItemCount(grn)}</TableCell>
                   <TableCell>
                     <Chip
                       label={grn.status}
@@ -221,6 +236,14 @@ const GRNListPage = () => {
             </TableBody>
           </Table>
         </TableContainer>
+        <ServerTablePagination
+          count={total}
+          page={pagination.page}
+          rowsPerPage={pagination.rowsPerPage}
+          onPageChange={pagination.handlePageChange}
+          onRowsPerPageChange={pagination.handleRowsPerPageChange}
+          rowsPerPageOptions={pagination.pageSizeOptions}
+        />
       </Paper>
     </Box>
   );

@@ -4,6 +4,8 @@ import { useLocation } from 'react-router-dom';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import api from '../../services/api';
 import { combineAndConfirmDispatch } from './dispatchSlice';
+import { extractApiErrorMessage } from '../../utils/apiError';
+import { createOperationIdempotencyKey } from '../../utils/idempotencyKey';
 import {
     Alert,
     Box,
@@ -62,6 +64,7 @@ function CombineReviewForm({ listPath = '/orders/delivery-challan' }) {
     const [combinedResult, setCombinedResult] = useState(null);
     const [showPrint, setShowPrint] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Fetch details of all selected dispatches
     useEffect(() => {
@@ -203,11 +206,13 @@ function CombineReviewForm({ listPath = '/orders/delivery-challan' }) {
 
     const handleConfirm = async () => {
         setError('');
+        if (isSubmitting) return;
         if (validationError) {
             setError(validationError);
             return;
         }
 
+        setIsSubmitting(true);
         showLoading('Combining challans and generating billing invoice...');
         try {
             const payload = {
@@ -215,7 +220,8 @@ function CombineReviewForm({ listPath = '/orders/delivery-challan' }) {
                 notes: notes || `Combined dispatch of dispatches: ${sourceDispatches.map(d => d.dispatchNumber || d.challanNumber).join(', ')}`,
                 date,
                 vehicleNumber,
-                driverName
+                driverName,
+                idempotencyKey: createOperationIdempotencyKey('combine-dispatch', selectedIds.join('-')),
             };
 
             const result = await dispatch(combineAndConfirmDispatch(payload)).unwrap();
@@ -228,10 +234,10 @@ function CombineReviewForm({ listPath = '/orders/delivery-challan' }) {
             showNotification('Challans combined and Billing finalized successfully!', 'success');
             setShowPrint(true);
         } catch (err) {
-            const errMsg = typeof err === 'string' ? err : (err?.message || 'Failed to combine and finalize dispatches.');
-            setError(errMsg);
+            setError(extractApiErrorMessage(err, 'Failed to combine and finalize dispatches.'));
         } finally {
             hideLoading();
+            setIsSubmitting(false);
         }
     };
 
@@ -602,10 +608,10 @@ function CombineReviewForm({ listPath = '/orders/delivery-challan' }) {
                                         color="primary"
                                         size="large"
                                         fullWidth
-                                        disabled={Boolean(validationError)}
+                                        disabled={Boolean(validationError) || isSubmitting}
                                         onClick={handleConfirm}
                                     >
-                                        Generate Bill & Dispatch
+                                        {isSubmitting ? 'Processing...' : 'Generate Bill & Dispatch'}
                                     </Button>
                                     <Button
                                         variant="outlined"

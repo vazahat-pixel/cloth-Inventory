@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { Backdrop, CircularProgress, Typography, Stack } from '@mui/material';
 
 const LoadingContext = createContext(null);
@@ -24,8 +24,13 @@ export const LoadingProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
+  const contextValue = useMemo(
+    () => ({ showLoading, hideLoading }),
+    [showLoading, hideLoading],
+  );
+
   return (
-    <LoadingContext.Provider value={{ showLoading, hideLoading }}>
+    <LoadingContext.Provider value={contextValue}>
       {children}
       <Backdrop
         sx={{ 

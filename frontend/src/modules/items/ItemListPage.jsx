@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import useDebouncedValue from '../../hooks/useDebouncedValue';
 import { Box, Button, Card, CardContent, Grid, IconButton, InputAdornment, MenuItem, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import SearchIcon from '@mui/icons-material/Search';
@@ -31,6 +32,7 @@ function ItemListPage() {
   const groups = useSelector((state) => state.masters?.itemGroups || []);
   
   const [searchText, setSearchText] = useState('');
+  const debouncedSearch = useDebouncedValue(searchText, 350);
   const [brandFilter, setBrandFilter] = useState('all');
   const [groupFilter, setGroupFilter] = useState('all');
   const [viewMode, setViewMode] = useState('table');
@@ -42,13 +44,13 @@ function ItemListPage() {
     dispatch(fetchItems({ 
       page: page + 1, 
       limit: rowsPerPage, 
-      search: searchText,
+      search: debouncedSearch,
       brand: brandFilter,
       section: groupFilter
     }));
     dispatch(fetchMasters('brands'));
     dispatch(fetchMasters('itemGroups'));
-  }, [dispatch, page, rowsPerPage, searchText, brandFilter, groupFilter]);
+  }, [dispatch, page, rowsPerPage, debouncedSearch, brandFilter, groupFilter]);
 
   const rows = useMemo(() => {
     const itemsArray = Array.isArray(items) ? items : [];

@@ -50,12 +50,9 @@ exports.getGrnBarcodes = async (req, res) => {
  */
 exports.listBatchBarcodes = async (req, res) => {
     try {
-        const barcodes = await BatchBarcode.find()
-            .sort({ createdAt: -1 })
-            .populate('itemId', 'itemName itemCode')
-            .limit(100); // Limit to avoid massive payloads, adjust as needed
-
-        return sendSuccess(res, { barcodes }, 'Batch barcodes retrieved');
+        const barcodeService = require('./barcode.service');
+        const { barcodes, meta } = await barcodeService.listBatchBarcodes(req.query);
+        return sendSuccess(res, { barcodes, meta }, 'Batch barcodes retrieved');
     } catch (error) {
         return sendError(res, error.message);
     }

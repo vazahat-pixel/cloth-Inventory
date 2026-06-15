@@ -1,4 +1,5 @@
 import { Box, CircularProgress, Typography } from '@mui/material';
+import { memo } from 'react';
 
 /**
  * Overlay shown during async/network operations.
@@ -27,4 +28,4 @@ function LoadingOverlay({ message = 'Loading...' }) {
   );
 }
 
-export default LoadingOverlay;
+export default memo(LoadingOverlay);

@@ -5,6 +5,13 @@ const ErrorLog = require('../../models/errorLog.model');
 const { sendSuccess, sendError, sendNotFound } = require('../../utils/response.handler');
 
 class InventoryController {
+  _handleError(res, e, fallbackStatus = 400) {
+    let statusCode = e.statusCode || fallbackStatus;
+    const msg = (e.message || '').toLowerCase();
+    if (msg.includes('not found') || msg.includes('nahi mila')) statusCode = 404;
+    return sendError(res, e.message || 'Request failed', statusCode);
+  }
+
   /**
    * Fetch stock ledger for a specific item.
    */
@@ -14,7 +21,7 @@ class InventoryController {
       const history = await stockService.getLedgerByItem(itemId);
       return sendSuccess(res, { history }, 'Stock ledger retrieved successfully');
     } catch (e) {
-      return sendError(res, e.message);
+      return this._handleError(res, e);
     }
   };
 
@@ -36,7 +43,7 @@ class InventoryController {
         recentErrors: recentErrors
       });
     } catch (e) {
-      return sendError(res, e.message);
+      return this._handleError(res, e);
     }
   };
 
@@ -45,25 +52,59 @@ class InventoryController {
    */
   getSystemLogs = async (req, res) => {
     try {
-      const logs = await SystemLog.find()
-        .sort({ createdAt: -1 })
-        .limit(100)
-        .populate('userId', 'name');
-      return sendSuccess(res, { logs });
+      const { getPagination, buildPaginationMeta, getSort } = require('../../utils/pagination.helper');
+      const { page, limit, skip } = getPagination(req.query);
+      const { search, module, action, dateFrom, dateTo } = req.query;
+      const filter = {};
+      if (module && module !== 'all') filter.module = module;
+      if (action && action !== 'all') filter.action = action;
+      if (dateFrom || dateTo) {
+        filter.createdAt = {};
+        if (dateFrom) filter.createdAt.$gte = new Date(dateFrom);
+        if (dateTo) {
+          const end = new Date(dateTo);
+          end.setHours(23, 59, 59, 999);
+          filter.createdAt.$lte = end;
+        }
+      }
+      if (search) {
+        filter.$or = [
+          { action: { $regex: search, $options: 'i' } },
+          { module: { $regex: search, $options: 'i' } },
+        ];
+      }
+      const sort = getSort(req.query, { createdAt: 'createdAt', module: 'module', action: 'action' }, { createdAt: -1 });
+      const [logs, total] = await Promise.all([
+        SystemLog.find(filter).sort(sort).skip(skip).limit(limit).populate('userId', 'name'),
+        SystemLog.countDocuments(filter),
+      ]);
+      const meta = buildPaginationMeta(total, page, limit);
+      return sendSuccess(res, { logs, meta });
     } catch (e) {
-      return sendError(res, e.message);
+      return this._handleError(res, e);
     }
   };
 
-  /**
-   * Universal errors route for Developer/QA Monitor.
-   */
   getErrorLogs = async (req, res) => {
     try {
-      const errors = await ErrorLog.find().sort({ createdAt: -1 }).limit(50);
-      return sendSuccess(res, { errors });
+      const { getPagination, buildPaginationMeta } = require('../../utils/pagination.helper');
+      const { page, limit, skip } = getPagination(req.query);
+      const { search } = req.query;
+      const filter = {};
+      if (search) {
+        filter.$or = [
+          { message: { $regex: search, $options: 'i' } },
+          { module: { $regex: search, $options: 'i' } },
+        ];
+      }
+      const [errors, total] = await Promise.all([
+        ErrorLog.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+        ErrorLog.countDocuments(filter),
+      ]);
+      const meta = buildPaginationMeta(total, page, limit);
+      return sendSuccess(res, { errors, meta });
     } catch (e) {
-      return sendError(res, e.message);
+      return this._handleError(res, e);
     }
   };
 
@@ -75,7 +116,7 @@ class InventoryController {
       const journey = await auditService.getItemJourney(req.params.itemId);
       return sendSuccess(res, journey);
     } catch (e) {
-      return sendError(res, e.message);
+      return this._handleError(res, e);
     }
   };
 
@@ -87,7 +128,7 @@ class InventoryController {
       const report = await auditService.getValidationReport();
       return sendSuccess(res, report);
     } catch (e) {
-      return sendError(res, e.message);
+      return this._handleError(res, e);
     }
   };
 
@@ -217,7 +258,7 @@ class InventoryController {
       return sendSuccess(res, { items: enrichedResults }, 'Items fetched successfully');
     } catch (e) {
       console.error('[WAREHOUSE-STOCK-ERROR]', e);
-      return sendError(res, e.message);
+      return this._handleError(res, e);
     }
   };
 
@@ -354,7 +395,7 @@ class InventoryController {
 
     } catch (e) {
       console.error('[SCAN ERROR]', e);
-      return sendError(res, e.message);
+      return this._handleError(res, e);
     }
   };
 
@@ -366,7 +407,7 @@ class InventoryController {
       const metrics = await auditService.getClientDemoMetrics();
       return sendSuccess(res, metrics);
     } catch (e) {
-      return sendError(res, e.message);
+      return this._handleError(res, e);
     }
   };
 }

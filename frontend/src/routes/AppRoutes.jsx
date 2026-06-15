@@ -1,7 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import RoleDashboardLayout from '../layouts/RoleDashboardLayout';
-import LoadingOverlay from '../components/LoadingOverlay';
+import RouteFallback from '../components/RouteFallback';
 import RoleProtectedRoute from './RoleProtectedRoute';
 import PublicRoute from './PublicRoute';
 import RootRedirect from './RootRedirect';
@@ -86,11 +86,11 @@ const YieldAnalysisPage = lazy(() => import('../modules/reports/YieldAnalysisPag
 const SalesBillListPage = lazy(() => import('../modules/sales/SalesListPage'));
 const SalesBillFormPage = lazy(() => import('../modules/sales/BillingPage'));
 const SalesReturnPage = lazy(() => import('../modules/sales/SalesReturnPage'));
-import DeliveryChallanPage from '../modules/dispatch/DeliveryChallanPage';
-import DeliveryChallanForm from '../modules/dispatch/DeliveryChallanForm';
-import DispatchQueuePage from '../modules/dispatch/DispatchQueuePage';
-import CombineReviewForm from '../modules/dispatch/CombineReviewForm';
-import TransferBillsListPage from '../modules/dispatch/TransferBillsListPage';
+const DeliveryChallanPage = lazy(() => import('../modules/dispatch/DeliveryChallanPage'));
+const DeliveryChallanForm = lazy(() => import('../modules/dispatch/DeliveryChallanForm'));
+const DispatchQueuePage = lazy(() => import('../modules/dispatch/DispatchQueuePage'));
+const CombineReviewForm = lazy(() => import('../modules/dispatch/CombineReviewForm'));
+const TransferBillsListPage = lazy(() => import('../modules/dispatch/TransferBillsListPage'));
 
 // Purchase
 const PurchaseListPage = lazy(() => import('../modules/purchase/PurchaseListPage'));
@@ -110,6 +110,8 @@ const DataHubSubPage = lazy(() => import('../modules/data/DataHubSubPage'));
 const SalesHubSubPage = lazy(() => import('../modules/sales/SalesHubSubPage'));
 const VoucherListPage = lazy(() => import('../modules/accounts/VoucherListPage'));
 const AccountMasterPage = lazy(() => import('../modules/accounts/AccountMasterPage'));
+const VisitLogsPage = lazy(() => import('../modules/reports/VisitLogsPage'));
+const AuditLogViewer = lazy(() => import('../modules/inventory/AuditLogViewer'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
 
 const StoreReturnReceivePage = lazy(() => import('../modules/inventory/StoreReturnReceivePage'));
@@ -128,15 +130,17 @@ const CHALLAN_REPORT_CONFIG = {
   title: 'Sale Challan Report',
   description: 'List of all delivery challans issued to customers/stores.',
   endpoint: '/delivery-challans',
+  apiBase: '',
+  serverPagination: true,
   dataKey: 'challans',
   columns: [
-    { field: 'challanNo', headerName: 'Challan #' },
-    { field: 'date', headerName: 'Date', transform: v => new Date(v).toLocaleDateString() },
-    { field: 'partyName', headerName: 'Customer/Branch', transform: (v, row) => row.customerId?.name || row.storeId?.name || 'N/A' },
-    { field: 'totalItems', headerName: 'Total Qty' },
-    { field: 'grandTotal', headerName: 'Amount', transform: v => Number(v || 0).toLocaleString() }
+    { field: 'dcNumber', headerName: 'Challan #', transform: (v, row) => v || row.challanNo || '—' },
+    { field: 'dcDate', headerName: 'Date', transform: (v) => (v ? new Date(v).toLocaleDateString() : '—') },
+    { field: 'partyName', headerName: 'Customer/Branch', transform: (v, row) => row.customerId?.name || row.destinationStoreId?.name || row.storeId?.name || 'N/A' },
+    { field: 'totalItems', headerName: 'Total Qty', transform: (v, row) => v || row.items?.reduce((sum, i) => sum + (i.quantity || 0), 0) || 0 },
+    { field: 'grandTotal', headerName: 'Amount', transform: (v, row) => Number(v || row.totalAmount || 0).toLocaleString() },
   ],
-  filterConfig: { showDateRange: true }
+  filterConfig: { showDateRange: true },
 };
 
 const SCHEME_REPORT_CONFIG = {
@@ -178,7 +182,7 @@ const STOCK_AGING_CONFIG = {
 
 function AppRoutes() {
   return (
-    <Suspense fallback={<LoadingOverlay />}>
+    <Suspense fallback={<RouteFallback />}>
       <Routes>
         <Route path="/" element={<RootRedirect />} />
 
@@ -341,6 +345,8 @@ function AppRoutes() {
               <Route path="stock" element={<StockReportPage />} />
               <Route path="branch-sales-stock" element={<BranchSalesStockReportPage />} />
               <Route path="ledger" element={<LedgerReportPage />} />
+              <Route path="visit-logs" element={<VisitLogsPage />} />
+              <Route path="audit-logs" element={<AuditLogViewer />} />
               <Route path="bank-book" element={<BankBookPage />} />
               <Route path="collection" element={<CollectionReportPage />} />
               

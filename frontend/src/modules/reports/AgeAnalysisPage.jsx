@@ -35,7 +35,7 @@ const AGE_BUCKETS = [
 function AgeAnalysisPage() {
   const dispatch = useDispatch();
   const purchases = useSelector((state) => state.purchase?.records || []);
-  const stock = useSelector((state) => state.inventory?.stock || []);
+  const stock = useSelector((state) => state.inventory?.storeStock || state.inventory?.stock || []);
   const items = useSelector((state) => state.items?.records || []);
 
   useEffect(() => {

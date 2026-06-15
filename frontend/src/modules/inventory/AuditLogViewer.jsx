@@ -1,4 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import useDebouncedValue from '../../hooks/useDebouncedValue';
+import useServerPagination from '../../hooks/useServerPagination';
+import ServerTablePagination from '../../components/erp/ServerTablePagination';
+import api from '../../services/api';
+import { extractPaginationMeta } from '../../utils/paginationMeta';
 import {
   Box,
   MenuItem,
@@ -11,6 +16,7 @@ import {
   TableRow,
   TextField,
   Typography,
+  CircularProgress,
 } from '@mui/material';
 import PageHeader from '../../components/erp/PageHeader';
 import FilterBar from '../../components/erp/FilterBar';
@@ -18,164 +24,168 @@ import ExportButton from '../../components/erp/ExportButton';
 import StatusBadge from '../../components/erp/StatusBadge';
 import SummaryCard from '../../components/erp/SummaryCard';
 import systemLogsExportColumns from '../../config/exportColumns/systemLogs';
-import { systemLogSeed } from '../erp/erpUiMocks';
-
-const errorSeed = [
-  {
-    id: 'err-1',
-    dateTime: '2026-03-27 17:30',
-    module: 'Barcode',
-    action: 'GENERATE_FAIL',
-    referenceType: 'BARCODE_BATCH',
-    referenceNumber: 'BT-2026-007',
-    user: 'Inventory Clerk',
-    status: 'Rejected',
-    remarks: 'Duplicate serial range used in preview generation',
-  },
-];
 
 const toExportRows = (rows = []) =>
   rows.map((row) => ({
-    log_id: row.id,
-    date_time: row.dateTime,
+    log_id: row._id || row.id,
+    date_time: row.createdAt ? new Date(row.createdAt).toLocaleString() : row.dateTime,
     module: row.module,
     action: row.action,
-    reference_type: row.referenceType,
-    reference_number: row.referenceNumber,
-    user: row.user,
-    status: row.status,
-    remarks: row.remarks,
+    reference_type: row.targetModel || row.referenceType,
+    reference_number: row.targetId || row.referenceNumber,
+    user: row.performedBy?.name || row.userId?.name || row.user,
+    status: row.status || 'Logged',
+    remarks: row.details?.message || row.remarks || '',
   }));
 
 function AuditLogViewer({ type = 'system' }) {
   const isErrorMode = type === 'error';
+  const [logs, setLogs] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
   const [moduleFilter, setModuleFilter] = useState('all');
   const [actionFilter, setActionFilter] = useState('all');
-  const [userFilter, setUserFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [searchText, setSearchText] = useState('');
+  const debouncedSearch = useDebouncedValue(searchText, 350);
+  const {
+    page,
+    rowsPerPage,
+    resetPage,
+    handlePageChange,
+    handleRowsPerPageChange,
+    buildParams,
+    pageSizeOptions,
+  } = useServerPagination({ defaultPageSize: 20 });
 
-  const rows = isErrorMode ? errorSeed : systemLogSeed;
+  useEffect(() => {
+    const loadLogs = async () => {
+      setLoading(true);
+      try {
+        const endpoint = isErrorMode ? '/inventory/error-logs' : '/reports/audit-logs';
+        const params = buildParams({
+          search: debouncedSearch,
+          module: moduleFilter,
+          action: actionFilter,
+          dateFrom,
+          dateTo,
+        });
+        const response = await api.get(endpoint, { params });
+        const data = response.data.data || response.data;
+        setLogs(data.logs || data.errors || []);
+        setTotal(extractPaginationMeta(response.data).total);
+      } catch (err) {
+        console.error('Failed to load audit logs', err);
+        setLogs([]);
+        setTotal(0);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadLogs();
+  }, [isErrorMode, debouncedSearch, moduleFilter, actionFilter, dateFrom, dateTo, page, rowsPerPage, buildParams]);
 
-  const moduleOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.module).filter(Boolean))), [rows]);
-  const actionOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.action).filter(Boolean))), [rows]);
-  const userOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.user).filter(Boolean))), [rows]);
-
-  const filteredRows = useMemo(
-    () =>
-      rows.filter((row) => {
-        const matchesModule = moduleFilter === 'all' ? true : row.module === moduleFilter;
-        const matchesAction = actionFilter === 'all' ? true : row.action === actionFilter;
-        const matchesUser = userFilter === 'all' ? true : row.user === userFilter;
-        const matchesDateFrom = dateFrom ? String(row.dateTime).slice(0, 10) >= dateFrom : true;
-        const matchesDateTo = dateTo ? String(row.dateTime).slice(0, 10) <= dateTo : true;
-        return matchesModule && matchesAction && matchesUser && matchesDateFrom && matchesDateTo;
-      }),
-    [actionFilter, dateFrom, dateTo, moduleFilter, rows, userFilter],
-  );
+  const moduleOptions = useMemo(() => Array.from(new Set(logs.map((row) => row.module).filter(Boolean))), [logs]);
+  const actionOptions = useMemo(() => Array.from(new Set(logs.map((row) => row.action).filter(Boolean))), [logs]);
 
   return (
     <Box>
       <PageHeader
-        title={isErrorMode ? 'Error Monitoring' : 'System Logs'}
+        title={isErrorMode ? 'Error Monitoring' : 'Audit Logs'}
         subtitle={
           isErrorMode
-            ? 'Monitor frontend-visible exceptions and validation failures while keeping the existing error route intact.'
-            : 'Review user, module, action, reference, and status activity across barcode, GRN, transfer, and inventory events.'
+            ? 'Monitor application errors with server-side pagination.'
+            : 'Review user, module, and action activity across the ERP.'
         }
         breadcrumbs={[
-          { label: 'Inventory' },
-          { label: isErrorMode ? 'Error Monitoring' : 'System Logs', active: true },
+          { label: 'Reports' },
+          { label: isErrorMode ? 'Error Monitoring' : 'Audit Logs', active: true },
         ]}
         actions={[
           <ExportButton
             key="export"
-            rows={toExportRows(filteredRows)}
+            rows={toExportRows(logs)}
             columns={systemLogsExportColumns}
-            filename={isErrorMode ? 'error-logs.xlsx' : 'system-logs.xlsx'}
-            sheetName={isErrorMode ? 'Error Logs' : 'System Logs'}
+            filename={isErrorMode ? 'error-logs.xlsx' : 'audit-logs.xlsx'}
+            sheetName={isErrorMode ? 'Error Logs' : 'Audit Logs'}
           />,
         ]}
       />
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' }, gap: 2, mb: 2 }}>
-        <SummaryCard label="Log Rows" value={filteredRows.length} helper="Visible log entries after filters." />
-        <SummaryCard label="Modules" value={moduleOptions.length} helper="Distinct modules in the current result set." tone="info" />
-        <SummaryCard label="Actions" value={actionOptions.length} helper="Unique actions available for review." tone="warning" />
-        <SummaryCard label="Users" value={userOptions.length} helper="Users represented in the selected date range." tone="success" />
-      </Box>
-
       <FilterBar sx={{ mb: 2 }}>
-        <TextField size="small" select label="Module" value={moduleFilter} onChange={(event) => setModuleFilter(event.target.value)} sx={{ minWidth: 180 }}>
+        <TextField
+          size="small"
+          placeholder="Search module or action..."
+          value={searchText}
+          onChange={(e) => { resetPage(); setSearchText(e.target.value); }}
+          sx={{ flex: 1 }}
+        />
+        <TextField size="small" select label="Module" value={moduleFilter} onChange={(e) => { resetPage(); setModuleFilter(e.target.value); }} sx={{ minWidth: 160 }}>
           <MenuItem value="all">All Modules</MenuItem>
-          {moduleOptions.map((option) => (
-            <MenuItem key={option} value={option}>
-              {option}
-            </MenuItem>
-          ))}
+          {moduleOptions.map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
         </TextField>
-        <TextField size="small" select label="Action" value={actionFilter} onChange={(event) => setActionFilter(event.target.value)} sx={{ minWidth: 180 }}>
+        <TextField size="small" select label="Action" value={actionFilter} onChange={(e) => { resetPage(); setActionFilter(e.target.value); }} sx={{ minWidth: 160 }}>
           <MenuItem value="all">All Actions</MenuItem>
-          {actionOptions.map((option) => (
-            <MenuItem key={option} value={option}>
-              {option}
-            </MenuItem>
-          ))}
+          {actionOptions.map((a) => <MenuItem key={a} value={a}>{a}</MenuItem>)}
         </TextField>
-        <TextField size="small" select label="User" value={userFilter} onChange={(event) => setUserFilter(event.target.value)} sx={{ minWidth: 180 }}>
-          <MenuItem value="all">All Users</MenuItem>
-          {userOptions.map((option) => (
-            <MenuItem key={option} value={option}>
-              {option}
-            </MenuItem>
-          ))}
-        </TextField>
-        <TextField size="small" type="date" label="From" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} InputLabelProps={{ shrink: true }} />
-        <TextField size="small" type="date" label="To" value={dateTo} onChange={(event) => setDateTo(event.target.value)} InputLabelProps={{ shrink: true }} />
+        <TextField size="small" type="date" label="From" value={dateFrom} onChange={(e) => { resetPage(); setDateFrom(e.target.value); }} InputLabelProps={{ shrink: true }} />
+        <TextField size="small" type="date" label="To" value={dateTo} onChange={(e) => { resetPage(); setDateTo(e.target.value); }} InputLabelProps={{ shrink: true }} />
       </FilterBar>
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 2, mb: 2 }}>
+        <SummaryCard title="Total Records" value={total} />
+        <SummaryCard title="Current Page" value={logs.length} />
+      </Box>
 
       <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, overflow: 'hidden' }}>
         <TableContainer>
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 700 }}>Log ID</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Date Time</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Date / Time</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Module</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Action</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Reference Type</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Reference Number</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>User</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Remarks</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredRows.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell sx={{ fontWeight: 700 }}>{row.id}</TableCell>
-                  <TableCell>{row.dateTime}</TableCell>
-                  <TableCell>{row.module}</TableCell>
-                  <TableCell>{row.action}</TableCell>
-                  <TableCell>{row.referenceType}</TableCell>
-                  <TableCell>{row.referenceNumber}</TableCell>
-                  <TableCell>{row.user}</TableCell>
-                  <TableCell>
-                    <StatusBadge value={row.status} />
-                  </TableCell>
-                  <TableCell>{row.remarks}</TableCell>
-                </TableRow>
-              ))}
-              {!filteredRows.length ? (
+              {loading ? (
                 <TableRow>
-                  <TableCell colSpan={9} sx={{ py: 6, textAlign: 'center', color: '#64748b' }}>
-                    No log records match the selected filters.
+                  <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                    <CircularProgress size={28} />
                   </TableCell>
                 </TableRow>
-              ) : null}
+              ) : logs.length ? (
+                logs.map((row) => (
+                  <TableRow key={row._id || row.id} hover>
+                    <TableCell>{row.createdAt ? new Date(row.createdAt).toLocaleString() : row.dateTime}</TableCell>
+                    <TableCell>{row.module}</TableCell>
+                    <TableCell>{row.action}</TableCell>
+                    <TableCell>{row.performedBy?.name || row.userId?.name || row.user || '—'}</TableCell>
+                    <TableCell><StatusBadge value={row.status || 'Logged'} /></TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} align="center" sx={{ py: 6, color: '#64748b' }}>
+                    No audit logs found.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </TableContainer>
+        <ServerTablePagination
+          count={total}
+          page={page}
+          rowsPerPage={rowsPerPage}
+          onPageChange={handlePageChange}
+          onRowsPerPageChange={handleRowsPerPageChange}
+          rowsPerPageOptions={pageSizeOptions}
+          disabled={loading}
+        />
       </Paper>
     </Box>
   );

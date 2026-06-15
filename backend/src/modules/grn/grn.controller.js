@@ -21,8 +21,8 @@ const getById = async (req, res, next) => {
 
 const getAll = async (req, res, next) => {
     try {
-        const grns = await grnService.getAllGrns();
-        return sendSuccess(res, { grns }, 'All GRNs retrieved');
+        const result = await grnService.getAllGrns(req.query);
+        return sendSuccess(res, result, 'All GRNs retrieved');
     } catch (err) {
         next(err);
     }
