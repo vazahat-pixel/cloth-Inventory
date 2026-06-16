@@ -7,7 +7,7 @@ const StoreInventory = require('../models/storeInventory.model');
 /**
  * reconcileStock - Reconcile system stock with physical count
  * @param {string} storeId
- * @param {Array} items - [{ productId, physicalQty }]
+ * @param {Array} items - [{ productId|variantId|barcode, physicalQty }]
  * @param {string} userId
  */
 const reconcileStock = async (storeId, items, userId) => {
@@ -16,20 +16,37 @@ const reconcileStock = async (storeId, items, userId) => {
         const auditReferenceId = new mongoose.Types.ObjectId();
 
         for (const item of items) {
-            const { productId, physicalQty } = item;
+            const { physicalQty } = item;
+            const variantId = item.variantId || item.productId;
+            const barcode = item.barcode;
 
-            // 1. Get current system stock
-            const inventory = await StoreInventory.findOne({ storeId, productId }).session(session);
-            const currentQty = inventory ? inventory.quantity : 0;
+            const lookupOr = [];
+            if (variantId) {
+                lookupOr.push({ variantId: String(variantId) });
+                if (mongoose.Types.ObjectId.isValid(variantId)) {
+                    lookupOr.push({ itemId: variantId });
+                }
+            }
+            if (barcode) lookupOr.push({ barcode: String(barcode) });
 
-            // 2. Calculate difference
+            if (lookupOr.length === 0) {
+                throw new Error('Each audit item must include variantId, productId, or barcode');
+            }
+
+            const inventory = await StoreInventory.findOne({
+                storeId,
+                $or: lookupOr,
+            }).session(session);
+
+            const currentQty = inventory
+                ? (typeof inventory.quantityAvailable === 'number' ? inventory.quantityAvailable : inventory.quantity || 0)
+                : 0;
             const difference = Number(physicalQty) - currentQty;
 
             if (difference !== 0) {
-                // 3. Adjust stock accordingly
                 await adjustStoreStock({
-                    productId,
-                    variantId: productId,
+                    productId: inventory?.variantId || variantId,
+                    variantId: inventory?.variantId || variantId,
                     storeId,
                     quantityChange: difference,
                     type: StockMovementType.ADJUSTMENT,
@@ -41,7 +58,8 @@ const reconcileStock = async (storeId, items, userId) => {
                 });
 
                 results.push({
-                    productId,
+                    variantId: inventory?.variantId || variantId,
+                    barcode: inventory?.barcode || barcode,
                     previousQty: currentQty,
                     newQty: physicalQty,
                     adjustment: difference

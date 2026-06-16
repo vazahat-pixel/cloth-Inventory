@@ -1,5 +1,9 @@
 const stockService = require('./stockLedger.service');
 const auditService = require('./audit.service');
+const zeroMismatchService = require('./zeroMismatch.service');
+const physicalStockService = require('./physicalStock.service');
+const { saveDailyReport, notifyAdmins, writeSystemLog } = require('../../jobs/dailyZeroMismatch.job');
+const logger = require('../../config/logger');
 const SystemLog = require('../../models/systemLog.model');
 const ErrorLog = require('../../models/errorLog.model');
 const { sendSuccess, sendError, sendNotFound } = require('../../utils/response.handler');
@@ -127,6 +131,123 @@ class InventoryController {
     try {
       const report = await auditService.getValidationReport();
       return sendSuccess(res, report);
+    } catch (e) {
+      return this._handleError(res, e);
+    }
+  };
+
+  /**
+   * ZERO-MISMATCH VERIFICATION — full inventory architecture audit
+   */
+  getZeroMismatchVerification = async (req, res) => {
+    try {
+      const { startDate, endDate } = req.query;
+      const report = await zeroMismatchService.verify({ startDate, endDate, forUi: true });
+      return sendSuccess(res, report, report.status);
+    } catch (e) {
+      return this._handleError(res, e);
+    }
+  };
+
+  runZeroMismatchVerification = async (req, res) => {
+    try {
+      const report = await zeroMismatchService.verify();
+      const total = report.mismatches?.length || 0;
+      const UI_LIMIT = 150;
+      const uiReport = {
+        status: report.status,
+        passed: report.passed,
+        verifiedAt: report.verifiedAt,
+        summary: report.summary,
+        checks: report.checks,
+        mismatches: (report.mismatches || []).slice(0, UI_LIMIT),
+        mismatchMeta: {
+          total,
+          shown: Math.min(total, UI_LIMIT),
+          truncated: total > UI_LIMIT,
+        },
+      };
+
+      sendSuccess(res, uiReport, uiReport.status);
+
+      setImmediate(() => {
+        Promise.resolve()
+          .then(() => saveDailyReport(report))
+          .then(() => notifyAdmins(report))
+          .then(() => writeSystemLog(report))
+          .catch((err) => {
+            logger.error(`[DailyVerify] Post-response save/notify failed: ${err.message}`);
+          });
+      });
+    } catch (e) {
+      logger.error(`[DailyVerify] Run failed: ${e.message}`, { stack: e.stack });
+      return this._handleError(res, e);
+    }
+  };
+
+  reconcileInTransitPools = async (req, res) => {
+    try {
+      const { storeId } = req.body || {};
+      const result = await zeroMismatchService.reconcileInTransitPools({
+        storeId,
+        userId: req.user?._id,
+      });
+      return sendSuccess(res, result, `In-transit pool synced (${result.adjustedLines} line(s) adjusted)`);
+    } catch (e) {
+      logger.error(`[DailyVerify] Reconcile failed: ${e.message}`, { stack: e.stack });
+      return this._handleError(res, e);
+    }
+  };
+
+  getPhysicalVsActualStock = async (req, res) => {
+    try {
+      const { warehouseId, search, page, limit } = req.query;
+      if (!warehouseId) {
+        return sendError(res, 'warehouseId is required', 400);
+      }
+      const report = await physicalStockService.getWarehousePhysicalReport(warehouseId, {
+        search,
+        page,
+        limit,
+      });
+      return sendSuccess(res, report, 'Physical vs actual stock report loaded');
+    } catch (e) {
+      return this._handleError(res, e);
+    }
+  };
+
+  applyPhysicalVsActualStock = async (req, res) => {
+    try {
+      const { warehouseId, items } = req.body || {};
+      if (!warehouseId || !Array.isArray(items)) {
+        return sendError(res, 'warehouseId and items array are required', 400);
+      }
+      const changedItems = items.filter((item) => Number(item.physicalQty) !== Number(item.systemQty));
+      if (!changedItems.length) {
+        return sendSuccess(res, { adjustedLines: 0, adjustments: [] }, 'No changes to apply');
+      }
+      const result = await physicalStockService.applyWarehousePhysicalStock(
+        warehouseId,
+        changedItems,
+        req.user?._id,
+      );
+      return sendSuccess(res, result, `Warehouse stock updated (${result.adjustedLines} line(s))`);
+    } catch (e) {
+      logger.error(`[PhysicalStock] Apply failed: ${e.message}`, { stack: e.stack });
+      return this._handleError(res, e);
+    }
+  };
+
+  getLatestDailyVerification = async (req, res) => {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const latestPath = path.join(__dirname, '../../../reports/daily/latest.json');
+      if (!fs.existsSync(latestPath)) {
+        return sendSuccess(res, { report: null }, 'No daily verification run yet');
+      }
+      const report = JSON.parse(fs.readFileSync(latestPath, 'utf8'));
+      return sendSuccess(res, { report }, 'Latest daily verification loaded');
     } catch (e) {
       return this._handleError(res, e);
     }

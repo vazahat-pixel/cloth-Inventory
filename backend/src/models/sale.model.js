@@ -237,5 +237,7 @@ const saleSchema = new mongoose.Schema(
 saleSchema.index({ storeId: 1 });
 saleSchema.index({ cashierId: 1 });
 saleSchema.index({ saleDate: -1 });
+saleSchema.index({ isDeleted: 1, status: 1, saleDate: -1 });
+saleSchema.index({ storeId: 1, saleDate: -1, isDeleted: 1 });
 
 module.exports = mongoose.model('Sale', saleSchema);

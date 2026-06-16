@@ -1,0 +1,33 @@
+{
+  "verifiedAt": "2026-06-15T08:03:05.151Z",
+  "status": "MISMATCH DETECTED – REVIEW REQUIRED",
+  "passed": false,
+  "summary": {
+    "storesChecked": 10,
+    "warehousesChecked": 1,
+    "dispatchesInTransit": 15,
+    "mismatchCount": 645,
+    "checksRun": 38
+  },
+  "passedChecks": {
+    "storeStockReport": "All 10 stores — live inventory = stock report (0 difference). Includes Pithampura (3,284), Sonipat (2,847), GTB Nagar (2,967).",
+    "warehouseStockReport": "Warehouse live = report (0 difference).",
+    "branchSalesConsolidation": "Consolidated sales = sum of store sales.",
+    "inventoryIndependence": "Warehouse and store totals are tracked separately."
+  },
+  "failedChecks": {
+    "DISPATCH_IN_TRANSIT_MISMATCH": 640,
+    "IN_TRANSIT_POOL_MISMATCH": 4,
+    "NEGATIVE_STOCK": 1
+  },
+  "storeInTransitPoolGaps": [
+    { "store": "REBEL MASS EXPORT PVT. LTD. (SONIPAT)", "pool": 0, "dispatchedNotReceived": 332, "diff": -332, "dispatches": ["SCH-2026-00007", "SCH-2026-00008", "SCH-2026-00009", "SCH-2026-00021", "SCH-2026-00022"] },
+    { "store": "REBEL MASS EXPORT PVT. LTD. (GTB NAGAR)", "pool": 336, "dispatchedNotReceived": 196, "diff": 140, "dispatches": ["SCH-2026-00014", "SCH-2026-00015", "SCH-2026-00016", "SCH-2026-00017"] },
+    { "store": "REBEL MASS EXPORT PVT. LTD (SAHIBABAD)", "pool": 139, "dispatchedNotReceived": 278, "diff": -139, "dispatches": ["SCH-2026-00026", "SCH-2026-00029", "DSP-00010"] }
+  ],
+  "negativeStock": [
+    { "warehouse": "REBEL MASS EXPORT PVT LTD", "barcode": "0006946-L", "qty": -2 }
+  ],
+  "likelyRootCause": "Historical dispatch/in-transit drift — many SCH-* dispatches marked DISPATCHED without matching in-transit pool entries (pre-fix double-deduction and missing addInTransit on immediate dispatch). Store physical stock reports are clean.",
+  "fullReport": "See terminal output from node scripts/zero_mismatch_verify.js"
+}

@@ -341,29 +341,14 @@ const createDispatch = async (dispatchData, userId) => {
         await dispatchMaster.save({ session });
 
         // 5. ⚡ INVENTORY MOVEMENT — Only for DISPATCHED (non-draft)
-        //    Deduct from warehouse → add to in-transit at destination store
+        //    Billing doc (Sale / DeliveryChallan) already deducted warehouse stock above.
+        //    Only add to in-transit at destination store — never double-deduct warehouse.
         if (!isDraft) {
             for (const ei of enrichedItems) {
                 const barcode = ei.barcode;
                 const itemId = ei.itemId;
                 const variantId = ei.variantId;
 
-                // A. Deduct physical stock from source warehouse
-                await stockService.removeStock({
-                    itemId,
-                    barcode,
-                    variantId,
-                    locationId: finalSourceId,
-                    locationType: 'WAREHOUSE',
-                    qty: ei.qty,
-                    type: 'TRANSFER',
-                    referenceId: dispatchMaster._id,
-                    referenceType: 'Dispatch',
-                    performedBy: userId,
-                    session
-                });
-
-                // B. Add to in-transit pool at destination store
                 await stockService.addInTransit({
                     itemId,
                     barcode,

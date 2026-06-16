@@ -20,6 +20,202 @@ const GST_SALE_MATCH = {
 const round2 = (n) => Number((Number(n) || 0).toFixed(2));
 
 /**
+ * Fast summary-only GST report via MongoDB aggregation (no item-wise rows).
+ */
+const getDetailedGstReportSummaryFast = async (match) => {
+    const Store = require('../../models/store.model');
+    const Warehouse = require('../../models/warehouse.model');
+
+    const [facetRows, allStores, allWarehouses] = await Promise.all([
+        Sale.aggregate([
+            { $match: match },
+            {
+                $facet: {
+                    totals: [{
+                        $group: {
+                            _id: null,
+                            totalTaxableValue: { $sum: { $ifNull: ['$subTotal', 0] } },
+                            totalCGST: { $sum: { $ifNull: ['$taxBreakup.cgst', 0] } },
+                            totalSGST: { $sum: { $ifNull: ['$taxBreakup.sgst', 0] } },
+                            totalIGST: { $sum: { $ifNull: ['$taxBreakup.igst', 0] } },
+                            totalGST: { $sum: { $ifNull: ['$totalTax', 0] } },
+                            grandTotal: { $sum: { $ifNull: ['$grandTotal', 0] } },
+                            totalB2B: {
+                                $sum: {
+                                    $cond: [{
+                                        $gte: [{ $strLenCP: { $ifNull: ['$customerGst', ''] } }, 15],
+                                    }, 1, 0],
+                                },
+                            },
+                            totalSales: { $sum: 1 },
+                        },
+                    }],
+                    byStore: [{
+                        $group: {
+                            _id: '$storeId',
+                            qty: {
+                                $sum: {
+                                    $reduce: {
+                                        input: { $ifNull: ['$items', []] },
+                                        initialValue: 0,
+                                        in: { $add: ['$$value', { $ifNull: ['$$this.quantity', 0] }] },
+                                    },
+                                },
+                            },
+                            taxable: { $sum: { $ifNull: ['$subTotal', 0] } },
+                            cgst: { $sum: { $ifNull: ['$taxBreakup.cgst', 0] } },
+                            sgst: { $sum: { $ifNull: ['$taxBreakup.sgst', 0] } },
+                            igst: { $sum: { $ifNull: ['$taxBreakup.igst', 0] } },
+                            totalTax: { $sum: { $ifNull: ['$totalTax', 0] } },
+                            invoiceValue: { $sum: { $ifNull: ['$grandTotal', 0] } },
+                        },
+                    }],
+                    slabRows: [
+                        { $unwind: '$items' },
+                        {
+                            $group: {
+                                _id: { $ifNull: ['$items.taxPercentage', 0] },
+                                taxable: {
+                                    $sum: {
+                                        $subtract: [
+                                            { $ifNull: ['$items.total', 0] },
+                                            { $ifNull: ['$items.taxAmount', 0] },
+                                        ],
+                                    },
+                                },
+                                tax: { $sum: { $ifNull: ['$items.taxAmount', 0] } },
+                                net: { $sum: { $ifNull: ['$items.total', 0] } },
+                            },
+                        },
+                    ],
+                    b2b: [
+                        {
+                            $match: {
+                                $expr: { $gte: [{ $strLenCP: { $ifNull: ['$customerGst', ''] } }, 15] },
+                            },
+                        },
+                        {
+                            $project: {
+                                invoice: { $ifNull: ['$invoiceNumber', '$saleNumber'] },
+                                date: '$saleDate',
+                                customer: '$customerName',
+                                gstin: '$customerGst',
+                                taxable: { $ifNull: ['$subTotal', 0] },
+                                igst: { $ifNull: ['$taxBreakup.igst', 0] },
+                                cgst: { $ifNull: ['$taxBreakup.cgst', 0] },
+                                sgst: { $ifNull: ['$taxBreakup.sgst', 0] },
+                                totalTax: { $ifNull: ['$totalTax', 0] },
+                                grandTotal: { $ifNull: ['$grandTotal', 0] },
+                            },
+                        },
+                    ],
+                },
+            },
+        ]),
+        Store.find().select('name').lean(),
+        Warehouse.find().select('name').lean(),
+    ]);
+
+    const facet = facetRows[0] || {};
+    const totals = facet.totals?.[0] || {};
+    const locationMap = {};
+    allStores.forEach((s) => { locationMap[String(s._id)] = s.name; });
+    allWarehouses.forEach((w) => { locationMap[String(w._id)] = w.name; });
+
+    const _rCGST = round2(totals.totalCGST);
+    const _rSGST = round2(totals.totalSGST);
+    const _rIGST = round2(totals.totalIGST);
+
+    const slabSummary = {
+        '5%': { slab: '5%', taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0, invoiceValue: 0 },
+        '12%': { slab: '12%', taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0, invoiceValue: 0 },
+        '18%': { slab: '18%', taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0, invoiceValue: 0 },
+        '28%': { slab: '28%', taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0, invoiceValue: 0 },
+    };
+
+    (facet.slabRows || []).forEach((row) => {
+        const rate = Number(row._id) || 0;
+        const slabKey = `${rate}%`;
+        const tax = round2(row.tax);
+        const cgst = round2(tax / 2);
+        const sgst = round2(tax / 2);
+        const entry = {
+            slab: slabKey,
+            taxable: round2(row.taxable),
+            cgst,
+            sgst,
+            igst: 0,
+            totalTax: tax,
+            invoiceValue: round2(row.net),
+        };
+        if (slabSummary[slabKey]) {
+            Object.assign(slabSummary[slabKey], entry);
+        } else {
+            slabSummary[slabKey] = entry;
+        }
+    });
+
+    const monthStoreSummary = (facet.byStore || [])
+        .map((row) => {
+            const rCgst = round2(row.cgst);
+            const rSgst = round2(row.sgst);
+            const rIgst = round2(row.igst);
+            return {
+                branchName: locationMap[String(row._id)] || 'N/A',
+                qty: row.qty || 0,
+                taxable: round2(row.taxable),
+                cgst: rCgst,
+                sgst: rSgst,
+                igst: rIgst,
+                totalTax: round2(rCgst + rSgst + rIgst),
+                invoiceValue: round2(row.invoiceValue),
+            };
+        })
+        .sort((a, b) => a.branchName.localeCompare(b.branchName));
+
+    const totalB2B = totals.totalB2B || 0;
+    const totalSalesCount = totals.totalSales || 0;
+
+    return {
+        summary: {
+            totalTaxableValue: round2(totals.totalTaxableValue),
+            totalCGST: _rCGST,
+            totalSGST: _rSGST,
+            totalIGST: _rIGST,
+            totalGST: round2(_rCGST + _rSGST + _rIGST),
+            grandTotal: round2(totals.grandTotal),
+            totalB2B,
+            totalB2C: Math.max(0, totalSalesCount - totalB2B),
+        },
+        b2b: (facet.b2b || []).map((inv) => ({
+            ...inv,
+            taxable: round2(inv.taxable),
+            igst: round2(inv.igst),
+            cgst: round2(inv.cgst),
+            sgst: round2(inv.sgst),
+            grandTotal: round2(inv.grandTotal),
+        })),
+        b2c: [],
+        monthStoreSummary,
+        slabSummary: Object.values(slabSummary)
+            .filter((s) => s.taxable > 0 || s.invoiceValue > 0 || ['5%', '12%', '18%', '28%'].includes(s.slab))
+            .sort((a, b) => parseFloat(a.slab) - parseFloat(b.slab))
+            .map((s) => ({
+                ...s,
+                taxable: round2(s.taxable),
+                cgst: round2(s.cgst),
+                sgst: round2(s.sgst),
+                igst: round2(s.igst),
+                totalTax: round2(s.totalTax),
+                invoiceValue: round2(s.invoiceValue),
+            })),
+        itemWise: [],
+        itemWiseMeta: { total: null, deferred: true },
+    };
+};
+
+
+/**
  * Daily Sales Report
  */
 const getDailySalesReport = async (date, storeId) => {
@@ -69,8 +265,14 @@ const getMonthlySalesReport = async (month, year, storeId) => {
 /**
  * Store-wise Sales Summary
  */
+/** Retail sales only — excludes warehouse internal transfers (INTERNAL_SALE) */
+const RETAIL_SALE_MATCH = {
+    isDeleted: false,
+    $or: [{ type: { $exists: false } }, { type: { $nin: ['INTERNAL_SALE'] } }],
+};
+
 const getStoreWiseSales = async (startDate, endDate) => {
-    const query = { isDeleted: false };
+    const query = { ...RETAIL_SALE_MATCH };
     if (startDate || endDate) {
         query.saleDate = {};
         if (startDate) query.saleDate.$gte = new Date(startDate);
@@ -711,23 +913,24 @@ const getGstSummary = async (startDate, endDate, storeId) => {
 
 /**
  * Detailed GST Report (GSTR-1 Ready)
+ * Pass includeItemWise=true for item-wise tab; use itemPage/itemLimit to paginate.
  */
 const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) => {
     const match = { ...GST_SALE_MATCH };
     if (storeId && storeId !== 'all') match.storeId = new (require('mongoose').Types.ObjectId)(storeId);
-    
+
     if (filters.warehouseId && filters.warehouseId !== 'all') {
         match.storeId = new (require('mongoose').Types.ObjectId)(filters.warehouseId);
     }
-    
+
     if (filters.customerId && filters.customerId !== 'all') {
         match.customerId = new (require('mongoose').Types.ObjectId)(filters.customerId);
     }
-    
+
     if (filters.salesmanId && filters.salesmanId !== 'all') {
         match.cashierId = new (require('mongoose').Types.ObjectId)(filters.salesmanId);
     }
-    
+
     if (filters.paymentStatus && filters.paymentStatus !== 'all') {
         if (filters.paymentStatus === 'Paid') {
             match.dueAmount = { $lte: 0 };
@@ -738,7 +941,7 @@ const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) =
             match.amountPaid = { $lte: 0 };
         }
     }
-    
+
     if ((filters.categoryId && filters.categoryId !== 'all') || (filters.brandId && filters.brandId !== 'all')) {
         const itemMatch = { isDeleted: false };
         if (filters.categoryId && filters.categoryId !== 'all') {
@@ -747,7 +950,7 @@ const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) =
         if (filters.brandId && filters.brandId !== 'all') {
             itemMatch.brand = new (require('mongoose').Types.ObjectId)(filters.brandId);
         }
-        const matchingItems = await require('../../models/item.model').find(itemMatch).select('_id');
+        const matchingItems = await require('../../models/item.model').find(itemMatch).select('_id').lean();
         const itemIds = matchingItems.map(i => i._id);
         match['items.itemId'] = { $in: itemIds };
     }
@@ -762,27 +965,33 @@ const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) =
         }
     }
 
-    const sales = await Sale.find(match)
-        .populate({
-            path: 'items.itemId',
-            populate: { path: 'hsCodeId' }
-        })
-        .lean();
+    const includeItemWise = filters.includeItemWise === true || filters.includeItemWise === 'true';
+    const itemPage = Math.max(1, parseInt(filters.itemPage, 10) || 1);
+    const itemLimit = Math.min(500, Math.max(25, parseInt(filters.itemLimit, 10) || 100));
 
-    // Map all stores and warehouses for fast lookup
+    if (!includeItemWise) {
+        return getDetailedGstReportSummaryFast(match);
+    }
+
     const Store = require('../../models/store.model');
     const Warehouse = require('../../models/warehouse.model');
-    const allStores = await Store.find().select('name gstin location').lean();
-    const allWarehouses = await Warehouse.find().select('name gstin location').lean();
-    
-    const locationMap = {};
-    allStores.forEach(s => locationMap[String(s._id)] = s);
-    allWarehouses.forEach(w => locationMap[String(w._id)] = w);
 
-    // Attach store details to sales
+    const [sales, allStores, allWarehouses] = await Promise.all([
+        Sale.find(match)
+            .select('saleNumber invoiceNumber saleDate customerName customerGst storeId subTotal totalTax taxBreakup grandTotal items')
+            .sort({ saleDate: -1 })
+            .lean(),
+        Store.find().select('name').lean(),
+        Warehouse.find().select('name').lean(),
+    ]);
+
+    const locationMap = {};
+    allStores.forEach(s => { locationMap[String(s._id)] = s; });
+    allWarehouses.forEach(w => { locationMap[String(w._id)] = w; });
+
     sales.forEach(sale => {
         if (sale.storeId) {
-            sale.storeId = locationMap[String(sale.storeId)];
+            sale.storeId = locationMap[String(sale.storeId)] || { name: 'N/A' };
         }
     });
 
@@ -837,10 +1046,10 @@ const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) =
         let saleIGSTSum = 0;
 
         sale.items.forEach((item, idx) => {
-            const category = item.category || item.itemId?.categoryName || item.itemId?.categoryId?.name || 'GARMENT';
-            let hsn = item.hsnCode || item.itemId?.hsCodeId?.code || '';
+            const category = item.category || 'GARMENT';
+            let hsn = item.hsnCode || '';
             if (!hsn || hsn.toUpperCase().trim() === 'N/A' || hsn.toUpperCase().trim() === 'UNDEFINED') {
-                hsn = getFallbackHsn(category, item.itemName || item.itemId?.itemName);
+                hsn = getFallbackHsn(category, item.itemName);
             }
             const rate = item.taxPercentage || 0;
 
@@ -912,24 +1121,25 @@ const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) =
             }
             itemDiscountPct = Number(itemDiscountPct.toFixed(2));
 
-            // Detailed item-wise record
-            itemWiseDetails.push({
-                invoice: invSummary.invoice,
-                date: invSummary.date,
-                customer: invSummary.customer,
-                storeName: sale.storeId?.name || 'N/A',
-                category,
-                hsn,
-                mrp: item.mrp || 0,
-                discount: itemDiscountPct,
-                quantity: item.quantity,
-                taxable,
-                cgstRate: isInterstate ? 0 : rate / 2,
-                cgstAmount: cgst,
-                sgstIgstRate: isInterstate ? rate : rate / 2,
-                sgstIgstAmount: isInterstate ? igst : sgst,
-                netAmount
-            });
+            if (includeItemWise) {
+                itemWiseDetails.push({
+                    invoice: invSummary.invoice,
+                    date: invSummary.date,
+                    customer: invSummary.customer,
+                    storeName: sale.storeId?.name || 'N/A',
+                    category,
+                    hsn,
+                    mrp: item.mrp || 0,
+                    discount: itemDiscountPct,
+                    quantity: item.quantity,
+                    taxable,
+                    cgstRate: isInterstate ? 0 : rate / 2,
+                    cgstAmount: cgst,
+                    sgstIgstRate: isInterstate ? rate : rate / 2,
+                    sgstIgstAmount: isInterstate ? igst : sgst,
+                    netAmount
+                });
+            }
 
             // Slab Summary aggregation
             const slabKey = `${rate}%`;
@@ -996,6 +1206,13 @@ const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) =
         totalB2C: b2cInvoices.length
     };
 
+    const itemWiseTotal = includeItemWise ? itemWiseDetails.length : null;
+    let itemWisePage = itemWiseDetails;
+    if (includeItemWise && itemWiseTotal > 0) {
+        const startIdx = (itemPage - 1) * itemLimit;
+        itemWisePage = itemWiseDetails.slice(startIdx, startIdx + itemLimit);
+    }
+
     return {
         summary: finalSummary,
         b2b: b2bInvoices,
@@ -1033,7 +1250,15 @@ const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) =
                     invoiceValue: Number(s.invoiceValue.toFixed(2))
                 };
             }),
-        itemWise: itemWiseDetails
+        itemWise: includeItemWise ? itemWisePage : [],
+        itemWiseMeta: includeItemWise
+            ? {
+                total: itemWiseTotal,
+                page: itemPage,
+                limit: itemLimit,
+                pages: Math.ceil(itemWiseTotal / itemLimit) || 0,
+            }
+            : { total: null, deferred: true },
     };
 };
 
@@ -1042,7 +1267,7 @@ const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) =
  */
 const getInTransitReport = async () => {
     const Dispatch = require('../../models/dispatch.model');
-    const transits = await Dispatch.find({ status: 'PENDING' })
+    const transits = await Dispatch.find({ status: 'DISPATCHED' })
         .populate('sourceWarehouseId', 'name')
         .populate('destinationStoreId', 'name')
         .populate('createdBy', 'name')
@@ -1065,7 +1290,7 @@ const getInTransitReport = async () => {
  * Consolidated Sales Report
  */
 const getSalesReport = async (startDate, endDate, storeId, filters = {}) => {
-    const match = { isDeleted: false };
+    const match = { ...RETAIL_SALE_MATCH };
     if (startDate || endDate) {
         match.saleDate = {};
         if (startDate) match.saleDate.$gte = new Date(startDate);
@@ -1128,7 +1353,7 @@ const getStockReport = async () => {
     const storeStock = await StoreInventory.aggregate([
         {
             $group: {
-                _id: "$productId",
+                _id: { itemId: "$itemId", variantId: "$variantId" },
                 qty: { $sum: "$quantityAvailable" },
                 locations: { $push: { storeId: "$storeId", qty: "$quantityAvailable" } }
             }
@@ -1136,7 +1361,7 @@ const getStockReport = async () => {
         {
             $lookup: {
                 from: "items",
-                localField: "itemId",
+                localField: "_id.itemId",
                 foreignField: "_id",
                 as: "product"
             }
@@ -1144,8 +1369,8 @@ const getStockReport = async () => {
         { $unwind: "$product" },
         {
             $project: {
-                name: "$product.name",
-                sku: "$product.sku",
+                name: "$product.itemName",
+                sku: "$product.itemCode",
                 minStockLevel: "$product.minStockLevel",
                 totalQty: "$qty",
                 isLowStock: { $lte: ["$qty", { $ifNull: ["$product.minStockLevel", 10] }] }
@@ -1156,14 +1381,14 @@ const getStockReport = async () => {
     const warehouseStock = await WarehouseInventory.aggregate([
         {
             $group: {
-                _id: "$productId",
+                _id: { itemId: "$itemId", variantId: "$variantId" },
                 qty: { $sum: "$quantity" }
             }
         },
         {
             $lookup: {
                 from: "items",
-                localField: "itemId",
+                localField: "_id.itemId",
                 foreignField: "_id",
                 as: "product"
             }
@@ -1171,8 +1396,8 @@ const getStockReport = async () => {
         { $unwind: "$product" },
         {
             $project: {
-                name: "$product.name",
-                sku: "$product.sku",
+                name: "$product.itemName",
+                sku: "$product.itemCode",
                 totalQty: "$qty"
             }
         }
@@ -1579,8 +1804,8 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
 
     console.log('[BranchSalesStockReport] StoreInventory records found:', storeInventory.length);
 
-    // 1. Fetch Sales
-    const salesQuery = { isDeleted: false };
+    // 1. Fetch Sales (retail only — exclude INTERNAL_SALE warehouse transfers)
+    const salesQuery = { ...RETAIL_SALE_MATCH };
     if (targetStoreIds) {
         salesQuery.storeId = { $in: targetStoreIds };
     }

@@ -184,10 +184,11 @@ function StockOverviewPage() {
 
   const itemOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.itemCode).filter(Boolean))), [rows]);
   const sizeOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.size).filter(Boolean))), [rows]);
-  const warehouseOptions = useMemo(
-    () => Array.from(new Set([...rows.map((row) => row.warehouse), ...warehouses.map((warehouse) => warehouse.warehouseName || warehouse.name)]).values()).filter(Boolean),
-    [rows, warehouses],
-  );
+  const warehouseOptions = useMemo(() => {
+    const fromMasters = warehouses.map((w) => `[Warehouse] ${w.warehouseName || w.name}`).filter(Boolean);
+    const fromRows = rows.map((row) => row.warehouse).filter(Boolean);
+    return Array.from(new Set([...fromMasters, ...fromRows])).sort((a, b) => a.localeCompare(b));
+  }, [rows, warehouses]);
 
   const filteredRows = useMemo(() => {
     const query = searchText.trim().toLowerCase();

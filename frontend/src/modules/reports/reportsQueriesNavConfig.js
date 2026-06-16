@@ -11,6 +11,7 @@ import ShoppingCartOutlinedIcon from '@mui/icons-material/ShoppingCartOutlined';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined';
 import GavelOutlinedIcon from '@mui/icons-material/GavelOutlined';
+import VerifiedUserOutlinedIcon from '@mui/icons-material/VerifiedUserOutlined';
 import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import PaymentsIcon from '@mui/icons-material/Payments';
@@ -23,6 +24,12 @@ import BusinessIcon from '@mui/icons-material/Business';
 export const reportsQueriesMatchPaths = ['/reports'];
 
 export const reportsQueriesNavItems = [
+  {
+    key: 'control-center',
+    label: 'HO Control Center',
+    path: '/reports/control-center',
+    icon: VerifiedUserOutlinedIcon,
+  },
   {
     key: 'reports-dashboard',
     label: 'Reports Dashboard',
@@ -52,6 +59,12 @@ export const reportsQueriesNavItems = [
     label: 'Branch Sales & Stock',
     path: '/reports/branch-sales-stock',
     icon: WarehouseOutlinedIcon,
+  },
+  {
+    key: 'physical-vs-actual-stock',
+    label: 'Physical vs Actual Stock',
+    path: '/reports/physical-vs-actual-stock',
+    icon: Inventory2OutlinedIcon,
   },
   {
     key: 'ledger',

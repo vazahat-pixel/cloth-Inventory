@@ -351,11 +351,15 @@ const removeInTransit = async ({ itemId, barcode, variantId, locationId, locatio
 
     const currentTransit = inventory.quantityInTransit || 0;
     if (currentTransit < transitQty) {
-        console.warn(`[SYNC-WARNING] Forcing receipt of ${transitQty} despite pool having only ${currentTransit}. Syncing pool to 0.`);
+        throw new Error(
+            `In-transit quantity mismatch at ${locationType} ${locationId}: ` +
+            `expected pool ${currentTransit}, receipt requires ${transitQty} ` +
+            `(barcode: ${inventory.barcode || barcode || 'N/A'}). ` +
+            `Trace dispatch/receipt chain before forcing receipt.`
+        );
     }
 
-    // Safety: Ensure we don't go below 0 for in-transit pool
-    inventory.quantityInTransit = Math.max(0, currentTransit - transitQty);
+    inventory.quantityInTransit = currentTransit - transitQty;
     inventory.lastUpdated = Date.now();
     await inventory.save({ session });
     

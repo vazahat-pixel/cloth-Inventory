@@ -389,9 +389,9 @@ const getConsolidatedStock = async (req, res, next) => {
             { $group: { _id: '$warehouseId', totalQty: { $sum: '$quantity' }, items: { $addToSet: '$itemId' } } }
         ]);
 
-        // Total by Store
+        // Total by Store (sellable qty only — independent from warehouse)
         const storeStock = await StoreInventory.aggregate([
-            { $group: { _id: '$storeId', totalQty: { $sum: '$quantity' } } }
+            { $group: { _id: '$storeId', totalQty: { $sum: '$quantityAvailable' }, inTransit: { $sum: '$quantityInTransit' } } }
         ]);
 
         // Total by Supplier (Job Work)
@@ -399,14 +399,20 @@ const getConsolidatedStock = async (req, res, next) => {
             { $group: { _id: '$supplierId', totalQty: { $sum: '$quantity' } } }
         ]);
 
+        const warehouseUnits = whStock.reduce((a, b) => a + b.totalQty, 0);
+        const storeUnits = storeStock.reduce((a, b) => a + b.totalQty, 0);
+        const storeInTransitUnits = storeStock.reduce((a, b) => a + (b.inTransit || 0), 0);
+
         return sendSuccess(res, { 
             warehouseStock: whStock, 
             storeStock: storeStock, 
             contractorStock: supplierStock,
             summary: {
-                warehouseUnits: whStock.reduce((a, b) => a + b.totalQty, 0),
-                storeUnits: storeStock.reduce((a, b) => a + b.totalQty, 0),
-                contractorUnits: supplierStock.reduce((a, b) => a + b.totalQty, 0)
+                warehouseUnits,
+                storeUnits,
+                storeInTransitUnits,
+                contractorUnits: supplierStock.reduce((a, b) => a + b.totalQty, 0),
+                note: 'Warehouse and store inventories are independent. Warehouse is NOT the sum of stores.'
             }
         }, 'Consolidated stock report retrieved');
     } catch (err) {

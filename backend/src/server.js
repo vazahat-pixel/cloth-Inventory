@@ -25,6 +25,10 @@ const startServer = async () => {
     // 1. Initialize Real-time Visibility (Socket.io)
     initSocket(server);
 
+    // Daily zero-mismatch verification (optional — see DAILY_ZERO_MISMATCH_CRON in .env)
+    const { startDailyZeroMismatchScheduler } = require('./jobs/scheduler');
+    startDailyZeroMismatchScheduler();
+
     // Handle port already in use gracefully
     server.on('error', (err) => {
         if (err.code === 'EADDRINUSE') {

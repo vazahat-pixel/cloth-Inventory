@@ -74,3 +74,6 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+/** Long-running inventory verification (2–5 min). */
+export const VERIFY_REQUEST_TIMEOUT_MS = 300000;

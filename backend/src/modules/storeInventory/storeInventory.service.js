@@ -9,6 +9,15 @@ const toFiniteNumber = (val) => {
     return Number.isFinite(n) ? n : 0;
 };
 
+const formatInventoryLocation = (item) => {
+    if (item.storeId) return `[Store] ${item.storeId.name}`;
+    if (item.warehouseId) {
+        const whName = item.warehouseId.name || item.warehouseId.warehouseName || 'Main Warehouse';
+        return `[Warehouse] ${whName}`;
+    }
+    return 'Main Warehouse';
+};
+
 const populateInventoryManual = async (inventoryItems) => {
     if (!inventoryItems || inventoryItems.length === 0) return [];
 
@@ -91,8 +100,8 @@ const populateInventoryManual = async (inventoryItems) => {
                 available: item.quantityAvailable ?? item.quantity,
                 inTransit: item.quantityInTransit || 0,
                 reorderLevel: item.reorderLevel || 0,
-                location: item.storeId ? `[Store] ${item.storeId.name}` : (item.warehouseId ? `[Warehouse] ${item.warehouseId.location?.city || item.warehouseId.name}` : 'Main Warehouse'),
-                warehouseName: item.storeId ? `[Store] ${item.storeId.name}` : (item.warehouseId ? `[Warehouse] ${item.warehouseId.location?.city || item.warehouseId.name}` : 'Main Warehouse'),
+                location: formatInventoryLocation(item),
+                warehouseName: formatInventoryLocation(item),
                 salePrice: toFiniteNumber(variant.salePrice || parentItem.salePrice || variant.mrp || parentItem.mrp),
                 mrp: toFiniteNumber(variant.mrp || parentItem.mrp || variant.salePrice || parentItem.salePrice),
                 hsnCode: parentItem.hsCodeId?.code || parentItem.hsnCode || 'N/A'
@@ -107,7 +116,7 @@ const populateInventoryManual = async (inventoryItems) => {
             type: 'GARMENT', 
             size: '-',
             color: '-',
-            warehouseName: item.storeId ? `[Store] ${item.storeId.name}` : (item.warehouseId ? `[Warehouse] ${item.warehouseId.location?.city || item.warehouseId.name}` : 'Main Warehouse'),
+            warehouseName: formatInventoryLocation(item),
             available: item.quantityAvailable ?? item.quantity,
             inTransit: item.quantityInTransit || 0,
             status: 'ORPHAN'
@@ -141,7 +150,6 @@ const getStoreInventory = async (query, user) => {
         // Admin or HO role: filter by selected location if provided
         if (storeId && storeId !== 'all') {
             storeFilter.storeId = storeId;
-            warehouseFilter.warehouseId = storeId;
         } else if (warehouseId && warehouseId !== 'all') {
             // Handle separate warehouse filter if passed
             warehouseFilter.warehouseId = warehouseId;

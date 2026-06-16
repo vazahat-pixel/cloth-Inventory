@@ -21,6 +21,12 @@ router.get('/error-logs', requireAdmin, inventoryController.getErrorLogs);
 // Deep Trace & Audit
 router.get('/trace/:itemId', inventoryController.getItemJourney);
 router.get('/validation-report', inventoryController.getValidationReport);
+router.get('/zero-mismatch-verify', requireAdmin, inventoryController.getZeroMismatchVerification);
+router.post('/zero-mismatch-verify/run', requireAdmin, inventoryController.runZeroMismatchVerification);
+router.post('/reconcile-in-transit', requireAdmin, inventoryController.reconcileInTransitPools);
+router.get('/physical-vs-actual', requireAdmin, inventoryController.getPhysicalVsActualStock);
+router.post('/physical-vs-actual/apply', requireAdmin, inventoryController.applyPhysicalVsActualStock);
+router.get('/daily-verify/latest', requireAdmin, inventoryController.getLatestDailyVerification);
 router.get('/demo-metrics', inventoryController.getClientDemoMetrics);
 
 module.exports = router;

@@ -10,7 +10,8 @@
         "seed": "node scripts/seed.js",
         "seed:testdata": "node scripts/seed_gst_hsn_and_masters.js",
         "seed:accounts": "node src/scripts/seedAccounts.js",
-        "test": "node --test src/tests/**/*.test.js"
+        "test": "node --test src/tests/**/*.test.js",
+        "verify:daily": "node scripts/daily_zero_mismatch_cron.js"
     },
     "dependencies": {
         "axios": "^1.13.5",

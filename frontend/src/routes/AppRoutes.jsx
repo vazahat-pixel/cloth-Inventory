@@ -70,9 +70,11 @@ const StoreClosureAuditPage = lazy(() => import('../modules/reports/StoreClosure
 const OrderReportPage = lazy(() => import('../modules/reports/OrderReportPage'));
 const HoMasterDashboard = lazy(() => import('../modules/reports/HoMasterDashboard'));
 const InTransitMonitorPage = lazy(() => import('../modules/reports/InTransitMonitorPage'));
+const VerificationControlCenterPage = lazy(() => import('../modules/controlCenter/VerificationControlCenterPage'));
 
 // Missing Report Pages
 const BranchSalesStockReportPage = lazy(() => import('../modules/reports/BranchSalesStockReportPage'));
+const PhysicalVsActualStockPage = lazy(() => import('../modules/reports/PhysicalVsActualStockPage'));
 const LedgerReportPage = lazy(() => import('../modules/reports/LedgerReportPage'));
 const BankBookPage = lazy(() => import('../modules/reports/BankBookPage'));
 const CustomerReportPage = lazy(() => import('../modules/reports/CustomerReportPage'));
@@ -197,6 +199,7 @@ function AppRoutes() {
           <Route path="/ho" element={<RoleDashboardLayout />}>
             <Route index element={<DashboardHomePage />} />
             <Route path="master-dashboard" element={<HoMasterDashboard />} />
+            <Route path="control-center" element={<VerificationControlCenterPage />} />
 
             {/* Masters */}
             <Route path="masters/suppliers" element={<SuppliersListPage />} />
@@ -344,6 +347,7 @@ function AppRoutes() {
               <Route path="purchase" element={<PurchaseReportPage />} />
               <Route path="stock" element={<StockReportPage />} />
               <Route path="branch-sales-stock" element={<BranchSalesStockReportPage />} />
+              <Route path="physical-vs-actual-stock" element={<PhysicalVsActualStockPage />} />
               <Route path="ledger" element={<LedgerReportPage />} />
               <Route path="visit-logs" element={<VisitLogsPage />} />
               <Route path="audit-logs" element={<AuditLogViewer />} />
@@ -362,6 +366,7 @@ function AppRoutes() {
               <Route path="production/yield" element={<YieldAnalysisPage />} />
               <Route path="gst/summary" element={<GstSummaryReportPage />} />
               <Route path="gstr1" element={<Gstr1DetailedReportPage />} />
+              <Route path="control-center" element={<VerificationControlCenterPage />} />
               
               {/* Dynamic & Other Reports */}
               <Route path="sale-challan-reports" element={<DynamicReportPage config={CHALLAN_REPORT_CONFIG} />} />

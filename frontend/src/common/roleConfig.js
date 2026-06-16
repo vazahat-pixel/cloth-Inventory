@@ -22,6 +22,7 @@ import FileUploadOutlinedIcon from '@mui/icons-material/FileUploadOutlined';
 import LockClockIcon from '@mui/icons-material/LockClock';
 import WarehouseIcon from '@mui/icons-material/Store';
 import KeyboardReturnIcon from '@mui/icons-material/KeyboardReturn';
+import VerifiedUserOutlinedIcon from '@mui/icons-material/VerifiedUserOutlined';
 
 import { purchaseMatchPaths, purchaseNavItems } from '../modules/purchase/purchaseNavConfig';
 import { itemsMatchPaths, itemsNavItems } from '../modules/items/itemsNavConfig';
@@ -60,6 +61,7 @@ export const getRoleBasePath = (role) => {
 
 const adminSidebarItems = [
   { label: 'Search Home', path: '/', icon: HomeIcon },
+  { label: 'Control Center', path: '/control-center', icon: VerifiedUserOutlinedIcon, matchPaths: ['/control-center'] },
   { label: 'Goods Control', path: '/inventory/stock-overview', icon: Inventory2Icon, matchPaths: ['/inventory/stock-overview', '/items', '/inventory/grn', '/inventory/opening-stock', '/setup/barcode-print', '/setup/groups', '/setup/hsn-codes', '/setup/sizes', '/masters/brands', '/orders/delivery-challan', '/orders/dispatch-queue'], drilldown: true },
   { label: 'Procurement (Purchase)', path: '/ho/purchase/new', icon: ShoppingCartIcon },
   { label: 'Sales & Billing', path: '/sales', icon: PointOfSaleIcon, matchPaths: billingMatchPaths, drilldown: true },
@@ -88,6 +90,7 @@ export const adminNavConfig = {
     '/inventory/stock-overview': [
       { label: 'Garment Master', path: '/ho/items' },
       {label: 'Inventory Overview', path: '/ho/inventory/stock-overview'},
+      {label: 'Physical vs Actual Stock', path: '/ho/reports/physical-vs-actual-stock'},
       {label: 'Store Stock Returns (Inward)', path: '/ho/inventory/store-returns'},
       {label: 'Barcode Print', path: '/ho/setup/barcode-print'},
       {label: 'Scan-to-Receipt (GRN)', path: '/ho/inventory/grn'},
