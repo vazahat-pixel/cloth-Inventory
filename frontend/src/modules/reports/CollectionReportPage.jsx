@@ -15,23 +15,50 @@ import {
 import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
 import { SummaryChip } from './SalesReportPage';
+import ServerTablePagination from '../../components/erp/ServerTablePagination';
+import { REPORT_FETCH_PARAMS } from './reportConstants';
 import { fetchBankReceipts } from '../accounts/accountsSlice';
-import { fetchSales } from '../sales/salesSlice';
+import { fetchSalesForReport } from '../sales/salesSlice';
 
 const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 function CollectionReportPage() {
   const dispatch = useDispatch();
-  const sales = useSelector((state) => state.sales?.records || []);
+  const sales = useSelector((state) => state.sales?.reportRecords || []);
   const bankReceipts = useSelector((state) => state.accounts?.bankReceipts || []);
   const customers = useSelector((state) => state.masters?.customers || []);
-
-  useEffect(() => {
-    dispatch(fetchSales());
-    dispatch(fetchBankReceipts());
-  }, [dispatch]);
+  const user = useSelector((state) => state.auth.user);
+  const isStoreStaff = user?.role !== 'Admin' && user?.role !== 'admin';
 
   const [filters, setFilters] = useState({});
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+
+  useEffect(() => {
+    if (isStoreStaff && user?.shopId) {
+      setFilters((prev) => ({
+        ...prev,
+        warehouseId: user.shopId,
+      }));
+    }
+  }, [isStoreStaff, user?.shopId]);
+
+  useEffect(() => {
+    const storeFilter = isStoreStaff
+      ? user?.shopId
+      : (filters.warehouseId && filters.warehouseId !== 'all' ? filters.warehouseId : undefined);
+    dispatch(fetchSalesForReport({
+      ...REPORT_FETCH_PARAMS,
+      startDate: filters.dateFrom,
+      endDate: filters.dateTo,
+      storeId: storeFilter,
+    }));
+    dispatch(fetchBankReceipts());
+  }, [dispatch, isStoreStaff, user?.shopId, filters.dateFrom, filters.dateTo, filters.warehouseId]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [filters.dateFrom, filters.dateTo, filters.warehouseId]);
 
   const customerMap = useMemo(
     () => (customers || []).reduce((acc, c) => ({ ...acc, [c.id]: c.customerName }), {}),
@@ -59,10 +86,10 @@ function CollectionReportPage() {
       if (!inRange(s.date)) return;
       const paid = toNum(s.payment?.amountPaid);
       if (paid <= 0) return;
-      
+
       const payments = s.payment?.payments || [];
       if (s.payment?.mode === 'Split' && payments.length > 0) {
-        payments.forEach(p => {
+        payments.forEach((p) => {
           const amt = toNum(p.amount);
           if (amt > 0) {
             list.push({
@@ -94,7 +121,7 @@ function CollectionReportPage() {
       if (amt <= 0) return;
       list.push({
         date: r.date,
-        source: r.chequeNo ? `Chq ${r.chequeNo}` : `Receipt`,
+        source: r.chequeNo ? `Chq ${r.chequeNo}` : 'Receipt',
         sourceType: 'Bank Receipt',
         customerId: r.customerId,
         customerName: customerMap[r.customerId] || '-',
@@ -105,6 +132,11 @@ function CollectionReportPage() {
     list.sort((a, b) => a.date.localeCompare(b.date));
     return list;
   }, [filters.dateFrom, filters.dateTo, sales, bankReceipts, customerMap]);
+
+  const paginatedRows = useMemo(
+    () => rows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [rows, page, rowsPerPage],
+  );
 
   const summary = useMemo(() => {
     const byMode = {};
@@ -141,7 +173,13 @@ function CollectionReportPage() {
           </Typography>
         </Box>
 
-        <ReportFilterPanel filters={filters} onFiltersChange={setFilters} showDateRange compact />
+        <ReportFilterPanel
+          filters={filters}
+          onFiltersChange={setFilters}
+          showDateRange
+          showWarehouse={!isStoreStaff}
+          compact
+        />
       </Stack>
 
       <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 2, mb: 2 }}>
@@ -178,14 +216,14 @@ function CollectionReportPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {rows.length === 0 ? (
+              {paginatedRows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} align="center" sx={{ py: 4, color: '#64748b' }}>
                     No collections in the selected period.
                   </TableCell>
                 </TableRow>
               ) : (
-                rows.map((r, i) => (
+                paginatedRows.map((r, i) => (
                   <TableRow key={`${r.date}-${r.source}-${i}`} hover>
                     <TableCell>{r.date}</TableCell>
                     <TableCell>{r.source}</TableCell>
@@ -199,6 +237,14 @@ function CollectionReportPage() {
             </TableBody>
           </Table>
         </TableContainer>
+        <ServerTablePagination
+          count={rows.length}
+          page={page}
+          rowsPerPage={rowsPerPage}
+          onPageChange={(_, p) => setPage(p)}
+          onRowsPerPageChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(0); }}
+          rowsPerPageOptions={[5, 10, 25, 50]}
+        />
       </Paper>
     </Box>
   );

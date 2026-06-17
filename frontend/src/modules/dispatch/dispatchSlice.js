@@ -13,7 +13,7 @@ const putWithIdempotency = (url, body = {}, idempotencyKey) =>
 
 export const fetchChallans = createAsyncThunk('dispatch/fetchChallans', async (params = {}, { rejectWithValue }) => {
     try {
-        const response = await api.get('/dispatch', { params });
+        const response = await api.get('/dispatch', { params: { ...params, listView: 'true' } });
         const data = response.data.data || response.data;
         const raw = data.dispatches || response.data.dispatches || [];
         const meta = extractPaginationMeta(response.data);

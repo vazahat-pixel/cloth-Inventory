@@ -19,17 +19,17 @@ import SearchIcon from '@mui/icons-material/Search';
 import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
 import { SummaryChip } from './SalesReportPage';
-import { fetchPurchases } from '../purchase/purchaseSlice';
+import { fetchPurchasesForReport } from '../purchase/purchaseSlice';
 
 const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 function VendorReportPage() {
   const dispatch = useDispatch();
-  const purchases = useSelector((state) => state.purchase?.records || []);
+  const purchases = useSelector((state) => state.purchase?.reportRecords || []);
   const suppliers = useSelector((state) => state.masters?.suppliers || []);
 
   useEffect(() => {
-    dispatch(fetchPurchases());
+    dispatch(fetchPurchasesForReport({}));
   }, [dispatch]);
 
   const [filters, setFilters] = useState({});

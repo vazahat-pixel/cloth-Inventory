@@ -496,6 +496,7 @@ function PurchaseFormPage() {
                   onBlur={field.onBlur}
                   error={Boolean(errors.supplierId)}
                   helperText={errors.supplierId?.message}
+                  InputLabelProps={{ shrink: true }}
                 >
                   <MenuItem value=""><em>— Select Supplier —</em></MenuItem>
                   {suppliers.map(s => (
@@ -521,6 +522,7 @@ function PurchaseFormPage() {
                   onBlur={field.onBlur}
                   error={Boolean(errors.warehouseId)}
                   helperText={errors.warehouseId?.message}
+                  InputLabelProps={{ shrink: true }}
                 >
                   <MenuItem value=""><em>— Select Location —</em></MenuItem>
                   {availableLocations.map(loc => (

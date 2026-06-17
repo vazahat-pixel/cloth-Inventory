@@ -16,6 +16,18 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import { useState } from 'react';
 import { fetchMasters } from '../masters/mastersSlice';
 
+const filterFieldSx = {
+  minWidth: { xs: '100%', sm: 200 },
+  '& .MuiInputLabel-root': {
+    whiteSpace: 'normal',
+    lineHeight: 1.2,
+    maxWidth: '100%',
+  },
+  '& .MuiInputLabel-shrink': {
+    transform: 'translate(14px, -9px) scale(0.75)',
+  },
+};
+
 function ReportFilterPanel({
   filters,
   onFiltersChange,
@@ -132,7 +144,7 @@ function ReportFilterPanel({
     <Grid container spacing={2}>
       {showDateRange && (
         <>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={3} sx={{ minWidth: 180 }}>
             <TextField
               fullWidth
               size="small"
@@ -141,10 +153,11 @@ function ReportFilterPanel({
               value={filters?.dateFrom || ''}
               onChange={(e) => update('dateFrom', e.target.value)}
               InputLabelProps={{ shrink: true }}
+              sx={filterFieldSx}
               inputProps={{ max: new Date().toISOString().split('T')[0] }}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={3} sx={{ minWidth: 180 }}>
             <TextField
               fullWidth
               size="small"
@@ -153,13 +166,14 @@ function ReportFilterPanel({
               value={filters?.dateTo || ''}
               onChange={(e) => update('dateTo', e.target.value)}
               InputLabelProps={{ shrink: true }}
+              sx={filterFieldSx}
               inputProps={{ max: new Date().toISOString().split('T')[0] }}
             />
           </Grid>
         </>
       )}
       {showWarehouse && !isStoreStaff && multiSelectWarehouse && (
-        <Grid item xs={12} sm={8} md={6}>
+        <Grid item xs={12} sm={8} md={6} sx={{ minWidth: 220 }}>
           <TextField
             fullWidth
             size="small"
@@ -174,6 +188,8 @@ function ReportFilterPanel({
                 warehouseId: value.length ? value[0] : 'all'
               });
             }}
+            InputLabelProps={{ shrink: true }}
+            sx={filterFieldSx}
             SelectProps={{
               multiple: true,
               renderValue: (selected) => {
@@ -197,7 +213,7 @@ function ReportFilterPanel({
         </Grid>
       )}
       {showWarehouse && !isStoreStaff && !multiSelectWarehouse && (
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={3} sx={{ minWidth: 180 }}>
           <TextField
             fullWidth
             size="small"
@@ -205,6 +221,8 @@ function ReportFilterPanel({
             label="Location"
             value={filters?.warehouseId || 'all'}
             onChange={(e) => update('warehouseId', e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={filterFieldSx}
           >
             <MenuItem value="all">All</MenuItem>
             {availableLocations.map((w) => {
@@ -218,7 +236,7 @@ function ReportFilterPanel({
         </Grid>
       )}
       {showBrand && (
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={3} sx={{ minWidth: 180 }}>
           <TextField
             fullWidth
             size="small"
@@ -226,6 +244,8 @@ function ReportFilterPanel({
             label="Brand"
             value={filters?.brandId || 'all'}
             onChange={(e) => update('brandId', e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={filterFieldSx}
           >
             <MenuItem value="all">All</MenuItem>
             {brands.map((b) => (
@@ -237,7 +257,7 @@ function ReportFilterPanel({
         </Grid>
       )}
       {showCategory && (
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={3} sx={{ minWidth: 200 }}>
           <TextField
             fullWidth
             size="small"
@@ -245,6 +265,8 @@ function ReportFilterPanel({
             label="Category / Item Group"
             value={filters?.categoryId || 'all'}
             onChange={(e) => update('categoryId', e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={filterFieldSx}
           >
             <MenuItem value="all">All</MenuItem>
             {filteredItemGroups.map((g) => (
@@ -256,7 +278,7 @@ function ReportFilterPanel({
         </Grid>
       )}
       {showCustomer && (
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={3} sx={{ minWidth: 180 }}>
           <TextField
             fullWidth
             size="small"
@@ -264,6 +286,8 @@ function ReportFilterPanel({
             label="Customer"
             value={filters?.customerId || 'all'}
             onChange={(e) => update('customerId', e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={filterFieldSx}
           >
             <MenuItem value="all">All</MenuItem>
             {customers.map((c) => (
@@ -275,7 +299,7 @@ function ReportFilterPanel({
         </Grid>
       )}
       {showSupplier && (
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={3} sx={{ minWidth: 180 }}>
           <TextField
             fullWidth
             size="small"
@@ -283,6 +307,8 @@ function ReportFilterPanel({
             label="Supplier"
             value={filters?.supplierId || 'all'}
             onChange={(e) => update('supplierId', e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={filterFieldSx}
           >
             <MenuItem value="all">All</MenuItem>
             {suppliers.map((s) => (
@@ -294,7 +320,7 @@ function ReportFilterPanel({
         </Grid>
       )}
       {showSalesman && (
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={3} sx={{ minWidth: 180 }}>
           <TextField
             fullWidth
             size="small"
@@ -302,6 +328,8 @@ function ReportFilterPanel({
             label="Salesman"
             value={filters?.salesmanId || 'all'}
             onChange={(e) => update('salesmanId', e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={filterFieldSx}
           >
             <MenuItem value="all">All</MenuItem>
             {salesmen.map((s) => (
@@ -313,7 +341,7 @@ function ReportFilterPanel({
         </Grid>
       )}
       {showPaymentStatus && (
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={3} sx={{ minWidth: 180 }}>
           <TextField
             fullWidth
             size="small"
@@ -321,6 +349,8 @@ function ReportFilterPanel({
             label="Payment Status"
             value={filters?.paymentStatus || 'all'}
             onChange={(e) => update('paymentStatus', e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={filterFieldSx}
           >
             <MenuItem value="all">All</MenuItem>
             <MenuItem value="Paid">Paid</MenuItem>
@@ -330,7 +360,7 @@ function ReportFilterPanel({
         </Grid>
       )}
       {showReportType && (
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={3} sx={{ minWidth: 220 }}>
           <TextField
             fullWidth
             size="small"
@@ -338,6 +368,8 @@ function ReportFilterPanel({
             label="Report Type (Please Choose)"
             value={filters?.reportType || 'all'}
             onChange={(e) => update('reportType', e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={filterFieldSx}
           >
             <MenuItem value="all">-- Select Type --</MenuItem>
             <MenuItem value="detailed">Detailed Report</MenuItem>
@@ -348,7 +380,7 @@ function ReportFilterPanel({
         </Grid>
       )}
       {showAttendanceStatus && (
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={3} sx={{ minWidth: 200 }}>
           <TextField
             fullWidth
             size="small"
@@ -356,6 +388,8 @@ function ReportFilterPanel({
             label="Attendance Status"
             value={filters?.attendanceStatus || 'all'}
             onChange={(e) => update('attendanceStatus', e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={filterFieldSx}
           >
             <MenuItem value="all">All Status</MenuItem>
             <MenuItem value="present">Present</MenuItem>

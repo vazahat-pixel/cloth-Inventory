@@ -20,13 +20,15 @@ import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
 import { SummaryChip } from './SalesReportPage';
 import { fetchMovements } from '../inventory/inventorySlice';
+import { REPORT_FETCH_PARAMS } from './reportConstants';
 
 const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 function DailyInwardReportPage() {
   const dispatch = useDispatch();
   const movements = useSelector((state) => state.inventory?.movements || []);
-  const items = useSelector((state) => state.items?.records || []);
+  const user = useSelector((state) => state.auth.user);
+  const isStoreStaff = user?.role !== 'Admin' && user?.role !== 'admin';
 
   const today = new Date().toISOString().slice(0, 10);
   const [filters, setFilters] = useState({ dateFrom: today, dateTo: today });
@@ -35,47 +37,74 @@ function DailyInwardReportPage() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
   useEffect(() => {
-    // Only fetch if a date range is selected, or use today as default
-    const params = {};
+    if (isStoreStaff && user?.shopId) {
+      setFilters((prev) => ({
+        ...prev,
+        warehouseId: user.shopId,
+      }));
+    }
+  }, [isStoreStaff, user?.shopId]);
+
+  useEffect(() => {
+    const params = { ...REPORT_FETCH_PARAMS };
     if (filters.dateFrom) params.startDate = filters.dateFrom;
     if (filters.dateTo) params.endDate = filters.dateTo;
-    
-    // Add store filter if selected (Admin view)
-    if (filters.warehouseId && filters.warehouseId !== 'all') {
+
+    if (isStoreStaff && user?.shopId) {
+      params.storeId = user.shopId;
+    } else if (filters.warehouseId && filters.warehouseId !== 'all') {
       params.storeId = filters.warehouseId;
     }
 
-    // Default to today if no dates provided to prevent massive load
     if (!filters.dateFrom && !filters.dateTo) {
       params.startDate = today;
       params.endDate = today;
     }
 
     dispatch(fetchMovements(params));
-  }, [dispatch, filters.dateFrom, filters.dateTo, filters.warehouseId, today]);
+  }, [dispatch, isStoreStaff, user?.shopId, filters.dateFrom, filters.dateTo, filters.warehouseId, today]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [filters.dateFrom, filters.dateTo, filters.warehouseId, searchText]);
 
   // Transform movements for table
   const inwardRows = useMemo(() => {
-    // Filter only INWARD movements - Backend now returns type: 'IN'/'OUT' based on qty
-    const inMovements = movements.filter((m) => m.type === 'IN');
     const query = searchText.trim().toLowerCase();
+    const isReturnMovement = (m) => {
+      const reason = String(m.sourceType || m.reason || '').toLowerCase();
+      const ref = String(m.reference || '').toLowerCase();
+      return reason.includes('return') || ref.includes('return') || m.type === 'OUT';
+    };
 
-    return inMovements.map((m) => ({
-      id: m._id || m.id,
-      date: new Date(m.createdAt || m.date).toLocaleDateString(),
-      itemName: m.itemName || 'Unknown Item',
-      sku: m.sku || '-',
-      sizeColor: `${m.size || '-'} / ${m.color || '-'}`,
-      location: m.locationName || (m.toLocation?.name) || 'Main Inventory',
-      quantity: toNum(m.quantity || m.qty),
-      reference: m.reference || '-',
-      reason: m.sourceType || m.reason || 'Inward',
-      purchaseRate: toNum(m.purchaseRate || 0),
-      totalValue: toNum(m.totalValue || 0),
-    })).filter(row => {
-       if (!query) return true;
-       return row.itemName.toLowerCase().includes(query) || row.sku.toLowerCase().includes(query) || row.reference.toLowerCase().includes(query);
-    });
+    return movements
+      .filter((m) => m.type === 'IN' || isReturnMovement(m))
+      .map((m) => {
+        const qty = toNum(m.quantity || m.qty);
+        const rate = toNum(m.purchaseRate || m.rate || m.unitRate || 0);
+        const computedTotal = rate * Math.abs(qty);
+        const isReturn = isReturnMovement(m);
+        return {
+          id: m._id || m.id,
+          date: new Date(m.createdAt || m.date).toLocaleDateString(),
+          itemName: m.itemName || 'Unknown Item',
+          sku: m.sku || '-',
+          sizeColor: `${m.size || '-'} / ${m.color || '-'}`,
+          location: m.locationName || (m.toLocation?.name) || 'Main Inventory',
+          quantity: qty,
+          reference: m.reference || '-',
+          reason: isReturn ? 'Return' : (m.sourceType || m.reason || 'Inward'),
+          purchaseRate: rate,
+          totalValue: toNum(m.totalValue) || computedTotal,
+          isReturn,
+        };
+      })
+      .filter((row) => {
+        if (!query) return true;
+        return row.itemName.toLowerCase().includes(query)
+          || row.sku.toLowerCase().includes(query)
+          || row.reference.toLowerCase().includes(query);
+      });
   }, [movements, searchText]);
 
   const paginatedRows = useMemo(
@@ -84,12 +113,13 @@ function DailyInwardReportPage() {
   );
 
   const summary = useMemo(() => {
-    const totalQty = inwardRows.reduce((sum, r) => sum + r.quantity, 0);
-    const totalValue = inwardRows.reduce((sum, r) => sum + r.totalValue, 0);
+    const receiptRows = inwardRows.filter((r) => !r.isReturn);
+    const totalQty = receiptRows.reduce((sum, r) => sum + r.quantity, 0);
+    const totalValue = receiptRows.reduce((sum, r) => sum + r.totalValue, 0);
     return {
       totalEntries: inwardRows.length,
       totalQuantity: totalQty,
-      totalValue: totalValue
+      totalValue,
     };
   }, [inwardRows]);
 
@@ -193,7 +223,9 @@ function DailyInwardReportPage() {
                   <TableCell sx={{ fontWeight: 600 }}>{row.itemName}</TableCell>
                   <TableCell sx={{ fontFamily: 'monospace' }}>{row.sku}</TableCell>
                   <TableCell>{row.sizeColor}</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700, color: '#059669' }}>+{row.quantity}</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700, color: row.isReturn ? '#dc2626' : '#059669' }}>
+                    {row.isReturn ? '' : '+'}{row.quantity}
+                  </TableCell>
                   <TableCell align="right">₹{row.purchaseRate.toFixed(2)}</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 700 }}>₹{row.totalValue.toFixed(2)}</TableCell>
                   <TableCell>{row.location}</TableCell>

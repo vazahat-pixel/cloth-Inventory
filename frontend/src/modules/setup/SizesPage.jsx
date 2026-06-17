@@ -33,7 +33,19 @@ import FilterBar from '../../components/erp/FilterBar';
 import ExportButton from '../../components/erp/ExportButton';
 import StatusBadge from '../../components/erp/StatusBadge';
 import sizesExportColumns from '../../config/exportColumns/sizes';
-import { sizeMasterSeed } from '../erp/erpUiMocks';
+
+const sanitizeSizeCode = (value) =>
+  String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, 12);
+
+const sanitizeSizeGroup = (value) =>
+  String(value || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9\s-]/g, '')
+    .slice(0, 40);
 
 const defaultFormValues = {
   id: '',
@@ -57,9 +69,7 @@ function SizesPage() {
   const sizesFromRedux = useSelector((state) => state.masters.sizes);
   const { loading } = useSelector((state) => state.masters);
 
-  const rows = useMemo(() => {
-    return sizesFromRedux?.length ? sizesFromRedux : sizeMasterSeed;
-  }, [sizesFromRedux]);
+  const rows = useMemo(() => sizesFromRedux || [], [sizesFromRedux]);
 
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -110,18 +120,25 @@ function SizesPage() {
 
   const validate = () => {
     const nextErrors = {};
-    if (!formValues.sizeCode.trim()) {
-      nextErrors.sizeCode = 'Size code is required.';
-    } else if (formValues.sizeCode.trim().length === 0) {
-      nextErrors.sizeCode = 'Size code cannot be empty.';
-    }
+    const code = sanitizeSizeCode(formValues.sizeCode);
+    if (!code) {
+      nextErrors.sizeCode = 'Size code is required (letters and numbers only).';
+    } else if (!/^[A-Z0-9]+$/.test(code)) {
+      nextErrors.sizeCode = 'Size code must be alphanumeric.';
+    } else if (!formValues.id && rows.some((row) => sanitizeSizeCode(row.sizeCode) === code)) {
+      nextErrors.sizeCode = 'This size code already exists.';
+  }
     if (!formValues.sizeLabel.trim()) {
       nextErrors.sizeLabel = 'Size label/name is required.';
-    } else if (formValues.sizeLabel.trim().length === 0) {
-      nextErrors.sizeLabel = 'Size label/name cannot be empty.';
     }
-    if (formValues.sequence === '') {
+    const seq = Number(formValues.sequence);
+    if (formValues.sequence === '' || Number.isNaN(seq)) {
       nextErrors.sequence = 'Sequence is required.';
+    } else if (seq < 0) {
+      nextErrors.sequence = 'Sequence cannot be negative.';
+    }
+    if (formValues.group && !/^[a-zA-Z0-9\s-]+$/.test(formValues.group.trim())) {
+      nextErrors.group = 'Size group must be alphanumeric.';
     }
     setFormErrors(nextErrors);
     return !Object.keys(nextErrors).length;
@@ -133,16 +150,22 @@ function SizesPage() {
     }
 
     try {
+      const payload = {
+        ...formValues,
+        sizeCode: sanitizeSizeCode(formValues.sizeCode),
+        group: sanitizeSizeGroup(formValues.group),
+        sequence: Math.max(0, Number(formValues.sequence) || 0),
+      };
       if (formValues.id) {
         await dispatch(updateMasterRecord({
           entityKey: 'sizes',
           id: formValues.id,
-          updates: formValues
+          updates: payload
         })).unwrap();
       } else {
         await dispatch(addMasterRecord({
           entityKey: 'sizes',
-          record: formValues
+          record: payload
         })).unwrap();
       }
       closeDialog();
@@ -270,7 +293,8 @@ function SizesPage() {
                 label="Size Code *"
                 placeholder="e.g. S, M, 32"
                 value={formValues.sizeCode}
-                onChange={(event) => setFormValues((previous) => ({ ...previous, sizeCode: event.target.value }))}
+                onChange={(event) => setFormValues((previous) => ({ ...previous, sizeCode: sanitizeSizeCode(event.target.value) }))}
+                disabled={Boolean(formValues.id)}
                 error={Boolean(formErrors.sizeCode)}
                 helperText={formErrors.sizeCode || ' '}
               />
@@ -294,7 +318,9 @@ function SizesPage() {
                 label="Size Group"
                 placeholder="e.g. Adult-Alpha"
                 value={formValues.group}
-                onChange={(event) => setFormValues((previous) => ({ ...previous, group: event.target.value }))}
+                onChange={(event) => setFormValues((previous) => ({ ...previous, group: sanitizeSizeGroup(event.target.value) }))}
+                error={Boolean(formErrors.group)}
+                helperText={formErrors.group || ' '}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 3 }}>
@@ -304,7 +330,16 @@ function SizesPage() {
                 type="number"
                 label="Sequence *"
                 value={formValues.sequence}
-                onChange={(event) => setFormValues((previous) => ({ ...previous, sequence: event.target.value }))}
+                onChange={(event) => {
+                  const val = event.target.value;
+                  if (val === '') {
+                    setFormValues((previous) => ({ ...previous, sequence: '' }));
+                    return;
+                  }
+                  const num = Math.max(0, Number(val) || 0);
+                  setFormValues((previous) => ({ ...previous, sequence: num }));
+                }}
+                inputProps={{ min: 0 }}
                 error={Boolean(formErrors.sequence)}
                 helperText={formErrors.sequence || ' '}
               />

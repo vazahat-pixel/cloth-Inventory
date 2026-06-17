@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Box,
   Button,
@@ -7,9 +7,13 @@ import {
   DialogContent,
   DialogTitle,
   Grid,
+  IconButton,
+  InputAdornment,
   MenuItem,
   TextField,
 } from '@mui/material';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { Controller, useForm } from 'react-hook-form';
 
 const getDefaultValues = (fields, initialValues) =>
@@ -27,6 +31,12 @@ function MasterFormDialog({
   initialValues,
   fields,
 }) {
+  const [visiblePasswordFields, setVisiblePasswordFields] = useState({});
+
+  const togglePasswordVisibility = (fieldName) => {
+    setVisiblePasswordFields((prev) => ({ ...prev, [fieldName]: !prev[fieldName] }));
+  };
+
   const {
     control,
     handleSubmit,
@@ -75,13 +85,64 @@ function MasterFormDialog({
                       fullWidth
                       size="small"
                       label={field.label}
-                      type={field.type === 'select' ? 'text' : field.type || 'text'}
+                      type={
+                        field.type === 'select'
+                          ? 'text'
+                          : field.type === 'password' && visiblePasswordFields[field.name]
+                            ? 'text'
+                            : field.type || 'text'
+                      }
                       multiline={Boolean(field.multiline)}
                       minRows={field.minRows || 1}
                       select={field.type === 'select'}
                       error={Boolean(errors[field.name])}
-                      helperText={errors[field.name]?.message || ' '}
+                      helperText={errors[field.name]?.message || field.helperText || ' '}
                       InputLabelProps={field.type === 'date' ? { shrink: true } : undefined}
+                      onChange={(event) => {
+                        let value = field.type === 'email'
+                          ? event.target.value.toLowerCase()
+                          : event.target.value;
+                        if (field.inputMode === 'digits') {
+                          value = value.replace(/\D/g, '');
+                        } else if (field.inputMode === 'alphanumeric') {
+                          value = value.replace(/[^a-zA-Z0-9]/g, '');
+                        }
+                        controlledField.onChange(value);
+                      }}
+                      onFocus={(event) => {
+                        if (field.type === 'number' && Number(controlledField.value) === 0) {
+                          controlledField.onChange('');
+                        }
+                        field.onFocus?.(event);
+                      }}
+                      inputProps={{
+                        ...(field.type === 'email' ? { style: { textTransform: 'lowercase' } } : {}),
+                        ...(field.maxLength ? { maxLength: field.maxLength } : {}),
+                        ...(field.inputProps || {}),
+                      }}
+                      InputProps={
+                        field.type === 'password'
+                          ? {
+                              endAdornment: (
+                                <InputAdornment position="end">
+                                  <IconButton
+                                    size="small"
+                                    edge="end"
+                                    onClick={() => togglePasswordVisibility(field.name)}
+                                    aria-label={visiblePasswordFields[field.name] ? 'Hide password' : 'Show password'}
+                                  >
+                                    {visiblePasswordFields[field.name] ? (
+                                      <VisibilityOffIcon fontSize="small" />
+                                    ) : (
+                                      <VisibilityIcon fontSize="small" />
+                                    )}
+                                  </IconButton>
+                                </InputAdornment>
+                              ),
+                            }
+                          : field.InputProps
+                      }
+                      sx={field.sx}
                     >
                       {field.type === 'select' &&
                         field.options?.map((option) => (

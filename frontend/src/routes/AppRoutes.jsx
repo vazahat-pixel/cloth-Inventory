@@ -150,22 +150,25 @@ const SCHEME_REPORT_CONFIG = {
   description: 'Analysis of scheme performance and usage.',
   endpoint: '/pricing/schemes',
   dataKey: 'schemes',
+  listKeys: ['schemes', 'records', 'data'],
   columns: [
-    { field: 'name', headerName: 'Scheme Name' },
-    { field: 'type', headerName: 'Type' },
-    { field: 'status', headerName: 'Status' }
+    { field: 'name', headerName: 'Scheme Name', transform: (v, row) => v || row.schemeName || '—' },
+    { field: 'type', headerName: 'Type', transform: (v, row) => v || row.schemeType || '—' },
+    { field: 'status', headerName: 'Status', transform: (v, row) => v || row.isActive === false ? 'Inactive' : 'Active' }
   ]
 };
 
 const AGENT_WISE_REPORT_CONFIG = {
   title: 'Agent Sales Analysis',
   description: 'Sales performance segmented by sales agents.',
-  endpoint: '/sales/agent-report',
+  endpoint: '/agent-wise',
+  apiBase: '/reports',
   dataKey: 'report',
+  listKeys: ['report', 'agents', 'records', 'data'],
   columns: [
-    { field: 'agentName', headerName: 'Agent' },
-    { field: 'billCount', headerName: 'Bills' },
-    { field: 'totalSales', headerName: 'Total Sales', transform: v => Number(v || 0).toLocaleString() }
+    { field: 'agentName', headerName: 'Agent', transform: (v, row) => v || row.salesmanName || row.name || '—' },
+    { field: 'billCount', headerName: 'Bills', transform: (v) => v ?? 0 },
+    { field: 'totalSales', headerName: 'Total Sales', transform: v => Number(v || 0).toLocaleString('en-IN') }
   ]
 };
 
@@ -173,12 +176,15 @@ const STOCK_AGING_CONFIG = {
   title: 'Item Master Registry',
   description: 'Comprehensive list of all items in the master catalog.',
   endpoint: '/items',
+  apiBase: '',
+  serverPagination: true,
   dataKey: 'items',
+  listKeys: ['items', 'records'],
   columns: [
-    { field: 'sku', headerName: 'SKU' },
-    { field: 'itemName', headerName: 'Name' },
-    { field: 'category', headerName: 'Category' },
-    { field: 'mrp', headerName: 'MRP', transform: v => Number(v || 0).toLocaleString() }
+    { field: 'itemCode', headerName: 'SKU / Code', transform: (v, row) => v || row.sku || row.code || '—' },
+    { field: 'itemName', headerName: 'Name', transform: (v, row) => v || row.name || '—' },
+    { field: 'category', headerName: 'Category', transform: (v, row) => row.categoryName || row.categoryId?.groupName || row.categoryId?.name || v || '—' },
+    { field: 'mrp', headerName: 'MRP', transform: (v, row) => Number(v || row.salePrice || row.sizes?.[0]?.mrp || 0).toLocaleString('en-IN') }
   ]
 };
 
@@ -296,6 +302,8 @@ function AppRoutes() {
             <Route path="purchase/purchase-order" element={<PurchaseOrderListPage />} />
             <Route path="purchase/purchase-order/new" element={<PurchaseOrderFormPage />} />
             <Route path="purchase/purchase-order/edit/:id" element={<PurchaseOrderFormPage />} />
+            <Route path="purchase/purchase-order/view/:id" element={<PurchaseOrderFormPage mode="view" />} />
+            <Route path="purchase/orders" element={<Navigate to="/ho/purchase/purchase-order" replace />} />
             <Route path="purchase/purchase-voucher" element={<Navigate to="/ho/purchase" replace />} />
 
             {/* Pricing */}
@@ -409,6 +417,7 @@ function AppRoutes() {
           <Route path="sales/sales-return" element={<SalesReturnPage listPath="/store/sales/sale-bill" />} />
           <Route path="sales/sales-return/:id" element={<SalesReturnPage listPath="/store/sales/sale-bill" />} />
           <Route path="reports" element={<ReportsDashboard />} />
+          <Route path="reports/dashboard" element={<ReportsDashboard />} />
           <Route path="reports/sales" element={<SalesReportPage />} />
           <Route path="reports/inward" element={<DailyInwardReportPage />} />
           <Route path="reports/stock" element={<StockReportPage />} />

@@ -47,7 +47,7 @@ const SaleChallanPrint = ({ challan }) => {
                 </Box>
                 <Box sx={{ textAlign: 'right', minWidth: 250, p: 2, bgcolor: '#f8fafc', borderRadius: 1.5, border: '1px solid #e2e8f0' }}>
                     <Stack spacing={0.5}>
-                        <DetailRow label="Challan #" value={challan.challanNumber || challan.number || 'N/A'} />
+                        <DetailRow label="Challan #" value={challan.challanNumber || challan.dispatchNumber || challan.dcNumber || challan.number || 'N/A'} />
                         <DetailRow label="Date" value={new Date(challan.createdAt || challan.date || Date.now()).toLocaleDateString('en-IN')} />
                         <DetailRow label="Vehicle #" value={challan.vehicleNumber || '-'} />
                     </Stack>

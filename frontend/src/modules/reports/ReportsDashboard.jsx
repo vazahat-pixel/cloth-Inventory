@@ -56,7 +56,7 @@ const ALL_REPORT_CARDS = [
     description: 'Account-wise ledger with debit, credit, and running balance.',
     path: '/reports/ledger',
     icon: ReceiptLongIcon,
-    roles: ['admin', 'store_staff']
+    roles: ['admin']
   },
   {
     title: 'Bank Book',
@@ -84,7 +84,7 @@ const ALL_REPORT_CARDS = [
     description: 'Margin analysis, cost vs revenue, profit percentage.',
     path: '/reports/profit',
     icon: TrendingUpIcon,
-    roles: ['admin', 'store_staff']
+    roles: ['admin']
   },
   {
     title: 'Customer Reports',
@@ -144,7 +144,7 @@ const ALL_REPORT_CARDS = [
     description: 'Consolidated report showing exact Sales, Returns, and Stock metrics by variant.',
     path: '/reports/branch-sales-stock',
     icon: Inventory2Icon,
-    roles: ['admin', 'store_staff'],
+    roles: ['admin'],
     aliases: ['branch sales', 'variant stock', 'consolidated branch sales']
   },
 ];

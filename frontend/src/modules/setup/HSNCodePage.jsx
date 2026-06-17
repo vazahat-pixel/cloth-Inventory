@@ -37,7 +37,7 @@ import FilterBar from '../../components/erp/FilterBar';
 import ExportButton from '../../components/erp/ExportButton';
 import StatusBadge from '../../components/erp/StatusBadge';
 import hsnCodesExportColumns from '../../config/exportColumns/hsnCodes';
-// import { hsnSeed } from '../erp/erpUiMocks';
+import { formatDateDDMMYYYY } from '../../utils/formatters';
 
 const defaultFormValues = {
   id: '',
@@ -297,7 +297,7 @@ function HSNCodePage() {
                     </Typography>
                   </TableCell>
                   <TableCell><StatusBadge value={row.status} /></TableCell>
-                  <TableCell>{row.createdAt || '--'}</TableCell>
+                  <TableCell>{formatDateDDMMYYYY(row.createdAt)}</TableCell>
                   <TableCell align="right">
                     <IconButton size="small" color="primary" onClick={() => openDialog(row)}>
                       <EditOutlinedIcon fontSize="small" />
@@ -330,7 +330,11 @@ function HSNCodePage() {
                 size="small"
                 label="HSN Code *"
                 value={formValues.hsnCode}
-                onChange={(event) => setFormValues((previous) => ({ ...previous, hsnCode: event.target.value }))}
+                onChange={(event) => {
+                  const digitsOnly = event.target.value.replace(/\D/g, '').slice(0, 8);
+                  setFormValues((previous) => ({ ...previous, hsnCode: digitsOnly }));
+                }}
+                inputProps={{ inputMode: 'numeric', pattern: '[0-9]*' }}
                 error={Boolean(formErrors.hsnCode)}
                 helperText={formErrors.hsnCode || ' '}
               />

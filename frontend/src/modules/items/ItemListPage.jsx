@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import useDebouncedValue from '../../hooks/useDebouncedValue';
+import { useLocation } from 'react-router-dom';
 import { Box, Button, Card, CardContent, Grid, IconButton, InputAdornment, MenuItem, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import SearchIcon from '@mui/icons-material/Search';
@@ -15,6 +15,7 @@ import FilterBar from '../../components/erp/FilterBar';
 import ExportButton from '../../components/erp/ExportButton';
 import StatusBadge from '../../components/erp/StatusBadge';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
+import useDebouncedValue from '../../hooks/useDebouncedValue';
 import { deleteItem, fetchItems } from './itemsSlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import itemsExportColumns from '../../config/exportColumns/items';
@@ -26,19 +27,27 @@ const toExportRows = (rows) => rows.map((row) => ({
 
 function ItemListPage() {
   const navigate = useAppNavigate();
+  const location = useLocation();
   const dispatch = useDispatch();
   const { records: items, total, loading } = useSelector((state) => state.items);
   const brands = useSelector((state) => state.masters?.brands || []);
   const groups = useSelector((state) => state.masters?.itemGroups || []);
   
-  const [searchText, setSearchText] = useState('');
+  const restoredListState = location.state?.listState;
+  const [searchText, setSearchText] = useState(restoredListState?.searchText ?? '');
   const debouncedSearch = useDebouncedValue(searchText, 350);
-  const [brandFilter, setBrandFilter] = useState('all');
-  const [groupFilter, setGroupFilter] = useState('all');
-  const [viewMode, setViewMode] = useState('table');
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(20); // Default to 20 for better performance
+  const [brandFilter, setBrandFilter] = useState(restoredListState?.brandFilter ?? 'all');
+  const [groupFilter, setGroupFilter] = useState(restoredListState?.groupFilter ?? 'all');
+  const [viewMode, setViewMode] = useState(restoredListState?.viewMode ?? 'table');
+  const [page, setPage] = useState(restoredListState?.page ?? 0);
+  const [rowsPerPage, setRowsPerPage] = useState(restoredListState?.rowsPerPage ?? 20);
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+
+  const listState = useMemo(() => ({
+    page, rowsPerPage, searchText, brandFilter, groupFilter, viewMode,
+  }), [page, rowsPerPage, searchText, brandFilter, groupFilter, viewMode]);
+
+  const goToItem = (path) => navigate(path, { state: { listState } });
 
   useEffect(() => {
     dispatch(fetchItems({ 
@@ -101,7 +110,7 @@ function ItemListPage() {
         actions={[
           <Button key="bulk-upload" variant="outlined" startIcon={<CloudUploadIcon />} onClick={() => setBulkDialogOpen(true)} sx={{ color: '#6366f1', borderColor: '#6366f1', fontWeight: 700 }}>Bulk Upload</Button>,
           <ExportButton key="export" rows={exportRows} columns={itemsExportColumns} filename="unified_item_master" sheetName="Items" />,
-          <Button key="add" variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={() => navigate('/items/new')} sx={{ bgcolor: '#d946ef', px: 3, fontWeight: 700 }}>Add New Item</Button>,
+          <Button key="add" variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={() => goToItem('/items/new')} sx={{ bgcolor: '#d946ef', px: 3, fontWeight: 700 }}>Add New Item</Button>,
         ]}
       />
 
@@ -138,8 +147,8 @@ function ItemListPage() {
                        <Typography variant="caption" sx={{ color: '#64748b' }}>Sizes <b>{row.sizes}</b></Typography>
                     </Box>
                     <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
-                      <IconButton size="small" color="info" onClick={() => navigate(`/items/view/${row.id}`)}><VisibilityOutlinedIcon fontSize="small" /></IconButton>
-                      <IconButton size="small" color="primary" onClick={() => navigate(`/items/edit/${row.id}`)}><EditOutlinedIcon fontSize="small" /></IconButton>
+                      <IconButton size="small" color="info" onClick={() => goToItem(`/items/view/${row.id}`)}><VisibilityOutlinedIcon fontSize="small" /></IconButton>
+                      <IconButton size="small" color="primary" onClick={() => goToItem(`/items/edit/${row.id}`)}><EditOutlinedIcon fontSize="small" /></IconButton>
                       <IconButton size="small" color="error" onClick={() => dispatch(deleteItem(row.id))}><DeleteOutlineIcon fontSize="small" /></IconButton>
                     </Stack>
                   </Stack>
@@ -175,8 +184,8 @@ function ItemListPage() {
                     <TableCell>{row.gstRate}</TableCell>
                     <TableCell><StatusBadge value={row.status} /></TableCell>
                     <TableCell align="right">
-                        <IconButton size="small" color="info" onClick={() => navigate(`/items/view/${row.id}`)}><VisibilityOutlinedIcon fontSize="small" /></IconButton>
-                        <IconButton size="small" color="primary" onClick={() => navigate(`/items/edit/${row.id}`)}><EditOutlinedIcon fontSize="small" /></IconButton>
+                        <IconButton size="small" color="info" onClick={() => goToItem(`/items/view/${row.id}`)}><VisibilityOutlinedIcon fontSize="small" /></IconButton>
+                        <IconButton size="small" color="primary" onClick={() => goToItem(`/items/edit/${row.id}`)}><EditOutlinedIcon fontSize="small" /></IconButton>
                     </TableCell>
                   </TableRow>
                 ))}

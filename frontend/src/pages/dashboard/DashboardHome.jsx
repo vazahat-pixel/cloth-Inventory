@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect, memo } from "react";
 import { useSelector, useDispatch, shallowEqual } from "react-redux";
+import { useLocation } from "react-router-dom";
 import { Box, Button, Grid, Typography, Stack, Paper, CircularProgress } from "@mui/material";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
@@ -73,13 +74,16 @@ function getRecordTimestamp(value) {
 function DashboardHome() {
   const dispatch = useDispatch();
   const navigate = useAppNavigate();
+  const location = useLocation();
+
+  const stockLoading = useSelector((state) => state.inventory?.loading);
 
   useEffect(() => {
     dispatch(fetchSales());
     dispatch(fetchPurchases());
     dispatch(fetchStockOverview());
     dispatch(fetchCompanyProfile());
-  }, [dispatch]);
+  }, [dispatch, location.key]);
 
   const sales = useSelector((state) => state.sales?.records ?? [], shallowEqual);
   const purchase = useSelector((state) => state.purchase?.records ?? [], shallowEqual);
@@ -149,6 +153,14 @@ function DashboardHome() {
   );
 
   const kpis = useMemo(() => {
+    if (stockLoading) {
+      return {
+        totalSales: filteredSales.reduce((sum, record) => sum + getSalesAmount(record), 0),
+        totalPurchase: filteredPurchase.reduce((sum, record) => sum + getPurchaseAmount(record), 0),
+        totalItems: null,
+        lowStockCount: null,
+      };
+    }
     const totalSales = filteredSales.reduce(
       (sum, record) => sum + getSalesAmount(record),
       0,
@@ -168,7 +180,7 @@ function DashboardHome() {
       totalItems,
       lowStockCount,
     };
-  }, [filteredPurchase, filteredSales, lowStockThreshold, stock]);
+  }, [filteredPurchase, filteredSales, lowStockThreshold, stock, stockLoading]);
 
   const chartData = useMemo(() => {
     if (range === RANGE_TODAY) {
@@ -347,8 +359,8 @@ function DashboardHome() {
               <Grid item xs={12} sm={6} md={3}>
                 <KPICard
                   title="Stock Items"
-                  value={kpis.totalItems}
-                  subtitle="Active SKU variants"
+                  value={kpis.totalItems ?? '—'}
+                  subtitle={stockLoading ? 'Refreshing stock data...' : 'Active SKU variants'}
                   icon={Inventory2Icon}
                   color="info"
                   onClick={() => navigate('/reports/stock')}
@@ -357,8 +369,8 @@ function DashboardHome() {
               <Grid item xs={12} sm={6} md={3}>
                 <KPICard
                   title="Low Stock"
-                  value={kpis.lowStockCount}
-                  subtitle={`Threshold: <= ${lowStockThreshold}`}
+                  value={kpis.lowStockCount ?? '—'}
+                  subtitle={stockLoading ? 'Refreshing stock data...' : `Threshold: <= ${lowStockThreshold}`}
                   icon={ShoppingCartIcon}
                   color="warning"
                   onClick={() => navigate('/inventory/stock-overview')}

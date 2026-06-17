@@ -19,8 +19,9 @@ import SearchIcon from '@mui/icons-material/Search';
 import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
 import { SummaryChip } from './SalesReportPage';
-import { fetchPurchases } from '../purchase/purchaseSlice';
+import { fetchPurchasesForReport } from '../purchase/purchaseSlice';
 import { fetchStockOverview } from '../inventory/inventorySlice';
+import { REPORT_FETCH_PARAMS } from './reportConstants';
 
 const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
@@ -34,13 +35,13 @@ const AGE_BUCKETS = [
 
 function AgeAnalysisPage() {
   const dispatch = useDispatch();
-  const purchases = useSelector((state) => state.purchase?.records || []);
+  const purchases = useSelector((state) => state.purchase?.reportRecords || []);
   const stock = useSelector((state) => state.inventory?.storeStock || state.inventory?.stock || []);
   const items = useSelector((state) => state.items?.records || []);
 
   useEffect(() => {
-    dispatch(fetchPurchases());
-    dispatch(fetchStockOverview());
+    dispatch(fetchPurchasesForReport({}));
+    dispatch(fetchStockOverview(REPORT_FETCH_PARAMS));
   }, [dispatch]);
 
   const [filters, setFilters] = useState({});

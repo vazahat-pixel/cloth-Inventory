@@ -20,6 +20,9 @@ const normalizeId = (value) => {
   if (!value || value === 'null' || value === 'undefined') {
     return null;
   }
+  if (mongoose.Types.ObjectId.isValid(value)) {
+    return String(value);
+  }
   if (typeof value === 'object') {
     return value._id ? String(value._id) : value.id ? String(value.id) : null;
   }

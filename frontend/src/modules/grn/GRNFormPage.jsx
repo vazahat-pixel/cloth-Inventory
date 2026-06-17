@@ -42,12 +42,14 @@ import PageHeader from '../../components/erp/PageHeader';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchItems } from '../items/itemsSlice';
 import { fetchPurchaseOrders } from '../purchase/purchaseSlice';
-import { fetchGrns, addGrn, approveGrn, updateGrn } from './grnSlice';
+import { fetchGrns, fetchGrnById, addGrn, approveGrn, updateGrn } from './grnSlice';
 import { fetchOutwards } from '../production/productionSlice';
 import PieceEntryDialog from './PieceEntryDialog';
 import BulkInventoryUploadDialog from './components/BulkInventoryUploadDialog';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
 import { calculateGST } from '../../utils/taxCalculator';
+
+const getTodayDate = () => new Date().toISOString().slice(0, 10);
 
 const defaultForm = {
   grnNumber: '',
@@ -96,7 +98,11 @@ function GRNFormPage({ mode = 'edit' }) {
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const existingGrn = useMemo(() => grns.find(g => (g._id || g.id) === id), [grns, id]);
+  const [loadedGrn, setLoadedGrn] = useState(null);
+  const existingGrn = useMemo(
+    () => loadedGrn || grns.find((g) => (g._id || g.id) === id),
+    [loadedGrn, grns, id],
+  );
 
   const filteredPurchaseOrders = useMemo(() => {
     let list = (purchaseOrders || []).filter(po =>
@@ -158,6 +164,10 @@ function GRNFormPage({ mode = 'edit' }) {
   useEffect(() => {
     if (id) {
       dispatch(fetchGrns());
+      dispatch(fetchGrnById(id))
+        .unwrap()
+        .then((grn) => setLoadedGrn(grn))
+        .catch(() => {});
     }
   }, [dispatch, id]);
 
@@ -314,8 +324,28 @@ function GRNFormPage({ mode = 'edit' }) {
 
   const updateLine = (idx, field, val) => {
     const newLines = [...lines];
-    newLines[idx] = { ...newLines[idx], [field]: val };
+    let nextVal = val;
+    if (field === 'receivedQty') {
+      nextVal = Math.max(0, Number(val) || 0);
+    }
+    newLines[idx] = { ...newLines[idx], [field]: nextVal };
     setLines(newLines);
+  };
+
+  const handleGrnTypeChange = (nextType) => {
+    if (!nextType || nextType === formValues.grnType) return;
+    setFormValues({
+      ...defaultForm,
+      grnNumber: formValues.grnNumber,
+      grnDate: formValues.grnDate,
+      warehouseId: formValues.warehouseId,
+      grnType: nextType,
+    });
+    setLines([]);
+    setConsumptionLines([]);
+    setSelectedItem(null);
+    setSearchText('');
+    setErrorMessage('');
   };
 
   const removeLine = (idx) => {
@@ -710,7 +740,7 @@ function GRNFormPage({ mode = 'edit' }) {
           <ToggleButtonGroup
             exclusive
             value={formValues.grnType}
-            onChange={(e, val) => { if (val) setFormValues({ ...formValues, grnType: val }); }}
+            onChange={(e, val) => { if (val) handleGrnTypeChange(val); }}
             color="primary"
             sx={{ bgcolor: 'white' }}
           >
@@ -790,7 +820,12 @@ function GRNFormPage({ mode = 'edit' }) {
                     value={formValues.supplierId || ''}
                     onChange={e => setFormValues({ ...formValues, supplierId: e.target.value })}
                     disabled={!!id || !!formValues.purchaseOrderId}
+                    SelectProps={{ displayEmpty: true }}
+                    InputLabelProps={{ shrink: true }}
                   >
+                    <MenuItem value="">
+                      <em>Select supplier</em>
+                    </MenuItem>
                     {suppliers.map(s => (
                       <MenuItem key={s._id || s.id} value={s._id || s.id}>{s.name || s.supplierName}</MenuItem>
                     ))}
@@ -805,7 +840,12 @@ function GRNFormPage({ mode = 'edit' }) {
                     value={formValues.warehouseId || ''}
                     onChange={e => setFormValues({ ...formValues, warehouseId: e.target.value })}
                     disabled={isLocked || (warehouses.length === 1 && !id)}
+                    SelectProps={{ displayEmpty: true }}
+                    InputLabelProps={{ shrink: true }}
                   >
+                    <MenuItem value="">
+                      <em>Select warehouse</em>
+                    </MenuItem>
                     {warehouses.map(w => (
                       <MenuItem key={w._id || w.id} value={w._id || w.id}>{w.name}</MenuItem>
                     ))}
@@ -852,6 +892,7 @@ function GRNFormPage({ mode = 'edit' }) {
                     value={(formValues.invoiceDate || formValues.grnDate)?.slice(0, 10)}
                     onChange={e => setFormValues({ ...formValues, invoiceDate: e.target.value, grnDate: e.target.value })}
                     disabled={isLocked}
+                    inputProps={{ max: getTodayDate() }}
                   />
                 </Grid>
               </Grid>
@@ -878,7 +919,11 @@ function GRNFormPage({ mode = 'edit' }) {
                         addItemToLines(value);
                       }
                     }}
-                    getOptionLabel={(option) => `${option.itemName} (${option.itemCode || ''})`}
+                    getOptionLabel={(option) => {
+                      const code = option.itemCode || option.sku || '';
+                      const name = option.itemName || option.name || '';
+                      return code ? `${code} - ${name}` : name;
+                    }}
                     renderInput={(params) => (
                       <TextField {...params} label="Search & Add Catalog Item" placeholder="Select item to add all sizes..." />
                     )}
@@ -949,7 +994,7 @@ function GRNFormPage({ mode = 'edit' }) {
                     <TableCell><Chip label={line.size} size="small" /></TableCell>
                     <TableCell><Typography variant="caption">{line.sku}</Typography></TableCell>
                     <TableCell align="right">
-                      <TextField type="number" size="small" value={line.receivedQty} onChange={e => updateLine(idx, 'receivedQty', e.target.value)} sx={{ width: 80 }} />
+                      <TextField type="number" size="small" value={line.receivedQty} onChange={e => updateLine(idx, 'receivedQty', e.target.value)} inputProps={{ min: 0 }} sx={{ width: 80 }} />
                     </TableCell>
                     <TableCell align="right">₹{line.costPrice}</TableCell>
                     {!isStoreStaff && (

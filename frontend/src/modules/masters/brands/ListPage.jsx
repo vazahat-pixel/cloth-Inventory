@@ -28,7 +28,7 @@ function BrandsListPage() {
       singularLabel="Brand"
       description="Manage apparel brands and companies represented in catalog masters."
       primaryField="brandName"
-      searchKeys={['brandName', 'shortName']}
+      searchKeys={['brandName', 'shortName', 'name', 'description']}
       columns={brandsColumns}
       FormDialogComponent={BrandsFormDialog}
       addButtonLabel="Add Brand"

@@ -21,9 +21,17 @@ export function extractListPayload(responseData = {}, listKeys = []) {
   const data = responseData.data || responseData;
   for (const key of listKeys) {
     if (Array.isArray(data[key])) return data[key];
+    const nested = data[key];
+    if (nested && typeof nested === 'object') {
+      if (Array.isArray(nested.items)) return nested.items;
+      if (Array.isArray(nested.records)) return nested.records;
+      if (Array.isArray(nested.data)) return nested.data;
+    }
   }
   if (Array.isArray(data)) return data;
   if (Array.isArray(data.records)) return data.records;
+  if (Array.isArray(data.items)) return data.items;
+  if (data.items && Array.isArray(data.items.items)) return data.items.items;
   return [];
 }
 

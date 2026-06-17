@@ -53,6 +53,7 @@ import { sendWhatsAppInvoice } from '../../utils/whatsapp';
 import { useNotification } from '../../context/NotificationProvider';
 import { useLoading } from '../../context/LoadingProvider';
 import { calculateGST } from '../../utils/taxCalculator';
+import { GSTIN_REGEX } from '../../utils/formatters';
 
 
 const DEFAULT_WALK_IN_NAME = 'Walk-in Customer';
@@ -119,13 +120,15 @@ const calculateTotals = (lines, taxRules, billDiscount, loyaltyRedeemed, couponD
     const lineManualDiscount = (gross * (toNumber(l.discount) + toNumber(l.extraDiscount || 0))) / 100;
     const lineNetPayable = Math.max(0, gross - lineManualDiscount - linePromoDiscount);
     const unitNetPayable = lineNetPayable / toNumber(l.quantity || 1);
-    const unitTaxableValue = unitNetPayable / 1.05;
+    const preliminaryRule = calculateGST(toNumber(l.rate) / 1.05, l.hsnCode || l.sku, l.category, taxRules);
+    const lineTaxRate = preliminaryRule.rate;
+    const unitTaxableValue = unitNetPayable / (1 + (lineTaxRate / 100));
 
     // Check for item-specific rules (FLAT or SLAB) based on the item's individual unit taxable value
     const itemRule = calculateGST(unitTaxableValue, l.hsnCode || l.sku, l.category, taxRules);
-    const lineTaxRate = itemRule.rate;
+    const finalTaxRate = itemRule.rate;
 
-    const lineRes = calculateLine(l, lineTaxRate, promo?.promoDiscount || 0);
+    const lineRes = calculateLine(l, finalTaxRate, promo?.promoDiscount || 0);
 
     acc.gross += lineRes.gross;
     acc.manualLineDiscount += lineRes.manualDiscount;
@@ -162,19 +165,21 @@ const calculateTotals = (lines, taxRules, billDiscount, loyaltyRedeemed, couponD
         const lineManualDiscount = (gross * (toNumber(l.discount) + toNumber(l.extraDiscount || 0))) / 100;
         const lineNetPayable = Math.max(0, gross - lineManualDiscount - linePromoDiscount);
         const unitNetPayable = lineNetPayable / toNumber(l.quantity || 1);
-        const unitTaxableValue = unitNetPayable / 1.05;
+        const preliminaryRule = calculateGST(toNumber(l.rate) / 1.05, l.hsnCode || l.sku, l.category, taxRules);
+        const lineTaxRate = preliminaryRule.rate;
+        const unitTaxableValue = unitNetPayable / (1 + (lineTaxRate / 100));
 
         const itemRule = calculateGST(unitTaxableValue, l.hsnCode || l.sku, l.category, taxRules);
-        const lineTaxRate = itemRule.rate;
-        const lineRes = calculateLine(l, lineTaxRate, promo?.promoDiscount || 0);
+        const finalTaxRate = itemRule.rate;
+        const lineRes = calculateLine(l, finalTaxRate, promo?.promoDiscount || 0);
         
         const hsn = l.hsnCode || l.itemId?.hsCodeId?.code || l.itemId?.hsnCode || 'N/A';
-        const key = `${hsn}-${lineTaxRate}`;
+        const key = `${hsn}-${finalTaxRate}`;
         if (!acc[key]) {
-            acc[key] = { hsnCode: hsn, totalQty: 0, gstPercent: lineTaxRate, taxableAmount: 0, cgst: 0, sgst: 0, igst: 0 };
+            acc[key] = { hsnCode: hsn, totalQty: 0, gstPercent: finalTaxRate, taxableAmount: 0, cgst: 0, sgst: 0, igst: 0 };
         }
         acc[key].totalQty += toNumber(l.quantity);
-        acc[key].taxableAmount += lineRes.taxableAmount || (lineRes.amount / (1 + (lineTaxRate / 100)));
+        acc[key].taxableAmount += lineRes.taxableAmount || (lineRes.amount / (1 + (finalTaxRate / 100)));
         const lineTax = lineRes.taxAmount;
         // In retail, usually it's same state (CGST+SGST) unless specified.
         // BillingPage doesn't seem to have isInterState logic yet, I'll add a simple check.
@@ -646,9 +651,11 @@ function BillingPage({
   }, [warehouseStock]);
 
   const handleMobileChange = (value) => {
-    setMobileInput(value);
-    if (!isDetailMode && value?.trim() && value.length >= 10) {
-      const matched = activeCustomers.find((customer) => customer.mobileNumber === value.trim());
+    const digits = String(value || '').replace(/\D/g, '').slice(0, 10);
+    setMobileInput(digits);
+    if (isDetailMode) return;
+    if (digits.length === 10) {
+      const matched = activeCustomers.find((customer) => customer.mobileNumber === digits);
       if (matched) {
         setCustomerId(matched.id);
         setCustomerName(matched.customerName || '');
@@ -656,8 +663,6 @@ function BillingPage({
         setLoyaltyRedeemed('');
       } else {
         setCustomerId('');
-        setCustomerName('');
-        setCustomerAddress('');
       }
     }
   };
@@ -989,7 +994,10 @@ function BillingPage({
     setIsSaving(true);
 
     const onSaveSuccess = (res) => {
-      setCompletedSaleData(res);
+      setCompletedSaleData({
+        ...res,
+        storeId: selectedStore || res.storeId,
+      });
       setShowPrint(true);
       setPaymentOpen(false);
       showNotification(isEditMode ? 'Sale updated successfully!' : 'Sale completed successfully!', 'success');
@@ -1266,6 +1274,7 @@ function BillingPage({
                   label="Customer Mobile Number"
                   value={mobileInput}
                   autoComplete="off"
+                  inputProps={{ maxLength: 10, inputMode: 'numeric' }}
                   onChange={(event) => handleMobileChange(event.target.value)}
                 />
               </Grid>
@@ -1277,7 +1286,7 @@ function BillingPage({
                    label="Customer Full Name (Walk-in)"
                    value={customerName}
                    autoComplete="off"
-                   onChange={(e) => setCustomerName(e.target.value)}
+                   onChange={(e) => setCustomerName(e.target.value.replace(/[^a-zA-Z\s.]/g, ''))}
                    disabled={Boolean(customerId)}
                 />
               </Grid>
@@ -1289,7 +1298,7 @@ function BillingPage({
                    label="Customer Address"
                    value={customerAddress}
                    autoComplete="off"
-                   onChange={(e) => setCustomerAddress(e.target.value)}
+                   onChange={(e) => setCustomerAddress(e.target.value.replace(/[^a-zA-Z0-9\s.,#/\-]/g, ''))}
                    disabled={Boolean(customerId)}
                 />
               </Grid>
@@ -1304,8 +1313,8 @@ function BillingPage({
                    autoComplete="off"
                    inputProps={{ maxLength: 15, style: { textTransform: 'uppercase' } }}
                    onChange={(e) => setCustomerGst(e.target.value.toUpperCase())}
-                   helperText={customerGst && customerGst.length !== 15 ? 'GSTIN must be 15 characters' : ''}
-                   error={Boolean(customerGst && customerGst.length !== 15)}
+                   helperText={customerGst && !GSTIN_REGEX.test(customerGst) ? 'Enter valid 15-character GSTIN' : ''}
+                   error={Boolean(customerGst && !GSTIN_REGEX.test(customerGst))}
                 />
               </Grid>
 
@@ -2012,7 +2021,7 @@ function BillingPage({
                             store={availableLocations.find(l => (l.id || l._id) === storeId)}
                             title={completedSaleData?.type === 'EXCHANGE' ? undefined : 'RETAIL INVOICE'}
                         /> : 
-                        <ThermalInvoicePrint sale={completedSaleData} />
+                        <ThermalInvoicePrint sale={completedSaleData} store={availableLocations.find(l => (l.id || l._id) === storeId)} />
                 )}
             </Box>
         </Box>

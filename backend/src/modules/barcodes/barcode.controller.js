@@ -59,6 +59,23 @@ exports.listBatchBarcodes = async (req, res) => {
 };
 
 /**
+ * Record barcode generation history from a print batch
+ */
+exports.recordPrintBatch = async (req, res) => {
+    try {
+        const barcodeService = require('./barcode.service');
+        const { labels, grnId, batchNo } = req.body || {};
+        if (!Array.isArray(labels) || !labels.length) {
+            return sendError(res, 'No labels provided to record', 400);
+        }
+        const result = await barcodeService.recordPrintBatch({ labels, grnId, batchNo });
+        return sendSuccess(res, result, 'Barcode generation history recorded');
+    } catch (error) {
+        return sendError(res, error.message);
+    }
+};
+
+/**
  * Delete all batch barcodes
  */
 exports.deleteAllBatchBarcodes = async (req, res) => {

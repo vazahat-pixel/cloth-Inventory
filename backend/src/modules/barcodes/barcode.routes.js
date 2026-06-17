@@ -10,6 +10,7 @@ router.use(protect); // Secure all routes
 router.get('/grn/:id', requireAdmin, barcodeController.getGrnBarcodes);
 
 // Batch History & Maintenance
+router.post('/record', requireAdmin, barcodeController.recordPrintBatch);
 router.get('/', requireAdmin, barcodeController.listBatchBarcodes);
 router.delete('/', requireAdmin, barcodeController.deleteAllBatchBarcodes);
 router.delete('/:id', requireAdmin, barcodeController.deleteBatchBarcode);

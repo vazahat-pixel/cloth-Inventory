@@ -5,17 +5,54 @@ import { normalizeResponse } from '../../services/normalization';
 // Async Thunks
 export const fetchStockOverview = createAsyncThunk(
   'inventory/fetchStock',
-  async (params, { rejectWithValue }) => {
+  async (params = {}, { rejectWithValue }) => {
     try {
-      const response = await api.get('/store-inventory', { params });
-      const data = response.data.data || response.data;
-      const raw = data.inventory || data.data || (Array.isArray(data) ? data : []);
-      const normalized = normalizeResponse(raw, 'inventory');
-      
+      const isReportFetch = params.forReport === true || params.forReport === 'true';
+      const pageSize = Number(params.limit) || (isReportFetch ? 20000 : 20);
+
+      const loadPage = async (page, limit) => {
+        const response = await api.get('/store-inventory', { params: { ...params, page, limit } });
+        const data = response.data.data || response.data;
+        const raw = data.inventory || data.data || (Array.isArray(data) ? data : []);
+        const meta = data.meta || {};
+        return {
+          raw,
+          total: meta.total ?? data.total ?? raw.length,
+          totalQuantity: data.totalQuantity ?? 0,
+          meta,
+        };
+      };
+
+      if (isReportFetch) {
+        const { forReport: _f, page: _p, limit: _l, ...query } = params;
+        let page = 1;
+        let all = [];
+        let total = 0;
+        let totalQuantity = 0;
+
+        while (true) {
+          const chunk = await loadPage(page, pageSize);
+          all = all.concat(chunk.raw);
+          total = chunk.total;
+          totalQuantity = chunk.totalQuantity;
+          const hasNext = chunk.meta.hasNextPage ?? (page * pageSize < total);
+          if (!hasNext || chunk.raw.length === 0) break;
+          page += 1;
+        }
+
+        return {
+          stock: normalizeResponse(all, 'inventory'),
+          total,
+          totalQuantity,
+        };
+      }
+
+      const chunk = await loadPage(params.page || 1, pageSize);
+      const normalized = normalizeResponse(chunk.raw, 'inventory');
       return {
-          stock: normalized,
-          total: data.total || normalized.length,
-          totalQuantity: data.totalQuantity || 0
+        stock: normalized,
+        total: chunk.total,
+        totalQuantity: chunk.totalQuantity,
       };
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch stock');

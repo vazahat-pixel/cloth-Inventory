@@ -204,6 +204,58 @@ const getStoreInventory = async (query, user) => {
         warehouseFilter.itemId = { $in: itemIds };
     }
 
+    const forReport = query.forReport === true || query.forReport === 'true';
+    const { REPORT_MAX_PAGE_SIZE } = require('../../core/constants');
+
+    if (forReport) {
+        const reportLimit = REPORT_MAX_PAGE_SIZE;
+        const effectiveStoreId = isStoreRole
+            ? user.shopId
+            : (storeId && storeId !== 'all' ? storeId : null);
+
+        if (effectiveStoreId) {
+            const sf = { ...storeFilter, storeId: effectiveStoreId };
+            delete sf._id;
+
+            const [rows, agg] = await Promise.all([
+                StoreInventory.find(sf).sort({ lastUpdated: -1 }).limit(reportLimit).lean(),
+                StoreInventory.aggregate([
+                    { $match: sf },
+                    { $group: { _id: null, totalQty: { $sum: '$quantityAvailable' }, count: { $sum: 1 } } },
+                ]),
+            ]);
+            const inventory = await populateInventoryManual(rows);
+            return {
+                inventory,
+                total: agg[0]?.count || inventory.length,
+                totalQuantity: Math.round(agg[0]?.totalQty || 0),
+                page: 1,
+                limit: reportLimit,
+            };
+        }
+
+        if (!isStoreRole) {
+            const wf = { ...warehouseFilter };
+            delete wf._id;
+
+            const [rows, agg] = await Promise.all([
+                WarehouseInventory.find(wf).sort({ lastUpdated: -1 }).limit(reportLimit).lean(),
+                WarehouseInventory.aggregate([
+                    { $match: wf },
+                    { $group: { _id: null, totalQty: { $sum: '$quantity' }, count: { $sum: 1 } } },
+                ]),
+            ]);
+            const inventory = await populateInventoryManual(rows);
+            return {
+                inventory,
+                total: agg[0]?.count || inventory.length,
+                totalQuantity: Math.round(agg[0]?.totalQty || 0),
+                page: 1,
+                limit: reportLimit,
+            };
+        }
+    }
+
     console.log('[STOCK-OVERVIEW-DEBUG] Filters:', { storeFilter, warehouseFilter });
 
     // Fetch totals in parallel with the main query

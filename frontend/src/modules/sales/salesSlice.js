@@ -2,6 +2,7 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
 import { normalizeResponse } from '../../services/normalization';
 import { extractPaginationMeta } from '../../utils/paginationMeta';
+import { fetchAllPaginatedList } from '../../utils/fetchAllPages';
 
 // Async Thunks
 export const fetchSales = createAsyncThunk(
@@ -20,6 +21,29 @@ export const fetchSales = createAsyncThunk(
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || 'Failed to fetch sales');
   }
+  },
+);
+
+/** Report pages only — keeps list/POS sales data separate from report totals */
+export const fetchSalesForReport = createAsyncThunk(
+  'sales/fetchForReport',
+  async (params = {}, { rejectWithValue }) => {
+    try {
+      const { page: _p, limit: _l, forReport: _f, ...query } = params;
+      const { records: raw, total, page, limit } = await fetchAllPaginatedList(
+        '/sales',
+        query,
+        ['sales'],
+      );
+      return {
+        records: normalizeResponse(raw, 'sale'),
+        total,
+        page,
+        limit,
+      };
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch sales report');
+    }
   },
 );
 
@@ -100,11 +124,14 @@ export const addSalesReturn = createAsyncThunk('sales/addReturn', async (returnD
 
 const initialState = {
   records: [],
+  reportRecords: [],
+  reportTotal: 0,
   returns: [],
   total: 0,
   page: 1,
   limit: 20,
   loading: false,
+  reportLoading: false,
   error: null,
   lastFetchedAt: null,
 };
@@ -134,6 +161,19 @@ const salesSlice = createSlice({
       })
       .addCase(fetchSales.rejected, (state, action) => {
         state.loading = false;
+        state.error = action.payload;
+      })
+      .addCase(fetchSalesForReport.pending, (state) => {
+        state.reportLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchSalesForReport.fulfilled, (state, action) => {
+        state.reportLoading = false;
+        state.reportRecords = action.payload.records || [];
+        state.reportTotal = action.payload.total ?? 0;
+      })
+      .addCase(fetchSalesForReport.rejected, (state, action) => {
+        state.reportLoading = false;
         state.error = action.payload;
       })
       // Add Sale

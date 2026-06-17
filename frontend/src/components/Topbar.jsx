@@ -4,6 +4,7 @@ import { memo, useCallback, useMemo } from 'react';
 import { Box, Button, Divider, Stack, Typography } from '@mui/material';
 import { getPageTitle } from '../common/navigation';
 import { logout } from '../app/features/auth/authSlice';
+import { useConfirm } from '../context/ConfirmProvider';
 import useRoleBasePath from '../hooks/useRoleBasePath';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import StoreIcon from '@mui/icons-material/Store';
@@ -17,14 +18,24 @@ function Topbar() {
   const location = useLocation();
   const { user, role } = useSelector((state) => state.auth, shallowEqual);
   const basePath = useRoleBasePath();
+  const { showConfirm } = useConfirm();
 
   const title = useMemo(() => getPageTitle(location.pathname), [location.pathname]);
 
-  const handleLogout = useCallback(() => {
+  const handleLogout = useCallback(async () => {
+    const confirmed = await showConfirm({
+      title: 'Confirm Logout',
+      message: 'Are you sure you want to log out of your session?',
+      confirmText: 'Logout',
+      cancelText: 'Stay',
+      severity: 'warning',
+    });
+    if (!confirmed) return;
+
     const isHo = location.pathname.startsWith('/ho');
     dispatch(logout());
     navigate(isHo ? '/login/ho' : '/login/store', { replace: true });
-  }, [dispatch, location.pathname, navigate]);
+  }, [dispatch, location.pathname, navigate, showConfirm]);
 
   const isDashboardHome = location.pathname === '/ho' || location.pathname === '/store' || location.pathname === '/ho/' || location.pathname === '/store/';
 
@@ -37,9 +48,10 @@ function Topbar() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
+        flexShrink: 0,
         position: 'sticky',
         top: 0,
-        zIndex: 1000,
+        zIndex: 1100,
         backgroundColor: '#ffffff',
         borderBottom: '1px solid #e2e8f0',
       }}

@@ -405,6 +405,14 @@ function BarcodePrintingPage() {
       const res = await api.get(`/barcodes/grn/${idOfGrn}`);
       const extractedLabels = res.data?.data?.labels || res.data?.labels || [];
       setImportResults(extractedLabels);
+
+      const articles = [...new Set(extractedLabels.map((label) => label.article).filter(Boolean))];
+      const matchedItems = allItems.filter((item) => articles.includes(item.itemCode));
+      if (matchedItems.length) {
+        setSelectedStyles(matchedItems);
+        setBatchLines(buildBatchLinesFromItems(matchedItems));
+      }
+
       if (extractedLabels.length === 0) {
         showNotification('No valid received items found in this GRN to print.', 'warning');
       }
@@ -453,8 +461,34 @@ function BarcodePrintingPage() {
     }
   }, [allItems, preselectedItemId, preselectedItemIds, shouldAutoPrint]);
 
+  useEffect(() => {
+    if (!rawGrnId || !importResults.length || !allItems.length || selectedStyles.length) return;
+    const articles = [...new Set(importResults.map((label) => label.article).filter(Boolean))];
+    const matchedItems = allItems.filter((item) => articles.includes(item.itemCode));
+    if (matchedItems.length) {
+      setSelectedStyles(matchedItems);
+      setBatchLines(buildBatchLinesFromItems(matchedItems));
+    }
+  }, [rawGrnId, importResults, allItems, selectedStyles.length]);
+
+  const clampPrintQty = (value) => Math.max(0, Number(value) || 0);
+
+  const recordPrintHistory = async (labels) => {
+    if (!labels?.length) return;
+    try {
+      await api.post('/barcodes/record', {
+        labels,
+        grnId: rawGrnId || undefined,
+      });
+      if (activeTab === 2) fetchHistory();
+    } catch (err) {
+      console.error('Failed to record barcode history', err);
+    }
+  };
+
   const printBatch = (labels) => {
     if (!labels.length) return;
+    recordPrintHistory(labels);
     const printWindow = window.open('', '_blank');
     const styles = `
       <style>
@@ -574,7 +608,8 @@ function BarcodePrintingPage() {
   );
 
   const updateAllBatchQuantities = (qty) => {
-    const normalizedQty = Math.max(0, Number(qty) || 0);
+    const normalizedQty = clampPrintQty(qty);
+    setGlobalBatchQty(normalizedQty);
     setBatchLines((prev) => prev.map((line) => ({ ...line, printQty: normalizedQty })));
   };
 
@@ -616,7 +651,7 @@ function BarcodePrintingPage() {
                     renderInput={(params) => <TextField {...params} label="Select Product Attachment" size="medium" placeholder="Search by Item Code, SKU or Name..." />}
                   />
 
-                  <TextField fullWidth type="number" size="medium" label="Print Quantity" value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} />
+                  <TextField fullWidth type="number" size="medium" label="Print Quantity" value={quantity} onChange={(e) => setQuantity(clampPrintQty(e.target.value))} inputProps={{ min: 0 }} />
 
                   <Button 
                     variant="contained" 
@@ -709,13 +744,14 @@ function BarcodePrintingPage() {
                         size="small"
                         label="Set Qty For All"
                         value={globalBatchQty}
-                        onChange={(e) => setGlobalBatchQty(Number(e.target.value))}
+                        onChange={(e) => setGlobalBatchQty(clampPrintQty(e.target.value))}
+                        inputProps={{ min: 0 }}
                         sx={{ width: 140 }}
                       />
-                      <Button variant="outlined" onClick={() => updateAllBatchQuantities(globalBatchQty)}>
+                      <Button type="button" variant="outlined" onClick={() => updateAllBatchQuantities(globalBatchQty)}>
                         Apply All
                       </Button>
-                      <Button variant="outlined" color="inherit" onClick={() => updateAllBatchQuantities(0)}>
+                      <Button type="button" variant="outlined" color="inherit" onClick={() => updateAllBatchQuantities(0)}>
                         Clear All
                       </Button>
                     </Stack>
@@ -744,10 +780,12 @@ function BarcodePrintingPage() {
                                 size="medium" 
                                 value={line.printQty} 
                                 onChange={(e) => {
-                                  const next = [...batchLines];
-                                  next[idx].printQty = Number(e.target.value);
-                                  setBatchLines(next);
+                                  const nextQty = clampPrintQty(e.target.value);
+                                  setBatchLines((prev) => prev.map((row, rowIdx) => (
+                                    rowIdx === idx ? { ...row, printQty: nextQty } : row
+                                  )));
                                 }}
+                                inputProps={{ min: 0 }}
                                 sx={{ width: 140 }}
                               />
                             </TableCell>
@@ -829,8 +867,8 @@ function BarcodePrintingPage() {
                             {row.barcode}
                           </TableCell>
                           <TableCell>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.itemId?.itemCode}</Typography>
-                            <Typography variant="caption" color="textSecondary">{row.itemId?.itemName}</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.itemId?.itemCode || row.itemCode}</Typography>
+                            <Typography variant="caption" color="textSecondary">{row.itemId?.itemName || row.itemName}</Typography>
                           </TableCell>
                           <TableCell>{row.batchNo}</TableCell>
                           <TableCell align="right">

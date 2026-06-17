@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import useDebouncedValue from '../../../hooks/useDebouncedValue';
 import useServerPagination from '../../../hooks/useServerPagination';
@@ -38,6 +38,7 @@ function MasterListPage({
   FormDialogComponent,
   addButtonLabel,
   statusFilterKey,
+  searchKeys = [],
 }) {
   const dispatch = useDispatch();
   const listState = useSelector((state) => state.masters?.listPages?.[entityKey] || {});
@@ -64,7 +65,9 @@ function MasterListPage({
   const singular = singularLabel || title;
 
   useEffect(() => {
-    const params = buildParams({ search: debouncedSearch });
+    const params = buildParams({
+      ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
+    });
     if (statusFilterKey && statusFilter !== 'all') {
       params[statusFilterKey] = statusFilter === 'Active' ? 'true' : 'false';
     }
@@ -77,7 +80,9 @@ function MasterListPage({
   };
 
   const refreshList = () => {
-    const params = buildParams({ search: debouncedSearch });
+    const params = buildParams({
+      ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
+    });
     if (statusFilterKey && statusFilter !== 'all') {
       params[statusFilterKey] = statusFilter === 'Active' ? 'true' : 'false';
     }
@@ -127,8 +132,16 @@ function MasterListPage({
     cancelDeleteRecord();
   };
 
+  const displayRecords = useMemo(() => {
+    const query = debouncedSearch.trim().toLowerCase();
+    if (!query || !searchKeys.length) return records;
+    return records.filter((row) =>
+      searchKeys.some((key) => String(row[key] || '').toLowerCase().includes(query)),
+    );
+  }, [records, debouncedSearch, searchKeys]);
+
   const hasRows = total > 0;
-  const hasFilteredRows = records.length > 0;
+  const hasFilteredRows = displayRecords.length > 0;
 
   return (
     <>
@@ -212,7 +225,7 @@ function MasterListPage({
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {records.map((row) => (
+                  {displayRecords.map((row) => (
                     <TableRow key={row.id || row._id} hover>
                       {columns.map((column) => (
                         <TableCell

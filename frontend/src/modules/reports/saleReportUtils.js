@@ -202,7 +202,7 @@ export function formatPaymentDisplay(payment, rawPayments = []) {
 }
 
 export function matchesLocationFilter(sale, warehouseIds = []) {
-  const locationId = sale.warehouseId || sale.storeId;
+  const locationId = String(sale.warehouseId || sale.storeId || '');
   if (!warehouseIds.length) return true;
-  return warehouseIds.includes(locationId);
+  return warehouseIds.some((id) => String(id) === locationId);
 }

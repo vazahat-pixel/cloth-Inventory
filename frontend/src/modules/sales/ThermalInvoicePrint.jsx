@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Box, Divider, Typography, Stack, CircularProgress } from '@mui/material';
 import api from '../../services/api';
 
-const ThermalInvoicePrint = ({ sale }) => {
+const ThermalInvoicePrint = ({ sale, store: providedStore }) => {
     const [config, setConfig] = useState(null);
     const [loading, setLoading] = useState(true);
 
@@ -33,7 +33,7 @@ const ThermalInvoicePrint = ({ sale }) => {
         </Box>
     );
 
-    const store = sale.storeId || sale.warehouseId || {};
+    const store = providedStore || (typeof sale.storeId === 'object' ? sale.storeId : null) || (typeof sale.warehouseId === 'object' ? sale.warehouseId : null) || sale.storeId || sale.warehouseId || {};
     const company = config?.company || {};
     const invoicing = config?.invoicing || {};
     

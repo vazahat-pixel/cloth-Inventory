@@ -25,8 +25,9 @@ function RoleDashboardLayout() {
   return (
     <Box
       sx={{
-        minHeight: '100vh',
+        height: '100vh',
         display: 'flex',
+        overflow: 'hidden',
         backgroundColor: '#f8fafc',
       }}
     >

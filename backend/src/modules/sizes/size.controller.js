@@ -4,6 +4,11 @@ const { sendSuccess, sendError, sendCreated, sendNotFound } = require('../../uti
 class SizeController {
   create = async (req, res) => {
     try {
+      const code = String(req.body.code || '').trim().toUpperCase();
+      if (code) {
+        const existing = await Size.findOne({ code });
+        if (existing) return sendError(res, 'Size code already exists', 400);
+      }
       const size = await Size.create(req.body);
       return sendCreated(res, { size }, 'Size created successfully');
     } catch (error) {

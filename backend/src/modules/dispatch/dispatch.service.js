@@ -1173,15 +1173,24 @@ const getDispatches = async (query, user) => {
             .sort(sort)
             .skip(skip)
             .limit(limit)
-            .populate('sourceWarehouseId')
-            .populate('destinationStoreId')
+            .select('-items')
+            .populate('sourceWarehouseId', 'name warehouseName gstNumber location')
+            .populate('destinationStoreId', 'name storeCode gstNumber location transferDiscountPct')
             .populate('createdBy', 'name'),
         Dispatch.countDocuments(filter),
     ]);
 
-    const populated = await populateDispatchItemsManual(dispatches);
-    const plainList = Array.isArray(populated) ? populated : [];
-    const enriched = await enrichDispatchesWithBillingMeta(plainList);
+    const listView = query.listView === 'true' || query.listView === '1';
+    const plainList = dispatches.map((doc) => (doc.toObject ? doc.toObject() : doc));
+
+    if (listView) {
+        const enriched = await enrichDispatchesWithBillingMeta(plainList);
+        return { dispatches: enriched, pagination: buildPaginationMeta(total, page, limit) };
+    }
+
+    const populated = await populateDispatchItemsManual(plainList);
+    const populatedList = Array.isArray(populated) ? populated : [];
+    const enriched = await enrichDispatchesWithBillingMeta(populatedList);
     return { dispatches: enriched, pagination: buildPaginationMeta(total, page, limit) };
 };
 

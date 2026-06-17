@@ -37,7 +37,7 @@ import { useAppNavigate } from '../../hooks/useAppNavigate';
 import useRoleBasePath from '../../hooks/useRoleBasePath';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchItems } from '../items/itemsSlice';
-import { fetchPurchaseOrders, addPurchaseOrder, updatePurchaseOrder, updatePurchaseOrderStatus } from './purchaseSlice';
+import { fetchPurchaseOrders, fetchPurchaseOrderById, addPurchaseOrder, updatePurchaseOrder, updatePurchaseOrderStatus } from './purchaseSlice';
 import { loadModuleRecords } from '../erp/erpLocalStore';
 import {
   buildFallbackSuppliers,
@@ -50,6 +50,7 @@ import {
   normalizePurchaseOrderRecord,
   purchaseOrderStorageKey,
 } from './purchaseOrderUi';
+import { getPurchaseOrderListPath } from './purchaseOrderPaths';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -125,6 +126,8 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
   const [formError, setFormError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [loadedOrder, setLoadedOrder] = useState(null);
+  const [orderLoading, setOrderLoading] = useState(false);
 
   const auth = useSelector((state) => state.auth || {});
   const currentUser = auth.user || {};
@@ -138,12 +141,24 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
     dispatch(fetchItems());
   }, [dispatch]);
 
+  useEffect(() => {
+    if (!id) {
+      setLoadedOrder(null);
+      setOrderLoading(false);
+      return;
+    }
+    setOrderLoading(true);
+    dispatch(fetchPurchaseOrderById(id))
+      .unwrap()
+      .then((order) => setLoadedOrder(order))
+      .catch(() => setLoadedOrder(null))
+      .finally(() => setOrderLoading(false));
+  }, [dispatch, id]);
+
   const localPath = location.pathname.startsWith(basePath)
     ? location.pathname.slice(basePath.length) || '/'
     : location.pathname;
-  const listPath = localPath.startsWith('/orders/purchase-order')
-    ? '/orders/purchase-order'
-    : '/purchase/orders';
+  const listPath = getPurchaseOrderListPath(basePath, localPath);
 
   const suppliers = useMemo(() => {
     const backend = (backendSuppliers || []).map((supplier) => ({
@@ -174,11 +189,11 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
     if (!id) {
       return null;
     }
-    return backendOrders.find((order) => order._id === id || order.id === id);
-  }, [backendOrders, id]);
+    return loadedOrder || backendOrders.find((order) => order._id === id || order.id === id);
+  }, [backendOrders, id, loadedOrder]);
 
   useEffect(() => {
-    if (isEditMode && !existingOrder) {
+    if (id && !existingOrder) {
       return;
     }
 
@@ -205,7 +220,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
       poNumber: generatedNumber,
     });
     setLines([]);
-  }, [existingOrder, isEditMode]);
+  }, [existingOrder, id, isEditMode]);
 
   useEffect(() => {
     const supplier = suppliers.find((item) => item.id === formValues.supplierId);
@@ -391,7 +406,15 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
     }
   };
 
-  if (isEditMode && !existingOrder && backendOrders.length) {
+  if (id && orderLoading) {
+    return (
+      <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3 }}>
+        <Typography variant="body2" sx={{ color: '#64748b' }}>Loading purchase order...</Typography>
+      </Paper>
+    );
+  }
+
+  if (id && !existingOrder) {
     return (
       <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 3 }}>
         <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>

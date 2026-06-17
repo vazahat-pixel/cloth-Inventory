@@ -33,6 +33,20 @@ import api from '../../services/api';
 
 const INITIAL_COLORS = ['Black', 'Blue', 'Red', 'White', 'Green', 'Grey', 'Navy', 'Yellow', 'Pink', 'Cream', 'Olive', 'Multi'];
 
+const sanitizeCustomSize = (value) =>
+  String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9\s]/g, '')
+    .replace(/\s+/g, ' ');
+
+const sanitizeCustomColor = (value) =>
+  String(value || '')
+    .trim()
+    .replace(/[^a-zA-Z\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
 const createVariantId = () => `var-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 const sanitizeSkuPart = (value, fallback) => {
@@ -296,6 +310,17 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
   };
 
   const handleVariantSave = (formValues) => {
+    const normalizedSku = String(formValues.sku || '').trim().toUpperCase();
+    const duplicate = variants.find(
+      (variant) =>
+        String(variant.sku || '').trim().toUpperCase() === normalizedSku
+        && variant.id !== editingVariant?.id,
+    );
+    if (normalizedSku && duplicate) {
+      setGeneratorFeedback({ severity: 'error', text: `SKU "${normalizedSku}" is already used by another variant.` });
+      return;
+    }
+
     const payload = createVariantPayload({
       ...formValues,
       id: editingVariant?.id || createVariantId(),
@@ -324,7 +349,7 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
 
   const handleAddCustomColor = (e) => {
     if (e.key === 'Enter' || e.type === 'click') {
-      const val = newColorInput.trim();
+      const val = sanitizeCustomColor(newColorInput);
       if (!val) return;
       if (!localColors.includes(val)) {
         setLocalColors([...localColors, val]);
@@ -338,7 +363,7 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
 
   const handleAddCustomSize = (e) => {
     if (e.key === 'Enter' || e.type === 'click') {
-      const val = newSizeInput.trim().toUpperCase();
+      const val = sanitizeCustomSize(newSizeInput);
       if (!val) return;
       
       if (!selectedSizes.includes(val)) {
@@ -479,9 +504,10 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
               size="small"
               placeholder="Add Custom Size (e.g. 44) + Press Enter"
               value={newSizeInput}
-              onChange={(e) => setNewSizeInput(e.target.value)}
+              onChange={(e) => setNewSizeInput(sanitizeCustomSize(e.target.value))}
               onKeyDown={handleAddCustomSize}
               fullWidth
+              helperText="Letters and numbers only"
               InputProps={{
                 endAdornment: (
                   <Button size="small" onClick={handleAddCustomSize}>Add</Button>
@@ -512,9 +538,10 @@ function VariantTable({ variants, onChange, styleCode, readOnly = false, sizeOpt
               size="small"
               placeholder="Add Custom Color (e.g. Ocean Blue) + Press Enter"
               value={newColorInput}
-              onChange={(e) => setNewColorInput(e.target.value)}
+              onChange={(e) => setNewColorInput(sanitizeCustomColor(e.target.value))}
               onKeyDown={handleAddCustomColor}
               fullWidth
+              helperText="Letters and spaces only"
               InputProps={{
                 endAdornment: (
                   <Button size="small" onClick={handleAddCustomColor}>Add</Button>

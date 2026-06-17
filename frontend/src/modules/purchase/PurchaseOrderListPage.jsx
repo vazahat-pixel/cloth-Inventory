@@ -42,6 +42,7 @@ import {
   normalizePurchaseOrderRecord,
   purchaseOrderStorageKey,
 } from './purchaseOrderUi';
+import { getPurchaseOrderListPath } from './purchaseOrderPaths';
 
 const toExportRows = (rows = []) =>
   rows.flatMap((row) =>
@@ -94,9 +95,7 @@ function PurchaseOrderListPage() {
   const localPath = location.pathname.startsWith(basePath)
     ? location.pathname.slice(basePath.length) || '/'
     : location.pathname;
-  const listPath = localPath.startsWith('/orders/purchase-order')
-    ? '/orders/purchase-order'
-    : '/purchase/orders';
+  const listPath = getPurchaseOrderListPath(basePath, localPath);
 
   const suppliers = useMemo(() => {
     return (masterSuppliers || []).map((supplier) => ({
@@ -183,7 +182,7 @@ function PurchaseOrderListPage() {
       })),
     };
     upsertModuleRecord(purchaseOrderStorageKey, duplicated);
-    navigate(`${listPath}/${duplicated.id}/edit`);
+    navigate(`${listPath}/edit/${duplicated.id}`);
   };
 
   const exportRows = useMemo(() => toExportRows(filteredRows), [filteredRows]);
@@ -350,10 +349,10 @@ function PurchaseOrderListPage() {
                   <TableCell>{(typeof row.createdBy === 'object' ? row.createdBy?.name : row.createdBy) || 'HO Admin'}</TableCell>
                   <TableCell align="right">
                     <Stack direction="row" spacing={0.25} sx={{ justifyContent: 'flex-end' }}>
-                      <IconButton size="small" color="info" onClick={() => navigate(`${listPath}/${row.id}/view`)}>
+                      <IconButton size="small" color="info" onClick={() => navigate(`${listPath}/view/${row.id}`)}>
                         <VisibilityOutlinedIcon fontSize="small" />
                       </IconButton>
-                      <IconButton size="small" color="primary" onClick={() => navigate(`${listPath}/${row.id}/edit`)}>
+                      <IconButton size="small" color="primary" onClick={() => navigate(`${listPath}/edit/${row.id}`)}>
                         <EditOutlinedIcon fontSize="small" />
                       </IconButton>
                       <IconButton size="small" color="secondary" onClick={() => duplicateOrder(row)}>
@@ -362,7 +361,7 @@ function PurchaseOrderListPage() {
                       <IconButton
                         size="small"
                         color="success"
-                        onClick={() => navigate(`/grn/new?poId=${row.id}`)}
+                        onClick={() => navigate(`${basePath}/inventory/grn/new?poId=${row.id}`)}
                         title="Create GRN"
                       >
                         <ReceiptLongOutlinedIcon fontSize="small" />

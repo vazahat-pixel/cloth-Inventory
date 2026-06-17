@@ -42,7 +42,7 @@ import BillPrintDialog from '../../components/BillPrintDialog';
 import StandardInvoicePrint from './StandardInvoicePrint';
 import ExchangeInvoicePrint from './ExchangeInvoicePrint';
 
-const PAYMENT_STATUS_OPTIONS = ['Paid', 'Partial'];
+const PAYMENT_STATUS_OPTIONS = ['Paid', 'Partial', 'Pending'];
 
 function SalesListPage({
   pageTitle = 'Sales Invoices',

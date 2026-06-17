@@ -12,7 +12,6 @@ import {
   TableCell,
   TableContainer,
   TableHead,
-  TablePagination,
   TableRow,
   TextField,
   Typography,
@@ -21,36 +20,38 @@ import SearchIcon from '@mui/icons-material/Search';
 import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
 import { SummaryChip } from './SalesReportPage';
-import { fetchPurchases } from '../purchase/purchaseSlice';
+import { fetchPurchasesForReport } from '../purchase/purchaseSlice';
 import useDebouncedValue from '../../hooks/useDebouncedValue';
-import useServerPagination from '../../hooks/useServerPagination';
 import ServerTablePagination from '../../components/erp/ServerTablePagination';
 
 const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 function PurchaseReportPage() {
   const dispatch = useDispatch();
-  const purchases = useSelector((state) => state.purchase?.records || []);
-  const purchaseTotal = useSelector((state) => state.purchase?.total || 0);
+  const purchases = useSelector((state) => state.purchase?.reportRecords || []);
+  const purchaseTotal = useSelector((state) => state.purchase?.reportTotal || 0);
   const suppliers = useSelector((state) => state.masters?.suppliers || []);
 
   const [filters, setFilters] = useState({});
   const [searchText, setSearchText] = useState('');
   const debouncedSearch = useDebouncedValue(searchText, 300);
-  const serverPagination = useServerPagination({ defaultPageSize: 25 });
   const [viewMode, setViewMode] = useState('summary');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
   useEffect(() => {
-    dispatch(fetchPurchases(serverPagination.buildParams({
+    dispatch(fetchPurchasesForReport({
       startDate: filters.dateFrom,
       endDate: filters.dateTo,
       warehouseId: filters.warehouseId && filters.warehouseId !== 'all' ? filters.warehouseId : undefined,
       supplierId: filters.supplierId && filters.supplierId !== 'all' ? filters.supplierId : undefined,
       search: debouncedSearch || undefined,
-    })));
-  }, [dispatch, serverPagination.page, serverPagination.rowsPerPage, filters.dateFrom, filters.dateTo, filters.warehouseId, filters.supplierId, debouncedSearch]);
+    }));
+  }, [dispatch, filters.dateFrom, filters.dateTo, filters.warehouseId, filters.supplierId, debouncedSearch]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [filters.dateFrom, filters.dateTo, filters.warehouseId, filters.supplierId, debouncedSearch]);
 
   const supplierMap = useMemo(
     () => suppliers.reduce((acc, s) => ({ ...acc, [s.id]: s.supplierName }), {}),
@@ -85,13 +86,13 @@ function PurchaseReportPage() {
       totalNet += toNum(t.netAmount);
     });
     return {
-      totalBills: filteredRows.length,
+      totalBills: purchaseTotal || filteredRows.length,
       totalQuantity: totalQty,
       totalCost,
       totalTax,
       totalNet,
     };
-  }, [filteredRows]);
+  }, [filteredRows, purchaseTotal]);
 
   const detailRows = useMemo(() => {
     const out = [];
@@ -414,24 +415,20 @@ function PurchaseReportPage() {
           </Table>
         </TableContainer>
         <ServerTablePagination
-          count={purchaseTotal}
-          page={serverPagination.page}
-          rowsPerPage={serverPagination.rowsPerPage}
-          onPageChange={serverPagination.handlePageChange}
-          onRowsPerPageChange={serverPagination.handleRowsPerPageChange}
-          rowsPerPageOptions={serverPagination.pageSizeOptions}
-        />
-        <TablePagination
-          component="div"
-          count={viewMode === 'summary' ? filteredRows.length : viewMode === 'sizeWise' ? sizeWiseRows.length : viewMode === 'supplierWise' ? supplierWiseRows.length : detailRows.length}
+          count={
+            viewMode === 'summary' ? filteredRows.length
+              : viewMode === 'sizeWise' ? sizeWiseRows.length
+                : viewMode === 'supplierWise' ? supplierWiseRows.length
+                  : detailRows.length
+          }
           page={page}
-          onPageChange={(_, p) => setPage(p)}
           rowsPerPage={rowsPerPage}
+          onPageChange={(_, p) => setPage(p)}
           onRowsPerPageChange={(e) => {
             setRowsPerPage(Number(e.target.value));
             setPage(0);
           }}
-          rowsPerPageOptions={[5, 10, 25]}
+          rowsPerPageOptions={[5, 10, 25, 50]}
         />
       </Paper>
     </Box>

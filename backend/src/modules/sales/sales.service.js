@@ -1131,7 +1131,12 @@ const getAllSales = async (query, user) => {
     }
 
     if (paymentStatus && paymentStatus !== 'all') {
-        filter.paymentStatus = paymentStatus.toUpperCase();
+        const normalized = String(paymentStatus).toUpperCase();
+        if (normalized === 'PAID') {
+            filter.dueAmount = { $lte: 0 };
+        } else if (normalized === 'PARTIAL' || normalized === 'PENDING') {
+            filter.dueAmount = { $gt: 0 };
+        }
     }
 
     const sort = getSort(query, {

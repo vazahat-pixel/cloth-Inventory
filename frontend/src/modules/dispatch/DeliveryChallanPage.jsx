@@ -36,6 +36,7 @@ import { useNotification } from '../../context/NotificationProvider';
 import { useLoading } from '../../context/LoadingProvider';
 import { useConfirm } from '../../context/ConfirmProvider';
 import ReportExportButton from '../reports/ReportExportButton';
+import api from '../../services/api';
 
 function DeliveryChallanPage({
     pageTitle = 'Delivery Challans',
@@ -69,6 +70,7 @@ function DeliveryChallanPage({
         pageSizeOptions,
     } = useServerPagination({ defaultPageSize: 20 });
     const [printTarget, setPrintTarget] = useState(null);
+    const [printLoading, setPrintLoading] = useState(false);
     const [selectedChallanIds, setSelectedChallanIds] = useState([]);
 
     const handleSelectRow = (e, row) => {
@@ -103,6 +105,24 @@ function DeliveryChallanPage({
         });
         dispatch(fetchChallans(params));
     }, [dispatch, debouncedSearch, isTransferBill, page, rowsPerPage, buildParams]);
+
+    const handlePrint = async (row) => {
+        const id = row.id || row._id;
+        if (!id) {
+            setPrintTarget(row);
+            return;
+        }
+        setPrintLoading(true);
+        try {
+            const response = await api.get(`/dispatch/${id}`);
+            const detail = response.data.dispatch || response.data.data || row;
+            setPrintTarget(detail);
+        } catch {
+            setPrintTarget(row);
+        } finally {
+            setPrintLoading(false);
+        }
+    };
 
     const handleDelete = async (target) => {
         const id = target.id || target._id;
@@ -297,7 +317,8 @@ function DeliveryChallanPage({
                                                     <IconButton
                                                         size="small"
                                                         color="info"
-                                                        onClick={() => setPrintTarget(row)}
+                                                        onClick={() => handlePrint(row)}
+                                                        disabled={printLoading}
                                                     >
                                                         <PrintOutlinedIcon fontSize="small" />
                                                     </IconButton>
@@ -392,11 +413,20 @@ function DeliveryChallanPage({
                 {printTarget && (
                     printTarget.status === 'DISPATCHED' || printTarget.status === 'RECEIVED' ? (
                         <StandardInvoicePrint 
-                            sale={printTarget} 
+                            sale={{
+                                ...printTarget,
+                                orderNo: printTarget.dcNumber || printTarget.dispatchNumber || printTarget.challanNumber,
+                                vehicleNo: printTarget.vehicleNumber,
+                                items: printTarget.items || [],
+                            }} 
                             isTransfer={(printTarget.sourceWarehouseId?.gstNumber || '').trim().toUpperCase() === (printTarget.destinationStoreId?.gstNumber || '').trim().toUpperCase()} 
                             />
                     ) : (
-                        <SaleChallanPrint challan={printTarget} />
+                        <SaleChallanPrint challan={{
+                            ...printTarget,
+                            challanNumber: printTarget.challanNumber || printTarget.dispatchNumber || printTarget.dcNumber,
+                            items: printTarget.items || [],
+                        }} />
                     )
                 )}
             </BillPrintDialog>

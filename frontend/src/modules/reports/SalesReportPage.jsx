@@ -12,7 +12,6 @@ import {
   TableCell,
   TableContainer,
   TableHead,
-  TablePagination,
   TableRow,
   TextField,
   Typography,
@@ -20,13 +19,13 @@ import {
 import SearchIcon from '@mui/icons-material/Search';
 import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
-import { fetchSales } from '../sales/salesSlice';
+import { fetchSalesForReport } from '../sales/salesSlice';
 import { fetchItems } from '../items/itemsSlice';
 import { fetchStockOverview } from '../inventory/inventorySlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import useDebouncedValue from '../../hooks/useDebouncedValue';
-import useServerPagination from '../../hooks/useServerPagination';
 import ServerTablePagination from '../../components/erp/ServerTablePagination';
+import { REPORT_FETCH_PARAMS } from './reportConstants';
 import {
   buildVariantItemMap,
   buildClosingStockMap,
@@ -42,9 +41,9 @@ const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 function SalesReportPage() {
   const dispatch = useDispatch();
-  const sales = useSelector((state) => state.sales?.records || []);
-  const salesTotal = useSelector((state) => state.sales?.total || 0);
-  const salesLoading = useSelector((state) => state.sales?.loading);
+  const sales = useSelector((state) => state.sales?.reportRecords || []);
+  const salesTotal = useSelector((state) => state.sales?.reportTotal || 0);
+  const salesLoading = useSelector((state) => state.sales?.reportLoading);
   const salesReturns = useSelector((state) => state.sales?.returns || []);
   const warehouses = useSelector((state) => state.masters?.warehouses || []);
   const stores = useSelector((state) => state.masters?.stores || []);
@@ -59,24 +58,31 @@ function SalesReportPage() {
   const [searchText, setSearchText] = useState('');
   const debouncedSearch = useDebouncedValue(searchText, 300);
   const [viewMode, setViewMode] = useState('summary');
-  const serverPagination = useServerPagination({ defaultPageSize: 25 });
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
   useEffect(() => {
-    const storeFilter = filters.warehouseIds?.[0] || (filters.warehouseId && filters.warehouseId !== 'all' ? filters.warehouseId : undefined);
-    dispatch(fetchSales(serverPagination.buildParams({
+    const storeFilter = isStoreStaff
+      ? user?.shopId
+      : (filters.warehouseIds?.[0] || (filters.warehouseId && filters.warehouseId !== 'all' ? filters.warehouseId : undefined));
+    dispatch(fetchSalesForReport({
+      ...REPORT_FETCH_PARAMS,
       startDate: filters.dateFrom,
       endDate: filters.dateTo,
       storeId: storeFilter,
       search: debouncedSearch || undefined,
       paymentStatus: filters.paymentStatus,
-    })));
-  }, [dispatch, serverPagination.page, serverPagination.rowsPerPage, filters.dateFrom, filters.dateTo, filters.warehouseId, filters.warehouseIds, filters.paymentStatus, debouncedSearch]);
+    }));
+  }, [dispatch, isStoreStaff, user?.shopId, filters.dateFrom, filters.dateTo, filters.warehouseId, filters.warehouseIds, filters.paymentStatus, debouncedSearch]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [filters.dateFrom, filters.dateTo, filters.warehouseId, filters.warehouseIds, filters.paymentStatus, debouncedSearch]);
 
   useEffect(() => {
     dispatch(fetchMasters('stores'));
     dispatch(fetchMasters('itemGroups'));
+    dispatch(fetchItems({ limit: 500 }));
     if (isStoreStaff && user?.shopId) {
       setFilters((prev) => ({
         ...prev,
@@ -102,20 +108,32 @@ function SalesReportPage() {
 
   const itemGroupMap = useMemo(() => {
     const map = {};
-    const groupNameMap = itemGroups.reduce((acc, g) => ({ ...acc, [g.id || g._id]: g.groupName || g.name }), {});
-    
+    const groupNameById = itemGroups.reduce((acc, g) => {
+      acc[g.id || g._id] = g.groupName || g.name || '';
+      return acc;
+    }, {});
+
     items.forEach((item) => {
-      // Find Category among groupIds
-      const catId = (item.groupIds || []).find(id => {
-          const group = itemGroups.find(g => (g.id || g._id) === (id?.id || id?._id || id));
-          return group?.groupType === 'Category';
-      });
-      const groupName = groupNameMap[catId?.id || catId?._id || catId] || String(item.category || 'Ungrouped');
-      
+      let groupName = item.categoryName || item.sectionName || item.mainGroup || '';
+      const rawGroups = item.groupIds || [];
+      for (const gid of rawGroups) {
+        const id = gid?.id || gid?._id || gid;
+        const grp = itemGroups.find((g) => (g.id || g._id) === id);
+        if (grp && ['Category', 'Section', 'Sub Category'].includes(grp.groupType)) {
+          groupName = grp.groupName || grp.name || groupName;
+          break;
+        }
+      }
+      if (!groupName && item.categoryId) {
+        groupName = item.categoryId?.groupName || item.categoryId?.name || groupNameById[item.categoryId?.id || item.categoryId] || '';
+      }
+      const resolved = groupName || 'Ungrouped';
       const variants = item.variants || item.sizes || [];
       variants.forEach((v) => {
-        map[v.id || v._id] = groupName;
+        if (v.id || v._id) map[v.id || v._id] = resolved;
+        if (v.sku) map[v.sku] = resolved;
       });
+      map[item.id || item._id] = resolved;
     });
     return map;
   }, [items, itemGroups]);
@@ -123,9 +141,11 @@ function SalesReportPage() {
   const filteredRows = useMemo(() => {
     return sales.filter((sale) => {
       const selectedLocations = filters.warehouseIds || [];
-      const matchesWarehouse = selectedLocations.length
-        ? matchesLocationFilter(sale, selectedLocations)
-        : (!filters.warehouseId || filters.warehouseId === 'all' || sale.warehouseId === filters.warehouseId);
+      const matchesWarehouse = isStoreStaff
+        ? true
+        : selectedLocations.length
+          ? matchesLocationFilter(sale, selectedLocations)
+          : (!filters.warehouseId || filters.warehouseId === 'all' || String(sale.warehouseId) === String(filters.warehouseId));
       const matchesCustomer =
         !filters.customerId || filters.customerId === 'all' || sale.customerId === filters.customerId;
       const matchesSalesman =
@@ -144,7 +164,7 @@ function SalesReportPage() {
         matchesVoided
       );
     });
-  }, [sales, filters, itemGroups, itemGroupMap]);
+  }, [sales, filters, itemGroups, itemGroupMap, isStoreStaff]);
 
   const groupedAndSortedRows = useMemo(() => {
     const salesByStore = {};
@@ -196,15 +216,18 @@ function SalesReportPage() {
       totalTax += toNum(t.taxAmount);
       totalNet += toNum(t.netPayable);
     });
+    const hasClientOnlyFilters = (filters.customerId && filters.customerId !== 'all')
+      || (filters.salesmanId && filters.salesmanId !== 'all')
+      || (filters.categoryId && filters.categoryId !== 'all');
     return {
-      totalInvoices: filteredRows.length,
+      totalInvoices: hasClientOnlyFilters ? filteredRows.length : (salesTotal || filteredRows.length),
       totalQuantity,
       totalGross,
       totalDiscount,
       totalTax,
       totalNet,
     };
-  }, [filteredRows]);
+  }, [filteredRows, salesTotal, filters.customerId, filters.salesmanId, filters.categoryId]);
 
   const detailRows = useMemo(() => {
     const from = filters.dateFrom || '';
@@ -364,7 +387,7 @@ function SalesReportPage() {
     const byGroup = {};
     filteredRows.forEach((sale) => {
       (sale.items || []).forEach((line) => {
-        const group = itemGroupMap[line.variantId] || 'Ungrouped';
+        const group = itemGroupMap[line.variantId] || itemGroupMap[line.sku] || itemGroupMap[line.productId] || itemGroupMap[line.itemId] || 'Ungrouped';
         if (!byGroup[group]) byGroup[group] = { group, quantity: 0, amount: 0 };
         byGroup[group].quantity += toNum(line.quantity);
         byGroup[group].amount += toNum(line.amount);
@@ -690,30 +713,18 @@ function SalesReportPage() {
           </Table>
         </TableContainer>
         <ServerTablePagination
-          count={salesTotal}
-          page={serverPagination.page}
-          rowsPerPage={serverPagination.rowsPerPage}
-          onPageChange={serverPagination.handlePageChange}
-          onRowsPerPageChange={serverPagination.handleRowsPerPageChange}
-          rowsPerPageOptions={serverPagination.pageSizeOptions}
-        />
-        <TablePagination
-          component="div"
           count={
-            viewMode === 'summary' ? filteredRows.length
-              : viewMode === 'detail' ? detailRows.length
+            viewMode === 'summary' ? groupedAndSortedRows.length
+              : viewMode === 'detail' ? groupedAndSortedDetailRows.length
                 : viewMode === 'accountWise' ? accountWiseRows.length
                   : viewMode === 'sizeWise' ? sizeWiseRows.length
-                    : viewMode === 'groupWise' ? groupWiseRows.length : 0
+                    : groupWiseRows.length
           }
           page={page}
-          onPageChange={(_, p) => setPage(p)}
           rowsPerPage={rowsPerPage}
-          onRowsPerPageChange={(e) => {
-            setRowsPerPage(Number(e.target.value));
-            setPage(0);
-          }}
-          rowsPerPageOptions={[5, 10, 25]}
+          onPageChange={(_, p) => setPage(p)}
+          onRowsPerPageChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(0); }}
+          rowsPerPageOptions={[5, 10, 25, 50]}
         />
       </Paper>
     </Box>

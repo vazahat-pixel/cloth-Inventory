@@ -6,6 +6,8 @@ module.exports = {
     // Pagination
     DEFAULT_PAGE_SIZE: 20,
     MAX_PAGE_SIZE: 100,
+    /** Higher cap when `forReport=true` is passed on list/export APIs */
+    REPORT_MAX_PAGE_SIZE: 20000,
 
     // Token
     TOKEN_HEADER: 'Authorization',

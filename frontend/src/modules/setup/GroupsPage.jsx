@@ -200,6 +200,12 @@ function GroupsPage({ compact = false }) {
     if (!formValues.groupType) {
       nextErrors.groupType = 'Group type is required.';
     }
+    if (!formValues.description.trim()) {
+      nextErrors.description = 'Description is required.';
+    }
+    if (formValues.groupType && formValues.groupType !== 'Section' && !formValues.parentId) {
+      nextErrors.parentId = 'Parent group is required for this group type.';
+    }
     setFormErrors(nextErrors);
     return !Object.keys(nextErrors).length;
   };
@@ -491,6 +497,9 @@ function GroupsPage({ compact = false }) {
                 label="Parent Group"
                 value={formValues.parentId}
                 onChange={(event) => setFormValues((previous) => ({ ...previous, parentId: event.target.value }))}
+                error={Boolean(formErrors.parentId)}
+                helperText={formErrors.parentId || (formValues.groupType !== 'Section' ? 'Required for non-section groups' : ' ')}
+                required={formValues.groupType && formValues.groupType !== 'Section'}
               >
                 <MenuItem value="">Root</MenuItem>
                 {groups
@@ -524,6 +533,8 @@ function GroupsPage({ compact = false }) {
                 minRows={3}
                 value={formValues.description}
                 onChange={(event) => setFormValues((previous) => ({ ...previous, description: event.target.value }))}
+                error={Boolean(formErrors.description)}
+                helperText={formErrors.description || ' '}
               />
             </Grid>
           </Grid>

@@ -43,11 +43,12 @@ const RoleSidebar = ({ navConfig, isCollapsed, onToggle }) => {
         ? [item.path]
         : [];
 
-    return candidatePaths.some((candidate) => (
-      candidate === '/'
-        ? localPath === '/'
-        : localPath === candidate || localPath.startsWith(`${candidate}/`)
-    ));
+    return candidatePaths.some((candidate) => {
+      if (candidate === '/') return localPath === '/';
+      if (localPath === candidate) return true;
+      if (item.exactMatch) return false;
+      return localPath.startsWith(`${candidate}/`);
+    });
   };
 
   // Find current drilldown based on path if not manually set (for persistence)

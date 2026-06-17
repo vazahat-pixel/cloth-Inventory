@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useSelector } from 'react-redux';
+import { useEffect, useMemo, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
   InputAdornment,
@@ -21,6 +21,9 @@ import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
 import { SummaryChip } from './SalesReportPage';
+import { fetchSalesForReport } from '../sales/salesSlice';
+import { fetchStockOverview } from '../inventory/inventorySlice';
+import { REPORT_FETCH_PARAMS } from './reportConstants';
 
 const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
@@ -28,9 +31,15 @@ const FAST_MOVING_DAYS = 30;
 const SLOW_MOVING_DAYS = 90;
 
 function MovementReportPage() {
-  const sales = useSelector((state) => state.sales?.records || []);
+  const dispatch = useDispatch();
+  const sales = useSelector((state) => state.sales?.reportRecords || []);
   const items = useSelector((state) => state.items?.records || []);
   const stock = useSelector((state) => state.inventory?.storeStock || state.inventory?.stock || []);
+
+  useEffect(() => {
+    dispatch(fetchSalesForReport({}));
+    dispatch(fetchStockOverview(REPORT_FETCH_PARAMS));
+  }, [dispatch]);
 
   const [filters, setFilters] = useState({});
   const [searchText, setSearchText] = useState('');

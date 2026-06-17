@@ -50,7 +50,12 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
     const saleStoreId = typeof sale.storeId === 'object' ? sale.storeId?.id || sale.storeId?._id : sale.storeId;
     const saleWarehouseId = typeof sale.warehouseId === 'object' ? sale.warehouseId?.id || sale.warehouseId?._id : sale.warehouseId;
     const resolvedStoreId = saleStoreId || saleWarehouseId;
-    const reduxStore = warehouses.find(w => w.id === resolvedStoreId) || stores.find(s => s.id === resolvedStoreId);
+    const findLocationById = (id) => {
+        const key = String(id || '');
+        return warehouses.find((w) => String(w.id || w._id) === key)
+            || stores.find((s) => String(s.id || s._id) === key);
+    };
+    const reduxStore = findLocationById(resolvedStoreId);
 
     const store = providedStore || reduxStore || (typeof sale.storeId === 'object' ? sale.storeId : null) || (typeof sale.warehouseId === 'object' ? sale.warehouseId : null) || {};
     const sourceWarehouse = sale.sourceWarehouseId || store || {};

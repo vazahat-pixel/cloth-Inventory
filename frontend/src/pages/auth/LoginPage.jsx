@@ -45,7 +45,8 @@ function LoginPage() {
 
   const handleChange = (event) => {
     const { name, value } = event.target;
-    setFormValues((previous) => ({ ...previous, [name]: value }));
+    const nextValue = name === 'email' ? value.toLowerCase() : value;
+    setFormValues((previous) => ({ ...previous, [name]: nextValue }));
   };
 
   const handleSubmit = async (event) => {
@@ -319,6 +320,7 @@ function LoginPage() {
                 size="small"
                 value={formValues.email}
                 onChange={handleChange}
+                inputProps={{ style: { textTransform: 'lowercase' } }}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
@@ -410,11 +412,13 @@ function LoginPage() {
               <Typography variant="body2" sx={{ color: '#94a3b8' }}>
                 Having trouble signing in?{' '}
                 <Box
-                  component="span"
+                  component="a"
+                  href="mailto:info.dapolo@gmail.com?subject=Login%20Support%20Request"
                   sx={{
                     color: '#10b981',
                     fontWeight: 600,
                     cursor: 'pointer',
+                    textDecoration: 'none',
                     '&:hover': { textDecoration: 'underline' },
                   }}
                 >

@@ -133,10 +133,10 @@ export const staffNavConfig = {
     { label: 'Sale Registry (Bills)', path: '/sales/sale-bill', icon: DescriptionOutlinedIcon },
     { label: 'Sales Returns', path: '/sales/sales-return', icon: ReceiptLongIcon },
     { label: 'Purchase Return', path: '/inventory/purchase-return', icon: KeyboardReturnIcon },
-    { label: 'Day-End Closure (Z-Report)', path: '/reports/closure', icon: LockClockIcon },
+    { label: 'Day-End Closure (Z-Report)', path: '/reports/closure', icon: LockClockIcon, matchPaths: ['/reports/closure'] },
     { label: 'Stock Lookup', path: '/inventory/stock-overview', icon: Inventory2Icon },
     { label: 'Bulk Opening Stock', path: '/inventory/bulk-import-store-stock', icon: FileUploadOutlinedIcon },
-    { label: 'Analytics', path: '/reports', icon: AssessmentOutlinedIcon, matchPaths: ['/reports'], drilldown: true },
+    { label: 'Analytics', path: '/reports', icon: AssessmentOutlinedIcon, matchPaths: ['/reports', '/reports/sales', '/reports/inward', '/reports/stock', '/reports/collection'], drilldown: true },
   ],
   children: {
     '/inventory': [

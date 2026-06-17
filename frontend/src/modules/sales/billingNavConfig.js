@@ -18,10 +18,18 @@ export const billingMatchPaths = ['/sales'];
 
 export const billingNavItems = [
   {
-    key: 'sale-bill',
+    key: 'sale-bill-pos',
     label: 'Sale Bill (POS)',
+    path: '/sales/sale-bill/new',
+    matchPaths: ['/sales/sale-bill/new'],
+    icon: ReceiptLongOutlinedIcon,
+  },
+  {
+    key: 'sale-registry',
+    label: 'Sale Registry (Bills)',
     path: '/sales/sale-bill',
-    matchPaths: ['/sales/sale-bill', '/sales/new'],
+    matchPaths: ['/sales/sale-bill'],
+    exactMatch: true,
     icon: ReceiptLongOutlinedIcon,
   },
   {

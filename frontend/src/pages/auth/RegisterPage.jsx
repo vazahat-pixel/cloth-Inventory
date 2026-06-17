@@ -31,7 +31,8 @@ function RegisterPage() {
 
     const handleChange = (event) => {
         const { name, value } = event.target;
-        setFormValues((previous) => ({ ...previous, [name]: value }));
+        const nextValue = name === 'email' ? value.toLowerCase() : value;
+        setFormValues((previous) => ({ ...previous, [name]: nextValue }));
     };
 
     const handleSubmit = async (event) => {

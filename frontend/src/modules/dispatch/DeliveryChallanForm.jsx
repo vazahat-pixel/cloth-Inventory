@@ -412,7 +412,9 @@ function DeliveryChallanForm({
     const updateReceivedQuantity = (variantId, val) => {
         setLines(prev => prev.map(l => {
             if (l.variantId !== variantId) return l;
-            return { ...l, receivedQty: Math.max(0, Math.min(Number(val), (l.quantity || 0) + 100)) };
+            const expected = Number(l.quantity || 0);
+            const parsed = Math.max(0, Number(val) || 0);
+            return { ...l, receivedQty: parsed };
         }));
     };
 
@@ -451,7 +453,7 @@ function DeliveryChallanForm({
                                 color: v.color || variantDoc?.color || itemDoc.shade || '-',
                                 available: Number(item.qty + 100),
                                 quantity: Number(item.qty),
-                                receivedQty: mode === 'receive' ? 0 : Number(item.qty),
+                                receivedQty: mode === 'receive' ? Number(item.qty) : Number(item.qty),
                                 rate: Number(item.rate || item.mrp || 0),
                                 mrp: Number(item.mrp || item.rate || 0),
                                 discountPercent: Number(item.discountPercent || 0),
@@ -486,6 +488,13 @@ function DeliveryChallanForm({
 
         try {
             if (isReceiveMode) {
+                const mismatched = lines.filter((l) => Number(l.receivedQty) !== Number(l.quantity));
+                if (mismatched.length) {
+                    setError(`Received quantity must match expected quantity for all items (${mismatched.length} mismatch${mismatched.length > 1 ? 'es' : ''}).`);
+                    submitLockRef.current = false;
+                    setIsSubmitting(false);
+                    return;
+                }
                 const payload = {
                     receivedItems: lines.map(l => ({
                         variantId: l.variantId,
@@ -1035,20 +1044,26 @@ function DeliveryChallanForm({
                 <Stack direction="row" spacing={2} justifyContent="flex-end">
                     <Button variant="outlined" onClick={() => navigate(listPath)}>Cancel</Button>
                     <ReportExportButton
-                        headers={['Barcode/SKU', 'Item Name', 'Color', 'Size', 'Category', 'Quantity', 'Rate', 'MRP', 'Tax %', 'Subtotal']}
-                        headerKeys={['Barcode/SKU', 'Item Name', 'Color', 'Size', 'Category', 'Quantity', 'Rate', 'MRP', 'Tax %', 'Subtotal']}
-                        rows={lines.map(row => ({
+                        headers={['Barcode/SKU', 'Item Name', 'Color', 'Size', 'Quantity', 'Rate', 'MRP', 'Tax %', 'Subtotal']}
+                        headerKeys={['Barcode/SKU', 'Item Name', 'Color', 'Size', 'Quantity', 'Rate', 'MRP', 'Tax %', 'Subtotal']}
+                        rows={lines.map(row => {
+                            const qty = Number(row.quantity || 0);
+                            const rate = Number(row.rate || 0);
+                            const taxPct = Number(row.gstPercent ?? row.taxPercentage ?? 0);
+                            const subtotal = rate * qty;
+                            const taxAmount = isSameEntity ? 0 : (subtotal * taxPct) / 100;
+                            return {
                             'Barcode/SKU': row.barcode || row.sku,
                             'Item Name': row.itemName,
                             'Color': row.color,
                             'Size': row.size,
-                            'Category': row.category,
-                            'Quantity': row.quantity,
-                            'Rate': Number(row.rate || 0).toFixed(2),
+                            'Quantity': qty,
+                            'Rate': rate.toFixed(2),
                             'MRP': Number(row.mrp || 0).toFixed(2),
-                            'Tax %': row.taxPercentage || 0,
-                            'Subtotal': (Number(row.rate || 0) * (row.quantity || 0)).toFixed(2)
-                        }))}
+                            'Tax %': taxPct,
+                            'Subtotal': (subtotal + taxAmount).toFixed(2)
+                        };
+                        })}
                         filename={`Delivery_Challan_Export.csv`}
                         variant="outlined"
                     />
@@ -1092,6 +1107,8 @@ function DeliveryChallanForm({
                     <StandardInvoicePrint 
                         sale={{
                             ...challanRawData,
+                            orderNo: challanRawData?.dcNumber || challanRawData?.dispatchNumber || challanNumber,
+                            vehicleNo: challanRawData?.vehicleNumber,
                             storeId: sourceDoc,
                             sourceWarehouseId: sourceDoc,
                             destinationStoreId: destDoc,
@@ -1105,7 +1122,12 @@ function DeliveryChallanForm({
                         title={isSameEntity ? 'STOCK TRANSFER NOTE' : 'TAX INVOICE'}
                     />
                 ) : (
-                    <SaleChallanPrint challan={{ ...challanRawData, items: lines }} />
+                    <SaleChallanPrint challan={{
+                        ...challanRawData,
+                        challanNumber: challanNumber || challanRawData?.dispatchNumber || challanRawData?.dcNumber,
+                        vehicleNumber: challanRawData?.vehicleNumber,
+                        items: lines,
+                    }} />
                 )}
             </BillPrintDialog>
         </Paper>

@@ -8,7 +8,7 @@ const storeFields = [
     { name: 'alternatePhone', label: 'Alternate Phone', pattern: { value: /^(?:\d{10})?$/, message: 'Alternate Phone must be exactly 10 digits if provided' } },
     { name: 'gstNumber', label: 'GST Number', required: false, pattern: { value: /^(?:[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1})?$/, message: 'Invalid 15-char GSTIN format' } },
     { name: 'panNo', label: 'PAN No', pattern: { value: /^(?:[A-Z]{5}[0-9]{4}[A-Z]{1})?$/, message: 'Invalid 10-char PAN format' } },
-    { name: 'email', label: 'Login Email / Username', required: true, type: 'email' },
+    { name: 'email', label: 'Login Email / Username', required: true, type: 'email', maxLength: 120, sx: { '& .MuiInputBase-input': { overflow: 'visible', textOverflow: 'clip' } } },
     { 
         name: 'password', 
         label: 'Login Password', 
@@ -21,7 +21,15 @@ const storeFields = [
         label: 'Transfer Discount (%)', 
         required: false, 
         type: 'number',
-        helperText: 'Discount applied on Warehouse-to-Store transfers'
+        inputProps: { min: 0, max: 100, step: 0.01 },
+        validate: (v) => {
+            if (v === '' || v === null || v === undefined) return true;
+            const num = Number(v);
+            if (!Number.isFinite(num) || num < 0) return 'Transfer discount cannot be negative';
+            if (num > 100) return 'Transfer discount cannot exceed 100%';
+            return true;
+        },
+        helperText: 'Discount applied on Warehouse-to-Store transfers (0–100%)'
     },
     { name: 'openingBalance', label: 'Opening Balance', required: false, type: 'number', defaultValue: 0, validate: (v) => Number(v) >= 0 || 'Opening balance cannot be negative' },
     { name: 'city', label: 'City', required: true, pattern: { value: /^[A-Za-z\s]+$/, message: 'City can only contain alphabets and spaces' } },

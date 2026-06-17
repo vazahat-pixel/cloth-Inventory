@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import useDebouncedValue from '../../hooks/useDebouncedValue';
-import useServerPagination from '../../hooks/useServerPagination';
 import ServerTablePagination from '../../components/erp/ServerTablePagination';
+import { REPORT_FETCH_PARAMS } from './reportConstants';
 import {
   Box,
   Button,
@@ -15,7 +14,6 @@ import {
   TableCell,
   TableContainer,
   TableHead,
-  TablePagination,
   TableRow,
   TextField,
   Typography,
@@ -32,42 +30,48 @@ const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 function StockReportPage() {
   const dispatch = useDispatch();
   const stock = useSelector((state) => state.inventory?.storeStock || state.inventory?.stock || []);
-  const stockTotal = useSelector((state) => state.inventory?.total || 0);
+  const stockDbTotal = useSelector((state) => state.inventory?.total || 0);
+  const stockDbQuantity = useSelector((state) => state.inventory?.totalQuantity || 0);
   const warehouses = useSelector((state) => state.masters?.warehouses || []);
   const items = useSelector((state) => state.items?.records || []);
   const brands = useSelector((state) => state.masters?.brands || []);
   const itemGroups = useSelector((state) => state.masters?.itemGroups || []);
   const stores = useSelector((state) => state.masters?.stores || []);
   const movements = useSelector((state) => state.inventory?.movements || []);
-  const auth = useSelector((state) => state.auth || {});
-  const currentUser = auth.user || {};
-  const isAdmin = currentUser.role?.toLowerCase() === 'admin' || currentUser.role === 'HO';
+  const user = useSelector((state) => state.auth.user);
+  const isStoreStaff = user?.role !== 'Admin' && user?.role !== 'admin';
 
   const [filters, setFilters] = useState({});
   const [searchText, setSearchText] = useState('');
-  const debouncedSearch = useDebouncedValue(searchText, 350);
   const [viewMode, setViewMode] = useState('detail');
-  const {
-    page,
-    rowsPerPage,
-    resetPage,
-    handlePageChange,
-    handleRowsPerPageChange,
-    buildParams,
-    pageSizeOptions,
-  } = useServerPagination({ defaultPageSize: 10 });
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   useEffect(() => {
-    const params = buildParams({
-      search: debouncedSearch,
-      storeId: filters.storeId,
-      warehouseId: filters.warehouseId,
+    if (isStoreStaff && user?.shopId) {
+      setFilters((prev) => ({
+        ...prev,
+        warehouseId: user.shopId,
+      }));
+    }
+  }, [isStoreStaff, user?.shopId]);
+
+  useEffect(() => {
+    const storeFilter = isStoreStaff
+      ? user?.shopId
+      : (filters.warehouseId && filters.warehouseId !== 'all' ? filters.warehouseId : undefined);
+    dispatch(fetchStockOverview({
+      ...REPORT_FETCH_PARAMS,
+      storeId: storeFilter,
       brand: filters.brand,
       type: filters.category,
-    });
-    dispatch(fetchStockOverview(params));
-    dispatch(fetchMovements({ limit: 100 }));
-  }, [dispatch, debouncedSearch, filters, page, rowsPerPage, buildParams]);
+    }));
+    dispatch(fetchMovements({ ...REPORT_FETCH_PARAMS, storeId: storeFilter }));
+  }, [dispatch, isStoreStaff, user?.shopId, filters.warehouseId, filters.brand, filters.category]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [filters.warehouseId, filters.brandId, filters.categoryId, searchText, viewMode]);
 
   const variantPriceMap = useMemo(() => {
     const map = {};
@@ -211,12 +215,24 @@ function StockReportPage() {
     });
   }, [stockRows, filters, searchText, brands, itemGroups]);
 
-  const paginatedRows = useMemo(() => {
-    if (viewMode === 'detail') return filteredRows;
-    return filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-  }, [filteredRows, page, rowsPerPage, viewMode]);
+  const paginatedRows = useMemo(
+    () => filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [filteredRows, page, rowsPerPage],
+  );
+
+  const hasClientFilters = Boolean(searchText.trim()) || (filters.brandId && filters.brandId !== 'all') || (filters.categoryId && filters.categoryId !== 'all');
 
   const summary = useMemo(() => {
+    if (!hasClientFilters && stockDbQuantity > 0) {
+      const lowFromLoaded = filteredRows.filter((r) => r.isLowStock).length;
+      const totalValue = filteredRows.reduce((sum, r) => sum + r.value, 0);
+      return {
+        totalVariants: stockDbTotal,
+        totalClosingStock: stockDbQuantity,
+        totalValue,
+        lowStockCount: lowFromLoaded,
+      };
+    }
     let totalClosing = 0;
     let totalValue = 0;
     filteredRows.forEach((r) => {
@@ -229,7 +245,7 @@ function StockReportPage() {
       totalValue,
       lowStockCount: filteredRows.filter((r) => r.isLowStock).length,
     };
-  }, [filteredRows]);
+  }, [filteredRows, hasClientFilters, stockDbTotal, stockDbQuantity]);
 
   const groupWiseRows = useMemo(() => {
     const byGroup = {};
@@ -466,12 +482,14 @@ function StockReportPage() {
           </Table>
         </TableContainer>
         <ServerTablePagination
-          count={viewMode === 'detail' ? stockTotal : viewMode === 'groupWise' ? groupWiseRows.length : locationWiseRows.length}
+          count={hasClientFilters
+            ? (viewMode === 'detail' ? filteredRows.length : viewMode === 'groupWise' ? groupWiseRows.length : locationWiseRows.length)
+            : (viewMode === 'detail' ? stockDbTotal : viewMode === 'groupWise' ? groupWiseRows.length : locationWiseRows.length)}
           page={page}
           rowsPerPage={rowsPerPage}
-          onPageChange={handlePageChange}
-          onRowsPerPageChange={handleRowsPerPageChange}
-          rowsPerPageOptions={pageSizeOptions}
+          onPageChange={(_, p) => setPage(p)}
+          onRowsPerPageChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(0); }}
+          rowsPerPageOptions={[5, 10, 25, 50]}
         />
       </Paper>
     </Box>

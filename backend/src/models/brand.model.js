@@ -10,7 +10,10 @@ const brandSchema = new mongoose.Schema(
         },
         shortName: {
             type: String,
-            trim: true
+            trim: true,
+            uppercase: true,
+            unique: true,
+            sparse: true,
         },
         description: {
             type: String,

@@ -40,6 +40,7 @@ import { useAppNavigate } from '../../hooks/useAppNavigate';
 import stockOverviewExportColumns from '../../config/exportColumns/stockOverview';
 import { fetchStockOverview, clearStoreInventory, clearWarehouseInventory } from './inventorySlice';
 import { fetchMasters } from '../masters/mastersSlice';
+import { REPORT_FETCH_PARAMS } from '../reports/reportConstants';
 import useDebouncedValue from '../../hooks/useDebouncedValue';
 
 const normalizeStockRows = (rows = []) =>
@@ -159,12 +160,11 @@ function StockOverviewPage() {
 
   useEffect(() => {
     const params = {
-      page: 1,
-      limit: 1000, 
+      ...REPORT_FETCH_PARAMS,
       search: debouncedApiSearch,
       type: typeFilter === 'all' ? undefined : typeFilter,
     };
-    
+
     dispatch(fetchStockOverview(params));
     dispatch(fetchMasters('warehouses'));
     dispatch(fetchMasters('sizes'));
@@ -231,7 +231,12 @@ function StockOverviewPage() {
         // Otherwise use the global totals from backend
         totalRows: isLocalFiltered || searchText ? filteredRows.length : totalRows,
         totalQuantity: Math.round(Number(rawTotalQuantity)),
-        lowStock: filteredRows.filter((row) => row.availableStock <= row.reorderLevel && row.availableStock > 0).length,
+        lowStock: filteredRows.filter((row) => {
+          const status = String(row.status || '').toLowerCase().replace(/\s+/g, '_');
+          return (row.availableStock <= row.reorderLevel && row.availableStock > 0)
+            || status === 'low_stock'
+            || status === 'lowstock';
+        }).length,
         outOfStock: filteredRows.filter((row) => row.availableStock <= 0).length,
         inTransit: filteredRows.reduce((sum, row) => sum + Number(row.inTransit || 0), 0),
       };

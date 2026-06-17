@@ -46,8 +46,11 @@ const OpeningStockPage = () => {
       try {
         const res = await api.get('/items', { params: { search: searchQuery, limit: 20 } });
         const resData = res.data?.data || res.data || {};
-        const paginationData = resData.items || {};
-        setSearchResults(paginationData.items || []);
+        const itemsPayload = resData.items ?? resData.records ?? resData;
+        const records = Array.isArray(itemsPayload)
+          ? itemsPayload
+          : (itemsPayload.items || itemsPayload.records || []);
+        setSearchResults(records);
       } catch {
         setSearchResults([]);
       } finally { setSearching(false); }
@@ -304,7 +307,13 @@ const OpeningStockPage = () => {
 
           {/* Item Search */}
           <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              justifyContent="space-between"
+              alignItems={{ xs: 'stretch', sm: 'center' }}
+              spacing={1.5}
+              sx={{ mb: 1.5 }}
+            >
               <Typography variant="subtitle2" fontWeight={700}>
                 Search & Add Items
               </Typography>
@@ -314,7 +323,7 @@ const OpeningStockPage = () => {
                 size="small"
                 startIcon={<CloudUploadIcon />}
                 disabled={searching || posting}
-                sx={{ borderRadius: 2, fontSize: '0.75rem' }}
+                sx={{ borderRadius: 2, fontSize: '0.75rem', alignSelf: { xs: 'stretch', sm: 'center' }, whiteSpace: 'nowrap' }}
               >
                 Bulk Upload Excel
                 <input type="file" hidden accept=".xlsx, .xls" onChange={handleExcelUpload} />
@@ -323,9 +332,11 @@ const OpeningStockPage = () => {
             <TextField
               fullWidth
               size="small"
+              label="Search items"
               placeholder="Search by item code, name, or brand..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
+              InputLabelProps={{ shrink: true }}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">

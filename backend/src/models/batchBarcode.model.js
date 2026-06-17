@@ -4,17 +4,14 @@ const batchBarcodeSchema = new mongoose.Schema({
   barcode: {
     type: String,
     required: true,
-    unique: true,
     index: true
   },
   itemId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Item',
-    required: true
   },
   variantId: {
     type: mongoose.Schema.Types.ObjectId,
-    required: true
   },
   batchNo: {
     type: String,
@@ -22,9 +19,10 @@ const batchBarcodeSchema = new mongoose.Schema({
   },
   grnId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Purchase', // GRN is current Purchase with grnStatus APPROVED
-    required: true
+    ref: 'GRN',
   },
+  itemCode: { type: String, trim: true },
+  itemName: { type: String, trim: true },
   printCount: {
     type: Number,
     default: 0

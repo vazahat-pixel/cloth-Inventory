@@ -2,7 +2,6 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
 import { extractPaginationMeta } from '../../utils/paginationMeta';
 
-// Async Thunks
 export const fetchItems = createAsyncThunk('items/fetchAll', async (params = {}, { rejectWithValue }) => {
   try {
     const response = await api.get('/items', { params });
@@ -20,12 +19,27 @@ export const fetchItems = createAsyncThunk('items/fetchAll', async (params = {},
     return rejectWithValue(error.response?.data?.message || error.message);
   }
 });
+
+export const fetchItemById = createAsyncThunk('items/fetchById', async (id, { rejectWithValue }) => {
+  try {
+    const response = await api.get(`/items/${id}`);
+    const data = response.data?.data || response.data;
+    return data?.item || data;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
 export const addItem = createAsyncThunk('items/add', async (itemPayload, { rejectWithValue }) => {
   try {
     const response = await api.post('/items', itemPayload);
     return response.data.item || response.data.data;
   } catch (error) {
-    return rejectWithValue(error.response?.data?.message || (error instanceof Error ? error.message : String(error)));
+    const data = error.response?.data;
+    const message = data?.message
+      || (Array.isArray(data?.errors) ? data.errors.join(', ') : null)
+      || (error instanceof Error ? error.message : String(error));
+    return rejectWithValue(message);
   }
 });
 
@@ -34,7 +48,11 @@ export const updateItem = createAsyncThunk('items/update', async ({ id, item: it
     const response = await api.patch(`/items/${id}`, itemPayload);
     return response.data.item || response.data.data;
   } catch (error) {
-    return rejectWithValue(error.response?.data?.message || (error instanceof Error ? error.message : String(error)));
+    const data = error.response?.data;
+    const message = data?.message
+      || (Array.isArray(data?.errors) ? data.errors.join(', ') : null)
+      || (error instanceof Error ? error.message : String(error));
+    return rejectWithValue(message);
   }
 });
 
@@ -54,6 +72,8 @@ const initialState = {
   limit: 20,
   loading: false,
   error: null,
+  currentItem: null,
+  currentItemLoading: false,
 };
 
 const itemsSlice = createSlice({
@@ -80,6 +100,26 @@ const itemsSlice = createSlice({
       })
       .addCase(fetchItems.rejected, (state, action) => {
         state.loading = false;
+        state.error = action.payload;
+      })
+      // Fetch single item
+      .addCase(fetchItemById.pending, (state) => {
+        state.currentItemLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchItemById.fulfilled, (state, action) => {
+        state.currentItemLoading = false;
+        state.currentItem = action.payload;
+        if (action.payload) {
+          const itemId = action.payload.id || action.payload._id;
+          const index = state.records.findIndex((r) => r.id === itemId || r._id === itemId);
+          if (index !== -1) {
+            state.records[index] = action.payload;
+          }
+        }
+      })
+      .addCase(fetchItemById.rejected, (state, action) => {
+        state.currentItemLoading = false;
         state.error = action.payload;
       })
       // Add Item

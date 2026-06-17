@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 import {
   Alert,
   Autocomplete,
@@ -27,9 +27,10 @@ import { useAppNavigate } from '../../hooks/useAppNavigate';
 import PageHeader from '../../components/erp/PageHeader';
 import FormSection from '../../components/erp/FormSection';
 import VariantTable from './VariantTable';
-import { addItem, updateItem } from './itemsSlice';
+import { addItem, updateItem, fetchItemById } from './itemsSlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import api from '../../services/api';
+import { extractApiErrorMessage } from '../../utils/apiError';
 
 const filter = createFilterOptions();
 
@@ -68,11 +69,14 @@ const defaultValues = {
 
 function ItemFormPage({ mode = 'edit' }) {
   const { id } = useParams();
+  const location = useLocation();
   const isEditMode = Boolean(id);
   const isViewMode = mode === 'view';
   const dispatch = useDispatch();
   const navigate = useAppNavigate();
   const items = useSelector((state) => state.items.records);
+  const currentItem = useSelector((state) => state.items.currentItem);
+  const currentItemLoading = useSelector((state) => state.items.currentItemLoading);
   const masters = useSelector((state) => state.masters || {});
 
   const brands = useMemo(() => masters.brands || [], [masters.brands]);
@@ -143,7 +147,19 @@ function ItemFormPage({ mode = 'edit' }) {
       .catch(err => console.error('Failed to fetch unique attributes', err));
   }, []);
 
-  const existingItem = useMemo(() => (isEditMode ? items.find((item) => item.id === id || item._id === id) : null), [id, isEditMode, items]);
+  const existingItem = useMemo(() => {
+    if (!isEditMode) return null;
+    const fromList = items.find((item) => item.id === id || item._id === id);
+    if (fromList) return fromList;
+    if (currentItem && (currentItem.id === id || currentItem._id === id)) return currentItem;
+    return null;
+  }, [id, isEditMode, items, currentItem]);
+
+  useEffect(() => {
+    if (isEditMode && id) {
+      dispatch(fetchItemById(id));
+    }
+  }, [dispatch, id, isEditMode]);
 
   useEffect(() => {
     if (!isEditMode && typeWatch) {
@@ -358,11 +374,13 @@ function ItemFormPage({ mode = 'edit' }) {
         }
       }
 
-      navigate('/items');
+      navigate('/items', { state: location.state?.listState });
     } catch (err) {
-      setErrorMessage(err.message || 'Failed to save item.');
+      setErrorMessage(extractApiErrorMessage(err, 'Failed to save item.'));
     }
   };
+
+  const listBackState = location.state?.listState;
 
   const getOptionId = (value) => {
     if (!value) return '';
@@ -381,6 +399,14 @@ function ItemFormPage({ mode = 'edit' }) {
   const categoryOptions = activeGroups.filter((g) => g.groupType === 'Category');
   const styleOptions = activeGroups.filter((g) => g.groupType === 'Style / Type');
 
+  if (isEditMode && currentItemLoading && !existingItem) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 320 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   return (
     <Box component="form" onSubmit={handleSubmit((values) => onSubmit(values))}>
       <PageHeader
@@ -388,7 +414,7 @@ function ItemFormPage({ mode = 'edit' }) {
         subtitle="Manage shirts, pants, ties, belts, and wallets in a unified catalog."
         breadcrumbs={[{ label: 'Items', path: '/items' }, { label: 'Item Details', active: true }]}
         actions={[
-          <Button key="back" variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate('/items')}>Back</Button>,
+          <Button key="back" variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate('/items', { state: listBackState })}>Back</Button>,
           !isViewMode && <Button key="draft" variant="outlined" startIcon={<SaveOutlinedIcon />} onClick={handleSubmit((values) => onSubmit(values, 'Draft', 'stay'))}>Save Draft</Button>,
           !isViewMode && <Button key="print" variant="outlined" startIcon={<PrintOutlinedIcon />} onClick={handleSubmit((values) => onSubmit(values, isEditMode ? existingItem.status : 'Active', 'print'))}>Save & Print Barcodes</Button>,
           !isViewMode && <Button key="save" variant="contained" color="primary" startIcon={<TaskAltOutlinedIcon />} onClick={handleSubmit((values) => onSubmit(values, isEditMode ? existingItem.status : 'Active'))}>Save Item</Button>,

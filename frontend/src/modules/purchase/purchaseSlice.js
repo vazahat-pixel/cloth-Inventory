@@ -2,6 +2,7 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
 import { normalizeResponse } from '../../services/normalization';
 import { extractPaginationMeta } from '../../utils/paginationMeta';
+import { fetchAllPaginatedList } from '../../utils/fetchAllPages';
 
 // Async Thunks
 export const fetchPurchases = createAsyncThunk(
@@ -20,6 +21,28 @@ export const fetchPurchases = createAsyncThunk(
   } catch (error) {
     return rejectWithValue(error.response?.data?.message || 'Failed to fetch purchases');
   }
+  },
+);
+
+export const fetchPurchasesForReport = createAsyncThunk(
+  'purchase/fetchForReport',
+  async (params = {}, { rejectWithValue }) => {
+    try {
+      const { page: _p, limit: _l, forReport: _f, ...query } = params;
+      const { records: raw, total, page, limit } = await fetchAllPaginatedList(
+        '/purchase',
+        query,
+        ['purchases'],
+      );
+      return {
+        records: normalizeResponse(raw, 'purchase'),
+        total,
+        page,
+        limit,
+      };
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch purchase report');
+    }
   },
 );
 
@@ -188,12 +211,15 @@ export const addPurchaseReturn = createAsyncThunk('purchase/addReturn', async (r
 
 const initialState = {
   records: [],
+  reportRecords: [],
+  reportTotal: 0,
   orders: [],
   returns: [],
   total: 0,
   page: 1,
   limit: 20,
   loading: false,
+  reportLoading: false,
   error: null,
   lastFetchedAt: null,
 };
@@ -223,6 +249,19 @@ const purchaseSlice = createSlice({
       })
       .addCase(fetchPurchases.rejected, (state, action) => {
         state.loading = false;
+        state.error = action.payload;
+      })
+      .addCase(fetchPurchasesForReport.pending, (state) => {
+        state.reportLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchPurchasesForReport.fulfilled, (state, action) => {
+        state.reportLoading = false;
+        state.reportRecords = action.payload.records || [];
+        state.reportTotal = action.payload.total ?? 0;
+      })
+      .addCase(fetchPurchasesForReport.rejected, (state, action) => {
+        state.reportLoading = false;
         state.error = action.payload;
       })
       // Add Purchase
