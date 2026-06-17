@@ -5,13 +5,22 @@ const Warehouse = require('../../models/warehouse.model');
 const Sale = require('../../models/sale.model');
 const Dispatch = require('../../models/dispatch.model');
 
-const RETAIL_SALE_MATCH = {
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
+const RETAIL_SALE_STATUS_MATCH = {
     isDeleted: false,
+    status: { $nin: ['CANCELLED', 'REFUNDED'] },
+};
+
+const RETAIL_SALE_MATCH = {
+    ...RETAIL_SALE_STATUS_MATCH,
     $or: [{ type: { $exists: false } }, { type: { $nin: ['INTERNAL_SALE'] } }],
 };
 
 const TOLERANCE_QTY = 0;
-const UI_MISMATCH_LIMIT = 150;
+const TOLERANCE_AMT = 0.01;
+const TOLERANCE_PAYMENT_AMT = 1;
+const UI_MISMATCH_LIMIT = 2000;
 
 const buildTransitLookup = (rows = []) => {
     const map = new Map();
@@ -85,7 +94,7 @@ const classifyDispatchMismatch = (storeName, dispatchNumber, dispatchedSum, pool
 class ZeroMismatchService {
 
     async verify(options = {}) {
-        const { startDate, endDate, forUi = false } = options;
+        const { startDate, endDate, forUi = false, uiMismatchLimit = UI_MISMATCH_LIMIT } = options;
         const mismatches = [];
         const checks = [];
 
@@ -96,28 +105,40 @@ class ZeroMismatchService {
             if (endDate) dateMatch.saleDate.$lte = new Date(endDate);
         }
 
+        const saleMatch = { ...RETAIL_SALE_MATCH, ...dateMatch };
+        const reportService = require('../reports/report.service');
+
         const [
             stores,
             warehouses,
             storeTotals,
             warehouseTotals,
             storeSales,
+            storeSalesQty,
             dispatched,
             poolByStoreAgg,
             negStore,
             negWh,
+            allSalesForMath,
+            gstSummary,
+            storeQtyFieldMismatch,
         ] = await Promise.all([
             Store.find({ isActive: { $ne: false } }).select('_id name').lean(),
             Warehouse.find({ isActive: { $ne: false } }).select('_id name').lean(),
             StoreInventory.aggregate([
-                { $group: { _id: '$storeId', total: { $sum: '$quantityAvailable' } } },
+                { $group: { _id: '$storeId', total: { $sum: '$quantityAvailable' }, lines: { $sum: 1 } } },
             ]),
             WarehouseInventory.aggregate([
-                { $group: { _id: '$warehouseId', total: { $sum: '$quantity' } } },
+                { $group: { _id: '$warehouseId', total: { $sum: '$quantity' }, lines: { $sum: 1 } } },
             ]),
             Sale.aggregate([
-                { $match: { ...RETAIL_SALE_MATCH, ...dateMatch } },
+                { $match: saleMatch },
                 { $group: { _id: '$storeId', revenue: { $sum: '$grandTotal' }, count: { $sum: 1 } } },
+            ]),
+            Sale.aggregate([
+                { $match: saleMatch },
+                { $unwind: '$items' },
+                { $group: { _id: '$storeId', totalQty: { $sum: { $ifNull: ['$items.quantity', 0] } } } },
             ]),
             Dispatch.find({ status: 'DISPATCHED' }).select('dispatchNumber destinationStoreId sourceWarehouseId items referenceId referenceType').lean(),
             StoreInventory.aggregate([
@@ -130,6 +151,14 @@ class ZeroMismatchService {
             WarehouseInventory.find({
                 $or: [{ quantity: { $lt: 0 } }, { quantityInTransit: { $lt: 0 } }],
             }).populate('warehouseId', 'name').lean(),
+            Sale.find(saleMatch)
+                .select('saleNumber storeId grandTotal subTotal discount tax totalTax amountPaid dueAmount items payment payments exchangeAdjustment creditNoteApplied loyaltyRedeemed totalReturnValue type')
+                .populate('storeId', 'name')
+                .lean(),
+            reportService.getDetailedGstReportSummaryFast(saleMatch),
+            StoreInventory.find({
+                $expr: { $ne: ['$quantityAvailable', '$quantity'] },
+            }).populate('storeId', 'name').select('storeId variantId barcode quantity quantityAvailable').lean(),
         ]);
 
         const destStoreIds = [...new Set(dispatched.map((d) => d.destinationStoreId).filter(Boolean))];
@@ -153,34 +182,69 @@ class ZeroMismatchService {
             }).select('storeId variantId barcode quantityInTransit quantity quantityAvailable').lean()
             : [];
 
-        const storeTotalMap = new Map(storeTotals.map((r) => [String(r._id), r.total || 0]));
-        const warehouseTotalMap = new Map(warehouseTotals.map((r) => [String(r._id), r.total || 0]));
+        const storeTotalMap = new Map(storeTotals.map((r) => [String(r._id), { total: r.total || 0, lines: r.lines || 0 }]));
+        const warehouseTotalMap = new Map(warehouseTotals.map((r) => [String(r._id), { total: r.total || 0, lines: r.lines || 0 }]));
         const poolByStore = new Map(poolByStoreAgg.map((r) => [String(r._id), r.poolTotal || 0]));
+        const storeSalesMap = new Map(storeSales.map((r) => [String(r._id), { revenue: r.revenue || 0, count: r.count || 0 }]));
+        const storeSalesQtyMap = new Map(storeSalesQty.map((r) => [String(r._id), r.totalQty || 0]));
         const transitLookup = buildTransitLookup(transitRows);
 
-        // ── 1. Per-store stock ──
+        // ── 1. Per-store stock (live DB vs branch report closing) ──
+        let storeTotalsReport = { closingByStore: new Map(), netSaleByStore: new Map(), returnsByStore: new Map() };
+        try {
+            storeTotalsReport = await reportService.getBranchSalesStockStoreTotals(startDate, endDate, null);
+        } catch (err) {
+            checks.push({
+                check: 'BRANCH_REPORT_FETCH',
+                passed: false,
+                failureReason: `Branch Sales & Stock totals failed: ${err.message}`,
+            });
+        }
+
+        const { closingByStore: branchClosingByStoreId, netSaleByStore: branchNetSaleByStoreId, returnsByStore } = storeTotalsReport;
+
         for (const store of stores) {
-            const liveTotal = storeTotalMap.get(String(store._id)) || 0;
+            const key = String(store._id);
+            const live = storeTotalMap.get(key) || { total: 0, lines: 0 };
+            const branchClosing = branchClosingByStoreId.get(key) ?? 0;
+            const diff = round2(live.total - branchClosing);
+            const passed = Math.abs(diff) <= TOLERANCE_QTY;
             checks.push({
                 check: 'STORE_STOCK_REPORT',
                 store: store.name,
                 storeId: store._id,
-                liveInventory: liveTotal,
-                reportTotal: liveTotal,
-                differenceQty: 0,
-                passed: true,
+                liveInventory: live.total,
+                reportTotal: branchClosing,
+                variantLines: live.lines,
+                differenceQty: diff,
+                passed,
+                failureReason: passed ? null : `${store.name}: Live stock ${live.total} pcs vs Branch Report closing ${branchClosing} pcs (diff ${diff})`,
             });
+            if (!passed) {
+                mismatches.push({
+                    type: 'STORE_STOCK_REPORT_MISMATCH',
+                    store: store.name,
+                    storeId: store._id,
+                    differenceQty: diff,
+                    rootCause: `Store stock total does not match Branch Sales & Stock report closing (${live.total} vs ${branchClosing})`,
+                    blame: BLAME.SYSTEM,
+                    blameLabel: blameLabel(BLAME.SYSTEM),
+                    resolution: { action: 'VIEW_STOCK', label: 'Stock Report' },
+                });
+            }
         }
 
         // ── 2. Per-warehouse stock ──
         for (const wh of warehouses) {
-            const liveTotal = warehouseTotalMap.get(String(wh._id)) || 0;
+            const key = String(wh._id);
+            const live = warehouseTotalMap.get(key) || { total: 0, lines: 0 };
             checks.push({
                 check: 'WAREHOUSE_STOCK_REPORT',
                 warehouse: wh.name,
                 warehouseId: wh._id,
-                liveInventory: liveTotal,
-                reportTotal: liveTotal,
+                liveInventory: live.total,
+                reportTotal: live.total,
+                variantLines: live.lines,
                 differenceQty: 0,
                 passed: true,
             });
@@ -197,14 +261,188 @@ class ZeroMismatchService {
             passed: true,
         });
 
-        // ── 3. Branch sales consolidation ──
+        // ── 3. Per-store sales (DB register totals) ──
         const consolidatedRevenue = storeSales.reduce((s, r) => s + (r.revenue || 0), 0);
+        const consolidatedQty = storeSalesQty.reduce((s, r) => s + (r.totalQty || 0), 0);
         checks.push({
             check: 'BRANCH_SALES_CONSOLIDATION',
-            consolidatedRevenue,
-            storeSumRevenue: consolidatedRevenue,
+            consolidatedRevenue: round2(consolidatedRevenue),
+            storeSumRevenue: round2(consolidatedRevenue),
+            consolidatedQty,
             differenceAmount: 0,
             passed: true,
+        });
+
+        for (const store of stores) {
+            const key = String(store._id);
+            const sales = storeSalesMap.get(key) || { revenue: 0, count: 0 };
+            const qty = storeSalesQtyMap.get(key) || 0;
+            const returnQty = returnsByStore.get(key) || 0;
+            const salesRegisterNetQty = round2(qty - returnQty);
+            const branchNetSale = branchNetSaleByStoreId.get(key) ?? 0;
+            const qtyDiff = round2(salesRegisterNetQty - branchNetSale);
+            const qtyPassed = Math.abs(qtyDiff) <= TOLERANCE_QTY;
+            checks.push({
+                check: 'STORE_SALES_REGISTER',
+                store: store.name,
+                storeId: store._id,
+                invoiceCount: sales.count,
+                netRevenue: round2(sales.revenue),
+                salesRegisterQty: salesRegisterNetQty,
+                grossSalesQty: qty,
+                customerReturnQty: returnQty,
+                branchReportNetSaleQty: branchNetSale,
+                differenceQty: qtyDiff,
+                passed: qtyPassed,
+                failureReason: qtyPassed ? null : `Sales register qty ${qty} vs Branch Report net sale qty ${branchNetSale} (diff ${qtyDiff})`,
+            });
+            if (!qtyPassed) {
+                mismatches.push({
+                    type: 'STORE_SALES_QTY_MISMATCH',
+                    store: store.name,
+                    storeId: store._id,
+                    differenceQty: qtyDiff,
+                    rootCause: `Sales register quantity does not match Branch Sales & Stock net sale qty for ${store.name}`,
+                    blame: BLAME.SYSTEM,
+                    blameLabel: blameLabel(BLAME.SYSTEM),
+                    resolution: { action: 'VIEW_SALES', label: 'Sales Report' },
+                });
+            }
+
+            const gstStoreRow = (gstSummary?.monthStoreSummary || []).find((r) => r.branchName === store.name);
+            const gstStoreRevenue = round2(gstStoreRow?.invoiceValue || 0);
+            const revDiff = round2(sales.revenue - gstStoreRevenue);
+            const revPassed = Math.abs(revDiff) <= TOLERANCE_AMT;
+            checks.push({
+                check: 'STORE_GSTR_SALES_PARITY',
+                store: store.name,
+                storeId: store._id,
+                salesRegisterRevenue: round2(sales.revenue),
+                gstrInvoiceValue: gstStoreRevenue,
+                differenceAmount: revDiff,
+                passed: revPassed,
+                failureReason: revPassed ? null : `${store.name}: Sales register ₹${round2(sales.revenue)} vs GSTR-1 ₹${gstStoreRevenue} (diff ₹${revDiff})`,
+            });
+            if (!revPassed) {
+                mismatches.push({
+                    type: 'STORE_GSTR_SALES_MISMATCH',
+                    store: store.name,
+                    storeId: store._id,
+                    differenceAmount: revDiff,
+                    rootCause: `${store.name}: Sales register revenue does not match GSTR-1 invoice value`,
+                    blame: BLAME.SYSTEM,
+                    blameLabel: blameLabel(BLAME.SYSTEM),
+                    resolution: { action: 'VIEW_GSTR', label: 'GSTR-1 Report' },
+                });
+            }
+        }
+
+        // ── 3b. GSTR-1 summary vs sales register ──
+        const gstGrand = round2(gstSummary?.summary?.grandTotal || 0);
+        const salesGrand = round2(consolidatedRevenue);
+        const gstDiff = round2(gstGrand - salesGrand);
+        const gstPassed = Math.abs(gstDiff) <= TOLERANCE_AMT;
+        checks.push({
+            check: 'GSTR_SALES_PARITY',
+            gstrGrandTotal: gstGrand,
+            salesRegisterGrandTotal: salesGrand,
+            differenceAmount: gstDiff,
+            passed: gstPassed,
+            failureReason: gstPassed ? null : `GSTR-1 grand total ${gstGrand} vs Sales register ${salesGrand} (diff ₹${gstDiff})`,
+        });
+        if (!gstPassed) {
+            mismatches.push({
+                type: 'GSTR_SALES_MISMATCH',
+                differenceAmount: gstDiff,
+                rootCause: `GSTR-1 summary total (₹${gstGrand}) does not match sales register (₹${salesGrand})`,
+                blame: BLAME.SYSTEM,
+                blameLabel: blameLabel(BLAME.SYSTEM),
+                resolution: { action: 'VIEW_GSTR', label: 'GSTR-1 Report' },
+            });
+        }
+
+        // ── 3c. Per-invoice math (₹0.01 tolerance) ──
+        let invoiceMathFails = 0;
+        for (const sale of allSalesForMath) {
+            const storeName = sale.storeId?.name || String(sale.storeId);
+            const lineSum = round2((sale.items || []).reduce((s, it) => s + Number(it.total || 0), 0));
+            const tax = round2(sale.totalTax ?? sale.tax ?? 0);
+            const discount = round2(sale.discount || 0);
+            const subTotal = round2(sale.subTotal || 0);
+            const exchangeAdj = round2(sale.exchangeAdjustment || sale.totalReturnValue || 0);
+            const creditApplied = round2(sale.creditNoteApplied || 0);
+            const loyalty = round2(sale.loyaltyRedeemed || sale.loyaltyRedemptionAmount || 0);
+            const rawExpected = round2(subTotal - discount + tax - exchangeAdj - creditApplied - loyalty);
+            const expectedGrand = round2(Math.max(0, rawExpected));
+            const grand = round2(sale.grandTotal || 0);
+            const grandDiff = round2(grand - expectedGrand);
+
+            if (Math.abs(grandDiff) > TOLERANCE_AMT) {
+                const altDiff = round2(grand - lineSum);
+                const invoiceFailed = Math.abs(altDiff) > TOLERANCE_AMT;
+                if (invoiceFailed) {
+                    invoiceMathFails += 1;
+                    mismatches.push({
+                        type: 'SALE_INVOICE_MATH',
+                        store: storeName,
+                        storeId: sale.storeId?._id || sale.storeId,
+                        invoiceNumber: sale.saleNumber,
+                        differenceAmount: grandDiff,
+                        rootCause: `${sale.saleNumber}: grandTotal ₹${grand} ≠ expected ₹${expectedGrand} (diff ₹${grandDiff})`,
+                        blame: BLAME.SYSTEM,
+                        blameLabel: blameLabel(BLAME.SYSTEM),
+                        trace: { lineSum, subTotal, discount, tax, exchangeAdj, creditApplied, loyalty, grand },
+                    });
+                }
+            }
+
+            const paid = round2(sale.amountPaid ?? sale.payment?.amountPaid ?? 0);
+            const due = round2(sale.dueAmount || 0);
+            const paymentDiff = round2(grand - (paid + due));
+            if (Math.abs(paymentDiff) > TOLERANCE_PAYMENT_AMT) {
+                invoiceMathFails += 1;
+                mismatches.push({
+                    type: 'SALE_PAYMENT_MATH',
+                    store: storeName,
+                    storeId: sale.storeId?._id || sale.storeId,
+                    invoiceNumber: sale.saleNumber,
+                    differenceAmount: paymentDiff,
+                    rootCause: `${sale.saleNumber}: paid ₹${paid} + due ₹${due} ≠ grand ₹${grand} (diff ₹${paymentDiff})`,
+                    blame: BLAME.SYSTEM,
+                    blameLabel: blameLabel(BLAME.SYSTEM),
+                });
+            }
+        }
+        checks.push({
+            check: 'SALE_INVOICE_MATH',
+            invoicesChecked: allSalesForMath.length,
+            failures: invoiceMathFails,
+            passed: invoiceMathFails === 0,
+        });
+
+        // ── 3d. quantity vs quantityAvailable per variant ──
+        let stockFieldFails = 0;
+        for (const row of storeQtyFieldMismatch) {
+            const diff = round2((row.quantityAvailable ?? 0) - (row.quantity ?? 0));
+            if (Math.abs(diff) <= TOLERANCE_QTY) continue;
+            stockFieldFails += 1;
+            mismatches.push({
+                type: 'STOCK_FIELD_MISMATCH',
+                store: row.storeId?.name,
+                storeId: row.storeId?._id,
+                barcode: row.barcode,
+                variantId: row.variantId,
+                differenceQty: diff,
+                rootCause: `Barcode ${row.barcode}: quantityAvailable (${row.quantityAvailable}) ≠ quantity (${row.quantity})`,
+                blame: BLAME.SYSTEM,
+                blameLabel: blameLabel(BLAME.SYSTEM),
+            });
+        }
+        checks.push({
+            check: 'STOCK_FIELD_PARITY',
+            linesChecked: storeQtyFieldMismatch.length,
+            failures: stockFieldFails,
+            passed: stockFieldFails === 0,
         });
 
         // ── 4. Dispatch → in-transit (in-memory, no per-item DB calls) ──
@@ -366,6 +604,15 @@ class ZeroMismatchService {
         const passed = totalMismatchCount === 0;
         const status = passed ? 'PRODUCTION SAFE – ZERO MISMATCH VERIFIED.' : 'MISMATCH DETECTED – REVIEW REQUIRED';
 
+        const byCategory = {
+            stock: mismatches.filter((m) => String(m.type).includes('STOCK') || m.type === 'NEGATIVE_STOCK').length,
+            sales: mismatches.filter((m) => String(m.type).includes('SALE') || m.type === 'GSTR_SALES_MISMATCH').length,
+            dispatch: mismatches.filter((m) => String(m.type).includes('TRANSIT') || m.type === 'DISPATCH_IN_TRANSIT_MISMATCH').length,
+            financial: mismatches.filter((m) => m.type === 'GSTR_SALES_MISMATCH' || m.type === 'SALE_INVOICE_MATH' || m.type === 'SALE_PAYMENT_MATH').length,
+        };
+
+        const uiLimit = forUi ? uiMismatchLimit : totalMismatchCount;
+
         return {
             status,
             passed,
@@ -376,11 +623,17 @@ class ZeroMismatchService {
                 dispatchesInTransit: dispatched.length,
                 mismatchCount: totalMismatchCount,
                 checksRun: checks.length,
+                invoicesChecked: allSalesForMath.length,
+                storeStockTotal: storeGrandTotal,
+                warehouseStockTotal: whGrandTotal,
+                salesRegisterTotal: round2(consolidatedRevenue),
+                salesRegisterQty: consolidatedQty,
+                byCategory,
             },
             checks,
-            mismatches: forUi ? mismatches.slice(0, UI_MISMATCH_LIMIT) : mismatches,
-            mismatchMeta: forUi && totalMismatchCount > UI_MISMATCH_LIMIT
-                ? { total: totalMismatchCount, shown: UI_MISMATCH_LIMIT, truncated: true }
+            mismatches: forUi ? mismatches.slice(0, uiLimit) : mismatches,
+            mismatchMeta: forUi && totalMismatchCount > uiLimit
+                ? { total: totalMismatchCount, shown: uiLimit, truncated: true }
                 : { total: totalMismatchCount, shown: totalMismatchCount, truncated: false },
         };
     }

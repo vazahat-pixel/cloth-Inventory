@@ -153,7 +153,7 @@ class InventoryController {
     try {
       const report = await zeroMismatchService.verify();
       const total = report.mismatches?.length || 0;
-      const UI_LIMIT = 150;
+      const UI_LIMIT = 2000;
       const uiReport = {
         status: report.status,
         passed: report.passed,

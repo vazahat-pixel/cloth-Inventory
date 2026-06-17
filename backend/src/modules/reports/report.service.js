@@ -1763,6 +1763,89 @@ const getAgentWiseReport = async (startDate, endDate) => {
 };
 
 /**
+ * Per-store closing stock + net sale qty (lightweight — no item populate).
+ * Used by HO Control Center verification.
+ */
+const getBranchSalesStockStoreTotals = async (startDate, endDate, storeId) => {
+    let targetStoreIds = null;
+    if (storeId && storeId !== 'all') {
+        try {
+            const parsedIds = String(storeId).split(',')
+                .map((id) => id.trim())
+                .filter((id) => mongoose.Types.ObjectId.isValid(id))
+                .map((id) => new mongoose.Types.ObjectId(id));
+            if (parsedIds.length > 0) {
+                targetStoreIds = parsedIds;
+            }
+        } catch (e) {
+            console.error('[BranchSalesStockStoreTotals] Error parsing storeId:', e);
+        }
+    }
+
+    const invMatch = {};
+    if (targetStoreIds) invMatch.storeId = { $in: targetStoreIds };
+
+    const salesQuery = { ...RETAIL_SALE_MATCH };
+    if (targetStoreIds) salesQuery.storeId = { $in: targetStoreIds };
+    if (startDate || endDate) {
+        salesQuery.saleDate = {};
+        if (startDate) salesQuery.saleDate.$gte = new Date(startDate);
+        if (endDate) salesQuery.saleDate.$lte = new Date(endDate);
+    }
+
+    const retQuery = { status: 'APPROVED' };
+    if (targetStoreIds) retQuery.locationId = { $in: targetStoreIds };
+    if (startDate || endDate) {
+        retQuery.createdAt = {};
+        if (startDate) retQuery.createdAt.$gte = new Date(startDate);
+        if (endDate) retQuery.createdAt.$lte = new Date(endDate);
+    }
+
+    const PurchaseReturn = require('../../models/purchaseReturn.model');
+    const prQuery = { status: 'COMPLETED' };
+    if (targetStoreIds) prQuery.locationId = { $in: targetStoreIds };
+    if (startDate || endDate) {
+        prQuery.createdAt = {};
+        if (startDate) prQuery.createdAt.$gte = new Date(startDate);
+        if (endDate) prQuery.createdAt.$lte = new Date(endDate);
+    }
+
+    const [closingAgg, salesQtyAgg, returnQtyAgg] = await Promise.all([
+        StoreInventory.aggregate([
+            { $match: invMatch },
+            { $group: { _id: '$storeId', closing: { $sum: '$quantityAvailable' } } },
+        ]),
+        Sale.aggregate([
+            { $match: salesQuery },
+            { $unwind: '$items' },
+            { $group: { _id: '$storeId', qty: { $sum: { $ifNull: ['$items.quantity', 0] } } } },
+        ]),
+        Return.aggregate([
+            { $match: retQuery },
+            { $unwind: '$items' },
+            { $group: { _id: '$locationId', qty: { $sum: { $ifNull: ['$items.quantity', 0] } } } },
+        ]),
+    ]);
+
+    const closingByStore = new Map();
+    closingAgg.forEach((r) => closingByStore.set(String(r._id), r.closing || 0));
+
+    const salesByStore = new Map();
+    salesQtyAgg.forEach((r) => salesByStore.set(String(r._id), r.qty || 0));
+
+    const returnsByStore = new Map();
+    returnQtyAgg.forEach((r) => returnsByStore.set(String(r._id), r.qty || 0));
+
+    const netSaleByStore = new Map();
+    const keys = new Set([...salesByStore.keys(), ...returnsByStore.keys()]);
+    keys.forEach((key) => {
+        netSaleByStore.set(key, (salesByStore.get(key) || 0) - (returnsByStore.get(key) || 0));
+    });
+
+    return { closingByStore, netSaleByStore, salesByStore, returnsByStore };
+};
+
+/**
  * Custom Consolidated Branch Sales & Stock Report
  */
 const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
@@ -1998,6 +2081,7 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
         if (!inv.itemId) return null;
 
         const branchName = inv.storeId?.name || 'NIL';
+        const storeIdVal = inv.storeId?._id || inv.storeId || null;
         const itemName = inv.itemId.itemName || 'NIL';
         const itemCode = inv.itemId.itemCode || 'NIL';
 
@@ -2030,6 +2114,7 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
 
         return {
             sno: index + 1,
+            storeId: storeIdVal,
             branchName: formatVal(branchName),
             itemName: formatVal(itemName),
             itemCode: formatVal(itemCode),
@@ -2325,5 +2410,7 @@ module.exports = {
     getAgentWiseReport,
     getInTransitReport,
     getDetailedGstReport,
+    getDetailedGstReportSummaryFast,
+    getBranchSalesStockStoreTotals,
     getBranchSalesStockReport
 };

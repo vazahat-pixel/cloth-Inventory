@@ -187,7 +187,10 @@ function VerificationControlCenterPage() {
     return {
       store: checks.filter((c) => c.check === 'STORE_STOCK_REPORT'),
       warehouse: checks.filter((c) => c.check === 'WAREHOUSE_STOCK_REPORT'),
-      sales: checks.filter((c) => c.check === 'BRANCH_SALES_CONSOLIDATION'),
+      sales: checks.filter((c) => c.check === 'BRANCH_SALES_CONSOLIDATION' || c.check === 'STORE_SALES_REGISTER'),
+      salesRegister: checks.filter((c) => c.check === 'STORE_SALES_REGISTER'),
+      financial: checks.filter((c) => c.check === 'GSTR_SALES_PARITY' || c.check === 'STORE_GSTR_SALES_PARITY' || c.check === 'SALE_INVOICE_MATH'),
+      stockFields: checks.filter((c) => c.check === 'STOCK_FIELD_PARITY'),
       inTransit: inTransitAll,
       inTransitPool: checks.filter((c) => c.check === 'IN_TRANSIT_POOL'),
       inTransitDispatch: checks.filter((c) => c.check === 'DISPATCH_IN_TRANSIT'),
@@ -225,6 +228,7 @@ function VerificationControlCenterPage() {
   }, [mismatches, mismatchFilter]);
 
   const summary = activeReport?.summary || {};
+  const byCategory = summary.byCategory || {};
 
   const quickLinks = [
     { label: 'Stock Overview', path: '/inventory/stock-overview' },
@@ -272,13 +276,13 @@ function VerificationControlCenterPage() {
           />
 
           <Grid container spacing={2}>
-            <Grid size={{ xs: 6, md: 3 }}>
+            <Grid size={{ xs: 6, md: 2.4 }}>
               <MetricCard label="Stores Checked" value={summary.storesChecked ?? '—'} icon={StorefrontOutlinedIcon} />
             </Grid>
-            <Grid size={{ xs: 6, md: 3 }}>
+            <Grid size={{ xs: 6, md: 2.4 }}>
               <MetricCard label="Warehouses" value={summary.warehousesChecked ?? '—'} icon={WarehouseOutlinedIcon} />
             </Grid>
-            <Grid size={{ xs: 6, md: 3 }}>
+            <Grid size={{ xs: 6, md: 2.4 }}>
               <MetricCard
                 label="Mismatches"
                 value={fmtQty(mismatchTotal)}
@@ -287,7 +291,15 @@ function VerificationControlCenterPage() {
                 icon={VerifiedUserOutlinedIcon}
               />
             </Grid>
-            <Grid size={{ xs: 6, md: 3 }}>
+            <Grid size={{ xs: 6, md: 2.4 }}>
+              <MetricCard
+                label="Sales Register"
+                value={summary.salesRegisterTotal != null ? fmtAmt(summary.salesRegisterTotal) : '—'}
+                sub={summary.salesRegisterQty != null ? `${fmtQty(summary.salesRegisterQty)} pcs` : undefined}
+                icon={PaymentsOutlinedIcon}
+              />
+            </Grid>
+            <Grid size={{ xs: 6, md: 2.4 }}>
               <MetricCard
                 label="Dispatches In-Transit"
                 value={fmtQty(summary.dispatchesInTransit)}
@@ -296,11 +308,33 @@ function VerificationControlCenterPage() {
             </Grid>
           </Grid>
 
+          {(byCategory.stock || byCategory.sales || byCategory.dispatch || byCategory.financial) ? (
+            <Grid container spacing={2}>
+              {[
+                { label: 'Stock Issues', count: byCategory.stock, color: '#7c3aed' },
+                { label: 'Sales Issues', count: byCategory.sales, color: '#2563eb' },
+                { label: 'Dispatch Issues', count: byCategory.dispatch, color: '#d97706' },
+                { label: 'Financial Issues', count: byCategory.financial, color: '#dc2626' },
+              ].map((cat) => (
+                <Grid size={{ xs: 6, md: 3 }} key={cat.label}>
+                  <MetricCard
+                    label={cat.label}
+                    value={fmtQty(cat.count || 0)}
+                    color={cat.count ? cat.color : '#059669'}
+                    sub={cat.count ? 'Click Mismatches tab' : 'Clear'}
+                  />
+                </Grid>
+              ))}
+            </Grid>
+          ) : null}
+
           <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3, overflow: 'hidden' }}>
-            <Tabs value={tab} onChange={(_e, v) => setTab(v)} sx={{ bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+            <Tabs value={tab} onChange={(_e, v) => setTab(v)} variant="scrollable" scrollButtons="auto" sx={{ bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
               <Tab label="Overview" sx={{ fontWeight: 700 }} />
               <Tab label={`Store Stock (${checksByType.store.length})`} sx={{ fontWeight: 700 }} />
               <Tab label={`Warehouse (${checksByType.warehouse.length})`} sx={{ fontWeight: 700 }} />
+              <Tab label={`Sales (${checksByType.salesRegister.length})`} sx={{ fontWeight: 700 }} />
+              <Tab label={`Financial (${checksByType.financial.length})`} sx={{ fontWeight: 700 }} />
               <Tab label={`Dispatch / In-Transit (${checksByType.inTransit.length})`} sx={{ fontWeight: 700 }} />
               <Tab label={`Mismatches (${mismatchTotal})`} sx={{ fontWeight: 700 }} />
             </Tabs>
@@ -313,12 +347,14 @@ function VerificationControlCenterPage() {
                   </Typography>
                   <Grid container spacing={2}>
                     {[
-                      { title: 'Store Stock', desc: 'Live inventory = Stock report (each store)', ok: checksByType.store.every((c) => c.passed) },
-                      { title: 'Warehouse Stock', desc: 'Warehouse live = Warehouse report', ok: checksByType.warehouse.every((c) => c.passed) },
-                      { title: 'Branch Sales', desc: 'Consolidated sales = sum of store sales', ok: checksByType.sales.every((c) => c.passed) },
-                      { title: 'Dispatch Chain', desc: 'Dispatch → In-Transit → Receipt', ok: checksByType.inTransit.every((c) => c.passed) },
+                      { title: 'Store Stock', desc: 'Live inventory = Branch Sales & Stock closing (per store)', ok: checksByType.store.every((c) => c.passed) },
+                      { title: 'Warehouse Stock', desc: 'Warehouse live totals + negative stock scan', ok: checksByType.warehouse.every((c) => c.passed) },
+                      { title: 'Sales Register', desc: 'Invoice qty/revenue vs Branch Report & GSTR-1 (per store)', ok: checksByType.salesRegister.every((c) => c.passed) },
+                      { title: 'Invoice Math', desc: 'Every bill: grandTotal = subTotal − discount + tax; paid + due = grand', ok: checksByType.financial.filter((c) => c.check === 'SALE_INVOICE_MATH').every((c) => c.passed) },
+                      { title: 'GSTR Parity', desc: 'GSTR-1 grand total = Sales register total', ok: checksByType.financial.filter((c) => c.check === 'GSTR_SALES_PARITY').every((c) => c.passed) },
+                      { title: 'Dispatch Chain', desc: 'Dispatch → In-Transit pool → Receipt', ok: checksByType.inTransit.every((c) => c.passed) },
                     ].map((item) => (
-                      <Grid size={{ xs: 12, sm: 6, md: 3 }} key={item.title}>
+                      <Grid size={{ xs: 12, sm: 6, md: 4 }} key={item.title}>
                         <Card elevation={0} sx={{ p: 2, border: '1px solid #e2e8f0', borderRadius: 2 }}>
                           <Chip
                             size="small"
@@ -372,6 +408,43 @@ function VerificationControlCenterPage() {
               )}
 
               {tab === 3 && (
+                <CheckTable
+                  rows={checksByType.salesRegister}
+                  columns={[
+                    { key: 'store', label: 'Store' },
+                    { key: 'invoiceCount', label: 'Invoices', align: 'right', fmt: fmtQty },
+                    { key: 'netRevenue', label: 'Net Revenue', align: 'right', fmt: fmtAmt },
+                    { key: 'salesRegisterQty', label: 'Sale Qty', align: 'right', fmt: fmtQty },
+                    { key: 'branchReportNetSaleQty', label: 'Branch Rpt Qty', align: 'right', fmt: fmtQty },
+                    { key: 'differenceQty', label: 'Qty Diff', align: 'right', fmt: fmtQty },
+                  ]}
+                />
+              )}
+
+              {tab === 4 && (
+                <Stack spacing={2}>
+                  <CheckTable
+                    rows={checksByType.financial.filter((c) => c.check !== 'SALE_INVOICE_MATH')}
+                    columns={[
+                      { key: 'check', label: 'Check' },
+                      { key: 'store', label: 'Store' },
+                      { key: 'gstrGrandTotal', label: 'GSTR Total', align: 'right', fmt: fmtAmt },
+                      { key: 'salesRegisterGrandTotal', label: 'Sales Total', align: 'right', fmt: fmtAmt },
+                      { key: 'gstrInvoiceValue', label: 'GSTR Store', align: 'right', fmt: fmtAmt },
+                      { key: 'salesRegisterRevenue', label: 'Sales Store', align: 'right', fmt: fmtAmt },
+                      { key: 'differenceAmount', label: '₹ Diff', align: 'right', fmt: fmtAmt },
+                    ]}
+                  />
+                  {checksByType.financial.filter((c) => c.check === 'SALE_INVOICE_MATH').map((c) => (
+                    <Alert key="invoice-math" severity={c.passed ? 'success' : 'error'}>
+                      Invoice math: {c.invoicesChecked} bills checked — {c.failures} failure(s)
+                      {c.passed ? ' — all bills balance correctly.' : ' — see Mismatches tab for invoice numbers.'}
+                    </Alert>
+                  ))}
+                </Stack>
+              )}
+
+              {tab === 5 && (
                 <InTransitTab
                   poolChecks={checksByType.inTransitPool}
                   dispatchChecks={checksByType.inTransitDispatch}
@@ -381,7 +454,7 @@ function VerificationControlCenterPage() {
                 />
               )}
 
-              {tab === 4 && (
+              {tab === 6 && (
                 <Stack spacing={2}>
                   {activeReport?.mismatchMeta?.truncated && (
                     <Alert severity="warning" sx={{ mb: 1 }}>
@@ -405,6 +478,7 @@ function VerificationControlCenterPage() {
                     <Table size="small" stickyHeader>
                       <TableHead>
                         <TableRow>
+                          <TableCell sx={{ fontWeight: 800 }}>Invoice</TableCell>
                           <TableCell sx={{ fontWeight: 800 }}>Type</TableCell>
                           <TableCell sx={{ fontWeight: 800 }}>Store / WH</TableCell>
                           <TableCell sx={{ fontWeight: 800 }}>Dispatch</TableCell>
@@ -419,13 +493,14 @@ function VerificationControlCenterPage() {
                       <TableBody>
                         {filteredMismatches.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={9} align="center" sx={{ py: 4, color: '#64748b' }}>
+                            <TableCell colSpan={10} align="center" sx={{ py: 4, color: '#64748b' }}>
                               No mismatches — all clear!
                             </TableCell>
                           </TableRow>
                         ) : (
-                          filteredMismatches.slice(0, 200).map((m, i) => (
+                          filteredMismatches.map((m, i) => (
                             <TableRow key={`${m.type}-${i}`} hover>
+                              <TableCell>{m.invoiceNumber || '—'}</TableCell>
                               <TableCell>
                                 <Chip size="small" label={m.type} color="error" variant="outlined" sx={{ fontSize: 10 }} />
                               </TableCell>
@@ -451,11 +526,6 @@ function VerificationControlCenterPage() {
                       </TableBody>
                     </Table>
                   </TableContainer>
-                  {filteredMismatches.length > 200 && (
-                    <Typography variant="caption" color="text.secondary">
-                      Showing first 200 of {filteredMismatches.length} mismatches. Full report: backend/reports/daily/latest.json
-                    </Typography>
-                  )}
                 </Stack>
               )}
             </Box>
@@ -495,6 +565,30 @@ function MismatchActionCell({ mismatch, onNavigate, onReconcile }) {
         sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}
       >
         {label || 'In-Transit'}
+      </Button>
+    );
+  }
+
+  if (action === 'VIEW_SALES') {
+    return (
+      <Button size="small" variant="outlined" startIcon={<OpenInNewOutlinedIcon />} onClick={() => onNavigate('/reports/sales')} sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+        {label || 'Sales Report'}
+      </Button>
+    );
+  }
+
+  if (action === 'VIEW_GSTR') {
+    return (
+      <Button size="small" variant="outlined" startIcon={<OpenInNewOutlinedIcon />} onClick={() => onNavigate('/reports/gstr1')} sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+        {label || 'GSTR-1'}
+      </Button>
+    );
+  }
+
+  if (action === 'VIEW_STOCK') {
+    return (
+      <Button size="small" variant="outlined" startIcon={<OpenInNewOutlinedIcon />} onClick={() => onNavigate('/reports/branch-sales-stock')} sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+        {label || 'Branch Stock'}
       </Button>
     );
   }
