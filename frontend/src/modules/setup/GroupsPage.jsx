@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import {
   Box,
   Button,
@@ -431,8 +432,8 @@ function GroupsPage({ compact = false }) {
                     <TableCell>{row.parentName}</TableCell>
                     <TableCell>{row.level}</TableCell>
                     <TableCell><StatusBadge value={row.status} /></TableCell>
-                    <TableCell>{row.createdAt || '--'}</TableCell>
-                    <TableCell>{row.updatedAt || '--'}</TableCell>
+                    <TableCell>{formatDateDDMMYYYY(row.createdAt) || '--'}</TableCell>
+                    <TableCell>{formatDateDDMMYYYY(row.updatedAt) || '--'}</TableCell>
                     <TableCell align="right">
                       <IconButton size="small" color="primary" onClick={() => openDialog(row)}>
                         <EditOutlinedIcon fontSize="small" />

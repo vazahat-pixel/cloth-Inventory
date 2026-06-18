@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Alert,
@@ -269,7 +270,7 @@ function CreditNotesPage() {
                           {customerMap[row.customerId]?.customerName || row.customerId}
                         </TableCell>
                         <TableCell align="right">₹{toNum(row.amount).toFixed(2)}</TableCell>
-                        <TableCell>{row.issueDate || '-'}</TableCell>
+                        <TableCell>{formatDateDDMMYYYY(row.issueDate) || '-'}</TableCell>
                         <TableCell>{row.reason || '-'}</TableCell>
                         <TableCell>
                           <Chip

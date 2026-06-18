@@ -42,6 +42,7 @@ import { fetchItems } from '../items/itemsSlice';
 import { fetchLoyaltyConfig, fetchCreditNotes } from '../customers/customersSlice';
 import api from '../../services/api';
 import { extractApiErrorMessage } from '../../utils/apiError';
+import { formatDateDDMMYYYY } from '../../utils/formatters';
 import PaymentDialog from './PaymentDialog';
 import LoyaltyRedeemDialog from './LoyaltyRedeemDialog';
 import ExchangeInvoicePrint from './ExchangeInvoicePrint';
@@ -1075,7 +1076,7 @@ function BillingPage({
         </Stack>
 
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 2 }}>
-          <InfoCell label="Date" value={existingSale.date} />
+          <InfoCell label="Date" value={formatDateDDMMYYYY(existingSale.date)} />
           <InfoCell label="Customer" value={existingSale.customerName || DEFAULT_WALK_IN_NAME} />
           <InfoCell label="Mobile" value={existingSale.customerMobile || '-'} />
           <InfoCell label="Payment" value={existingSale.payment?.status || 'Pending'} />
@@ -1355,7 +1356,7 @@ function BillingPage({
                     <MenuItem value="">Select delivery order</MenuItem>
                     {pendingDOsForCustomer.map((do_) => (
                       <MenuItem key={do_.id} value={do_.id}>
-                        {do_.doNumber} - {do_.date} - ₹{Number(do_.totals?.netAmount ?? 0).toFixed(2)}
+                        {do_.doNumber} - {formatDateDDMMYYYY(do_.date)} - ₹{Number(do_.totals?.netAmount ?? 0).toFixed(2)}
                       </MenuItem>
                     ))}
                   </TextField>

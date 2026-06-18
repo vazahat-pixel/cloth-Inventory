@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -73,7 +74,7 @@ function SupplierOutwardListPage() {
                                     {outwards.map((row) => (
                                         <TableRow key={row._id} hover>
                                             <TableCell sx={{ fontWeight: 700, color: '#1e293b' }}>{row.outwardNumber}</TableCell>
-                                            <TableCell>{new Date(row.outwardDate).toLocaleDateString()}</TableCell>
+                                            <TableCell>{formatDateDDMMYYYY(row.outwardDate)}</TableCell>
                                             <TableCell>
                                                 <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.supplierId?.name || row.supplierId?.supplierName}</Typography>
                                                 <Typography variant="caption" sx={{ color: '#64748b' }}>{row.warehouseId?.name}</Typography>

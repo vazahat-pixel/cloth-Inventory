@@ -123,6 +123,7 @@ function PhysicalVsActualStockPage() {
         systemQty,
         variantId: row.variantId,
         barcode: row.barcode,
+        itemId: row.itemId,
       });
     }
     setEditVersion((v) => v + 1);

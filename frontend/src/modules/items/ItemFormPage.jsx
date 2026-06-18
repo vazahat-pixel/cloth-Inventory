@@ -336,12 +336,19 @@ function ItemFormPage({ mode = 'edit' }) {
       saleRate: Number(materialRate.saleRate || 0),
       images: images.filter(Boolean).map((img) => img.preview || img),
       type: data.type || 'GARMENT',
-      sizes: isGarment ? variants.map((v) => ({
-        ...v,
-        sku: v.barcodePrefix ? '' : v.sku,
-        mrp: Number(v.mrp || 0),
-        stock: Number(v.stock || 0)
-      })) : [{
+      sizes: isGarment ? variants.map((v) => {
+        const useAutoSku = Boolean(v.barcodePrefix);
+        return {
+          size: v.size,
+          color: v.color,
+          mrp: Number(v.mrp || 0),
+          stock: Number(v.stock || 0),
+          reorderLevel: Number(v.reorderLevel || 0),
+          status: v.status,
+          sku: useAutoSku ? '' : String(v.sku || '').trim(),
+          barcode: useAutoSku ? '' : (v.barcode || ''),
+        };
+      }) : [{
         id: createVariantId(),
         size: 'Standard',
         color: data.color || data.shadeNo || 'N/A',
@@ -929,7 +936,7 @@ function ItemFormPage({ mode = 'edit' }) {
         <Paper elevation={0} sx={{ position: 'sticky', bottom: 0, border: '1px solid #e2e8f0', p: 2, bgcolor: '#fff', zIndex: 10, borderRadius: 2 }}>
           <Stack direction="row" spacing={1.5} sx={{ justifyContent: 'flex-end' }}>
             <Button variant="outlined" onClick={() => navigate('/items')}>Cancel</Button>
-            <Button variant="contained" color="primary" sx={{ px: 4, fontWeight: 800 }} onClick={handleSubmit((values) => onSubmit(values, 'Active'))}>Save Everything</Button>
+            <Button variant="contained" color="primary" sx={{ px: 4, fontWeight: 800 }} onClick={handleSubmit((values) => onSubmit(values, 'Active', 'list'))}>Save Everything</Button>
           </Stack>
         </Paper>
       )}

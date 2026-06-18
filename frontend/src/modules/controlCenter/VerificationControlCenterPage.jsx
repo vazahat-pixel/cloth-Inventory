@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import {
   Alert,
   Box,
@@ -75,7 +76,7 @@ function StatusHero({ passed, status, verifiedAt, mismatchCount, onRun, running 
             </Typography>
             {verifiedAt && (
               <Typography variant="caption" sx={{ color: '#64748b' }}>
-                Last verified: {new Date(verifiedAt).toLocaleString('en-IN')}
+                Last verified: {formatDateTimeDDMMYYYY(verifiedAt)}
               </Typography>
             )}
             {running && (

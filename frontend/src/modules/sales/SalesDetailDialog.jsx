@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { formatDateDDMMYYYY } from '../../utils/formatters';
 import {
   Box,
   Chip,
@@ -18,6 +19,8 @@ import {
   Typography,
 } from '@mui/material';
 import AccountEntryDialog from '../shared/AccountEntryDialog';
+
+const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 function SalesDetailDialog({
   open,
@@ -52,7 +55,7 @@ function SalesDetailDialog({
           <Stack spacing={2}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
               <DetailField label="Invoice Number" value={sale.invoiceNumber} />
-              <DetailField label="Date" value={sale.date} />
+              <DetailField label="Date" value={formatDateDDMMYYYY(sale.date)} />
               <DetailField label="Warehouse" value={warehouseName || sale.warehouseId} />
               <DetailField label="Status" value={<Chip size="small" label={sale.status} />} />
             </Stack>
@@ -106,11 +109,11 @@ function SalesDetailDialog({
             <Divider />
 
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="flex-end">
-              <SummaryField label="Gross" value={sale.totals.grossAmount} />
-              <SummaryField label="Discount" value={sale.totals.lineDiscount + sale.totals.billDiscount} />
-              <SummaryField label="Tax" value={sale.totals.taxAmount} />
-              <SummaryField label="Loyalty" value={sale.totals.loyaltyRedeemed} />
-              <SummaryField label="Net" value={sale.totals.netPayable} strong />
+              <SummaryField label="Gross" value={sale.totals?.grossAmount ?? 0} />
+              <SummaryField label="Discount" value={(toNum(sale.totals?.lineDiscount) + toNum(sale.totals?.billDiscount))} />
+              <SummaryField label="Tax" value={sale.totals?.taxAmount ?? 0} />
+              <SummaryField label="Loyalty" value={sale.totals?.loyaltyRedeemed ?? 0} />
+              <SummaryField label="Net" value={sale.totals?.netPayable ?? sale.totals?.grandTotal ?? 0} strong />
             </Stack>
 
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="flex-end">

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import {
   Box,
   Card,
@@ -93,7 +94,7 @@ function StoreClosureAuditPage() {
                   const hasVariance = Math.abs(row.cashDifference) > 1; // Tolerance for small change
                   return (
                     <TableRow key={row._id} hover>
-                      <TableCell sx={{ fontWeight: 600 }}>{new Date(row.closureDate).toLocaleDateString()}</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>{formatDateDDMMYYYY(row.closureDate)}</TableCell>
                       <TableCell>{row.storeId?.name || 'Unknown Store'}</TableCell>
                       <TableCell align="right">₹{row.expectedClosingCash.toFixed(2)}</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700 }}>₹{row.physicalCash.toFixed(2)}</TableCell>

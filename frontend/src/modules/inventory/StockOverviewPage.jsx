@@ -57,7 +57,13 @@ const normalizeStockRows = (rows = []) =>
       availableStock: Number(row.available ?? 0),
       inTransit: Number(row.inTransit || 0),
       reorderLevel: Number(row.reorderLevel || 0),
-      status: row.status || 'OK',
+      status: (() => {
+        const avail = Number(row.available ?? 0);
+        const reorder = Number(row.reorderLevel || 0);
+        if (avail <= 0) return 'OUT_OF_STOCK';
+        if (reorder > 0 && avail <= reorder) return 'LOW_STOCK';
+        return row.status || 'OK';
+      })(),
       type: row.type || 'GARMENT',
     };
   });
@@ -97,7 +103,8 @@ function StockOverviewPage() {
   const [typeFilter, setTypeFilter] = useState('all');
   const [stockFilter, setStockFilter] = useState('all');
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(20);
+  const [stockDetailRow, setStockDetailRow] = useState(null);
 
   // Clear Inventory States
   const [openClearDialog, setOpenClearDialog] = useState(false);
@@ -159,16 +166,32 @@ function StockOverviewPage() {
 
 
   useEffect(() => {
+    dispatch(fetchMasters('warehouses'));
+    dispatch(fetchMasters('sizes'));
+  }, [dispatch]);
+
+  const apiSearch = useMemo(() => {
+    const parts = [
+      debouncedApiSearch,
+      itemFilter !== 'all' ? itemFilter : '',
+      sizeFilter !== 'all' ? sizeFilter : '',
+    ].filter(Boolean);
+    return parts.join(' ').trim() || undefined;
+  }, [debouncedApiSearch, itemFilter, sizeFilter]);
+
+  useEffect(() => {
     const params = {
-      ...REPORT_FETCH_PARAMS,
-      search: debouncedApiSearch,
+      page: page + 1,
+      limit: rowsPerPage,
+      search: apiSearch,
       type: typeFilter === 'all' ? undefined : typeFilter,
+      warehouseId: warehouseFilter === 'all' ? undefined : warehouseFilter,
+      lowStock: stockFilter === 'low' ? 'true' : undefined,
+      outOfStock: stockFilter === 'out' ? 'true' : undefined,
     };
 
     dispatch(fetchStockOverview(params));
-    dispatch(fetchMasters('warehouses'));
-    dispatch(fetchMasters('sizes'));
-  }, [dispatch, debouncedApiSearch, typeFilter]);
+  }, [dispatch, page, rowsPerPage, apiSearch, typeFilter, warehouseFilter, stockFilter]);
 
   // Removed auto-select Head Office logic to prevent empty views when warehouse names don't match exactly.
   // Users can now see all stock by default and filter as needed.
@@ -178,73 +201,52 @@ function StockOverviewPage() {
 
   const rows = useMemo(() => {
     const normalized = normalizeStockRows(backendRows);
-    // Remove the restrictive garment filter for HO/Admin users
     return isStoreStaff ? normalized.filter((r) => r.type === 'GARMENT') : normalized;
   }, [backendRows, isStoreStaff]);
 
+  const warehouseOptions = useMemo(
+    () => warehouses.map((w) => ({
+      id: String(w.id || w._id),
+      label: `[Warehouse] ${w.warehouseName || w.name}`,
+    })),
+    [warehouses],
+  );
   const itemOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.itemCode).filter(Boolean))), [rows]);
   const sizeOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.size).filter(Boolean))), [rows]);
-  const warehouseOptions = useMemo(() => {
-    const fromMasters = warehouses.map((w) => `[Warehouse] ${w.warehouseName || w.name}`).filter(Boolean);
-    const fromRows = rows.map((row) => row.warehouse).filter(Boolean);
-    return Array.from(new Set([...fromMasters, ...fromRows])).sort((a, b) => a.localeCompare(b));
-  }, [rows, warehouses]);
 
-  const filteredRows = useMemo(() => {
-    const query = searchText.trim().toLowerCase();
-    return rows.filter((row) => {
-      // Local filtering still applied for UI responsiveness
-      const matchesSearch = query
-        ? [row.itemCode, row.itemName, row.color, row.warehouse, row.brand, row.category]
-            .filter(Boolean)
-            .some((value) => String(value).toLowerCase().includes(query))
-        : true;
-      const matchesWarehouse = warehouseFilter === 'all' ? true : row.warehouse === warehouseFilter;
-      const matchesItem = itemFilter === 'all' ? true : row.itemCode === itemFilter;
-      const matchesSize = sizeFilter === 'all' ? true : row.size === sizeFilter;
-      const matchesType = typeFilter === 'all' ? true : row.type === typeFilter;
-      const matchesStock =
-        stockFilter === 'low'
-          ? row.availableStock <= row.reorderLevel
-          : stockFilter === 'out'
-            ? row.availableStock <= 0
-            : true;
-      return matchesSearch && matchesWarehouse && matchesItem && matchesSize && matchesType && matchesStock;
-    });
-  }, [itemFilter, rows, searchText, sizeFilter, stockFilter, warehouseFilter, typeFilter]);
-
-  const paginatedRows = useMemo(
-    () => filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
-    [filteredRows, page, rowsPerPage],
-  );
+  const paginatedRows = rows;
 
   const summary = useMemo(
-    () => {
-      const isLocalFiltered = warehouseFilter !== 'all' || itemFilter !== 'all' || sizeFilter !== 'all' || stockFilter !== 'all';
-      
-      const rawTotalQuantity = isLocalFiltered || searchText 
-        ? filteredRows.reduce((sum, row) => sum + Number(row.availableStock || 0), 0) 
-        : totalQuantity;
-
-      return {
-        // Use filtered rows for rows/qty ONLY if local filters (warehouse/item/size) are active
-        // Otherwise use the global totals from backend
-        totalRows: isLocalFiltered || searchText ? filteredRows.length : totalRows,
-        totalQuantity: Math.round(Number(rawTotalQuantity)),
-        lowStock: filteredRows.filter((row) => {
-          const status = String(row.status || '').toLowerCase().replace(/\s+/g, '_');
-          return (row.availableStock <= row.reorderLevel && row.availableStock > 0)
-            || status === 'low_stock'
-            || status === 'lowstock';
-        }).length,
-        outOfStock: filteredRows.filter((row) => row.availableStock <= 0).length,
-        inTransit: filteredRows.reduce((sum, row) => sum + Number(row.inTransit || 0), 0),
-      };
-    },
-    [filteredRows, totalRows, totalQuantity, searchText, warehouseFilter, itemFilter, sizeFilter, typeFilter, stockFilter],
+    () => ({
+      totalRows,
+      totalQuantity: Math.round(Number(totalQuantity)),
+      lowStock: rows.filter((row) => row.availableStock > 0 && (
+        (row.reorderLevel > 0 && row.availableStock <= row.reorderLevel)
+        || String(row.status || '').toUpperCase() === 'LOW_STOCK'
+      )).length,
+      outOfStock: rows.filter((row) => row.availableStock <= 0 || String(row.status || '').toUpperCase() === 'OUT_OF_STOCK').length,
+      inTransit: rows.reduce((sum, row) => sum + Number(row.inTransit || 0), 0),
+    }),
+    [rows, totalRows, totalQuantity],
   );
 
-  const exportRows = useMemo(() => toExportRows(filteredRows), [filteredRows]);
+  const loadExportRows = async () => {
+    const params = {
+      ...REPORT_FETCH_PARAMS,
+      search: apiSearch,
+      type: typeFilter === 'all' ? undefined : typeFilter,
+      warehouseId: warehouseFilter === 'all' ? undefined : warehouseFilter,
+      lowStock: stockFilter === 'low' ? 'true' : undefined,
+      outOfStock: stockFilter === 'out' ? 'true' : undefined,
+    };
+    const result = await dispatch(fetchStockOverview(params)).unwrap();
+    const exportSource = isStoreStaff
+      ? (result.stock || []).filter((r) => (r.type || 'GARMENT') === 'GARMENT')
+      : (result.stock || []);
+    return toExportRows(normalizeStockRows(exportSource));
+  };
+
+  const exportRows = useMemo(() => toExportRows(rows), [rows]);
 
   return (
     <Box>
@@ -281,7 +283,7 @@ function StockOverviewPage() {
               Clear Warehouse Inventory
             </Button>
           ),
-          <ExportButton key="export" rows={exportRows} columns={stockOverviewExportColumns} filename="stock-overview.xlsx" sheetName="Stock Overview" />,
+          <ExportButton key="export" rows={exportRows} loadRows={loadExportRows} columns={stockOverviewExportColumns} filename="stock-overview.xlsx" sheetName="Stock Overview" />,
         ].filter(Boolean)}
       />
 
@@ -332,15 +334,15 @@ function StockOverviewPage() {
             ),
           }}
         />
-        <TextField size="small" select label="Location" value={warehouseFilter} onChange={(event) => setWarehouseFilter(event.target.value)} sx={{ minWidth: 180 }}>
+        <TextField size="small" select label="Location" value={warehouseFilter} onChange={(event) => { setPage(0); setWarehouseFilter(event.target.value); }} sx={{ minWidth: 180 }}>
           <MenuItem value="all">All Locations</MenuItem>
           {warehouseOptions.map((option) => (
-            <MenuItem key={option} value={option}>
-              {option}
+            <MenuItem key={option.id} value={option.id}>
+              {option.label}
             </MenuItem>
           ))}
         </TextField>
-        <TextField size="small" select label="Item" value={itemFilter} onChange={(event) => setItemFilter(event.target.value)} sx={{ minWidth: 170 }}>
+        <TextField size="small" select label="Item" value={itemFilter} onChange={(event) => { setPage(0); setItemFilter(event.target.value); }} sx={{ minWidth: 170 }}>
           <MenuItem value="all">All Items</MenuItem>
           {itemOptions.map((option) => (
             <MenuItem key={option} value={option}>
@@ -353,7 +355,7 @@ function StockOverviewPage() {
           select
           label="Size"
           value={sizeFilter}
-          onChange={(event) => setSizeFilter(event.target.value)}
+          onChange={(event) => { setPage(0); setSizeFilter(event.target.value); }}
           sx={{ minWidth: 120 }}
           SelectProps={{
             renderValue: (selected) => (selected === 'all' ? 'All Sizes' : getSizeLabel(selected)),
@@ -366,7 +368,7 @@ function StockOverviewPage() {
             </MenuItem>
           ))}
         </TextField>
-        <TextField size="small" select label="Item Type" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} sx={{ minWidth: 140 }}>
+        <TextField size="small" select label="Item Type" value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value); setPage(0); }} sx={{ minWidth: 140 }}>
           <MenuItem value="all">All Types</MenuItem>
           <MenuItem value="GARMENT">Finished Garments</MenuItem>
           {!isStoreStaff && (
@@ -376,7 +378,7 @@ function StockOverviewPage() {
             </>
           )}
         </TextField>
-        <TextField size="small" select label="Stock State" value={stockFilter} onChange={(event) => setStockFilter(event.target.value)} sx={{ minWidth: 160 }}>
+        <TextField size="small" select label="Stock State" value={stockFilter} onChange={(event) => { setPage(0); setStockFilter(event.target.value); }} sx={{ minWidth: 160 }}>
           <MenuItem value="all">All Rows</MenuItem>
           <MenuItem value="low">Low stock only</MenuItem>
           <MenuItem value="out">Out of stock only</MenuItem>
@@ -436,14 +438,14 @@ function StockOverviewPage() {
                       <IconButton 
                         size="small" 
                         color="info" 
-                        onClick={() => navigate(`/inventory/audit-view?item=${row.itemCode}&warehouse=${row.warehouse}`)}
+                        onClick={() => setStockDetailRow(row)}
                       >
                         <VisibilityOutlinedIcon fontSize="small" />
                       </IconButton>
                       <IconButton 
                         size="small" 
                         color="primary" 
-                        onClick={() => navigate(`/inventory/item-journey?item=${row.itemCode}`)}
+                        onClick={() => navigate(`/inventory/movements?item=${encodeURIComponent(row.itemCode || '')}`)}
                       >
                         <TimelineOutlinedIcon fontSize="small" />
                       </IconButton>
@@ -469,17 +471,53 @@ function StockOverviewPage() {
 
         <TablePagination
           component="div"
-          count={filteredRows.length}
+          count={totalRows}
           page={page}
           onPageChange={(_, nextPage) => setPage(nextPage)}
           rowsPerPage={rowsPerPage}
-          rowsPerPageOptions={[5, 10, 20]}
+          rowsPerPageOptions={[10, 20, 50, 100]}
           onRowsPerPageChange={(event) => {
             setRowsPerPage(Number(event.target.value));
             setPage(0);
           }}
         />
       </Paper>
+
+      <Dialog open={Boolean(stockDetailRow)} onClose={() => setStockDetailRow(null)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800 }}>Stock Details</DialogTitle>
+        <DialogContent dividers>
+          {stockDetailRow && (
+            <Stack spacing={1.5}>
+              <Typography><strong>Item Code:</strong> {stockDetailRow.itemCode}</Typography>
+              <Typography><strong>Item Name:</strong> {stockDetailRow.itemName}</Typography>
+              <Typography><strong>Type:</strong> {stockDetailRow.type}</Typography>
+              <Typography><strong>Size:</strong> {getSizeLabel(stockDetailRow.size) || '--'}</Typography>
+              <Typography><strong>Color:</strong> {stockDetailRow.color || '--'}</Typography>
+              <Typography><strong>Location:</strong> {stockDetailRow.warehouse}</Typography>
+              <Typography><strong>Brand:</strong> {stockDetailRow.brand || '--'}</Typography>
+              <Typography><strong>Category:</strong> {stockDetailRow.category || '--'}</Typography>
+              <Typography><strong>Available Stock:</strong> {stockDetailRow.availableStock}</Typography>
+              <Typography><strong>In Transit:</strong> {stockDetailRow.inTransit}</Typography>
+              <Typography><strong>Reorder Level:</strong> {stockDetailRow.reorderLevel}</Typography>
+              <Typography><strong>Status:</strong> {stockDetailRow.status}</Typography>
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setStockDetailRow(null)}>Close</Button>
+          {stockDetailRow && (
+            <Button
+              variant="contained"
+              onClick={() => {
+                navigate(`/inventory/audit-view?item=${encodeURIComponent(stockDetailRow.itemCode)}&warehouse=${encodeURIComponent(stockDetailRow.warehouse)}`);
+                setStockDetailRow(null);
+              }}
+            >
+              View Full Audit
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
 
       {/* Clear Store Inventory Confirmation Dialog */}
       <Dialog

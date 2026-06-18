@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { useDispatch, useSelector } from 'react-redux';
 import { useLocation } from 'react-router-dom';
 import {
@@ -322,7 +323,7 @@ function PurchaseOrderListPage() {
               {paginatedRows.map((row) => (
                 <TableRow key={row.id} hover>
                   <TableCell sx={{ fontWeight: 700, color: '#0f172a' }}>{row.poNumber}</TableCell>
-                  <TableCell>{row.poDate}</TableCell>
+                  <TableCell>{formatDateDDMMYYYY(row.poDate)}</TableCell>
                   <TableCell>
                     <Typography variant="body2" sx={{ fontWeight: 700 }}>
                       {row.supplierName}
@@ -331,7 +332,7 @@ function PurchaseOrderListPage() {
                       {supplierMap[row.supplierId]?.city || '--'}{supplierMap[row.supplierId]?.state ? `, ${supplierMap[row.supplierId]?.state}` : ''}
                     </Typography>
                   </TableCell>
-                  <TableCell>{row.expectedDeliveryDate || '--'}</TableCell>
+                  <TableCell>{formatDateDDMMYYYY(row.expectedDeliveryDate) || '--'}</TableCell>
                   <TableCell align="right">
                     <Box sx={{ minWidth: 100 }}>
                       <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.85rem' }}>

@@ -38,7 +38,7 @@ function OrderReportPage() {
             endDate: filters.dateTo
         },
       });
-      setData(response.data.report);
+      setData(response.data.data?.report || response.data.report || null);
     } catch (err) {
       setError(getFriendlyErrorMessage(err, 'Order report load karne mein dikkat hui.'));
     } finally {

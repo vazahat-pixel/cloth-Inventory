@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import useDebouncedValue from '../../hooks/useDebouncedValue';
 import useServerPagination from '../../hooks/useServerPagination';
 import ServerTablePagination from '../../components/erp/ServerTablePagination';
@@ -28,7 +29,7 @@ import systemLogsExportColumns from '../../config/exportColumns/systemLogs';
 const toExportRows = (rows = []) =>
   rows.map((row) => ({
     log_id: row._id || row.id,
-    date_time: row.createdAt ? new Date(row.createdAt).toLocaleString() : row.dateTime,
+    date_time: row.createdAt ? formatDateTimeDDMMYYYY(row.createdAt) : formatDateDDMMYYYY(row.dateTime),
     module: row.module,
     action: row.action,
     reference_type: row.targetModel || row.referenceType,
@@ -160,7 +161,7 @@ function AuditLogViewer({ type = 'system' }) {
               ) : logs.length ? (
                 logs.map((row) => (
                   <TableRow key={row._id || row.id} hover>
-                    <TableCell>{row.createdAt ? new Date(row.createdAt).toLocaleString() : row.dateTime}</TableCell>
+                    <TableCell>{row.createdAt ? formatDateTimeDDMMYYYY(row.createdAt) : formatDateDDMMYYYY(row.dateTime)}</TableCell>
                     <TableCell>{row.module}</TableCell>
                     <TableCell>{row.action}</TableCell>
                     <TableCell>{row.performedBy?.name || row.userId?.name || row.user || '—'}</TableCell>

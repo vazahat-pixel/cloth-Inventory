@@ -73,7 +73,13 @@ function VoucherFormDialog({ open, onClose }) {
 
   const handleEntryChange = (index, field, value) => {
     const newEntries = [...formData.entries];
-    newEntries[index][field] = value;
+    if (field === 'debit' || field === 'credit') {
+      const num = Number(value);
+      if (value !== '' && (!Number.isFinite(num) || num < 0)) return;
+      newEntries[index][field] = value === '' ? '' : num;
+    } else {
+      newEntries[index][field] = value;
+    }
     setFormData({ ...formData, entries: newEntries });
   };
 

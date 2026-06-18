@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
+import { useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
@@ -31,6 +33,7 @@ const MOVEMENT_TYPES = [
 
 function MovementHistoryPage() {
   const dispatch = useDispatch();
+  const [searchParams] = useSearchParams();
   const movements = useSelector((state) => state.inventory.movements);
   const warehouses = useSelector((state) => state.masters.warehouses || []);
   const stores = useSelector((state) => state.masters.stores || []);
@@ -40,7 +43,7 @@ function MovementHistoryPage() {
     dispatch(fetchMasters('stores'));
   }, [dispatch]);
 
-  const [searchText, setSearchText] = useState('');
+  const [searchText, setSearchText] = useState(searchParams.get('item') || '');
   const [warehouseFilter, setWarehouseFilter] = useState('all');
   const [movementTypeFilter, setMovementTypeFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
@@ -167,7 +170,9 @@ function MovementHistoryPage() {
             value={dateFrom}
             onChange={(event) => {
               setPage(0);
-              setDateFrom(event.target.value);
+              const val = event.target.value;
+              setDateFrom(val);
+              if (val && dateTo && val > dateTo) setDateTo(val);
             }}
             InputLabelProps={{ shrink: true }}
           />
@@ -178,7 +183,9 @@ function MovementHistoryPage() {
             value={dateTo}
             onChange={(event) => {
               setPage(0);
-              setDateTo(event.target.value);
+              const val = event.target.value;
+              setDateTo(val);
+              if (val && dateFrom && val < dateFrom) setDateFrom(val);
             }}
             InputLabelProps={{ shrink: true }}
           />
@@ -205,7 +212,7 @@ function MovementHistoryPage() {
               <TableBody>
                 {paginatedRows.map((movement) => (
                   <TableRow key={movement.id || movement._id} hover>
-                      <TableCell>{movement.date}</TableCell>
+                      <TableCell>{formatDateDDMMYYYY(movement.date)}</TableCell>
                       <TableCell>{`${movement.itemName || ''} (${movement.size || ''}/${movement.color || ''})`}</TableCell>
                     <TableCell>{warehouseMap[String(movement.warehouseId)] || movement.warehouseId}</TableCell>
                       <TableCell>{movement.type}</TableCell>

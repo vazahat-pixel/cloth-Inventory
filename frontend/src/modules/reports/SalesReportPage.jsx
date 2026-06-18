@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
@@ -77,7 +78,7 @@ function SalesReportPage() {
 
   useEffect(() => {
     setPage(0);
-  }, [filters.dateFrom, filters.dateTo, filters.warehouseId, filters.warehouseIds, filters.paymentStatus, debouncedSearch]);
+  }, [filters.dateFrom, filters.dateTo, filters.warehouseId, filters.warehouseIds, filters.paymentStatus, filters.customerId, filters.salesmanId, filters.categoryId, debouncedSearch]);
 
   useEffect(() => {
     dispatch(fetchMasters('stores'));
@@ -94,8 +95,8 @@ function SalesReportPage() {
 
   const locationMap = useMemo(() => {
     const map = {};
-    warehouses.forEach((w) => { map[w.id] = w.name; });
-    stores.forEach((s) => { map[s.id || s._id] = s.name; });
+    warehouses.forEach((w) => { map[String(w.id || w._id)] = w.name; });
+    stores.forEach((s) => { map[String(s.id || s._id)] = s.name; });
     return map;
   }, [warehouses, stores]);
 
@@ -140,28 +141,32 @@ function SalesReportPage() {
 
   const filteredRows = useMemo(() => {
     return sales.filter((sale) => {
-      const selectedLocations = filters.warehouseIds || [];
+      const selectedLocations = (filters.warehouseIds || []).filter(Boolean);
       const matchesWarehouse = isStoreStaff
         ? true
         : selectedLocations.length
           ? matchesLocationFilter(sale, selectedLocations)
-          : (!filters.warehouseId || filters.warehouseId === 'all' || String(sale.warehouseId) === String(filters.warehouseId));
+          : (!filters.warehouseId || filters.warehouseId === 'all' || matchesLocationFilter(sale, [filters.warehouseId]));
       const matchesCustomer =
         !filters.customerId || filters.customerId === 'all' || sale.customerId === filters.customerId;
       const matchesSalesman =
         !filters.salesmanId || filters.salesmanId === 'all' || sale.salesmanId === filters.salesmanId;
-      const selectedGroupName = itemGroups.find((g) => g.id === filters.categoryId)?.groupName;
+      const selectedGroupName = itemGroups.find((g) => (g.id || g._id) === filters.categoryId)?.groupName;
       const matchesCategory =
         !filters.categoryId || filters.categoryId === 'all' || !selectedGroupName
           ? true
           : (sale.items || []).some((line) => itemGroupMap[line.variantId] === selectedGroupName);
       const matchesVoided = !['CANCELLED', 'REFUNDED'].includes(sale.status);
+      const paymentStatus = sale.payment?.status || sale.status || 'Pending';
+      const matchesPayment =
+        !filters.paymentStatus || filters.paymentStatus === 'all' || paymentStatus === filters.paymentStatus;
       return (
         matchesWarehouse &&
         matchesCustomer &&
         matchesSalesman &&
         matchesCategory &&
-        matchesVoided
+        matchesVoided &&
+        matchesPayment
       );
     });
   }, [sales, filters, itemGroups, itemGroupMap, isStoreStaff]);
@@ -169,7 +174,7 @@ function SalesReportPage() {
   const groupedAndSortedRows = useMemo(() => {
     const salesByStore = {};
     filteredRows.forEach((sale) => {
-      const storeName = locationMap[sale.warehouseId || sale.storeId] || 'Main Office';
+      const storeName = locationMap[String(sale.warehouseId || sale.storeId)] || sale.storeName || 'Main Office';
       if (!salesByStore[storeName]) {
         salesByStore[storeName] = [];
       }
@@ -210,24 +215,24 @@ function SalesReportPage() {
     let totalNet = 0;
     filteredRows.forEach((s) => {
       const t = s.totals || {};
+      const tax = toNum(t.taxAmount ?? t.tax);
+      const grossInvoice = toNum(t.netPayable ?? t.grandTotal);
+      const netBeforeTax = grossInvoice - tax;
       totalQuantity += toNum(t.totalQuantity);
-      totalGross += toNum(t.grossAmount);
+      totalGross += grossInvoice;
       totalDiscount += toNum(t.discount);
-      totalTax += toNum(t.taxAmount);
-      totalNet += toNum(t.netPayable);
+      totalTax += tax;
+      totalNet += netBeforeTax;
     });
-    const hasClientOnlyFilters = (filters.customerId && filters.customerId !== 'all')
-      || (filters.salesmanId && filters.salesmanId !== 'all')
-      || (filters.categoryId && filters.categoryId !== 'all');
     return {
-      totalInvoices: hasClientOnlyFilters ? filteredRows.length : (salesTotal || filteredRows.length),
+      totalInvoices: filteredRows.length,
       totalQuantity,
       totalGross,
       totalDiscount,
       totalTax,
       totalNet,
     };
-  }, [filteredRows, salesTotal, filters.customerId, filters.salesmanId, filters.categoryId]);
+  }, [filteredRows]);
 
   const detailRows = useMemo(() => {
     const from = filters.dateFrom || '';
@@ -386,17 +391,28 @@ function SalesReportPage() {
   const groupWiseRows = useMemo(() => {
     const byGroup = {};
     filteredRows.forEach((sale) => {
+      const invoiceGross = toNum(sale.totals?.netPayable ?? sale.totals?.grandTotal);
+      const invoiceTax = toNum(sale.totals?.taxAmount ?? sale.totals?.tax);
+      const lineSum = (sale.items || []).reduce((s, it) => s + (toNum(it.total) || toNum(it.amount) || toNum(it.rate) * toNum(it.quantity)), 0);
       (sale.items || []).forEach((line) => {
         const group = itemGroupMap[line.variantId] || itemGroupMap[line.sku] || itemGroupMap[line.productId] || itemGroupMap[line.itemId] || 'Ungrouped';
+        const lineTotal = toNum(line.total) || toNum(line.amount) || toNum(line.rate) * toNum(line.quantity);
+        const share = lineSum > 0 ? lineTotal / lineSum : 0;
+        const lineGross = invoiceGross * share;
+        const lineTax = invoiceTax * share;
+        const lineNet = lineGross - lineTax;
         if (!byGroup[group]) byGroup[group] = { group, quantity: 0, amount: 0 };
         byGroup[group].quantity += toNum(line.quantity);
-        byGroup[group].amount += toNum(line.amount);
+        byGroup[group].amount += lineNet;
       });
     });
     return Object.values(byGroup).sort((a, b) => b.amount - a.amount);
   }, [filteredRows, itemGroupMap]);
 
-  const paginatedAccountWise = useMemo(() => accountWiseRows, [accountWiseRows]);
+  const paginatedAccountWise = useMemo(
+    () => accountWiseRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [accountWiseRows, page, rowsPerPage],
+  );
   const paginatedSizeWise = useMemo(
     () => sizeWiseRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
     [sizeWiseRows, page, rowsPerPage],
@@ -410,17 +426,20 @@ function SalesReportPage() {
     () =>
       groupedAndSortedRows.map((row) => {
         const t = row.totals || {};
+        const tax = toNum(t.taxAmount ?? t.tax);
+        const grossInvoice = toNum(t.netPayable ?? t.grandTotal);
+        const netBeforeTax = grossInvoice - tax;
         return {
           Invoice: row.invoiceNumber,
-          Date: row.date,
-          Branch: locationMap[row.warehouseId || row.storeId] || 'Main Office',
+          Date: formatDateDDMMYYYY(row.date),
+          Branch: locationMap[String(row.warehouseId || row.storeId)] || row.storeName || 'Main Office',
           Customer: row.customerName || 'Walk-in',
           Items: row.items?.length || 0,
           Qty: toNum(t.totalQuantity),
-          Gross: toNum(t.grossAmount),
+          Gross: grossInvoice,
           Discount: (toNum(t.lineDiscount) + toNum(t.billDiscount)).toFixed(2),
-          Tax: toNum(t.taxAmount),
-          Net: toNum(t.netPayable),
+          Tax: tax,
+          Net: netBeforeTax,
           Payment: formatPaymentDisplay(row.payment, row.payments),
         };
       }),
@@ -624,8 +643,17 @@ function SalesReportPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {paginatedRows.map((row, idx) => {
+                  {paginatedRows.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={11} align="center" sx={{ py: 4, color: '#64748b' }}>
+                        No invoices match the current filters.
+                      </TableCell>
+                    </TableRow>
+                  ) : paginatedRows.map((row, idx) => {
                     const t = row.totals || {};
+                    const tax = toNum(t.taxAmount ?? t.tax);
+                    const grossInvoice = toNum(t.netPayable ?? t.grandTotal);
+                    const netBeforeTax = grossInvoice - tax;
                     const showStoreHeader = !isStoreStaff && (idx === 0 || row.storeGroupName !== paginatedRows[idx - 1]?.storeGroupName);
                     return (
                       <>
@@ -636,17 +664,17 @@ function SalesReportPage() {
                             </TableCell>
                           </TableRow>
                         )}
-                        <TableRow key={row.id || row._id} hover>
+                        <TableRow key={row.id || row._id || row.invoiceNumber} hover>
                           <TableCell sx={{ fontWeight: 600 }}>{row.invoiceNumber}</TableCell>
-                          <TableCell>{row.date}</TableCell>
-                          <TableCell>{locationMap[row.warehouseId || row.storeId] || 'Main Office'}</TableCell>
+                          <TableCell>{formatDateDDMMYYYY(row.date)}</TableCell>
+                          <TableCell>{locationMap[String(row.warehouseId || row.storeId)] || row.storeName || 'Main Office'}</TableCell>
                           <TableCell>{row.customerName || 'Walk-in'}</TableCell>
                           <TableCell>{row.items?.length || 0}</TableCell>
                           <TableCell align="right">{toNum(t.totalQuantity)}</TableCell>
-                          <TableCell align="right">₹{toNum(t.grossAmount).toFixed(2)}</TableCell>
+                          <TableCell align="right">₹{grossInvoice.toFixed(2)}</TableCell>
                           <TableCell align="right">₹{toNum(t.discount).toFixed(2)}</TableCell>
-                          <TableCell align="right">₹{toNum(t.taxAmount).toFixed(2)}</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 700 }}>₹{toNum(t.netPayable).toFixed(2)}</TableCell>
+                          <TableCell align="right">₹{tax.toFixed(2)}</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 700 }}>₹{netBeforeTax.toFixed(2)}</TableCell>
                           <TableCell sx={{ whiteSpace: 'nowrap', maxWidth: 220 }}>
                             {formatPaymentDisplay(row.payment, row.payments)}
                           </TableCell>
@@ -690,7 +718,7 @@ function SalesReportPage() {
                           hover
                           sx={{ bgcolor: row.isReturn ? 'rgba(254, 226, 226, 0.5)' : undefined }}
                         >
-                          <TableCell>{row.date}</TableCell>
+                          <TableCell>{formatDateDDMMYYYY(row.date)}</TableCell>
                           <TableCell>{row.invoiceNumber}</TableCell>
                           <TableCell>{row.customerName}</TableCell>
                           <TableCell>{row.itemName}</TableCell>
@@ -699,7 +727,7 @@ function SalesReportPage() {
                           <TableCell>{row.lot}</TableCell>
                           <TableCell align="right" sx={{ color: row.isReturn ? '#b91c1c' : undefined }}>{row.quantity}</TableCell>
                           <TableCell align="right">₹{row.rate.toFixed(2)}</TableCell>
-                          <TableCell align="right">{row.discount}%</TableCell>
+                          <TableCell align="right">{row.discount != null ? `₹${Number(row.discount).toFixed(2)}` : '-'}</TableCell>
                           <TableCell align="right" sx={{ color: row.isReturn ? '#b91c1c' : undefined, fontWeight: 600 }}>
                             ₹{row.amount.toFixed(2)}
                           </TableCell>

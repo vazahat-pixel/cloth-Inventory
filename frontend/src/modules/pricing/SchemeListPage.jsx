@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import { useSelector, useDispatch } from 'react-redux';
 import {
@@ -104,10 +105,11 @@ function SchemeListPage() {
   }, [filteredRows, page, rowsPerPage]);
 
   const handleToggleStatus = (row) => {
+    const currentlyActive = row.isActive ?? row.status === 'Active';
     dispatch(
       setSchemeStatus({
         id: row.id || row._id,
-        status: row.isActive ? 'INACTIVE' : 'ACTIVE',
+        status: currentlyActive ? 'INACTIVE' : 'ACTIVE',
       }),
     );
   };
@@ -225,7 +227,7 @@ function SchemeListPage() {
                       <TableCell sx={{ py: 2.5 }}>
                         <Typography sx={{ fontWeight: 700, color: '#1e293b' }}>{row.name}</Typography>
                         <Typography variant="caption" sx={{ color: '#64748b' }}>
-                          Validity: {row.startDate ? new Date(row.startDate).toLocaleDateString() : 'Always'} — {row.endDate ? new Date(row.endDate).toLocaleDateString() : 'No Expiry'}
+                          Validity: {row.startDate ? formatDateDDMMYYYY(row.startDate) : 'Always'} — {row.endDate ? formatDateDDMMYYYY(row.endDate) : 'No Expiry'}
                         </Typography>
                       </TableCell>
                       <TableCell>
@@ -254,9 +256,9 @@ function SchemeListPage() {
                       <TableCell>
                         <Chip
                           size="small"
-                          color={row.isActive ? 'success' : 'default'}
+                          color={(row.isActive ?? row.status === 'Active') ? 'success' : 'default'}
                           variant="outlined"
-                          label={row.isActive ? 'ACTIVE' : 'INACTIVE'}
+                          label={(row.isActive ?? row.status === 'Active') ? 'ACTIVE' : 'INACTIVE'}
                           sx={{ fontWeight: 700 }}
                         />
                       </TableCell>
@@ -272,14 +274,14 @@ function SchemeListPage() {
                           </IconButton>
                           <IconButton
                             size="small"
-                            color={row.isActive ? 'warning' : 'success'}
+                            color={(row.isActive ?? row.status === 'Active') ? 'warning' : 'success'}
                             onClick={() => handleToggleStatus(row)}
                             sx={{ 
-                              bgcolor: row.isActive ? '#fff7ed' : '#f0fdf4',
-                              '&:hover': { bgcolor: row.isActive ? '#ffedd5' : '#dcfce7' }
+                              bgcolor: (row.isActive ?? row.status === 'Active') ? '#fff7ed' : '#f0fdf4',
+                              '&:hover': { bgcolor: (row.isActive ?? row.status === 'Active') ? '#ffedd5' : '#dcfce7' }
                             }}
                           >
-                            {row.isActive ? <ToggleOffIcon fontSize="small" /> : <ToggleOnIcon fontSize="small" />}
+                            {(row.isActive ?? row.status === 'Active') ? <ToggleOffIcon fontSize="small" /> : <ToggleOnIcon fontSize="small" />}
                           </IconButton>
                           <IconButton
                             size="small"

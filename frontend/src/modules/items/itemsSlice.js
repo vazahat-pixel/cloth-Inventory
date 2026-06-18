@@ -1,10 +1,17 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
 import { extractPaginationMeta } from '../../utils/paginationMeta';
+import { ITEM_PICKER_LIMIT } from './itemFetchConstants';
 
 export const fetchItems = createAsyncThunk('items/fetchAll', async (params = {}, { rejectWithValue }) => {
   try {
-    const response = await api.get('/items', { params });
+    const response = await api.get('/items', {
+      params: {
+        page: 1,
+        limit: ITEM_PICKER_LIMIT,
+        ...params,
+      },
+    });
     const resData = response.data.data || response.data || {};
     const meta = extractPaginationMeta(response.data);
     const items = resData.items || resData.records || [];

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
@@ -233,7 +234,7 @@ function StoreReturnReceivePage() {
                   return (
                     <TableRow key={row._id || row.id} hover>
                       <TableCell sx={{ fontSize: 13, py: 1.5 }}>
-                        {row.initiatedAt ? new Date(row.initiatedAt).toLocaleDateString() : new Date(row.createdAt).toLocaleDateString()}
+                        {row.initiatedAt ? formatDateDDMMYYYY(row.initiatedAt) : formatDateDDMMYYYY(row.createdAt)}
                       </TableCell>
                       <TableCell sx={{ fontWeight: 700, color: '#0f172a', fontSize: 13 }}>
                         {row.returnNumber}

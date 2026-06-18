@@ -1,3 +1,4 @@
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 /** Build lookup: variantId / sku / barcode -> item master fields */
@@ -87,7 +88,7 @@ export function enrichSaleDetailRow(row, { variantMap, closingStockMap, location
 
   return {
     ...row,
-    branchName: locationMap[locationId] || row.storeGroupName || 'Main Office',
+    branchName: locationMap[String(locationId)] || row.storeGroupName || 'Main Office',
     itemCode: meta.itemCode || row.sku || '',
     modelName: meta.modelName || '',
     itemDescription: meta.description || '',
@@ -147,7 +148,7 @@ export function toSaleRegisterExportRow(row) {
     'PUR. RETURN': row.purReturn ?? '',
     'CLOSING STOCK': row.closingStock ?? '',
     INVOICE: row.invoiceNumber || '',
-    DATE: row.date || '',
+    DATE: formatDateDDMMYYYY(row.date) || '',
     CUSTOMER: row.customerName || '',
   };
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { useDispatch, useSelector } from 'react-redux';
 import useDebouncedValue from '../../hooks/useDebouncedValue';
 import useServerPagination from '../../hooks/useServerPagination';
@@ -144,7 +145,7 @@ function VoucherListPage() {
                 vouchers.map((v) => (
                   <TableRow key={v._id} hover>
                     <TableCell sx={{ fontWeight: 600, color: '#1e293b' }}>{v.voucherNumber}</TableCell>
-                    <TableCell>{new Date(v.date).toLocaleDateString()}</TableCell>
+                    <TableCell>{formatDateDDMMYYYY(v.date)}</TableCell>
                     <TableCell>
                       <Chip
                         label={v.type.replace('_', ' ')}

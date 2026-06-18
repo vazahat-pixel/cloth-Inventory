@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import useDebouncedValue from '../../hooks/useDebouncedValue';
@@ -160,7 +161,7 @@ const GRNListPage = () => {
               ) : grns.map((grn) => (
                 <TableRow key={grn._id} hover>
                   <TableCell sx={{ fontWeight: 700, color: '#1e293b' }}>{grn.grnNumber}</TableCell>
-                  <TableCell sx={{ color: '#64748b' }}>{new Date(grn.createdAt).toLocaleDateString()}</TableCell>
+                  <TableCell sx={{ color: '#64748b' }}>{formatDateDDMMYYYY(grn.createdAt)}</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>{grn.supplierId?.name || grn.supplierId?.supplierName || 'Manual Supplier'}</TableCell>
                   <TableCell>{grn.invoiceNumber}</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 700 }}>{getItemCount(grn)}</TableCell>

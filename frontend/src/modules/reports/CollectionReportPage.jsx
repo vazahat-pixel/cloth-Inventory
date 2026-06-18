@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
+  Chip,
   Paper,
   Stack,
   Table,
@@ -31,6 +33,9 @@ function CollectionReportPage() {
   const isStoreStaff = user?.role !== 'Admin' && user?.role !== 'admin';
 
   const [filters, setFilters] = useState({});
+  const [paymentModeFilter, setPaymentModeFilter] = useState('all');
+
+  const PAYMENT_MODE_OPTIONS = ['all', 'Cash', 'Card', 'UPI', 'Cheque', 'Credit', 'Gift Voucher'];
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
@@ -133,25 +138,30 @@ function CollectionReportPage() {
     return list;
   }, [filters.dateFrom, filters.dateTo, sales, bankReceipts, customerMap]);
 
+  const filteredRows = useMemo(() => {
+    if (paymentModeFilter === 'all') return rows;
+    return rows.filter((r) => r.mode === paymentModeFilter);
+  }, [rows, paymentModeFilter]);
+
   const paginatedRows = useMemo(
-    () => rows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
-    [rows, page, rowsPerPage],
+    () => filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [filteredRows, page, rowsPerPage],
   );
 
   const summary = useMemo(() => {
     const byMode = {};
     let total = 0;
-    rows.forEach((r) => {
+    filteredRows.forEach((r) => {
       total += r.amount;
       byMode[r.mode] = (byMode[r.mode] || 0) + r.amount;
     });
     return { total, byMode };
-  }, [rows]);
+  }, [filteredRows]);
 
   const exportRows = useMemo(
     () =>
-      rows.map((r) => ({
-        Date: r.date,
+      filteredRows.map((r) => ({
+        Date: formatDateDDMMYYYY(r.date),
         Source: r.source,
         'Source Type': r.sourceType,
         Customer: r.customerName,
@@ -180,6 +190,18 @@ function CollectionReportPage() {
           showWarehouse={!isStoreStaff}
           compact
         />
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1 }}>
+          {PAYMENT_MODE_OPTIONS.map((mode) => (
+            <Chip
+              key={mode}
+              label={mode === 'all' ? 'All Modes' : mode}
+              color={paymentModeFilter === mode ? 'primary' : 'default'}
+              variant={paymentModeFilter === mode ? 'filled' : 'outlined'}
+              onClick={() => { setPaymentModeFilter(mode); setPage(0); }}
+              sx={{ fontWeight: 700, cursor: 'pointer' }}
+            />
+          ))}
+        </Stack>
       </Stack>
 
       <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 2, mb: 2 }}>
@@ -198,7 +220,7 @@ function CollectionReportPage() {
         <Stack direction="row" justifyContent="flex-end" sx={{ p: 1.5 }}>
           <ReportExportButton
             headers={['Date', 'Source', 'Source Type', 'Customer', 'Amount', 'Mode']}
-            headerKeys={['date', 'source', 'sourceType', 'customerName', 'amount', 'mode']}
+            headerKeys={['Date', 'Source', 'Source Type', 'Customer', 'Amount', 'Mode']}
             rows={exportRows}
             filename="collection-report.csv"
           />
@@ -225,7 +247,7 @@ function CollectionReportPage() {
               ) : (
                 paginatedRows.map((r, i) => (
                   <TableRow key={`${r.date}-${r.source}-${i}`} hover>
-                    <TableCell>{r.date}</TableCell>
+                    <TableCell>{formatDateDDMMYYYY(r.date)}</TableCell>
                     <TableCell>{r.source}</TableCell>
                     <TableCell>{r.sourceType}</TableCell>
                     <TableCell>{r.customerName}</TableCell>
@@ -238,7 +260,7 @@ function CollectionReportPage() {
           </Table>
         </TableContainer>
         <ServerTablePagination
-          count={rows.length}
+          count={filteredRows.length}
           page={page}
           rowsPerPage={rowsPerPage}
           onPageChange={(_, p) => setPage(p)}

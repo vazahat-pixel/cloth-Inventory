@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import {
   Box,
   Paper,
@@ -221,7 +222,7 @@ function Gstr1DetailedReportPage() {
         storeTotals.net += item.netAmount || 0;
         detailedData.push({
           'Bill No': item.invoice,
-          'Bill Date': new Date(item.date).toLocaleDateString(),
+          'Bill Date': formatDateDDMMYYYY(item.date),
           'Customer Name': item.customer,
           'Branch / Store': item.storeName || 'N/A',
           'Category / Group': item.category,
@@ -313,7 +314,7 @@ function Gstr1DetailedReportPage() {
       headers = ['Bill No', 'Bill Date', 'Customer Name', 'Branch / Store', 'Category / Group', 'HSN Code', 'MRP', 'Discount %', 'Total Quantity', 'Taxable Amount', 'CGST %', 'CGST Amount', 'SGST / IGST %', 'SGST / IGST Amount', 'Net Amount'];
       rows = items.map((item) => ({
         'Bill No': item.invoice,
-        'Bill Date': new Date(item.date).toLocaleDateString(),
+        'Bill Date': formatDateDDMMYYYY(item.date),
         'Customer Name': item.customer,
         'Branch / Store': item.storeName || 'N/A',
         'Category / Group': item.category,
@@ -390,7 +391,6 @@ function Gstr1DetailedReportPage() {
             showBrand
             showCategory
             showCustomer
-            showSalesman
           />
           <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
             <Button
@@ -529,7 +529,7 @@ function Gstr1DetailedReportPage() {
                             {itemWiseDisplayRows.map((item, i) => (
                               <TableRow key={`${item.invoice}-${item.hsn}-${i}`} hover>
                                 <TableCell sx={{ fontWeight: 700 }}>{item.invoice}</TableCell>
-                                <TableCell sx={{ whiteSpace: 'nowrap' }}>{new Date(item.date).toLocaleDateString()}</TableCell>
+                                <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDateDDMMYYYY(item.date)}</TableCell>
                                 <TableCell>{item.customer}</TableCell>
                                 <TableCell>{item.storeName || 'N/A'}</TableCell>
                                 <TableCell>{item.category}</TableCell>
@@ -576,7 +576,11 @@ function Gstr1DetailedReportPage() {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {data.b2b.map((inv, i) => (
+                        {(data?.b2b || []).length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={8} align="center" sx={{ py: 4, color: '#64748b' }}>No B2B invoices in this period.</TableCell>
+                          </TableRow>
+                        ) : (data.b2b || []).map((inv, i) => (
                           <TableRow key={i} hover>
                             <TableCell sx={{ fontWeight: 700 }}>{inv.invoice}</TableCell>
                             <TableCell>{inv.customer}</TableCell>

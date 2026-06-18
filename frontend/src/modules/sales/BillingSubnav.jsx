@@ -30,11 +30,14 @@ function BillingSubnav() {
         ? [item.path]
         : [];
 
-    return candidatePaths.some((candidate) => (
-      candidate === '/'
+    return candidatePaths.some((candidate) => {
+      if (item.exactMatch) {
+        return localPath === candidate || localPath === `${candidate}?status=CANCELLED`;
+      }
+      return candidate === '/'
         ? localPath === '/'
-        : localPath === candidate || localPath.startsWith(`${candidate}/`)
-    ));
+        : localPath === candidate || localPath.startsWith(`${candidate}/`);
+    });
   };
 
   return (

@@ -28,6 +28,7 @@ import CheckBoxIcon from '@mui/icons-material/CheckBox';
 import { fetchPromotionGroups, addPromotionGroup, updatePromotionGroup, deletePromotionGroup } from './pricingSlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchItems } from '../items/itemsSlice';
+import { itemPickerParams } from '../items/itemFetchConstants';
 
 function PromotionGroupPage() {
   const dispatch = useDispatch();
@@ -190,7 +191,7 @@ function PromotionGroupPage() {
     dispatch(fetchMasters('categories'));
     dispatch(fetchMasters('itemGroups'));
     dispatch(fetchMasters('brands'));
-    dispatch(fetchItems({ limit: 100000 }));
+    dispatch(fetchItems(itemPickerParams()));
   }, [dispatch]);
 
   const handleEdit = (group) => {

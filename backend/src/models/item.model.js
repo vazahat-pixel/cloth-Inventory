@@ -184,6 +184,8 @@ itemSchema.index({ brandName: 1 });
 itemSchema.index({ sectionName: 1 });
 itemSchema.index({ createdAt: -1 });
 itemSchema.index({ itemCode: 1 });
+itemSchema.index({ type: 1 });
+itemSchema.index({ isActive: 1, type: 1 });
 
 const Item = mongoose.model('Item', itemSchema);
 

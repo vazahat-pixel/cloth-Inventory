@@ -7,7 +7,7 @@ import {
     TableHead,
     TableRow,
 } from '@mui/material';
-import dayjs from 'dayjs';
+import { formatDateDDMMYYYY } from '../../utils/formatters';
 
 function FinanceActivityTable({ transactions = [] }) {
     return (
@@ -36,7 +36,7 @@ function FinanceActivityTable({ transactions = [] }) {
                             hover
                             sx={{ '&:last-child td, &:last-child th': { border: 0 }, transition: 'background-color 0.2s' }}
                         >
-                            <TableCell sx={{ color: '#1e293b' }}>{dayjs(row.date).format('DD MMM YYYY')}</TableCell>
+                            <TableCell sx={{ color: '#1e293b' }}>{formatDateDDMMYYYY(row.date)}</TableCell>
                             <TableCell sx={{ color: '#1e293b', fontWeight: 500 }}>{row.account}</TableCell>
                             <TableCell sx={{ color: '#64748b' }}>
                                 <span style={{

@@ -15,14 +15,11 @@ import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import TimelineIcon from '@mui/icons-material/Timeline';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import PeopleIcon from '@mui/icons-material/People';
-import BusinessIcon from '@mui/icons-material/Business';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import PaymentsIcon from '@mui/icons-material/Payments';
-import PrecisionManufacturingIcon from '@mui/icons-material/PrecisionManufacturing';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
 import { useSelector } from 'react-redux';
 import { useState } from 'react';
@@ -94,34 +91,12 @@ const ALL_REPORT_CARDS = [
     roles: ['admin']
   },
   {
-    title: 'Vendor Reports',
-    description: 'Supplier purchases, amounts, and outstanding payables.',
-    path: '/reports/vendors',
-    icon: BusinessIcon,
-    roles: ['admin']
-  },
-  {
-    title: 'Movement & Alerts',
-    description: 'Fast-moving and slow-moving items.',
-    path: '/reports/movement',
-    icon: TimelineIcon,
-    roles: ['admin']
-  },
-  {
     title: 'Age Analysis',
     description: 'Stock age distribution by 0-10, 10-30, 30-60, 60-90, 90+ days.',
     path: '/reports/age-analysis',
     icon: HourglassEmptyIcon,
     roles: ['admin'],
     aliases: ['inventory age', 'slow moving']
-  },
-  {
-    title: 'Production Yield Analysis',
-    description: 'Track fabrication efficiency and contractor wastage.',
-    path: '/reports/production/yield',
-    icon: PrecisionManufacturingIcon,
-    roles: ['admin'],
-    aliases: ['wastage', 'yield', 'production']
   },
   {
     title: 'Consolidated Stock (Multi-Store)',

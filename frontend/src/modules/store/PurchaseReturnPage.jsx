@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { useDispatch, useSelector } from 'react-redux';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import {
@@ -51,6 +52,7 @@ function PurchaseReturnPage() {
     const barcodeInputRef = useRef(null);
     const [remarks, setRemarks] = useState('');
     const [error, setError] = useState('');
+    const [qtyDraft, setQtyDraft] = useState({});
 
     useEffect(() => {
         dispatch(fetchMasters('warehouses'));
@@ -71,7 +73,7 @@ function PurchaseReturnPage() {
     const variantOptions = useMemo(() => {
         return myStoreStock.map((s) => ({
             productId: s.productId || s.itemId?._id || s.itemId?.id,
-            variantId: s.variantId,
+            variantId: s.variantId || s.productId,
             itemName: s.itemName || s.itemId?.itemName || 'Item',
             itemCode: s.itemCode || s.styleCode || s.sku || '',
             sku: s.itemCode || s.sku || s.barcode || '',
@@ -79,7 +81,7 @@ function PurchaseReturnPage() {
             size: s.size,
             color: s.color,
             available: s.available ?? s.quantity ?? s.availableStock ?? 0,
-        })).filter(o => o.available > 0);
+        })).filter((o) => o.variantId && o.available > 0);
     }, [myStoreStock]);
 
     const filteredOptions = useMemo(() => {
@@ -170,9 +172,20 @@ function PurchaseReturnPage() {
     };
 
     const updateQuantity = (variantId, val) => {
-        setLines(prev => prev.map(l => {
+        if (val === '' || val === '-') {
+            setQtyDraft((prev) => ({ ...prev, [variantId]: val }));
+            return;
+        }
+        const parsed = Number(val);
+        if (!Number.isFinite(parsed)) return;
+        setQtyDraft((prev) => {
+            const next = { ...prev };
+            delete next[variantId];
+            return next;
+        });
+        setLines((prev) => prev.map((l) => {
             if (l.variantId !== variantId) return l;
-            const q = Math.max(1, Math.min(Number(val), l.available));
+            const q = Math.max(1, Math.min(parsed, l.available));
             return { ...l, quantity: q };
         }));
     };
@@ -242,8 +255,8 @@ function PurchaseReturnPage() {
                             size="small"
                             options={activeWarehouses}
                             getOptionLabel={(o) => o.name || ''}
-                            value={activeWarehouses.find((w) => w.id === targetId) || null}
-                            onChange={(_, v) => setTargetId(v?.id || '')}
+                            value={activeWarehouses.find((w) => (w.id || w._id) === targetId) || null}
+                            onChange={(_, v) => setTargetId(v?.id || v?._id || '')}
                             renderInput={(params) => <TextField {...params} label="Return to Warehouse" required />}
                             sx={{ minWidth: 250 }}
                         />
@@ -322,8 +335,13 @@ function PurchaseReturnPage() {
                                             <TextField
                                                 size="small"
                                                 type="number"
-                                                value={line.quantity}
+                                                value={qtyDraft[line.variantId] ?? line.quantity}
                                                 onChange={(e) => updateQuantity(line.variantId, e.target.value)}
+                                                onBlur={() => setQtyDraft((prev) => {
+                                                    const next = { ...prev };
+                                                    delete next[line.variantId];
+                                                    return next;
+                                                })}
                                                 inputProps={{ style: { textAlign: 'right', width: 80 } }}
                                             />
                                         </TableCell>
@@ -395,7 +413,7 @@ function PurchaseReturnPage() {
                                     return (
                                         <TableRow key={row._id || row.id} hover>
                                             <TableCell>
-                                                {row.initiatedAt ? new Date(row.initiatedAt).toLocaleDateString() : new Date(row.createdAt).toLocaleDateString()}
+                                                {row.initiatedAt ? formatDateDDMMYYYY(row.initiatedAt) : formatDateDDMMYYYY(row.createdAt)}
                                             </TableCell>
                                             <TableCell sx={{ fontWeight: 700 }}>
                                                 {row.returnNumber}

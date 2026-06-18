@@ -54,7 +54,7 @@ function ProfitReportPage() {
         },
       });
       // The backend returns { report: [...] }
-      setData(response.data.report || []);
+      setData(response.data.data?.report || response.data.report || []);
     } catch (err) {
       setError(getFriendlyErrorMessage(err, 'Profit data load karne mein dikkat hui.'));
     } finally {
@@ -102,7 +102,7 @@ function ProfitReportPage() {
             </Box>
             <ReportExportButton 
                 rows={exportRows} 
-                filename="Profit_Analysis_Report" 
+                filename="Profit_Analysis_Report.xlsx" 
                 headers={['Item', 'SKU', 'Variant', 'Qty Sold', 'Total Cost', 'Revenue', 'Profit', 'Margin %']}
                 headerKeys={['Item', 'SKU', 'Variant', 'Qty Sold', 'Total Cost', 'Revenue', 'Profit', 'Margin %']}
             />

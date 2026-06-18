@@ -1,4 +1,5 @@
 import { useSelector } from 'react-redux';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { Box, Divider, Grid, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography, Stack } from '@mui/material';
 
 const ExchangeInvoicePrint = ({ sale }) => {
@@ -55,7 +56,7 @@ const ExchangeInvoicePrint = ({ sale }) => {
                 <Grid item xs={6}>
                     <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 800 }}>Invoice Details:</Typography>
                     <Typography variant="body2"><strong>Invoice #:</strong> {sale.saleNumber}</Typography>
-                    <Typography variant="body2"><strong>Date:</strong> {new Date(sale.saleDate).toLocaleDateString('en-IN')}</Typography>
+                    <Typography variant="body2"><strong>Date:</strong> {formatDateDDMMYYYY(sale.saleDate)}</Typography>
                     <Typography variant="body2"><strong>Mode:</strong> {sale.paymentMode}</Typography>
                 </Grid>
                 <Grid item xs={6} sx={{ textAlign: 'right' }}>

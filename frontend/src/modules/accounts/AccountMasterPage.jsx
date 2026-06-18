@@ -34,7 +34,7 @@ const accountFields = [
       { value: 'EQUITY', label: 'Equity (e.g. Capital)' },
     ],
   },
-  { name: 'openingBalance', label: 'Opening Balance', type: 'number', defaultValue: 0 },
+  { name: 'openingBalance', label: 'Opening Balance', type: 'number', defaultValue: 0, validate: (v) => Number(v) >= 0 || 'Opening balance cannot be negative' },
   { name: 'description', label: 'Description', multiline: true },
 ];
 

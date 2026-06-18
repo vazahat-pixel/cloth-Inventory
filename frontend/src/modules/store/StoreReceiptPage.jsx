@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import {
   Box,
   Button,
@@ -165,7 +166,7 @@ function StoreReceiptPage() {
                       sx={{ fontWeight: 700 }}
                     />
                   </TableCell>
-                  <TableCell>{d.dispatchedAt ? new Date(d.dispatchedAt).toLocaleDateString() : 'N/A'}</TableCell>
+                  <TableCell>{d.dispatchedAt ? formatDateDDMMYYYY(d.dispatchedAt) : 'N/A'}</TableCell>
                   <TableCell>{d.items?.length || 0} Products</TableCell>
                   <TableCell>
                     <Chip 

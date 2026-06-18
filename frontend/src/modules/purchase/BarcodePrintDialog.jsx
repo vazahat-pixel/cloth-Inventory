@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { formatDateDDMMYYYY } from '../../utils/formatters';
 import {
   Box,
   Button,
@@ -292,7 +293,7 @@ function BarcodePrintDialog({ open, onClose, purchase, lines = [], warehouseMap 
       <DialogContent dividers>
         {purchase && (
           <Typography variant="body2" sx={{ mb: 2, color: '#64748b' }}>
-            Bill: {purchase.billNumber} · {purchase.billDate}
+            Bill: {purchase.billNumber} · {formatDateDDMMYYYY(purchase.billDate)}
           </Typography>
         )}
 

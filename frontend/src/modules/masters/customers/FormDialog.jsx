@@ -19,8 +19,8 @@ const baseCustomerFields = [
   { name: 'state', label: 'State', required: true, pattern: { value: /^[A-Za-z\s]+$/, message: 'State can only contain alphabets and spaces' } },
   { name: 'pincode', label: 'Pincode', required: true, pattern: { value: /^\d{6}$/, message: 'Pincode must be exactly 6 digits' } },
   { name: 'address', label: 'Address', multiline: true, minRows: 2, required: true },
-  { name: 'loyaltyPoints', label: 'Loyalty Points', type: 'number', required: true, defaultValue: 0 },
-  { name: 'creditLimit', label: 'Credit Limit', type: 'number', required: true, defaultValue: 0 },
+  { name: 'loyaltyPoints', label: 'Loyalty Points', type: 'number', required: true, defaultValue: 0, validate: (v) => Number(v) >= 0 || 'Loyalty points cannot be negative' },
+  { name: 'creditLimit', label: 'Credit Limit', type: 'number', required: true, defaultValue: 0, validate: (v) => Number(v) >= 0 || 'Credit limit cannot be negative' },
   {
     name: 'status',
     label: 'Status',
@@ -46,12 +46,14 @@ function CustomersFormDialog({ open, onClose, onSubmit, initialValues }) {
       name: 'groupId',
       label: 'Group (Area / Week)',
       type: 'select',
+      size: 12,
       options: [{ value: '', label: '— None —' }, ...groupOptions],
     };
     const saleNatureField = {
       name: 'saleNature',
       label: 'Sale Nature',
       type: 'select',
+      size: 12,
       options: [{ value: '', label: '— None —' }, ...saleNatureOptions],
     };
     return [

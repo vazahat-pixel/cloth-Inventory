@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import {
   Box,
   Chip,
@@ -27,7 +28,7 @@ import AccountEntryDialog from '../shared/AccountEntryDialog';
 // Helper to format ISO date to dd-MM-yyyy
 const fmtDate = (d) => {
   if (!d) return '—';
-  try { return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); }
+  try { return formatDateDDMMYYYY(d); }
   catch { return String(d); }
 };
 

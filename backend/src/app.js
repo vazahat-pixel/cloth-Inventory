@@ -17,8 +17,9 @@ const limiter = rateLimit({
     max: 1000,
     message: { success: false, message: 'Too many requests from this IP' }
 });
-// app.use('/api/', limiter); // Disable limiter temporarily for verification
-app.use('/api/', limiter);
+if (process.env.NODE_ENV === 'production') {
+    app.use('/api/', limiter);
+}
 
 // ── CORS ─────────────────────────────────────────────────────────
 const allowedOrigins = process.env.ALLOWED_ORIGINS

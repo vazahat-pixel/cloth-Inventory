@@ -14,7 +14,7 @@ import QuickActions from "./components/QuickActions";
 import { useAppNavigate } from "../../hooks/useAppNavigate";
 import { fetchSales } from "../../modules/sales/salesSlice";
 import { fetchPurchases } from "../../modules/purchase/purchaseSlice";
-import { fetchStockOverview } from "../../modules/inventory/inventorySlice";
+import { fetchHomeStockStats } from "../../modules/inventory/inventorySlice";
 import { fetchCompanyProfile } from "../../modules/settings/settingsSlice";
 
 function formatCurrency(value) {
@@ -76,22 +76,36 @@ function DashboardHome() {
   const navigate = useAppNavigate();
   const location = useLocation();
 
-  const stockLoading = useSelector((state) => state.inventory?.loading);
-
-  useEffect(() => {
-    dispatch(fetchSales());
-    dispatch(fetchPurchases());
-    dispatch(fetchStockOverview());
-    dispatch(fetchCompanyProfile());
-  }, [dispatch, location.key]);
-
+  const stockLoading = useSelector((state) => state.inventory?.homeStockLoading);
+  const homeStockStats = useSelector((state) => state.inventory?.homeStockStats);
   const sales = useSelector((state) => state.sales?.records ?? [], shallowEqual);
   const purchase = useSelector((state) => state.purchase?.records ?? [], shallowEqual);
-  const stock = useSelector((state) => state.inventory?.storeStock ?? state.inventory?.stock ?? [], shallowEqual);
   const preferences = useSelector((state) => state.settings?.preferences);
   const lowStockThreshold = preferences?.lowStockThreshold ?? 10;
   const user = useSelector((state) => state.auth?.user);
   const isAdmin = user?.role === "Admin" || user?.role === "admin" || user?.role === "superadmin";
+
+  const [range, setRange] = useState(RANGE_TODAY);
+  const todayKey = getDateKey(new Date());
+  const monthKey = todayKey.slice(0, 7);
+  const monthStartDate = useMemo(() => `${monthKey}-01`, [monthKey]);
+
+  useEffect(() => {
+    dispatch(fetchSales({
+      startDate: monthStartDate,
+      endDate: todayKey,
+      limit: 500,
+      page: 1,
+    }));
+    dispatch(fetchPurchases({
+      dateFrom: monthStartDate,
+      dateTo: todayKey,
+      limit: 500,
+      page: 1,
+    }));
+    dispatch(fetchHomeStockStats({ lowStockThreshold }));
+    dispatch(fetchCompanyProfile());
+  }, [dispatch, location.key, monthStartDate, todayKey, lowStockThreshold]);
 
   const [discountKey, setDiscountKey] = useState("");
   const [generatingKey, setGeneratingKey] = useState(false);
@@ -118,10 +132,6 @@ function DashboardHome() {
       setTimeout(() => setCopied(false), 2000);
     }
   };
-
-  const [range, setRange] = useState(RANGE_TODAY);
-  const todayKey = getDateKey(new Date());
-  const monthKey = todayKey.slice(0, 7);
 
   const filteredSales = useMemo(() => {
     const records = sales.filter((record) => {
@@ -153,14 +163,6 @@ function DashboardHome() {
   );
 
   const kpis = useMemo(() => {
-    if (stockLoading) {
-      return {
-        totalSales: filteredSales.reduce((sum, record) => sum + getSalesAmount(record), 0),
-        totalPurchase: filteredPurchase.reduce((sum, record) => sum + getPurchaseAmount(record), 0),
-        totalItems: null,
-        lowStockCount: null,
-      };
-    }
     const totalSales = filteredSales.reduce(
       (sum, record) => sum + getSalesAmount(record),
       0,
@@ -169,18 +171,23 @@ function DashboardHome() {
       (sum, record) => sum + getPurchaseAmount(record),
       0,
     );
-    const totalItems = stock.length;
-    const lowStockCount = stock.filter(
-      (item) => (item.quantity ?? 0) <= lowStockThreshold,
-    ).length;
+
+    if (stockLoading) {
+      return {
+        totalSales,
+        totalPurchase,
+        totalItems: null,
+        lowStockCount: null,
+      };
+    }
 
     return {
       totalSales,
       totalPurchase,
-      totalItems,
-      lowStockCount,
+      totalItems: homeStockStats?.totalRows ?? 0,
+      lowStockCount: homeStockStats?.lowStockCount ?? 0,
     };
-  }, [filteredPurchase, filteredSales, lowStockThreshold, stock, stockLoading]);
+  }, [filteredPurchase, filteredSales, homeStockStats, stockLoading]);
 
   const chartData = useMemo(() => {
     if (range === RANGE_TODAY) {
@@ -213,16 +220,8 @@ function DashboardHome() {
   }, [filteredSales, monthKey, range]);
 
   const lowStockItems = useMemo(
-    () =>
-      stock
-        .filter((item) => (item.quantity ?? 0) <= lowStockThreshold)
-        .map((item) => ({
-          id: item.id,
-          itemName: item.itemName,
-          sku: item.sku,
-          quantity: item.quantity ?? 0,
-        })),
-    [lowStockThreshold, stock],
+    () => (stockLoading ? [] : (homeStockStats?.lowStockItems ?? [])),
+    [homeStockStats, stockLoading],
   );
 
   const isTodayRange = range === RANGE_TODAY;

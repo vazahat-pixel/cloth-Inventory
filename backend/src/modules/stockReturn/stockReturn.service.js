@@ -107,6 +107,32 @@ const receiveReturn = async (id, userId) => {
     });
 };
 
+const enrichReturnItems = async (returns) => {
+    const Item = require('../../models/item.model');
+    const list = Array.isArray(returns) ? returns : [returns];
+    for (const doc of list) {
+        if (!doc?.items?.length) continue;
+        for (const line of doc.items) {
+            const variantRef = line.variantId;
+            const variantIdStr = String(variantRef?._id || variantRef || '');
+            if (!variantIdStr) continue;
+            const item = await Item.findOne({ 'sizes._id': variantIdStr }).select('itemName sizes').lean()
+                || await Item.findById(variantIdStr).select('itemName sizes').lean();
+            const sizeRow = item?.sizes?.find((sz) => String(sz._id) === variantIdStr);
+            line.variantId = {
+                _id: variantIdStr,
+                name: item?.itemName || variantRef?.name || 'Returned Item',
+                itemName: item?.itemName || variantRef?.name || 'Returned Item',
+                sku: sizeRow?.sku || variantRef?.sku || '-',
+                barcode: sizeRow?.barcode || variantRef?.barcode || '',
+                size: sizeRow?.size || 'UNI',
+                color: sizeRow?.color || '-',
+            };
+        }
+    }
+    return returns;
+};
+
 const getReturns = async (query = {}, user = null) => {
     const filter = {};
     if (user && user.role === 'store_staff') {
@@ -117,18 +143,22 @@ const getReturns = async (query = {}, user = null) => {
     if (query.sourceId) filter.sourceStoreId = query.sourceId;
     if (query.destinationId) filter.destinationWarehouseId = query.destinationId;
 
-    return await StockReturn.find(filter)
+    const results = await StockReturn.find(filter)
         .sort({ createdAt: -1 })
         .populate('sourceStoreId', 'name')
         .populate('destinationWarehouseId', 'name')
         .populate('items.variantId', 'name sku barcode');
+    await enrichReturnItems(results);
+    return results;
 };
 
 const getReturnById = async (id) => {
-    return await StockReturn.findById(id)
+    const doc = await StockReturn.findById(id)
         .populate('sourceStoreId')
         .populate('destinationWarehouseId')
         .populate('items.variantId', 'name sku barcode');
+    await enrichReturnItems(doc);
+    return doc;
 };
 
 module.exports = {

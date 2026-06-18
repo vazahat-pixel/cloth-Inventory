@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import { useSelector, useDispatch } from 'react-redux';
 import {
@@ -157,8 +158,8 @@ function VoucherListPage() {
                         {row.code}
                       </TableCell>
                       <TableCell align="right">₹{Number(row.amount || 0).toFixed(2)}</TableCell>
-                      <TableCell>{row.issueDate || '-'}</TableCell>
-                      <TableCell>{row.expiryDate || '-'}</TableCell>
+                      <TableCell>{formatDateDDMMYYYY(row.issueDate) || '-'}</TableCell>
+                      <TableCell>{formatDateDDMMYYYY(row.expiryDate) || '-'}</TableCell>
                       <TableCell>{customerMap[row.customerId] || '-'}</TableCell>
                       <TableCell>
                         <Chip

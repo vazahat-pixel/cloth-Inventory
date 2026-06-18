@@ -1,6 +1,7 @@
-import { Button } from '@mui/material';
+import { useState } from 'react';
+import { Button, CircularProgress } from '@mui/material';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
-import useExportData from '../../hooks/useExportData';
+import { exportRowsToWorkbook } from '../../utils/exportHelpers';
 
 function ExportButton({
   rows = [],
@@ -10,18 +11,35 @@ function ExportButton({
   label = 'Export Excel',
   variant = 'outlined',
   size = 'medium',
+  loadRows,
 }) {
-  const { handleExport } = useExportData({ rows, columns, filename, sheetName });
+  const [loading, setLoading] = useState(false);
+
+  const handleExport = async () => {
+    let exportRows = rows;
+    if (loadRows) {
+      setLoading(true);
+      try {
+        exportRows = await loadRows();
+      } catch {
+        return;
+      } finally {
+        setLoading(false);
+      }
+    }
+    if (!exportRows?.length) return;
+    exportRowsToWorkbook({ rows: exportRows, columns, filename, sheetName });
+  };
 
   return (
     <Button
       variant={variant}
       size={size}
-      startIcon={<FileDownloadOutlinedIcon />}
+      startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <FileDownloadOutlinedIcon />}
       onClick={handleExport}
-      disabled={!rows.length}
+      disabled={loading || (!rows.length && !loadRows)}
     >
-      {label}
+      {loading ? 'Preparing…' : label}
     </Button>
   );
 }

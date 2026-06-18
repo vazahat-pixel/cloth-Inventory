@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
@@ -23,6 +24,7 @@ import ReportExportButton from './ReportExportButton';
 import { SummaryChip } from './SalesReportPage';
 import { fetchSalesForReport } from '../sales/salesSlice';
 import { fetchStockOverview } from '../inventory/inventorySlice';
+import { fetchItems } from '../items/itemsSlice';
 import { REPORT_FETCH_PARAMS } from './reportConstants';
 
 const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
@@ -37,8 +39,9 @@ function MovementReportPage() {
   const stock = useSelector((state) => state.inventory?.storeStock || state.inventory?.stock || []);
 
   useEffect(() => {
-    dispatch(fetchSalesForReport({}));
+    dispatch(fetchSalesForReport(REPORT_FETCH_PARAMS));
     dispatch(fetchStockOverview(REPORT_FETCH_PARAMS));
+    dispatch(fetchItems({ limit: 500 }));
   }, [dispatch]);
 
   const [filters, setFilters] = useState({});
@@ -70,7 +73,9 @@ function MovementReportPage() {
   const variantStockMap = useMemo(() => {
     const map = {};
     stock.forEach((s) => {
-      map[s.variantId] = (map[s.variantId] || 0) + toNum(s.quantity);
+      const vid = String(s.productId || s.variantId || '');
+      if (!vid) return;
+      map[vid] = (map[vid] || 0) + toNum(s.available ?? s.quantity);
     });
     return map;
   }, [stock]);
@@ -79,10 +84,10 @@ function MovementReportPage() {
     const rows = [];
     items.forEach((item) => {
       item.variants?.forEach((v) => {
-        const salesData = variantSalesMap[v.id];
+        const salesData = variantSalesMap[v.id || v._id];
         const qtySold = salesData?.totalQty || 0;
         const lastSoldDate = salesData?.lastSoldDate || null;
-        const currentStock = variantStockMap[v.id] || 0;
+        const currentStock = variantStockMap[String(v.id || v._id)] || 0;
 
         let daysSinceSold = null;
         if (lastSoldDate) {
@@ -264,7 +269,7 @@ function MovementReportPage() {
                   <TableCell sx={{ fontFamily: 'monospace' }}>{row.sku}</TableCell>
                   <TableCell align="right">{row.qtySold}</TableCell>
                   <TableCell align="right">{row.currentStock}</TableCell>
-                  <TableCell>{row.lastSoldDate || '-'}</TableCell>
+                  <TableCell>{formatDateDDMMYYYY(row.lastSoldDate) || '-'}</TableCell>
                   <TableCell align="right">{row.daysSinceSold ?? '-'}</TableCell>
                   <TableCell>
                     {row.movement === 'Fast' ? (

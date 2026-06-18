@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
+import { useSearchParams } from 'react-router-dom';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import { useDispatch, useSelector } from 'react-redux';
 import useDebouncedValue from '../../hooks/useDebouncedValue';
@@ -67,9 +69,11 @@ function SalesListPage({
   const canManageSales = user?.role === 'Admin' || user?.role === 'admin';
   const canCancelOrDelete = user?.role && user.role !== 'store_staff';
 
+  const [searchParams] = useSearchParams();
   const [searchText, setSearchText] = useState('');
   const debouncedSearch = useDebouncedValue(searchText, 350);
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('all');
+  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState(searchParams.get('status') || 'all');
   const [dateFilter, setDateFilter] = useState('');
   const {
     page,
@@ -128,17 +132,19 @@ function SalesListPage({
     const params = buildParams({
       search: debouncedSearch,
       ...(paymentStatusFilter !== 'all' ? { paymentStatus: paymentStatusFilter } : {}),
+      ...(invoiceStatusFilter !== 'all' ? { status: invoiceStatusFilter } : {}),
       ...(dateFilter ? { date: dateFilter } : {}),
     });
     dispatch(fetchSales(params));
     dispatch(fetchMasters('customers'));
     dispatch(fetchMasters('warehouses'));
-  }, [dispatch, debouncedSearch, paymentStatusFilter, dateFilter, page, rowsPerPage, buildParams]);
+  }, [dispatch, debouncedSearch, paymentStatusFilter, invoiceStatusFilter, dateFilter, page, rowsPerPage, buildParams]);
 
   const refreshSales = () => {
     const params = buildParams({
       search: debouncedSearch,
       ...(paymentStatusFilter !== 'all' ? { paymentStatus: paymentStatusFilter } : {}),
+      ...(invoiceStatusFilter !== 'all' ? { status: invoiceStatusFilter } : {}),
       ...(dateFilter ? { date: dateFilter } : {}),
     });
     dispatch(fetchSales(params));
@@ -277,7 +283,7 @@ function SalesListPage({
                     return (
                       <TableRow key={row.id} hover>
                         <TableCell sx={{ fontWeight: 700 }}>{row.invoiceNumber}</TableCell>
-                        <TableCell>{row.date}</TableCell>
+                        <TableCell>{formatDateDDMMYYYY(row.date)}</TableCell>
                         <TableCell>
                           <Typography variant="body2" sx={{ fontWeight: 600 }}>
                             {customerName}

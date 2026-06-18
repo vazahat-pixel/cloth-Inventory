@@ -42,13 +42,16 @@ export const billingNavItems = [
   {
     key: 'sale-challan',
     label: 'Sale Challan History',
-    path: '/sales/sale-challan',
+    path: '/orders/delivery-challan',
+    matchPaths: ['/orders/delivery-challan'],
+    exactMatch: true,
     icon: LocalShippingOutlinedIcon,
   },
   {
     key: 'new-sale-challan',
     label: 'New Sale Challan',
-    path: '/sales/sale-challan/new',
+    path: '/orders/delivery-challan/new',
+    matchPaths: ['/orders/delivery-challan/new'],
     icon: LocalShippingOutlinedIcon,
   },
   {
@@ -60,13 +63,16 @@ export const billingNavItems = [
   {
     key: 'packing-slip-delivery-order',
     label: 'Packing Slip / Delivery',
-    path: '/sales/packing-slip-delivery-order',
+    path: '/orders/delivery-challan',
+    matchPaths: ['/orders/delivery-challan'],
+    exactMatch: true,
     icon: Inventory2OutlinedIcon,
   },
   {
     key: 'cancel-sale-bills',
     label: 'Cancel Sale Bills',
-    path: '/sales/cancel-sale-bills',
+    path: '/sales/sale-bill?status=CANCELLED',
+    matchPaths: ['/sales/sale-bill'],
     icon: BlockOutlinedIcon,
   },
   {

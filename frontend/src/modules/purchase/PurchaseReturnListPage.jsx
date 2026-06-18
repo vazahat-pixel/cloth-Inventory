@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
@@ -123,7 +124,7 @@ function PurchaseReturnListPage() {
               {paginatedRows.length > 0 ? (
                 paginatedRows.map((row) => (
                   <TableRow key={row._id || row.id} hover>
-                    <TableCell sx={{ fontSize: 13 }}>{new Date(row.createdAt).toLocaleDateString()}</TableCell>
+                    <TableCell sx={{ fontSize: 13 }}>{formatDateDDMMYYYY(row.createdAt)}</TableCell>
                     <TableCell sx={{ fontWeight: 700, color: '#0f172a', fontSize: 13 }}>{row.returnNumber}</TableCell>
                     <TableCell sx={{ fontSize: 13 }}>{row.supplierName || supplierMap[row.supplierId] || 'Unknown Supplier'}</TableCell>
                     <TableCell sx={{ fontSize: 13 }}>{locationMap[row.locationId] || row.locationId || 'Main Warehouse'}</TableCell>

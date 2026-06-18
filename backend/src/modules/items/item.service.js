@@ -74,11 +74,6 @@ const isPlaceholderSku = (sku) => {
 };
 
 const syncBmCounterFromDatabase = async () => {
-  const counter = await Counter.findOne({ name: BM_COUNTER_NAME });
-  if (counter?.seq >= BM_MIN_SEQ - 1) {
-    return counter.seq;
-  }
-
   const items = await Item.find({
     $or: [{ itemCode: /^BM\d+$/i }, { 'sizes.sku': /^BM\d+$/i }, { 'sizes.barcode': /^BM\d+$/i }],
   })
@@ -103,25 +98,84 @@ const syncBmCounterFromDatabase = async () => {
   return maxSeq;
 };
 
-const peekBmCodes = async (count = 1) => {
-  const safeCount = Math.max(1, Number(count) || 1);
-  const counter = await Counter.findOne({ name: BM_COUNTER_NAME });
-  const maxSeq = counter?.seq >= BM_MIN_SEQ - 1 ? counter.seq : await syncBmCounterFromDatabase();
-  const startSeq = Math.max(maxSeq, BM_MIN_SEQ - 1) + 1;
-  return Array.from({ length: safeCount }, (_, index) => formatBmCode(startSeq + index));
+const isBmCodeTaken = async (code, excludeItemId = null) => {
+  const upper = String(code || '').trim().toUpperCase();
+  if (!upper) return false;
+  const filter = {
+    $or: [{ itemCode: upper }, { 'sizes.sku': upper }, { 'sizes.barcode': upper }],
+  };
+  if (excludeItemId) filter._id = { $ne: excludeItemId };
+  const found = await Item.findOne(filter).select('_id itemCode').lean();
+  return Boolean(found);
 };
 
-const allocateBmCodes = async (count = 1) => {
+const collectNextAvailableBmCodes = async (count = 1, excludeItemId = null) => {
   const safeCount = Math.max(1, Number(count) || 1);
   await syncBmCounterFromDatabase();
-  const counter = await Counter.findOneAndUpdate(
+  const counter = await Counter.findOne({ name: BM_COUNTER_NAME });
+  let seq = Math.max(counter?.seq || BM_MIN_SEQ - 1, BM_MIN_SEQ - 1);
+  const codes = [];
+
+  while (codes.length < safeCount) {
+    seq += 1;
+    const code = formatBmCode(seq);
+    // eslint-disable-next-line no-await-in-loop
+    const taken = await isBmCodeTaken(code, excludeItemId);
+    if (!taken) codes.push(code);
+  }
+
+  return { codes, endSeq: seq };
+};
+
+const peekBmCodes = async (count = 1) => {
+  const { codes } = await collectNextAvailableBmCodes(count);
+  return codes;
+};
+
+const allocateBmCodes = async (count = 1, excludeItemId = null) => {
+  const { codes, endSeq } = await collectNextAvailableBmCodes(count, excludeItemId);
+  await Counter.findOneAndUpdate(
     { name: BM_COUNTER_NAME },
-    { $inc: { seq: safeCount } },
-    { upsert: true, new: true },
+    { $set: { seq: endSeq } },
+    { upsert: true },
   );
-  const endSeq = Math.max(counter.seq, BM_MIN_SEQ);
-  const startSeq = endSeq - safeCount + 1;
-  return Array.from({ length: safeCount }, (_, index) => formatBmCode(startSeq + index));
+  return codes;
+};
+
+const validateUniqueSkusWithinSizes = (sizes = []) => {
+  const seen = new Set();
+  sizes.forEach((entry) => {
+    const sku = String(entry.sku || '').trim().toUpperCase();
+    if (!sku) return;
+    if (seen.has(sku)) {
+      throw new Error(`Is item me do variants ka same SKU "${sku}" hai. Har size/color ka alag SKU hona chahiye.`);
+    }
+    seen.add(sku);
+  });
+};
+
+const assertSkuNotUsedElsewhere = async (sku, excludeItemId = null) => {
+  const upper = String(sku || '').trim().toUpperCase();
+  if (!upper) return;
+  const filter = {
+    $or: [{ 'sizes.sku': upper }, { 'sizes.barcode': upper }, { itemCode: upper }],
+  };
+  if (excludeItemId) filter._id = { $ne: excludeItemId };
+  const found = await Item.findOne(filter).select('itemCode itemName').lean();
+  if (found) {
+    throw new Error(
+      `SKU/Barcode "${upper}" pehle se item "${found.itemCode}"${found.itemName ? ` (${found.itemName})` : ''} me use ho raha hai. Naya SKU ya auto-generate use karein.`,
+    );
+  }
+};
+
+const validateSizeSkusForSave = async (sizes = [], excludeItemId = null) => {
+  validateUniqueSkusWithinSizes(sizes);
+  const checks = sizes
+    .map((entry) => String(entry.sku || '').trim().toUpperCase())
+    .filter(Boolean)
+    .map((sku) => assertSkuNotUsedElsewhere(sku, excludeItemId));
+  await Promise.all(checks);
 };
 
 const normalizeSizeCode = (value) =>
@@ -169,21 +223,38 @@ const ensureGroupsExist = async (groupIds) => {
   }
 };
 
-const ensureSizeSKUs = async (sizes = []) => {
+const ensureSizeSKUs = async (sizes = [], excludeItemId = null) => {
   if (!sizes.length) return;
-  const needsAllocation = sizes.filter((entry) => isPlaceholderSku(entry.sku));
+  validateUniqueSkusWithinSizes(sizes);
+
+  const needsAllocation = [];
+  for (const entry of sizes) {
+    if (isPlaceholderSku(entry.sku)) {
+      needsAllocation.push(entry);
+      continue;
+    }
+    const sku = String(entry.sku || '').trim().toUpperCase();
+    if (/^BM\d+$/.test(sku)) {
+      // eslint-disable-next-line no-await-in-loop
+      const taken = await isBmCodeTaken(sku, excludeItemId);
+      if (taken) {
+        entry.sku = '';
+        needsAllocation.push(entry);
+      }
+    }
+  }
+
   if (!needsAllocation.length) return;
 
-  const allocated = await allocateBmCodes(needsAllocation.length);
+  const allocated = await allocateBmCodes(needsAllocation.length, excludeItemId);
   let offset = 0;
   sizes.forEach((entry) => {
-    if (isPlaceholderSku(entry.sku)) {
-      const code = allocated[offset];
-      offset += 1;
-      entry.sku = code;
-      if (!entry.barcode || isPlaceholderSku(entry.barcode)) {
-        entry.barcode = code;
-      }
+    if (!needsAllocation.includes(entry)) return;
+    const code = allocated[offset];
+    offset += 1;
+    entry.sku = code;
+    if (!entry.barcode || isPlaceholderSku(entry.barcode)) {
+      entry.barcode = code;
     }
   });
 };
@@ -288,6 +359,37 @@ class ItemService {
     if (data.purchaseRate && !data.purchasePrice) data.purchasePrice = Number(data.purchaseRate);
     if (data.saleRate && !data.mrp) data.mrp = Number(data.saleRate);
     if (data.hsnCodeId && !data.hsCodeId) data.hsCodeId = data.hsnCodeId;
+
+    if (data.brand) {
+      const brandDoc = await Brand.findById(data.brand).select('name brandName').lean();
+      if (brandDoc) {
+        data.brandName = brandDoc.brandName || brandDoc.name || '';
+      }
+    }
+
+    if (data.hsCodeId) {
+      const hsnDoc = await HSNCode.findById(data.hsCodeId).select('code gstPercent gstRate').lean();
+      if (hsnDoc) {
+        data.hsnCode = hsnDoc.code || hsnDoc.hsnCode || '';
+        if (hsnDoc.gstPercent !== undefined) data.gstPercent = hsnDoc.gstPercent;
+        else if (hsnDoc.gstRate !== undefined) data.gstPercent = hsnDoc.gstRate;
+      }
+    }
+  }
+
+  async syncItemDenormalizedFields(item) {
+    if (item.brand) {
+      const brandDoc = await Brand.findById(item.brand).select('name brandName').lean();
+      item.brandName = brandDoc?.brandName || brandDoc?.name || item.brandName || '';
+    }
+    if (item.hsCodeId) {
+      const hsnDoc = await HSNCode.findById(item.hsCodeId).select('code gstPercent gstRate').lean();
+      if (hsnDoc) {
+        item.hsnCode = hsnDoc.code || hsnDoc.hsnCode || item.hsnCode || '';
+        if (hsnDoc.gstPercent !== undefined) item.gstPercent = hsnDoc.gstPercent;
+        else if (hsnDoc.gstRate !== undefined) item.gstPercent = hsnDoc.gstRate;
+      }
+    }
   }
 
   async getNextCode(type = 'GARMENT') {
@@ -300,18 +402,21 @@ class ItemService {
     await this.normalizeItemData(data);
     let itemCode = data.itemCode;
     const type = data.type || 'GARMENT';
-    const COUNTER_NAME = 'itemCode_BM';
-    const PREFIX = 'BM';
     if (!itemCode) {
       [itemCode] = await allocateBmCodes(1);
     } else if (/^BM\d{4,}$/i.test(itemCode)) {
       const num = parseInt(itemCode.replace(/^BM/i, ''), 10);
       if (!isNaN(num)) {
-        await Counter.findOneAndUpdate(
-          { name: COUNTER_NAME },
-          { $max: { seq: num } },
-          { upsert: true, new: true }
-        );
+        const taken = await isBmCodeTaken(itemCode);
+        if (taken) {
+          [itemCode] = await allocateBmCodes(1);
+        } else {
+          await Counter.findOneAndUpdate(
+            { name: BM_COUNTER_NAME },
+            { $max: { seq: num } },
+            { upsert: true, new: true },
+          );
+        }
       }
     }
     const existingItem = await Item.findOne({ itemCode });
@@ -324,6 +429,7 @@ class ItemService {
     await ensureGroupsExist(groupIds);
     if ((data.type || 'GARMENT').toUpperCase() === 'GARMENT' && (!Array.isArray(data.sizes) || !data.sizes.length)) throw new Error('Finished Garment item must have at least one size variant');
     await ensureSizeSKUs(data.sizes);
+    await validateSizeSkusForSave(data.sizes);
     const item = new Item({ ...data, itemCode, groupIds, sizes: data.sizes || [], type: (data.type || 'GARMENT').toUpperCase() });
     await item.save();
     return populateItem(item._id);
@@ -356,7 +462,11 @@ class ItemService {
       if (existing) throw new Error(`Style Code ${data.itemCode} is already used.`);
     }
     if (item.groupIds?.length > 0) await ensureGroupsExist(item.groupIds);
-    if (item.sizes) await ensureSizeSKUs(item.sizes);
+    if (item.sizes) {
+      await ensureSizeSKUs(item.sizes, item._id);
+      await validateSizeSkusForSave(item.sizes, item._id);
+    }
+    await this.syncItemDenormalizedFields(item);
     await item.save();
     return populateItem(item._id);
   }
@@ -376,10 +486,12 @@ class ItemService {
       brand: 'brandName',
       createdAt: 'createdAt',
     }, { createdAt: -1 });
-    const listSelect = 'itemCode itemName brandName sectionName categoryName hsnCode gstPercent sizes type isActive createdAt';
+    const listSelect = 'itemCode itemName brand brandName sectionName categoryName hsnCode gstPercent hsCodeId sizes type isActive createdAt';
     const [items, total] = await Promise.all([
       Item.find(filter)
         .select(listSelect)
+        .populate('brand', 'name brandName')
+        .populate('hsCodeId', 'code hsnCode gstRate gstPercent')
         .sort(sort)
         .skip(skip)
         .limit(limit)

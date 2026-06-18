@@ -560,11 +560,13 @@ const transferStock = async ({ itemId, barcode, variantId, fromLocationId, fromL
 /**
  * Backward compatibility helpers
  */
-const adjustWarehouseStock = async ({ productId, variantId, warehouseId, quantityChange, type, referenceId, referenceModel, performedBy, notes, session }) => {
+const adjustWarehouseStock = async ({ productId, variantId, warehouseId, quantityChange, type, referenceId, referenceModel, performedBy, notes, session, barcode, itemId }) => {
     const numericChange = toFiniteNumber(quantityChange);
 
     if (numericChange > 0) {
         return addStock({
+            itemId,
+            barcode,
             variantId: variantId || productId,
             locationId: warehouseId,
             locationType: 'WAREHOUSE',
@@ -577,6 +579,8 @@ const adjustWarehouseStock = async ({ productId, variantId, warehouseId, quantit
         });
     } else {
         return removeStock({
+            itemId,
+            barcode,
             variantId: variantId || productId,
             locationId: warehouseId,
             locationType: 'WAREHOUSE',

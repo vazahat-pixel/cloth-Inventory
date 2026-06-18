@@ -37,6 +37,7 @@ import { useAppNavigate } from '../../hooks/useAppNavigate';
 import useRoleBasePath from '../../hooks/useRoleBasePath';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchItems } from '../items/itemsSlice';
+import { itemPickerParams } from '../items/itemFetchConstants';
 import { fetchPurchaseOrders, fetchPurchaseOrderById, addPurchaseOrder, updatePurchaseOrder, updatePurchaseOrderStatus } from './purchaseSlice';
 import { loadModuleRecords } from '../erp/erpLocalStore';
 import {
@@ -138,7 +139,7 @@ function PurchaseOrderFormPage({ mode = 'edit' }) {
     dispatch(fetchPurchaseOrders());
     dispatch(fetchMasters('suppliers'));
     dispatch(fetchMasters('warehouses'));
-    dispatch(fetchItems());
+    dispatch(fetchItems(itemPickerParams()));
   }, [dispatch]);
 
   useEffect(() => {

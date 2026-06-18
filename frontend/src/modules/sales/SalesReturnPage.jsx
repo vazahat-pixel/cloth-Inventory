@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams } from 'react-router-dom';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
@@ -48,6 +49,16 @@ import { fetchMasters } from '../masters/mastersSlice';
 import ReturnSummaryCard from '../../components/ReturnSummaryCard';
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
+
+const formatRefundMethod = (method) => {
+  const m = String(method || 'CASH').toUpperCase();
+  if (m === 'CASH') return 'Cash';
+  if (m === 'CARD') return 'Card';
+  if (m === 'UPI') return 'UPI';
+  if (m === 'BANK') return 'Bank Transfer';
+  if (m === 'CREDIT') return 'Credit';
+  return method || 'Cash';
+};
 
 function SalesReturnPage({
   listPath = '/sales',
@@ -317,7 +328,7 @@ function SalesReturnPage({
                       <Stack direction="row" spacing={1} alignItems="center">
                         <CalendarTodayIcon sx={{ color: '#94a3b8' }} fontSize="small" />
                         <Typography variant="caption" sx={{ color: '#64748b' }}>
-                          {new Date(s.createdAt || s.date).toLocaleDateString()} • ₹{Number(s.totalAmount || s.grandTotal || 0).toLocaleString()}
+                          {formatDateDDMMYYYY(s.createdAt || s.date)} • ₹{Number(s.totalAmount || s.grandTotal || 0).toLocaleString()}
                         </Typography>
                       </Stack>
                     </Stack>
@@ -427,7 +438,7 @@ function SalesReturnPage({
                 value={returnType}
                 onChange={(e) => setReturnType(e.target.value)}
               >
-                <FormControlLabel value="refund" control={<Radio sx={{ color: '#2563eb', '&.Mui-checked': { color: '#2563eb' } }} />} label="Refund Cash/Bank" sx={{ color: '#1e293b' }} />
+                <FormControlLabel value="refund" control={<Radio sx={{ color: '#2563eb', '&.Mui-checked': { color: '#2563eb' } }} />} label={`Refund via ${formatRefundMethod(paymentMethod)}`} sx={{ color: '#1e293b' }} />
                 <FormControlLabel value="credit_note" control={<Radio sx={{ color: '#2563eb', '&.Mui-checked': { color: '#2563eb' } }} />} label="Issue Credit Note" sx={{ color: '#1e293b' }} />
               </RadioGroup>
             </FormControl>
@@ -550,7 +561,7 @@ function SalesReturnPage({
           <DialogContentText sx={{ color: '#475569' }}>
             Are you sure you want to finalize this customer return?
             <br /><br />
-            <strong>Refund Method:</strong> {returnType === 'refund' ? `Cash/Bank (${paymentMethod})` : 'Credit Note'}
+            <strong>Refund Method:</strong> {returnType === 'refund' ? formatRefundMethod(paymentMethod) : 'Credit Note'}
             <br />
             <strong>Total Amount:</strong> ₹{totals.totalReturn.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
           </DialogContentText>

@@ -1,3 +1,5 @@
+import { formatDateDDMMYYYY } from '../../utils/formatters';
+
 /** Rows that were merged into a combined DSP master — hide from billing register */
 export const isCombinedChildDispatch = (row) =>
     Boolean(row?.isCombinedChild) || String(row?.notes || '').includes('[Combined into');
@@ -37,7 +39,7 @@ export const getDispatchDate = (row) => {
     const raw = row?.dispatchedAt || row?.createdAt || row?.date || row?.dispatchDate;
     if (!raw) return '-';
     const parsed = new Date(raw);
-    return Number.isNaN(parsed.getTime()) ? '-' : parsed.toLocaleDateString();
+    return Number.isNaN(parsed.getTime()) ? '-' : formatDateDDMMYYYY(parsed);
 };
 
 export const getDispatchStatusLabel = (status) => {

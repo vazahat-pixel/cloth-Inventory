@@ -944,13 +944,32 @@ const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) =
 
     if ((filters.categoryId && filters.categoryId !== 'all') || (filters.brandId && filters.brandId !== 'all')) {
         const itemMatch = { isDeleted: false };
+        const Item = require('../../models/item.model');
+        const mongoose = require('mongoose');
         if (filters.categoryId && filters.categoryId !== 'all') {
-            itemMatch.categoryId = new (require('mongoose').Types.ObjectId)(filters.categoryId);
+            const catId = new mongoose.Types.ObjectId(filters.categoryId);
+            itemMatch.$or = [
+                { categoryId: catId },
+                { styleId: catId },
+                { sectionId: catId },
+                { groupIds: catId },
+            ];
         }
         if (filters.brandId && filters.brandId !== 'all') {
-            itemMatch.brand = new (require('mongoose').Types.ObjectId)(filters.brandId);
+            const brandId = new mongoose.Types.ObjectId(filters.brandId);
+            const Brand = require('../../models/brand.model');
+            const brandDoc = await Brand.findById(brandId).select('brandName').lean();
+            const brandOr = [{ brand: brandId }];
+            if (brandDoc?.brandName) brandOr.push({ brandName: brandDoc.brandName });
+            if (itemMatch.$or) {
+                const categoryOr = itemMatch.$or;
+                delete itemMatch.$or;
+                itemMatch.$and = [{ $or: categoryOr }, { $or: brandOr }];
+            } else {
+                itemMatch.$or = brandOr;
+            }
         }
-        const matchingItems = await require('../../models/item.model').find(itemMatch).select('_id').lean();
+        const matchingItems = await Item.find(itemMatch).select('_id').lean();
         const itemIds = matchingItems.map(i => i._id);
         match['items.itemId'] = { $in: itemIds };
     }
@@ -1633,7 +1652,7 @@ const getProfitReport = async (startDate, endDate) => {
                 },
                 itemName: { $first: "$productData.itemName" },
                 itemCode: { $first: "$productData.itemCode" },
-                variantName: { $first: "$items.variantId" }, // Or map from productData.sizes
+                variantName: { $first: "$items.sku" },
                 qtySold: { $sum: "$items.quantity" },
                 revenue: { $sum: "$items.total" },
                 totalCost: { $sum: { $multiply: ["$items.quantity", { $ifNull: ["$productData.purchasePrice", 0] }] } }

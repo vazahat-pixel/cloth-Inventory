@@ -4,7 +4,7 @@ import api from '../../services/api';
 export const fetchYieldAnalysis = createAsyncThunk('reports/fetchYield', async (params, { rejectWithValue }) => {
     try {
         const res = await api.get('/reports/production/yield', { params });
-        return res.data.report;
+        return res.data.data?.report || res.data.report || [];
     } catch (e) { return rejectWithValue(e.response?.data?.message || e.message); }
 });
 

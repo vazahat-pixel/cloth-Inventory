@@ -111,7 +111,9 @@ function DayEndClosurePage() {
                     size="small"
                     type="number"
                     value={noteCounts[denom]}
-                    onChange={(e) => setNoteCounts({ ...noteCounts, [denom]: Math.max(0, parseInt(e.target.value || 0)) })}
+                    onFocus={(e) => { if (e.target.value === '0') setNoteCounts({ ...noteCounts, [denom]: '' }); }}
+                    onChange={(e) => setNoteCounts({ ...noteCounts, [denom]: Math.max(0, parseInt(e.target.value || 0, 10) || 0) })}
+                    onBlur={(e) => { if (e.target.value === '') setNoteCounts({ ...noteCounts, [denom]: 0 }); }}
                     sx={{ width: 100 }}
                   />
                   <Typography variant="body2" sx={{ flex: 1, textAlign: 'right', fontWeight: 600, color: '#64748b' }}>

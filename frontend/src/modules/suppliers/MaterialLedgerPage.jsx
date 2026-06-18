@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import {
   Box,
   Typography,
@@ -175,7 +176,7 @@ function MaterialLedgerPage() {
                     ) : (
                       history.map((row, idx) => (
                         <TableRow key={idx} hover>
-                          <TableCell>{new Date(row.date).toLocaleDateString()}</TableCell>
+                          <TableCell>{formatDateDDMMYYYY(row.date)}</TableCell>
                           <TableCell><Typography variant="body2" sx={{ fontWeight: 700, p:0.5, bgcolor: '#f1f5f9', borderRadius: 1 }}>{row.consumptionNumber}</Typography></TableCell>
                           <TableCell>
                             <Typography variant="caption" sx={{ display: 'block' }}>Job: {row.jobWorkNumber}</Typography>

@@ -327,34 +327,45 @@ const RoleSidebar = ({ navConfig, isCollapsed, onToggle }) => {
           }
         </List>
 
-        {/* Global Items */}
-        {!drilldown && !isCollapsed && (
+        {/* Global Items — notifications visible in collapsed mode (icon only) */}
+        {!drilldown && (
           <>
-            <Typography
-              variant="caption"
-              sx={{
-                px: 3,
-                py: 2,
-                mt: 3,
-                display: 'block',
-                textTransform: 'uppercase',
-                fontWeight: 700,
-                color: '#475569',
-                letterSpacing: '0.1em',
-                fontSize: '0.65rem',
-              }}
-            >
-              Support & Tools
-            </Typography>
+            {!isCollapsed && (
+              <Typography
+                variant="caption"
+                sx={{
+                  px: 3,
+                  py: 2,
+                  mt: 3,
+                  display: 'block',
+                  textTransform: 'uppercase',
+                  fontWeight: 700,
+                  color: '#475569',
+                  letterSpacing: '0.1em',
+                  fontSize: '0.65rem',
+                }}
+              >
+                Support & Tools
+              </Typography>
+            )}
 
-            <List disablePadding sx={{ mb: 4, mt: 0.5 }}>
+            <List disablePadding sx={{ mb: 4, mt: isCollapsed ? 2 : 0.5 }}>
               <ListItem disablePadding sx={{ display: 'block' }}>
-                <ListItemButton sx={navItemStyle(false)}>
-                  <ListItemIcon sx={{ minWidth: 32, mr: 1.5, color: '#64748b', justifyContent: 'center' }}>
-                    <NotificationsNoneOutlinedIcon size={18} />
-                  </ListItemIcon>
-                  <ListItemText primary="Notifications" slotProps={{ primary: { fontSize: '0.875rem', fontWeight: 500 } }} />
-                </ListItemButton>
+                <Tooltip title={isCollapsed ? 'Notifications' : ''} placement="right" arrow>
+                  <ListItemButton
+                    component={NavLink}
+                    to={`${basePath}/notifications`}
+                    sx={navItemStyle(location.pathname.includes('/notifications'), false)}
+                    className={location.pathname.includes('/notifications') ? 'active' : ''}
+                  >
+                    <ListItemIcon sx={{ minWidth: isCollapsed ? 0 : 32, mr: isCollapsed ? 0 : 1.5, color: '#64748b', justifyContent: 'center' }}>
+                      <NotificationsNoneOutlinedIcon size={18} />
+                    </ListItemIcon>
+                    {!isCollapsed && (
+                      <ListItemText primary="Notifications" slotProps={{ primary: { fontSize: '0.875rem', fontWeight: 500 } }} />
+                    )}
+                  </ListItemButton>
+                </Tooltip>
               </ListItem>
             </List>
           </>

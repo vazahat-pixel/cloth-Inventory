@@ -80,9 +80,9 @@ function AgeAnalysisPage() {
   const lotAgeData = useMemo(() => {
     const rows = [];
     stock.forEach((s) => {
-      const qtyOnHand = toNum(s.quantity);
+      const qtyOnHand = toNum(s.available ?? s.quantity);
       if (qtyOnHand <= 0) return;
-      const key = `${s.variantId}-${s.warehouseId || ''}`;
+      const key = `${s.productId || s.variantId}-${s.warehouseId || s.storeId || ''}`;
       const firstReceived = firstPurchaseByVariantWarehouse[key] || new Date().toISOString().slice(0, 10);
       const daysInStock = Math.floor((today - new Date(firstReceived)) / (24 * 60 * 60 * 1000));
       const bucket = AGE_BUCKETS.find((b) => daysInStock >= b.min && daysInStock < b.max) || AGE_BUCKETS[AGE_BUCKETS.length - 1];

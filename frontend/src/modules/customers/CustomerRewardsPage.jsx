@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
+import { formatDateDDMMYYYY } from '../../utils/formatters';
 import {
   Box,
   Button,
@@ -168,7 +169,7 @@ function CustomerRewardsPage() {
                       <TableCell align="right" sx={{ fontWeight: 700 }}>
                         {row.availablePoints}
                       </TableCell>
-                      <TableCell>{row.lastActivityDate || '-'}</TableCell>
+                      <TableCell>{formatDateDDMMYYYY(row.lastActivityDate) || '-'}</TableCell>
                       <TableCell>
                         <IconButton
                           size="small"
@@ -276,7 +277,7 @@ function LoyaltyHistoryDialog({ open, onClose, customer }) {
               <TableBody>
                 {transactions.map((tx) => (
                   <TableRow key={tx.id}>
-                    <TableCell>{tx.date}</TableCell>
+                    <TableCell>{formatDateDDMMYYYY(tx.date)}</TableCell>
                     <TableCell>{TRANSACTION_TYPE_LABELS[tx.type] || tx.type}</TableCell>
                     <TableCell align="right">{tx.points}</TableCell>
                     <TableCell>{tx.reference || '-'}</TableCell>

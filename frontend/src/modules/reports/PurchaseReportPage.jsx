@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
@@ -168,7 +169,7 @@ function PurchaseReportPage() {
         const t = row.totals || {};
         return {
           'Bill Number': row.billNumber,
-          Date: row.billDate,
+          Date: formatDateDDMMYYYY(row.billDate),
           Supplier: supplierMap[row.supplierId] || row.supplierId,
           Items: row.items?.length || 0,
           Quantity: toNum(t.totalQuantity),
@@ -183,7 +184,7 @@ function PurchaseReportPage() {
   const exportDetailRows = useMemo(
     () =>
       detailRows.map((r) => ({
-        Date: r.billDate,
+        Date: formatDateDDMMYYYY(r.billDate),
         'Bill Number': r.billNumber,
         Supplier: r.supplierName,
         Item: r.itemName,
@@ -364,7 +365,7 @@ function PurchaseReportPage() {
                     return (
                       <TableRow key={row.id} hover>
                         <TableCell sx={{ fontWeight: 600 }}>{row.billNumber}</TableCell>
-                        <TableCell>{row.billDate}</TableCell>
+                        <TableCell>{formatDateDDMMYYYY(row.billDate)}</TableCell>
                         <TableCell>{supplierMap[row.supplierId] || row.supplierId}</TableCell>
                         <TableCell>{row.items?.length || 0}</TableCell>
                         <TableCell align="right">{toNum(t.totalQuantity)}</TableCell>
@@ -396,7 +397,7 @@ function PurchaseReportPage() {
                 <TableBody>
                   {paginatedDetailRows.map((row, i) => (
                     <TableRow key={`${row.billNumber}-${row.sku}-${i}`} hover>
-                      <TableCell>{row.billDate}</TableCell>
+                      <TableCell>{formatDateDDMMYYYY(row.billDate)}</TableCell>
                       <TableCell>{row.billNumber}</TableCell>
                       <TableCell>{row.supplierName}</TableCell>
                       <TableCell>{row.itemName}</TableCell>

@@ -41,6 +41,8 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import PageHeader from '../../components/erp/PageHeader';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchItems } from '../items/itemsSlice';
+import { itemPickerParams } from '../items/itemFetchConstants';
+import useDebouncedValue from '../../hooks/useDebouncedValue';
 import { fetchPurchaseOrders } from '../purchase/purchaseSlice';
 import { fetchGrns, fetchGrnById, addGrn, approveGrn, updateGrn } from './grnSlice';
 import { fetchOutwards } from '../production/productionSlice';
@@ -93,6 +95,9 @@ function GRNFormPage({ mode = 'edit' }) {
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [searchText, setSearchText] = useState('');
+  const [catalogSearch, setCatalogSearch] = useState('');
+  const debouncedCatalogSearch = useDebouncedValue(catalogSearch, 300);
+  const [lastScannedItemName, setLastScannedItemName] = useState('');
   const [activeItemForRolls, setActiveItemForRolls] = useState(null);
   const [isRollDialogOpen, setIsRollDialogOpen] = useState(false);
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
@@ -122,10 +127,13 @@ function GRNFormPage({ mode = 'edit' }) {
     dispatch(fetchPurchaseOrders());
     dispatch(fetchMasters('warehouses'));
     dispatch(fetchMasters('suppliers'));
-    dispatch(fetchItems());
     dispatch(fetchOutwards());
     dispatch(fetchMasters('taxRules'));
   }, [dispatch]);
+
+  useEffect(() => {
+    dispatch(fetchItems(itemPickerParams(debouncedCatalogSearch)));
+  }, [dispatch, debouncedCatalogSearch]);
 
   const fetchWarehouseFabrics = async (warehouseId) => {
     if (!warehouseId) return;
@@ -369,6 +377,7 @@ function GRNFormPage({ mode = 'edit' }) {
         receivedQty: Number(updatedLines[existingIndex].receivedQty || 0) + 1
       };
       setLines(updatedLines);
+      setLastScannedItemName(item.itemName || item.name || '');
     } else {
       const newLine = {
         id: `scan-${Date.now()}-${Math.random()}`,
@@ -388,6 +397,7 @@ function GRNFormPage({ mode = 'edit' }) {
         batchNumber: `B-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`
       };
       setLines(prev => [newLine, ...prev]);
+      setLastScannedItemName(item.itemName || item.name || '');
     }
   };
 
@@ -427,6 +437,7 @@ function GRNFormPage({ mode = 'edit' }) {
     }));
     setLines(prev => [...prev, ...newLines]);
     setSelectedItem(null);
+    setLastScannedItemName(item.itemName || item.name || '');
   };
 
   const handleBarcodeScan = async (barcode) => {
@@ -444,6 +455,7 @@ function GRNFormPage({ mode = 'edit' }) {
           setIsRollDialogOpen(true);
         } else if (variant) {
           addLineItem(item, variant);
+          setLastScannedItemName(item.itemName || item.name || '');
         }
       } else {
         throw new Error('Barcode not found');
@@ -750,6 +762,12 @@ function GRNFormPage({ mode = 'edit' }) {
           </ToggleButtonGroup>
         </Box>
       )}
+      {isLocked && (
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748b', mb: 1, display: 'block', textTransform: 'uppercase' }}>Receipt Type</Typography>
+          <Chip label={formValues.grnType || 'FABRIC'} color="primary" sx={{ fontWeight: 700 }} />
+        </Box>
+      )}
 
       <Grid container spacing={3}>
         <Grid item xs={12}>
@@ -919,6 +937,10 @@ function GRNFormPage({ mode = 'edit' }) {
                         addItemToLines(value);
                       }
                     }}
+                    onInputChange={(_, value, reason) => {
+                      if (reason === 'input') setCatalogSearch(value);
+                    }}
+                    filterOptions={(options) => options}
                     getOptionLabel={(option) => {
                       const code = option.itemCode || option.sku || '';
                       const name = option.itemName || option.name || '';
@@ -944,6 +966,8 @@ function GRNFormPage({ mode = 'edit' }) {
                         setSearchText('');
                       }
                     }}
+                    helperText={lastScannedItemName ? `Last added: ${lastScannedItemName}` : 'Scan or type barcode and press Enter'}
+                    FormHelperTextProps={{ sx: { whiteSpace: 'normal', wordBreak: 'break-word' } }}
                     sx={{ bgcolor: 'white' }}
                     InputProps={{
                       startAdornment: <SearchIcon sx={{ color: '#3b82f6', mr: 1, fontSize: 22 }} />
@@ -994,7 +1018,11 @@ function GRNFormPage({ mode = 'edit' }) {
                     <TableCell><Chip label={line.size} size="small" /></TableCell>
                     <TableCell><Typography variant="caption">{line.sku}</Typography></TableCell>
                     <TableCell align="right">
-                      <TextField type="number" size="small" value={line.receivedQty} onChange={e => updateLine(idx, 'receivedQty', e.target.value)} inputProps={{ min: 0 }} sx={{ width: 80 }} />
+                      {isLocked ? (
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{line.receivedQty}</Typography>
+                      ) : (
+                        <TextField type="number" size="small" value={line.receivedQty} onChange={e => updateLine(idx, 'receivedQty', e.target.value)} inputProps={{ min: 0 }} sx={{ width: 80 }} />
+                      )}
                     </TableCell>
                     <TableCell align="right">₹{line.costPrice}</TableCell>
                     {!isStoreStaff && (

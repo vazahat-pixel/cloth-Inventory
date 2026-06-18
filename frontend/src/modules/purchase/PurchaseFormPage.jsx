@@ -32,6 +32,7 @@ import { addPurchase, updatePurchase, fetchPurchases } from './purchaseSlice';
 import { fetchGrns, fetchGrnById } from '../grn/grnSlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchItems } from '../items/itemsSlice';
+import { itemPickerParams } from '../items/itemFetchConstants';
 import useRoleBasePath from '../../hooks/useRoleBasePath';
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
@@ -109,7 +110,7 @@ function PurchaseFormPage() {
     dispatch(fetchMasters('suppliers'));
     dispatch(fetchMasters('warehouses'));
     dispatch(fetchMasters('stores'));
-    dispatch(fetchItems());
+    dispatch(fetchItems(itemPickerParams()));
     dispatch(fetchPurchases());
     dispatch(fetchGrns({ limit: 100 }));
   }, [dispatch]);

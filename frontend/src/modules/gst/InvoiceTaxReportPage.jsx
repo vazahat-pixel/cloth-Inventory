@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { useSelector } from 'react-redux';
 import {
   Box,
@@ -203,7 +204,7 @@ function InvoiceTaxReportPage() {
               {paginatedRows.map((row) => (
                 <TableRow key={row.id} hover>
                   <TableCell sx={{ fontWeight: 600 }}>{row.invoiceNumber}</TableCell>
-                  <TableCell>{row.date}</TableCell>
+                  <TableCell>{formatDateDDMMYYYY(row.date)}</TableCell>
                   <TableCell>{row.customer}</TableCell>
                   <TableCell align="right">₹{row.taxableValue.toFixed(2)}</TableCell>
                   <TableCell align="right">₹{row.cgst.toFixed(2)}</TableCell>

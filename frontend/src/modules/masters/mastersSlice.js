@@ -250,6 +250,8 @@ export const addMasterRecord = createAsyncThunk('masters/add', async ({ entityKe
         location: record.location,
         gstNumber: record.gstNumber,
         transferDiscountPct: record.transferDiscountPct,
+        invoicePrefix: record.invoicePrefix?.trim().toUpperCase() || undefined,
+        invoiceFooterText: record.invoiceFooterText?.trim() || undefined,
         isActive: record.isActive !== false,
       };
     }
@@ -370,6 +372,8 @@ export const updateMasterRecord = createAsyncThunk('masters/update', async ({ en
         location: updates.location,
         gstNumber: updates.gstNumber,
         transferDiscountPct: updates.transferDiscountPct,
+        invoicePrefix: updates.invoicePrefix?.trim().toUpperCase() || undefined,
+        invoiceFooterText: updates.invoiceFooterText?.trim() || undefined,
         isActive: updates.isActive !== false,
       };
     }

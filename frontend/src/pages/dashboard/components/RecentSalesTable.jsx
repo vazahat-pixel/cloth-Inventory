@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../../utils/formatters';
 import { Link as RouterLink } from "react-router-dom";
 import useRoleBasePath from "../../../hooks/useRoleBasePath";
 import {
@@ -38,11 +39,7 @@ function RecentSalesTable({
   const formatDate = (value) => {
     try {
       const date = new Date(value);
-      return date.toLocaleDateString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "2-digit",
-      });
+      return formatDateDDMMYYYY(date);
     } catch {
       return value || "-";
     }

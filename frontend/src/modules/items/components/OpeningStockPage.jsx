@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../../utils/formatters';
 import {
   Box, Typography, Paper, Button, TextField, Autocomplete,
   Table, TableHead, TableBody, TableRow, TableCell, TableContainer,
@@ -237,7 +238,7 @@ const OpeningStockPage = () => {
       const payload = {
         grnType: 'OPENING_BALANCE',
         warehouseId: selectedWarehouse._id || selectedWarehouse.id,
-        remarks: `Opening Balance — ${new Date().toLocaleDateString('en-IN')}`,
+        remarks: `Opening Balance — ${formatDateDDMMYYYY(new Date())}`,
         items: selectedItems.map(s => ({
           itemId: s.itemId,
           variantId: s.variantId,

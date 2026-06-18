@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { useDispatch, useSelector } from 'react-redux';
 import useDebouncedValue from '../../hooks/useDebouncedValue';
 import useServerPagination from '../../hooks/useServerPagination';
@@ -85,7 +86,7 @@ function LedgerReportPage() {
   const exportRows = useMemo(
     () =>
       entries.map((e) => ({
-        Date: e.date,
+        Date: formatDateDDMMYYYY(e.date),
         Reference: e.reference,
         Narration: e.narration,
         Debit: e.debit,
@@ -180,7 +181,7 @@ function LedgerReportPage() {
               ) : entries.length ? (
                 entries.map((e, idx) => (
                   <TableRow key={`${e.reference}-${idx}`} hover>
-                    <TableCell>{e.date}</TableCell>
+                    <TableCell>{formatDateDDMMYYYY(e.date)}</TableCell>
                     <TableCell>{e.reference}</TableCell>
                     <TableCell>{e.narration}</TableCell>
                     <TableCell align="right">{e.debit ? `₹ ${e.debit.toLocaleString()}` : '—'}</TableCell>

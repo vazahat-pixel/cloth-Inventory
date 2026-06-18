@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { useDispatch, useSelector } from 'react-redux';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import {
@@ -135,7 +136,7 @@ function DispatchQueuePage() {
                                                 {row.challanNumber || row.dispatchNumber}
                                             </TableCell>
                                             <TableCell>
-                                                {new Date(row.createdAt || row.date).toLocaleDateString()}
+                                                {formatDateDDMMYYYY(row.createdAt || row.date)}
                                             </TableCell>
                                             <TableCell>
                                                 <Typography sx={{ fontWeight: 600, fontSize: '0.85rem' }}>

@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
-import { useSelector } from 'react-redux';
+import { useEffect, useMemo, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
   InputAdornment,
@@ -19,14 +20,23 @@ import SearchIcon from '@mui/icons-material/Search';
 import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
 import { SummaryChip } from './SalesReportPage';
+import { fetchSalesForReport } from '../sales/salesSlice';
+import { fetchMasters } from '../masters/mastersSlice';
+import { REPORT_FETCH_PARAMS } from './reportConstants';
 
 const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 function CustomerReportPage() {
-  const sales = useSelector((state) => state.sales?.records || []);
+  const dispatch = useDispatch();
+  const sales = useSelector((state) => state.sales?.reportRecords || state.sales?.records || []);
   const customers = useSelector((state) => state.masters?.customers || []);
   const creditNotes = useSelector((state) => state.customerRewards?.creditNotes || []);
   const loyaltyTransactions = useSelector((state) => state.customerRewards?.loyaltyTransactions || []);
+
+  useEffect(() => {
+    dispatch(fetchMasters('customers'));
+    dispatch(fetchSalesForReport(REPORT_FETCH_PARAMS));
+  }, [dispatch]);
 
   const [filters, setFilters] = useState({});
   const [searchText, setSearchText] = useState('');
@@ -37,8 +47,9 @@ function CustomerReportPage() {
     const map = {};
     const customerMap = customers.reduce((acc, c) => ({ ...acc, [c.id]: c }), {});
     customers.forEach((c) => {
-      map[c.id] = {
-        customerId: c.id,
+      const cid = c.id || c._id;
+      map[cid] = {
+        customerId: cid,
         customerName: c.customerName,
         mobileNumber: c.mobileNumber || '',
         address: c.address || '',
@@ -263,7 +274,7 @@ function CustomerReportPage() {
                   <TableCell align="right">{row.totalRedeemed}</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 600 }}>{row.loyaltyPoints}</TableCell>
                   <TableCell align="right">₹{row.outstandingBalance.toFixed(2)}</TableCell>
-                  <TableCell>{row.lastPurchaseDate || '-'}</TableCell>
+                  <TableCell>{formatDateDDMMYYYY(row.lastPurchaseDate) || '-'}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

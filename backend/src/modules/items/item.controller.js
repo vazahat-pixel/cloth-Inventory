@@ -1,6 +1,20 @@
 const itemService = require('./item.service');
 const { sendSuccess, sendError, sendCreated, sendNotFound } = require('../../utils/response.handler');
 
+const formatItemSaveError = (error) => {
+  if (error?.code === 11000) {
+    const skuMatch = String(error.message || '').match(/sizes\.sku[^"]*"([^"]+)"/i);
+    const duplicateValue = skuMatch?.[1] || '';
+    return {
+      status: 409,
+      message: duplicateValue
+        ? `SKU/Barcode "${duplicateValue}" pehle se kisi item me use ho raha hai. Item list me search karke check karein, ya naya auto SKU generate karein.`
+        : 'Duplicate SKU/Barcode — yeh code pehle se kisi item me hai.',
+    };
+  }
+  return { status: 400, message: error.message };
+};
+
 class ItemController {
   // Syncing with AppRoutes field naming and logic ERP specs
   createItem = async (req, res) => {
@@ -9,7 +23,8 @@ class ItemController {
       return sendCreated(res, { item }, 'Item created successfully');
     } catch (error) {
       console.error('❌ ITEM_CONTROLLER_ERROR:', error);
-      return sendError(res, error.message, 400);
+      const formatted = formatItemSaveError(error);
+      return sendError(res, formatted.message, formatted.status);
     }
   };
 
@@ -77,7 +92,8 @@ class ItemController {
       if (!item) return sendNotFound(res, 'Item not found');
       return sendSuccess(res, { item }, 'Item updated successfully');
     } catch (error) {
-      return sendError(res, error.message, 400);
+      const formatted = formatItemSaveError(error);
+      return sendError(res, formatted.message, formatted.status);
     }
   };
 

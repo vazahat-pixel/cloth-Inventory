@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { Box, Divider, Typography, Stack, CircularProgress } from '@mui/material';
 import api from '../../services/api';
 
@@ -97,7 +98,7 @@ const ThermalInvoicePrint = ({ sale, store: providedStore }) => {
             <Box sx={{ fontSize: '10px', mb: 1 }}>
                 <Stack direction="row" justifyContent="space-between">
                     <Typography fontSize="inherit">Bill No: {sale.invoiceNumber || sale.saleNumber}</Typography>
-                    <Typography fontSize="inherit">{new Date(sale.saleDate || sale.createdAt).toLocaleDateString()}</Typography>
+                    <Typography fontSize="inherit">{formatDateDDMMYYYY(sale.saleDate || sale.createdAt)}</Typography>
                 </Stack>
                 <Typography fontSize="inherit">Cust: {sale.customerName || 'Walk-in'}</Typography>
             </Box>

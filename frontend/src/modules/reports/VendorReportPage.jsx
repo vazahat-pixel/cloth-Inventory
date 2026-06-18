@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
@@ -20,6 +21,7 @@ import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
 import { SummaryChip } from './SalesReportPage';
 import { fetchPurchasesForReport } from '../purchase/purchaseSlice';
+import { fetchMasters } from '../masters/mastersSlice';
 
 const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
@@ -30,6 +32,7 @@ function VendorReportPage() {
 
   useEffect(() => {
     dispatch(fetchPurchasesForReport({}));
+    dispatch(fetchMasters('suppliers'));
   }, [dispatch]);
 
   const [filters, setFilters] = useState({});
@@ -40,9 +43,10 @@ function VendorReportPage() {
   const vendorRows = useMemo(() => {
     const map = {};
     suppliers.forEach((s) => {
-      map[s.id] = {
-        supplierId: s.id,
-        supplierName: s.supplierName,
+      const sid = s.id || s._id;
+      map[sid] = {
+        supplierId: sid,
+        supplierName: s.supplierName || s.name,
         totalPurchases: 0,
         totalAmount: 0,
         outstandingPayable: 0,
@@ -201,7 +205,7 @@ function VendorReportPage() {
                   <TableCell align="right">{row.totalPurchases}</TableCell>
                   <TableCell align="right">₹{row.totalAmount.toFixed(2)}</TableCell>
                   <TableCell align="right">₹{row.outstandingPayable.toFixed(2)}</TableCell>
-                  <TableCell>{row.lastPurchaseDate || '-'}</TableCell>
+                  <TableCell>{formatDateDDMMYYYY(row.lastPurchaseDate) || '-'}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

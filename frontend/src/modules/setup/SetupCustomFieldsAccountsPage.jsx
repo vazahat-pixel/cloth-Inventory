@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import {
   Box,
   Typography,
@@ -378,7 +379,7 @@ const SetupCustomFieldsAccountsPage = () => {
         </Typography>
         <Box sx={{ flexGrow: 1 }} />
         <Typography variant="caption" sx={{ color: '#94a3b8' }}>
-          {new Date().toLocaleString('en-IN', { hour: 'numeric', minute: 'numeric', second: 'numeric', hour12: true })}
+          {formatDateTimeDDMMYYYY(new Date())}
         </Typography>
       </Box>
 

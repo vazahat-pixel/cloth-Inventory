@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { useDispatch, useSelector } from 'react-redux';
 import { useSearchParams } from 'react-router-dom';
 import { 
@@ -30,6 +31,8 @@ import {
   DeleteOutline as DeleteIcon,
 } from '@mui/icons-material';
 import { fetchGrns } from '../grn/grnSlice';
+import { fetchItems } from '../items/itemsSlice';
+import { itemPickerParams } from '../items/itemFetchConstants';
 import api from '../../services/api';
 import JsBarcode from 'jsbarcode';
 import { useNotification } from '../../context/NotificationProvider';
@@ -335,7 +338,7 @@ function BarcodePrintingPage() {
   
   useEffect(() => {
     dispatch(fetchGrns({ limit: 100 }));
-    import('../items/itemsSlice').then(m => dispatch(m.fetchItems()));
+    dispatch(fetchItems(itemPickerParams()));
   }, [dispatch]);
 
   const buildBatchLinesFromItems = (items) => {
@@ -861,7 +864,7 @@ function BarcodePrintingPage() {
                       {history.map((row) => (
                         <TableRow key={row._id} hover>
                           <TableCell sx={{ fontSize: '0.85rem' }}>
-                            {new Date(row.createdAt).toLocaleString()}
+                            {formatDateTimeDDMMYYYY(row.createdAt)}
                           </TableCell>
                           <TableCell sx={{ fontWeight: 800, color: '#1e293b' }}>
                             {row.barcode}

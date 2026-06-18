@@ -22,5 +22,9 @@ const storeInventorySchema = new mongoose.Schema(
 // Compound unique index — one record per variant per store
 storeInventorySchema.index({ storeId: 1, barcode: 1 }, { unique: true });
 storeInventorySchema.index({ storeId: 1 });
+storeInventorySchema.index({ itemId: 1 });
+storeInventorySchema.index({ variantId: 1 });
+storeInventorySchema.index({ storeId: 1, quantityAvailable: 1 });
+storeInventorySchema.index({ lastUpdated: -1 });
 
 module.exports = mongoose.model('StoreInventory', storeInventorySchema);

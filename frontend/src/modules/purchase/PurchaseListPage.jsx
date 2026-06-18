@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { useAppNavigate } from '../../hooks/useAppNavigate';
 import { useDispatch, useSelector } from 'react-redux';
 import useDebouncedValue from '../../hooks/useDebouncedValue';
@@ -6,6 +7,7 @@ import useServerPagination from '../../hooks/useServerPagination';
 import ServerTablePagination from '../../components/erp/ServerTablePagination';
 import { fetchPurchases, generatePOFromVoucher } from './purchaseSlice';
 import { fetchMasters } from '../masters/mastersSlice';
+import { syncDateRange, dateRangeInputProps } from '../../utils/dateRangeUtils';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import {
   Box,
@@ -56,6 +58,7 @@ function PurchaseListPage() {
   const [warehouseFilter, setWarehouseFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const dateBounds = dateRangeInputProps(dateFrom, dateTo);
   const {
     page,
     rowsPerPage,
@@ -141,8 +144,18 @@ function PurchaseListPage() {
                 {availableLocations.map(l => <MenuItem key={l.id} value={l.id}>{l.name}</MenuItem>)}
               </TextField>
             )}
-            <TextField size="small" type="date" label="From" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); resetPage(); }} InputLabelProps={{ shrink: true }} />
-            <TextField size="small" type="date" label="To" value={dateTo} onChange={(e) => { setDateTo(e.target.value); resetPage(); }} InputLabelProps={{ shrink: true }} />
+            <TextField size="small" type="date" label="From" value={dateFrom} onChange={(e) => {
+              const synced = syncDateRange(dateFrom, dateTo, 'from', e.target.value);
+              setDateFrom(synced.dateFrom);
+              setDateTo(synced.dateTo);
+              resetPage();
+            }} InputLabelProps={{ shrink: true }} inputProps={{ max: dateBounds.from.max }} />
+            <TextField size="small" type="date" label="To" value={dateTo} onChange={(e) => {
+              const synced = syncDateRange(dateFrom, dateTo, 'to', e.target.value);
+              setDateFrom(synced.dateFrom);
+              setDateTo(synced.dateTo);
+              resetPage();
+            }} InputLabelProps={{ shrink: true }} inputProps={{ min: dateBounds.to.min, max: dateBounds.to.max }} />
           </Stack>
         </Stack>
 
@@ -172,7 +185,7 @@ function PurchaseListPage() {
                         </Box>
                       </TableCell>
                       <TableCell>{supplierMap[row.supplierId?._id || row.supplierId] || row.supplierId?.name || row.supplierId?.supplierName || 'Unknown'}</TableCell>
-                      <TableCell>{new Date(row.invoiceDate || row.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</TableCell>
+                      <TableCell>{formatDateDDMMYYYY(row.invoiceDate || row.createdAt)}</TableCell>
                       <TableCell>{resolveLocation(row)}</TableCell>
                       <TableCell align="right">{row.totalQuantity || row.totals?.totalQuantity || '-'}</TableCell>
                       <TableCell align="right">₹ {(row.grandTotal || row.totals?.netAmount || 0).toFixed(2)}</TableCell>

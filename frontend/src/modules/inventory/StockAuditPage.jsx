@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { formatDateDDMMYYYY } from '../../utils/formatters';
 import {
   Accordion,
   AccordionDetails,
@@ -376,7 +377,7 @@ function AuditDocumentItem({ audit, warehouses, stockRows }) {
             {audit.reference || audit.id}
           </Typography>
           <Typography variant="caption" sx={{ color: '#64748b' }}>
-            {audit.date} · {warehouseName}
+            {formatDateDDMMYYYY(audit.date)} · {warehouseName}
           </Typography>
           {discrepancyCount > 0 && (
             <Typography variant="caption" sx={{ color: '#b91c1c' }}>

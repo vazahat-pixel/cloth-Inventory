@@ -259,14 +259,20 @@ const applyWarehousePhysicalStock = async (warehouseId, items, userId) => {
 
             if (difference === 0) continue;
 
+            if (!inventory && difference < 0) {
+                throw new Error(`Cannot reduce stock for ${barcode || variantId}: no inventory record found`);
+            }
+
             await adjustWarehouseStock({
                 productId: inventory?.variantId || variantId,
                 variantId: inventory?.variantId || variantId,
+                itemId: inventory?.itemId || item.itemId,
+                barcode: inventory?.barcode || barcode,
                 warehouseId,
                 quantityChange: difference,
                 type: StockMovementType.ADJUSTMENT,
                 referenceId: auditReferenceId,
-                referenceModel: 'PhysicalStockAudit',
+                referenceModel: 'Audit',
                 performedBy: userId,
                 notes: `Physical vs actual reconciliation (Physical: ${physicalQty}, System: ${currentQty})`,
                 session,

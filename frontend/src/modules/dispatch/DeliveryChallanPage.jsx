@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { useDispatch, useSelector } from 'react-redux';
 import useDebouncedValue from '../../hooks/useDebouncedValue';
 import useServerPagination from '../../hooks/useServerPagination';
@@ -214,7 +215,7 @@ function DeliveryChallanPage({
                                 headerKeys={['Challan No', 'Date', 'To Store', 'Status']}
                                 rows={challans.map(row => ({
                                     'Challan No': row.challanNumber || row.dispatchNumber,
-                                    'Date': row.dispatchedAt ? new Date(row.dispatchedAt).toLocaleDateString() : (row.createdAt ? new Date(row.createdAt).toLocaleDateString() : (row.date || row.dispatchDate || '-')),
+                                    'Date': row.dispatchedAt ? formatDateDDMMYYYY(row.dispatchedAt) : (row.createdAt ? formatDateDDMMYYYY(row.createdAt) : (row.date || row.dispatchDate || '-')),
                                     'To Store': row.destinationStoreId?.name || row.storeName || row.destination?.name || 'Store',
                                     'Status': row.status || 'PENDING'
                                 }))}
@@ -303,9 +304,9 @@ function DeliveryChallanPage({
                                             </TableCell>
                                             <TableCell>
                                                 {row.dispatchedAt
-                                                    ? new Date(row.dispatchedAt).toLocaleDateString()
+                                                    ? formatDateDDMMYYYY(row.dispatchedAt)
                                                     : (row.createdAt
-                                                        ? new Date(row.createdAt).toLocaleDateString()
+                                                        ? formatDateDDMMYYYY(row.createdAt)
                                                         : (row.date || row.dispatchDate || '-'))}
                                             </TableCell>
                                             <TableCell>

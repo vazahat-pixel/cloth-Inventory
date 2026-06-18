@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../../utils/formatters';
 import {
   Dialog,
   DialogTitle,
@@ -130,7 +131,7 @@ const BulkInventoryUploadDialog = ({ open, onClose, onUploadSuccess, warehouseId
       const payload = {
         grnType: 'OPENING_BALANCE',
         warehouseId,
-        remarks: `Bulk Excel Import - ${new Date().toLocaleString()}`,
+        remarks: `Bulk Excel Import - ${formatDateTimeDDMMYYYY(new Date())}`,
         items: validItems.map(item => ({
           itemId: item.itemId,
           variantId: item.variantId,

@@ -5,7 +5,6 @@ import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
 import SellOutlinedIcon from '@mui/icons-material/SellOutlined';
 import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
-import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
 import SupportAgentOutlinedIcon from '@mui/icons-material/SupportAgentOutlined';
 import ShoppingCartOutlinedIcon from '@mui/icons-material/ShoppingCartOutlined';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
@@ -16,10 +15,7 @@ import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import TimelineIcon from '@mui/icons-material/Timeline';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
-import PrecisionManufacturingIcon from '@mui/icons-material/PrecisionManufacturing';
-import BusinessIcon from '@mui/icons-material/Business';
 
 export const reportsQueriesMatchPaths = ['/reports'];
 
@@ -91,18 +87,6 @@ export const reportsQueriesNavItems = [
     icon: TrendingUpIcon,
   },
   {
-    key: 'order-reports',
-    label: 'Order Reports',
-    path: '/reports/order-reports',
-    icon: AssignmentOutlinedIcon,
-  },
-  {
-    key: 'sale-challan-reports',
-    label: 'Sale Challan Reports',
-    path: '/reports/sale-challan-reports',
-    icon: LocalShippingOutlinedIcon,
-  },
-  {
     key: 'agent-wise-reports',
     label: 'Agent Wise Reports',
     path: '/reports/agent-wise-reports',
@@ -121,12 +105,6 @@ export const reportsQueriesNavItems = [
     icon: PeopleAltOutlinedIcon,
   },
   {
-    key: 'vendor-reports',
-    label: 'Vendor Reports',
-    path: '/reports/vendors',
-    icon: BusinessIcon,
-  },
-  {
     key: 'item-master-registry',
     label: 'Item Registry',
     path: '/reports/item-reports',
@@ -139,22 +117,10 @@ export const reportsQueriesNavItems = [
     icon: LocalShippingOutlinedIcon,
   },
   {
-    key: 'movement-history',
-    label: 'Stock Movement',
-    path: '/reports/movement',
-    icon: TimelineIcon,
-  },
-  {
     key: 'age-analysis',
     label: 'Age Analysis',
     path: '/reports/age-analysis',
     icon: HourglassEmptyIcon,
-  },
-  {
-    key: 'production-yield',
-    label: 'Production Yield',
-    path: '/reports/production/yield',
-    icon: PrecisionManufacturingIcon,
   },
   {
     key: 'gst-summary',
@@ -299,7 +265,7 @@ export const reportsQueriesPlaceholderContent = {
     ],
     actions: [
       { label: 'Open Purchase Report', path: '/reports/purchase', variant: 'contained' },
-      { label: 'Open Vendor Reports', path: '/reports/vendors', variant: 'outlined' },
+      { label: 'Open Ledger Report', path: '/reports/ledger', variant: 'outlined' },
     ],
   },
   'item-reports': {
@@ -312,7 +278,7 @@ export const reportsQueriesPlaceholderContent = {
     ],
     actions: [
       { label: 'Open Daily Inward', path: '/reports/inward', variant: 'contained' },
-      { label: 'Open Movement Report', path: '/reports/movement', variant: 'outlined' },
+      { label: 'Open Stock Report', path: '/reports/stock', variant: 'outlined' },
       { label: 'Open Age Analysis', path: '/reports/age-analysis', variant: 'outlined' },
     ],
   },
@@ -326,7 +292,7 @@ export const reportsQueriesPlaceholderContent = {
     ],
     actions: [
       { label: 'Open Stock Report', path: '/reports/stock', variant: 'contained' },
-      { label: 'Open Movement Report', path: '/reports/movement', variant: 'outlined' },
+      { label: 'Open Age Analysis', path: '/reports/age-analysis', variant: 'outlined' },
     ],
   },
   'excise-reports': {

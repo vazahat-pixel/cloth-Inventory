@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
+import { formatDateDDMMYYYY } from '../../utils/formatters';
 import {
   Box,
   Button,
@@ -273,7 +274,7 @@ function GSTRSummaryPage() {
                         {(gstr2aData.mismatched || []).map((r, i) => (
                           <TableRow key={`mismatch-${i}`} sx={{ bgcolor: 'rgba(239, 68, 68, 0.06)' }}>
                             <TableCell>{r.billNumber}</TableCell>
-                            <TableCell>{r.billDate}</TableCell>
+                            <TableCell>{formatDateDDMMYYYY(r.billDate)}</TableCell>
                             <TableCell>₹{r.ourValue?.toFixed(2)}</TableCell>
                             <TableCell>₹{r.portalValue?.toFixed(2)}</TableCell>
                             <TableCell>₹{r.ourTax?.toFixed(2)}</TableCell>
@@ -284,7 +285,7 @@ function GSTRSummaryPage() {
                         {(gstr2aData.notInPortal || []).map((r, i) => (
                           <TableRow key={`notportal-${i}`} sx={{ bgcolor: 'rgba(234, 179, 8, 0.08)' }}>
                             <TableCell>{r.billNumber}</TableCell>
-                            <TableCell>{r.billDate}</TableCell>
+                            <TableCell>{formatDateDDMMYYYY(r.billDate)}</TableCell>
                             <TableCell>₹{r.ourValue?.toFixed(2)}</TableCell>
                             <TableCell>-</TableCell>
                             <TableCell>₹{r.ourTax?.toFixed(2)}</TableCell>
@@ -295,7 +296,7 @@ function GSTRSummaryPage() {
                         {(gstr2aData.notInBooks || []).map((r, i) => (
                           <TableRow key={`notbooks-${i}`} sx={{ bgcolor: 'rgba(59, 130, 246, 0.06)' }}>
                             <TableCell>{r.invNum}</TableCell>
-                            <TableCell>{r.invDate}</TableCell>
+                            <TableCell>{formatDateDDMMYYYY(r.invDate)}</TableCell>
                             <TableCell>-</TableCell>
                             <TableCell>₹{r.value?.toFixed(2)}</TableCell>
                             <TableCell>-</TableCell>

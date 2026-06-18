@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import {
   Box,
   Card,
@@ -118,7 +119,7 @@ function InTransitMonitorPage() {
                     <TableCell sx={{ fontWeight: 600 }}>{t.destination}</TableCell>
                     <TableCell align="right">{t.itemsCount} units</TableCell>
                     <TableCell align="right">₹{t.estimatedValue.toLocaleString()}</TableCell>
-                    <TableCell>{new Date(t.dispatchedAt).toLocaleString()}</TableCell>
+                    <TableCell>{formatDateTimeDDMMYYYY(t.dispatchedAt)}</TableCell>
                     <TableCell>
                       <Typography variant="caption" sx={{ display: 'block', fontWeight: 600 }}>{t.vehicle || 'Standard'}</Typography>
                       <Typography variant="caption" color="text.secondary">{t.driver || '-'}</Typography>

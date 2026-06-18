@@ -31,6 +31,18 @@ const createStoreValidation = [
         .optional({ checkFalsy: true })
         .matches(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/)
         .withMessage('Invalid GST number format'),
+
+    body('invoicePrefix')
+        .optional({ checkFalsy: true })
+        .trim()
+        .matches(/^[A-Z0-9]+$/i)
+        .withMessage('Invoice prefix must be alphanumeric'),
+
+    body('invoiceFooterText')
+        .optional()
+        .trim()
+        .isLength({ max: 500 })
+        .withMessage('Footer text cannot exceed 500 characters'),
 ];
 
 const updateStoreValidation = [
@@ -57,6 +69,18 @@ const updateStoreValidation = [
         .optional({ checkFalsy: true })
         .matches(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/)
         .withMessage('Invalid GST number format'),
+
+    body('invoicePrefix')
+        .optional({ checkFalsy: true })
+        .trim()
+        .matches(/^[A-Z0-9]+$/i)
+        .withMessage('Invoice prefix must be alphanumeric'),
+
+    body('invoiceFooterText')
+        .optional()
+        .trim()
+        .isLength({ max: 500 })
+        .withMessage('Footer text cannot exceed 500 characters'),
 ];
 
 module.exports = {

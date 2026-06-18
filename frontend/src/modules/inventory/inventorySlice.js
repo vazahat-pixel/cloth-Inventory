@@ -60,6 +60,19 @@ export const fetchStockOverview = createAsyncThunk(
   }
 );
 
+export const fetchHomeStockStats = createAsyncThunk(
+  'inventory/fetchHomeStockStats',
+  async (params = {}, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/store-inventory/home-stats', { params });
+      const data = response.data.data || response.data;
+      return data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch stock stats');
+    }
+  }
+);
+
 export const fetchInventoryExport = createAsyncThunk(
   'inventory/fetchExport',
   async (params, { rejectWithValue }) => {
@@ -258,6 +271,8 @@ const initialState = {
   export: [],
   dispatches: [],
   movements: [],
+  homeStockStats: null,
+  homeStockLoading: false,
   loading: false,
   error: null,
 };
@@ -285,6 +300,17 @@ const inventorySlice = createSlice({
       })
       .addCase(fetchStockOverview.rejected, (state, action) => {
         state.loading = false;
+        state.error = action.payload;
+      })
+      .addCase(fetchHomeStockStats.pending, (state) => {
+        state.homeStockLoading = true;
+      })
+      .addCase(fetchHomeStockStats.fulfilled, (state, action) => {
+        state.homeStockLoading = false;
+        state.homeStockStats = action.payload || null;
+      })
+      .addCase(fetchHomeStockStats.rejected, (state, action) => {
+        state.homeStockLoading = false;
         state.error = action.payload;
       })
       // Inventory Export

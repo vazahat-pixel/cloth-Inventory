@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
@@ -77,8 +78,15 @@ function DailyInwardReportPage() {
       return reason.includes('return') || ref.includes('return') || m.type === 'OUT';
     };
 
+    const INWARD_TYPES = new Set(['IN', 'PURCHASE', 'GRN_RECEIPT', 'RECEIVE', 'QC_APPROVED', 'OPENING_BALANCE', 'RETURN', 'ADJUSTMENT']);
+
     return movements
-      .filter((m) => m.type === 'IN' || isReturnMovement(m))
+      .filter((m) => {
+        const type = String(m.type || '').toUpperCase();
+        const qty = toNum(m.quantity || m.qty);
+        if (INWARD_TYPES.has(type) && qty > 0) return true;
+        return isReturnMovement(m);
+      })
       .map((m) => {
         const qty = toNum(m.quantity || m.qty);
         const rate = toNum(m.purchaseRate || m.rate || m.unitRate || 0);
@@ -86,7 +94,7 @@ function DailyInwardReportPage() {
         const isReturn = isReturnMovement(m);
         return {
           id: m._id || m.id,
-          date: new Date(m.createdAt || m.date).toLocaleDateString(),
+          date: formatDateDDMMYYYY(m.createdAt || m.date),
           itemName: m.itemName || 'Unknown Item',
           sku: m.sku || '-',
           sizeColor: `${m.size || '-'} / ${m.color || '-'}`,
@@ -126,7 +134,7 @@ function DailyInwardReportPage() {
   const exportRows = useMemo(
     () =>
       inwardRows.map((r) => ({
-        Date: r.date,
+        Date: formatDateDDMMYYYY(r.date),
         Item: r.itemName,
         SKU: r.sku,
         'Size/Color': r.sizeColor,
@@ -219,7 +227,7 @@ function DailyInwardReportPage() {
             <TableBody>
               {paginatedRows.length > 0 ? paginatedRows.map((row, i) => (
                 <TableRow key={`${row.id}-${i}`} hover>
-                  <TableCell>{row.date}</TableCell>
+                  <TableCell>{formatDateDDMMYYYY(row.date)}</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>{row.itemName}</TableCell>
                   <TableCell sx={{ fontFamily: 'monospace' }}>{row.sku}</TableCell>
                   <TableCell>{row.sizeColor}</TableCell>

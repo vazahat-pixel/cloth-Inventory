@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { useSearchParams } from 'react-router-dom';
 import {
   Box,
@@ -24,6 +25,7 @@ import stockAuditLedgerExportColumns from '../../config/exportColumns/stockAudit
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchInventoryExport, fetchMovements } from './inventorySlice';
 import { fetchMasters } from '../masters/mastersSlice';
+import { syncDateRange, dateRangeInputProps } from '../../utils/dateRangeUtils';
 
 const tabDefinitions = [
   { value: 0, label: 'Location Analytics' },
@@ -72,12 +74,21 @@ function StockAuditView({ defaultTab = 0 }) {
     dispatch(fetchInventoryExport());
     dispatch(fetchMovements());
     dispatch(fetchMasters('warehouses'));
+    dispatch(fetchMasters('stores'));
     dispatch(fetchMasters('items'));
   }, [dispatch]);
 
+  useEffect(() => {
+    if (initialItem && initialItem !== 'all') {
+      setActiveTab(2);
+    }
+  }, [initialItem]);
+
+  const dateBounds = dateRangeInputProps(dateFrom, dateTo);
+
   const locationRows = exportRows.map(r => ({
     id: `${r.locationName}-${r.sku}`,
-    warehouse: r.locationType,
+    warehouse: r.locationName,
     location: r.locationName,
     itemCode: r.sku || r.barcode,
     itemName: r.productName,
@@ -90,7 +101,7 @@ function StockAuditView({ defaultTab = 0 }) {
   const batchRows = []; // Production batches not yet linked here
   const ledgerRows = rawLedgerRows.map(r => ({
     id: r.id || r._id,
-    date: r.date ? new Date(r.date).toLocaleDateString() : '-',
+    date: r.date ? formatDateDDMMYYYY(r.date) : '-',
     source: r.reference || r.source || '-',
     movementType: r.type || 'IN',
     itemCode: r.sku || r.styleCode || '-',
@@ -222,8 +233,16 @@ function StockAuditView({ defaultTab = 0 }) {
             </MenuItem>
           ))}
         </TextField>
-        <TextField size="small" type="date" label="From" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} InputLabelProps={{ shrink: true }} />
-        <TextField size="small" type="date" label="To" value={dateTo} onChange={(event) => setDateTo(event.target.value)} InputLabelProps={{ shrink: true }} />
+        <TextField size="small" type="date" label="From" value={dateFrom} onChange={(event) => {
+          const synced = syncDateRange(dateFrom, dateTo, 'from', event.target.value);
+          setDateFrom(synced.dateFrom);
+          setDateTo(synced.dateTo);
+        }} InputLabelProps={{ shrink: true }} inputProps={{ max: dateBounds.from.max }} />
+        <TextField size="small" type="date" label="To" value={dateTo} onChange={(event) => {
+          const synced = syncDateRange(dateFrom, dateTo, 'to', event.target.value);
+          setDateFrom(synced.dateFrom);
+          setDateTo(synced.dateTo);
+        }} InputLabelProps={{ shrink: true }} inputProps={{ min: dateBounds.to.min, max: dateBounds.to.max }} />
         <TextField size="small" select label="Warehouse" value={warehouseFilter} onChange={(event) => setWarehouseFilter(event.target.value)} sx={{ minWidth: 180 }}>
           <MenuItem value="all">All Warehouses</MenuItem>
           {warehouseOptions.map((option) => (
@@ -288,7 +307,7 @@ function StockAuditView({ defaultTab = 0 }) {
                       <TableCell>{row.size}</TableCell>
                       <TableCell>{row.batch}</TableCell>
                       <TableCell align="right">{row.balance}</TableCell>
-                      <TableCell>{row.lastMovementDate}</TableCell>
+                      <TableCell>{formatDateDDMMYYYY(row.lastMovementDate)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -356,7 +375,7 @@ function StockAuditView({ defaultTab = 0 }) {
                 <TableBody>
                   {filteredLedgerRows.map((row) => (
                     <TableRow key={row.id}>
-                      <TableCell>{row.date}</TableCell>
+                      <TableCell>{formatDateDDMMYYYY(row.date)}</TableCell>
                       <TableCell>{row.source}</TableCell>
                       <TableCell>
                         <StatusBadge value={row.movementType} sx={{ minWidth: 72 }} />

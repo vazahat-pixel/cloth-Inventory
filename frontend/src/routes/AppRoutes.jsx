@@ -1,4 +1,5 @@
 import React, { Suspense, lazy } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../utils/formatters';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import RoleDashboardLayout from '../layouts/RoleDashboardLayout';
 import RouteFallback from '../components/RouteFallback';
@@ -67,7 +68,6 @@ const DynamicReportPage = lazy(() => import('../modules/reports/DynamicReportPag
 const GstSummaryReportPage = lazy(() => import('../modules/reports/GstSummaryReportPage'));
 const Gstr1DetailedReportPage = lazy(() => import('../modules/reports/Gstr1DetailedReportPage'));
 const StoreClosureAuditPage = lazy(() => import('../modules/reports/StoreClosureAuditPage'));
-const OrderReportPage = lazy(() => import('../modules/reports/OrderReportPage'));
 const HoMasterDashboard = lazy(() => import('../modules/reports/HoMasterDashboard'));
 const InTransitMonitorPage = lazy(() => import('../modules/reports/InTransitMonitorPage'));
 const VerificationControlCenterPage = lazy(() => import('../modules/controlCenter/VerificationControlCenterPage'));
@@ -78,11 +78,8 @@ const PhysicalVsActualStockPage = lazy(() => import('../modules/reports/Physical
 const LedgerReportPage = lazy(() => import('../modules/reports/LedgerReportPage'));
 const BankBookPage = lazy(() => import('../modules/reports/BankBookPage'));
 const CustomerReportPage = lazy(() => import('../modules/reports/CustomerReportPage'));
-const VendorReportPage = lazy(() => import('../modules/reports/VendorReportPage'));
-const MovementReportPage = lazy(() => import('../modules/reports/MovementReportPage'));
 const DailyInwardReportPage = lazy(() => import('../modules/reports/DailyInwardReportPage'));
 const AgeAnalysisPage = lazy(() => import('../modules/reports/AgeAnalysisPage'));
-const YieldAnalysisPage = lazy(() => import('../modules/reports/YieldAnalysisPage'));
 
 // Sales
 const SalesBillListPage = lazy(() => import('../modules/sales/SalesListPage'));
@@ -117,6 +114,7 @@ const AuditLogViewer = lazy(() => import('../modules/inventory/AuditLogViewer'))
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
 
 const StoreReturnReceivePage = lazy(() => import('../modules/inventory/StoreReturnReceivePage'));
+const NotificationsPage = lazy(() => import('../modules/notifications/NotificationsPage'));
 const StorePurchaseReturnPage = lazy(() => import('../modules/store/PurchaseReturnPage'));
 
 // Placeholder for pages that are scaffolded but not yet built
@@ -128,29 +126,13 @@ const PlaceholderPage = ({ title = 'Coming Soon' }) => (
 );
 
 // --- CONFIGURATIONS FOR DYNAMIC REPORTS ---
-const CHALLAN_REPORT_CONFIG = {
-  title: 'Sale Challan Report',
-  description: 'List of all delivery challans issued to customers/stores.',
-  endpoint: '/delivery-challans',
-  apiBase: '',
-  serverPagination: true,
-  dataKey: 'challans',
-  columns: [
-    { field: 'dcNumber', headerName: 'Challan #', transform: (v, row) => v || row.challanNo || '—' },
-    { field: 'dcDate', headerName: 'Date', transform: (v) => (v ? new Date(v).toLocaleDateString() : '—') },
-    { field: 'partyName', headerName: 'Customer/Branch', transform: (v, row) => row.customerId?.name || row.destinationStoreId?.name || row.storeId?.name || 'N/A' },
-    { field: 'totalItems', headerName: 'Total Qty', transform: (v, row) => v || row.items?.reduce((sum, i) => sum + (i.quantity || 0), 0) || 0 },
-    { field: 'grandTotal', headerName: 'Amount', transform: (v, row) => Number(v || row.totalAmount || 0).toLocaleString() },
-  ],
-  filterConfig: { showDateRange: true },
-};
-
 const SCHEME_REPORT_CONFIG = {
   title: 'Promotion Eligibility Report',
   description: 'Analysis of scheme performance and usage.',
-  endpoint: '/pricing/schemes',
-  dataKey: 'schemes',
-  listKeys: ['schemes', 'records', 'data'],
+  endpoint: '/schemes',
+  apiBase: '/reports',
+  dataKey: 'report',
+  listKeys: ['report', 'schemes', 'records', 'data'],
   columns: [
     { field: 'name', headerName: 'Scheme Name', transform: (v, row) => v || row.schemeName || '—' },
     { field: 'type', headerName: 'Type', transform: (v, row) => v || row.schemeType || '—' },
@@ -167,7 +149,7 @@ const AGENT_WISE_REPORT_CONFIG = {
   listKeys: ['report', 'agents', 'records', 'data'],
   columns: [
     { field: 'agentName', headerName: 'Agent', transform: (v, row) => v || row.salesmanName || row.name || '—' },
-    { field: 'billCount', headerName: 'Bills', transform: (v) => v ?? 0 },
+    { field: 'count', headerName: 'Bills', transform: (v, row) => v ?? row.billCount ?? 0 },
     { field: 'totalSales', headerName: 'Total Sales', transform: v => Number(v || 0).toLocaleString('en-IN') }
   ]
 };
@@ -368,22 +350,22 @@ function AppRoutes() {
               <Route path="inventory/consolidated" element={<ConsolidatedStockPage />} />
               <Route path="closure-history" element={<StoreClosureAuditPage />} />
               <Route path="closure" element={<DayEndClosurePage />} />
-              <Route path="movement" element={<MovementReportPage />} />
+              <Route path="movement" element={<Navigate to="dashboard" replace />} />
               <Route path="inward" element={<DailyInwardReportPage />} />
               <Route path="age-analysis" element={<AgeAnalysisPage />} />
-              <Route path="production/yield" element={<YieldAnalysisPage />} />
+              <Route path="production/yield" element={<Navigate to="dashboard" replace />} />
               <Route path="gst/summary" element={<GstSummaryReportPage />} />
               <Route path="gstr1" element={<Gstr1DetailedReportPage />} />
               <Route path="control-center" element={<VerificationControlCenterPage />} />
               
               {/* Dynamic & Other Reports */}
-              <Route path="sale-challan-reports" element={<DynamicReportPage config={CHALLAN_REPORT_CONFIG} />} />
+              <Route path="sale-challan-reports" element={<Navigate to="dashboard" replace />} />
               <Route path="scheme-reports" element={<DynamicReportPage config={SCHEME_REPORT_CONFIG} />} />
               <Route path="agent-wise-reports" element={<DynamicReportPage config={AGENT_WISE_REPORT_CONFIG} />} />
-              <Route path="order-reports" element={<OrderReportPage />} />
+              <Route path="order-reports" element={<Navigate to="dashboard" replace />} />
               <Route path="item-reports" element={<DynamicReportPage config={STOCK_AGING_CONFIG} />} />
               <Route path="customers" element={<CustomerReportPage />} />
-              <Route path="vendors" element={<VendorReportPage />} />
+              <Route path="vendors" element={<Navigate to="dashboard" replace />} />
               <Route path="in-transit" element={<InTransitMonitorPage />} />
 
               {/* Duplicate/Alias Routes for consistency */}
@@ -400,6 +382,7 @@ function AppRoutes() {
               <Route path=":key" element={<DataHubSubPage />} />
             </Route>
             <Route path="profile" element={<ProfilePage />} />
+            <Route path="notifications" element={<NotificationsPage />} />
           </Route>
         </Route>
 
@@ -424,6 +407,7 @@ function AppRoutes() {
           <Route path="reports/collection" element={<CollectionReportPage />} />
           <Route path="reports/closure" element={<DayEndClosurePage />} />
           <Route path="profile" element={<ProfilePage />} />
+          <Route path="notifications" element={<NotificationsPage />} />
           
           {/* Delivery Challan / Receipt Routes for Store */}
           <Route path="orders/delivery-challan" element={<DeliveryChallanPage />} />

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { useSelector } from 'react-redux';
 import {
   Box,
@@ -69,7 +70,7 @@ function BankBookPage() {
   const exportRows = useMemo(
     () =>
       entries.map((e) => ({
-        Date: e.date,
+        Date: formatDateDDMMYYYY(e.date),
         Reference: e.reference,
         Narration: e.narration,
         Debit: e.debit,
@@ -143,7 +144,7 @@ function BankBookPage() {
               ) : (
                 entries.map((e, i) => (
                   <TableRow key={`${e.date}-${e.reference}-${i}`} hover>
-                    <TableCell>{e.date}</TableCell>
+                    <TableCell>{formatDateDDMMYYYY(e.date)}</TableCell>
                     <TableCell>{e.reference}</TableCell>
                     <TableCell sx={{ maxWidth: 280 }}>{e.narration}</TableCell>
                     <TableCell align="right">{e.debit ? `₹${toNum(e.debit).toFixed(2)}` : '-'}</TableCell>

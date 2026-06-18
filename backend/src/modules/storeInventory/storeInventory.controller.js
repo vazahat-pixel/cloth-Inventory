@@ -12,6 +12,15 @@ const getStoreInventory = async (req, res, next) => {
     }
 };
 
+const getHomeStockStats = async (req, res, next) => {
+    try {
+        const stats = await storeInventoryService.getHomeStockStats(req.user, req.query);
+        return sendSuccess(res, stats, 'Home stock stats retrieved successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
 const getProductInStore = async (req, res, next) => {
     try {
         let { storeId } = req.query;
@@ -138,6 +147,7 @@ const clearWarehouseInventory = async (req, res, next) => {
 
 module.exports = {
     getStoreInventory,
+    getHomeStockStats,
     getProductInStore,
     adjustInventory,
     reconcileStock,

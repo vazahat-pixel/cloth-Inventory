@@ -23,6 +23,7 @@ import AddCircleOutlineOutlinedIcon from '@mui/icons-material/AddCircleOutlineOu
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
+import { formatDateDDMMYYYY } from '../../../utils/formatters';
 import SearchIcon from '@mui/icons-material/Search';
 import InputAdornment from '@mui/material/InputAdornment';
 import PageHeader from '../../../components/erp/PageHeader';
@@ -85,13 +86,10 @@ const formatTimestamp = (isoString) => {
   try {
     const d = new Date(isoString);
     if (isNaN(d.getTime())) return { date: isoString, time: '' };
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
     const hh = String(d.getHours()).padStart(2, '0');
     const min = String(d.getMinutes()).padStart(2, '0');
     const sec = String(d.getSeconds()).padStart(2, '0');
-    return { date: `${yyyy}-${mm}-${dd}`, time: `${hh}:${min}:${sec}` };
+    return { date: formatDateDDMMYYYY(d), time: `${hh}:${min}:${sec}` };
   } catch (err) {
     return { date: isoString, time: '' };
   }
@@ -452,9 +450,11 @@ function SuppliersListPage() {
                 ['Status', viewRow.status],
                 ['Notes', viewRow.notes],
               ].map(([label, value]) => (
-                <Grid key={label} item xs={12} md={6}>
-                  <Typography variant="caption" sx={{ color: '#64748b' }}>{label}</Typography>
-                  <Typography variant="body2" sx={{ color: '#0f172a', fontWeight: 600 }}>{value || '--'}</Typography>
+                <Grid key={label} item xs={12} sm={6}>
+                  <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, height: '100%' }}>
+                    <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>{label}</Typography>
+                    <Typography variant="body2" sx={{ color: '#0f172a', fontWeight: 600, mt: 0.5 }}>{value || '--'}</Typography>
+                  </Paper>
                 </Grid>
               ))}
             </Grid>

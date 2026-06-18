@@ -6,6 +6,7 @@ const router = express.Router();
 
 router.use(protect);
 
+router.get('/home-stats', storeInventoryController.getHomeStockStats);
 router.get('/', storeInventoryController.getStoreInventory);
 router.post('/adjust', storeInventoryController.adjustInventory);
 router.post('/reconcile', storeInventoryController.reconcileStock);

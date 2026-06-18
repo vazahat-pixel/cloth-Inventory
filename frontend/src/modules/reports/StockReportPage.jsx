@@ -85,8 +85,8 @@ function StockReportPage() {
 
   const locationMap = useMemo(() => {
     const map = {};
-    warehouses.forEach((w) => { map[w.id] = w.name; });
-    stores.forEach((s) => { map[s.id] = s.name; });
+    warehouses.forEach((w) => { map[String(w.id || w._id)] = w.name || w.warehouseName; });
+    stores.forEach((s) => { map[String(s.id || s._id)] = s.name || s.storeName; });
     return map;
   }, [warehouses, stores]);
 
@@ -126,18 +126,18 @@ function StockReportPage() {
 
       if (toId) {
         const bucket = ensureBucket(variantId, toId);
-        if (type === 'PURCHASE') bucket.purchaseIn += qty;
+        if (type === 'PURCHASE' || type === 'GRN_RECEIPT' || type === 'RECEIVE' || type === 'OPENING_BALANCE') bucket.purchaseIn += qty;
         if (type === 'QC_APPROVED') bucket.qcIn += qty;
         if (type === 'RETURN') bucket.returnIn += qty;
-        if (type === 'TRANSFER') bucket.transferIn += qty;
+        if (type === 'TRANSFER' || type === 'DISPATCH') bucket.transferIn += qty;
         if (type === 'ADJUSTMENT') bucket.adjustmentIn += qty;
       }
 
       if (fromId) {
         const bucket = ensureBucket(variantId, fromId);
-        if (type === 'SALE') bucket.saleOut += qty;
+        if (type === 'SALE' || type === 'MANUFACTURING_CONSUMPTION' || type === 'MATERIAL_OUTWARD') bucket.saleOut += qty;
         if (type === 'RETURN') bucket.returnOut += qty;
-        if (type === 'TRANSFER') bucket.transferOut += qty;
+        if (type === 'TRANSFER' || type === 'DISPATCH') bucket.transferOut += qty;
         if (type === 'ADJUSTMENT') bucket.adjustmentOut += qty;
       }
     });
@@ -175,7 +175,7 @@ function StockReportPage() {
       const openingStock = Math.max(0, closingStock - inwardQty + outwardQty);
       return {
         ...s,
-        warehouseName: locationMap[s.warehouseId] || locationMap[s.storeId] || 'Unknown Location',
+        warehouseName: locationMap[String(s.warehouseId || s.storeId)] || s.warehouseName || s.storeName || 'Unknown Location',
         locationType: s.storeId ? 'Store' : 'Warehouse',
         openingStock,
         inwardQty,
@@ -290,6 +290,12 @@ function StockReportPage() {
     () => locationWiseRows.map((r) => ({ 'Location': r.location, 'Type': r.type, Variants: r.variants, Quantity: r.quantity, Value: r.value.toFixed(2) })),
     [locationWiseRows],
   );
+
+  const paginationCount = useMemo(() => {
+    if (viewMode === 'detail') return filteredRows.length;
+    if (viewMode === 'groupWise') return groupWiseRows.length;
+    return locationWiseRows.length;
+  }, [viewMode, filteredRows, groupWiseRows, locationWiseRows]);
 
   return (
     <Box>
@@ -482,9 +488,7 @@ function StockReportPage() {
           </Table>
         </TableContainer>
         <ServerTablePagination
-          count={hasClientFilters
-            ? (viewMode === 'detail' ? filteredRows.length : viewMode === 'groupWise' ? groupWiseRows.length : locationWiseRows.length)
-            : (viewMode === 'detail' ? stockDbTotal : viewMode === 'groupWise' ? groupWiseRows.length : locationWiseRows.length)}
+          count={paginationCount}
           page={page}
           rowsPerPage={rowsPerPage}
           onPageChange={(_, p) => setPage(p)}

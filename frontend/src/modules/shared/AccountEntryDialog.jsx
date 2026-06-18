@@ -1,4 +1,5 @@
 import { useMemo, useEffect } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import {
   Dialog,
   DialogActions,
@@ -90,7 +91,7 @@ function AccountEntryDialog({ open, onClose, billType, bill, supplierName, custo
             <TableBody>
               {entries.map((row, index) => (
                 <TableRow key={index}>
-                  <TableCell>{row.date}</TableCell>
+                  <TableCell>{formatDateDDMMYYYY(row.date)}</TableCell>
                   <TableCell>{row.narration}</TableCell>
                   <TableCell>{row.account}</TableCell>
                   <TableCell align="right">

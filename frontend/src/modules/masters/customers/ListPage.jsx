@@ -1,13 +1,19 @@
-import { useMemo } from 'react';
-import { useSelector } from 'react-redux';
+import { useMemo, useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import { Typography } from '@mui/material';
 import MasterListPage from '../components/MasterListPage';
 import StatusChip from '../components/StatusChip';
 import CustomersFormDialog from './FormDialog';
+import { fetchMasters } from '../mastersSlice';
 
 function CustomersListPage() {
+  const dispatch = useDispatch();
+  useEffect(() => {
+    dispatch(fetchMasters('customers'));
+    dispatch(fetchMasters('accountGroups'));
+  }, [dispatch]);
   const accountGroups = useSelector((state) => state.masters?.accountGroups || []);
-  const groupById = useMemo(() => Object.fromEntries(accountGroups.map((g) => [g.id, g])), [accountGroups]);
+  const groupById = useMemo(() => Object.fromEntries(accountGroups.map((g) => [g.id || g._id, g])), [accountGroups]);
 
   const customersColumns = useMemo(
     () => [

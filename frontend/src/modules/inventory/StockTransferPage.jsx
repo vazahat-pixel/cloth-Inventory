@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import {
   Box,
   Button,
@@ -51,7 +52,7 @@ function StockTransferPage() {
     return dispatches.map(d => ({
       id: d._id,
       transferNumber: d.dispatchNumber,
-      transferDate: new Date(d.createdAt).toLocaleDateString(),
+      transferDate: formatDateDDMMYYYY(d.createdAt),
       fromLocation: d.sourceWarehouseId?.name || 'Warehouse',
       toLocation: d.destinationStoreId?.name || 'Store',
       totalQty: d.items.reduce((sum, i) => sum + (i.qty || 0), 0),

@@ -130,7 +130,7 @@ const populateInventoryManual = async (inventoryItems) => {
 const getStoreInventory = async (query, user) => {
     const { getPagination } = require('../../utils/pagination.helper');
     const { page, limit, skip } = getPagination(query);
-    const { search, storeId, warehouseId, lowStock, type } = query;
+    const { search, storeId, warehouseId, lowStock, outOfStock, type } = query;
 
     const storeFilter = {};
     const warehouseFilter = {};
@@ -163,6 +163,10 @@ const getStoreInventory = async (query, user) => {
     if (lowStock === 'true') {
         storeFilter.$expr = { $lte: ['$quantityAvailable', '$minStockLevel'] };
         warehouseFilter.$expr = { $lte: ['$quantity', '$reorderLevel'] };
+    }
+    if (outOfStock === 'true') {
+        storeFilter.quantityAvailable = { $lte: 0 };
+        warehouseFilter.quantity = { $lte: 0 };
     }
 
     // If search exists, find matching Item and Variant IDs first
@@ -637,8 +641,100 @@ const clearWarehouseInventory = async (warehouseId, userId) => {
     }
 };
 
+const buildScopedInventoryFilters = (user) => {
+    const storeFilter = {};
+    const warehouseFilter = {};
+
+    const normalizedRole = (user.role || '').toLowerCase();
+    const isHOUser = normalizedRole.includes('admin') || !user.shopId;
+    const isStoreRole = !isHOUser && (
+        normalizedRole.includes('staff')
+        || normalizedRole.includes('manager')
+        || normalizedRole.includes('accountant')
+    );
+
+    if (isStoreRole) {
+        if (!user.shopId) {
+            throw new Error('User is not linked to any store. Please contact your administrator.');
+        }
+        storeFilter.storeId = user.shopId;
+        warehouseFilter._id = { $exists: false };
+    } else {
+        storeFilter._id = { $in: [] };
+    }
+
+    return { storeFilter, warehouseFilter };
+};
+
+/**
+ * Lightweight stock stats for dashboard (no full inventory list).
+ */
+const getHomeStockStats = async (user, query = {}) => {
+    const threshold = Math.max(0, Number(query.lowStockThreshold) || 10);
+    const sampleLimit = 20;
+    const { storeFilter, warehouseFilter } = buildScopedInventoryFilters(user);
+
+    const storeMatch = { ...storeFilter };
+    const warehouseMatch = { ...warehouseFilter };
+    delete warehouseMatch._id;
+
+    const storeLowMatch = {
+        ...storeFilter,
+        quantityAvailable: { $gt: 0, $lte: threshold },
+    };
+    const warehouseLowMatch = {
+        ...warehouseMatch,
+        quantity: { $gt: 0, $lte: threshold },
+    };
+
+    const [
+        storeAgg,
+        warehouseAgg,
+        storeLowCount,
+        warehouseLowCount,
+        storeLowRows,
+        warehouseLowRows,
+    ] = await Promise.all([
+        StoreInventory.aggregate([
+            { $match: storeMatch },
+            { $group: { _id: null, count: { $sum: 1 }, totalQty: { $sum: '$quantityAvailable' } } },
+        ]),
+        WarehouseInventory.aggregate([
+            { $match: warehouseMatch },
+            { $group: { _id: null, count: { $sum: 1 }, totalQty: { $sum: '$quantity' } } },
+        ]),
+        StoreInventory.countDocuments(storeLowMatch),
+        WarehouseInventory.countDocuments(warehouseLowMatch),
+        StoreInventory.find(storeLowMatch).sort({ quantityAvailable: 1 }).limit(sampleLimit).lean(),
+        WarehouseInventory.find(warehouseLowMatch).sort({ quantity: 1 }).limit(sampleLimit).lean(),
+    ]);
+
+    const combinedLow = [...storeLowRows, ...warehouseLowRows]
+        .sort((left, right) => {
+            const leftQty = Number(left.quantityAvailable ?? left.quantity ?? 0);
+            const rightQty = Number(right.quantityAvailable ?? right.quantity ?? 0);
+            return leftQty - rightQty;
+        })
+        .slice(0, sampleLimit);
+
+    const populated = await populateInventoryManual(combinedLow);
+
+    return {
+        totalRows: (storeAgg[0]?.count || 0) + (warehouseAgg[0]?.count || 0),
+        totalQuantity: Math.round((storeAgg[0]?.totalQty || 0) + (warehouseAgg[0]?.totalQty || 0)),
+        lowStockCount: storeLowCount + warehouseLowCount,
+        lowStockItems: populated.map((row) => ({
+            id: row.id || row._id,
+            itemName: row.itemName || 'Unknown',
+            sku: row.sku || row.barcode || row.itemCode || '',
+            quantity: Number(row.available ?? row.quantityAvailable ?? row.quantity ?? 0),
+        })),
+    };
+};
+
 module.exports = {
     getStoreInventory,
+    getHomeStockStats,
     getProductInStore,
     adjustInventory,
     bulkImportOpeningStock,

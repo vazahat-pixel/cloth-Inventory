@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import { useSelector } from 'react-redux';
 import { Box, Divider, Grid, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography, Stack, CircularProgress } from '@mui/material';
 import api from '../../services/api';
@@ -62,6 +63,8 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
     const destinationStore = sale.destinationStoreId || {};
     const company = config?.company || {};
     const invoicing = config?.invoicing || {};
+    const invoiceDisplayNumber = sale.saleNumber || sale.invoiceNumber || sale.dispatchNumber || '—';
+    const storeFooterText = store.invoiceFooterText || store.invoiceFooter || '';
     
     const isStockTransfer = isTransfer || sale.isTransfer || sale.type === 'TRANSFER' || sale.type === 'STOCK_TRANSFER' || sale.saleType === 'TRANSFER' || sale.saleType === 'STOCK_TRANSFER';
 
@@ -414,13 +417,13 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
                     <Typography sx={{ fontSize: '11px', fontWeight: 900, color: '#000' }}>INVOICE NO.</Typography>
                 </Grid>
                 <Grid item xs={3} sx={{ p: 0.5, borderRight: '1px solid #000', bgcolor: '#fff' }}>
-                    <Typography sx={{ fontSize: '11px', fontWeight: 900, color: '#000' }}>{invoicing.invoicePrefix}{sale.invoiceNumber || sale.saleNumber || sale.dispatchNumber || '25-26/DAP-1'}</Typography>
+                    <Typography sx={{ fontSize: '11px', fontWeight: 900, color: '#000' }}>{invoiceDisplayNumber}</Typography>
                 </Grid>
                 <Grid item xs={3} sx={{ p: 0.5, borderRight: '1px solid #000', bgcolor: '#00FFFF' }}>
                     <Typography sx={{ fontSize: '11px', fontWeight: 900, color: '#000' }}>INVOICE DATE</Typography>
                 </Grid>
                 <Grid item xs={3} sx={{ p: 0.5, bgcolor: '#fff' }}>
-                    <Typography sx={{ fontSize: '11px', fontWeight: 900, color: '#000' }}>{new Date(sale.saleDate || sale.createdAt).toLocaleDateString('en-GB')}</Typography>
+                    <Typography sx={{ fontSize: '11px', fontWeight: 900, color: '#000' }}>{formatDateDDMMYYYY(sale.saleDate || sale.createdAt)}</Typography>
                 </Grid>
             </Grid>
 
@@ -664,11 +667,17 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
                     {!isStockTransfer && (
                         <Box sx={{ mt: 1 }}>
                             <Typography sx={{ fontSize: '8.5px', fontWeight: 800, textDecoration: 'underline' }}>Terms & Conditions:</Typography>
-                            <Typography sx={{ fontSize: '7.5px', fontWeight: 600, lineHeight: 1.2 }}>
-                                1. Goods once sold can be exchanged within 7 days only in original condition and with tag/invoice.<br/>
-                                2. No cash refund will be provided; store credit note will be issued for future purchases.<br/>
-                                3. All disputes are subject to SONIPAT (HARYANA) jurisdiction.
-                            </Typography>
+                            {storeFooterText ? (
+                                <Typography sx={{ fontSize: '7.5px', fontWeight: 600, lineHeight: 1.2, whiteSpace: 'pre-line' }}>
+                                    {storeFooterText}
+                                </Typography>
+                            ) : (
+                                <Typography sx={{ fontSize: '7.5px', fontWeight: 600, lineHeight: 1.2 }}>
+                                    1. Goods once sold can be exchanged within 7 days only in original condition and with tag/invoice.<br/>
+                                    2. No cash refund will be provided; store credit note will be issued for future purchases.<br/>
+                                    3. All disputes are subject to SONIPAT (HARYANA) jurisdiction.
+                                </Typography>
+                            )}
                         </Box>
                     )}
                 </Grid>

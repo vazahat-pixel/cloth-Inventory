@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import { useState } from 'react';
+import { syncDateRange, dateRangeInputProps } from '../../utils/dateRangeUtils';
 import { fetchMasters } from '../masters/mastersSlice';
 
 const filterFieldSx = {
@@ -98,8 +99,20 @@ function ReportFilterPanel({
   }, [dispatch, showWarehouse, showBrand, showCategory, showCustomer, showSupplier, showSalesman]);
 
   const update = (key, value) => {
-    onFiltersChange?.({ ...filters, [key]: value });
+    let nextFilters = { ...filters };
+    if (key === 'dateFrom') {
+      const synced = syncDateRange(filters.dateFrom, filters.dateTo, 'from', value);
+      nextFilters = { ...filters, dateFrom: synced.dateFrom, dateTo: synced.dateTo };
+    } else if (key === 'dateTo') {
+      const synced = syncDateRange(filters.dateFrom, filters.dateTo, 'to', value);
+      nextFilters = { ...filters, dateFrom: synced.dateFrom, dateTo: synced.dateTo };
+    } else {
+      nextFilters = { ...filters, [key]: value };
+    }
+    onFiltersChange?.(nextFilters);
   };
+
+  const dateBounds = dateRangeInputProps(filters?.dateFrom, filters?.dateTo);
 
   const hasActiveFilters = useMemo(() => {
     const f = filters || {};
@@ -154,7 +167,7 @@ function ReportFilterPanel({
               onChange={(e) => update('dateFrom', e.target.value)}
               InputLabelProps={{ shrink: true }}
               sx={filterFieldSx}
-              inputProps={{ max: new Date().toISOString().split('T')[0] }}
+              inputProps={{ max: dateBounds.from.max }}
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3} sx={{ minWidth: 180 }}>
@@ -167,7 +180,7 @@ function ReportFilterPanel({
               onChange={(e) => update('dateTo', e.target.value)}
               InputLabelProps={{ shrink: true }}
               sx={filterFieldSx}
-              inputProps={{ max: new Date().toISOString().split('T')[0] }}
+              inputProps={{ min: dateBounds.to.min, max: dateBounds.to.max }}
             />
           </Grid>
         </>
@@ -195,20 +208,22 @@ function ReportFilterPanel({
               renderValue: (selected) => {
                 if (!selected.length) return 'All locations';
                 if (selected.length === 1) {
-                  const loc = availableLocations.find((l) => l.id === selected[0]);
-                  return loc?.name || '1 location';
+                  const loc = availableLocations.find((l) => (l.id || l._id) === selected[0]);
+                  return loc?.name || loc?.storeName || '1 location';
                 }
                 return `${selected.length} locations selected`;
               },
             }}
             helperText={!(filters?.warehouseIds || []).length ? 'Empty = all locations' : ''}
           >
-            {availableLocations.map((w) => (
-              <MenuItem key={w.id} value={w.id}>
-                <Checkbox size="small" checked={(filters?.warehouseIds || []).includes(w.id)} />
-                <ListItemText primary={w.name} />
+            {availableLocations.map((w) => {
+              const locId = w.id || w._id;
+              return (
+              <MenuItem key={locId} value={locId}>
+                <Checkbox size="small" checked={(filters?.warehouseIds || []).includes(locId)} />
+                <ListItemText primary={w.name || w.storeName || w.warehouseName} />
               </MenuItem>
-            ))}
+            );})}
           </TextField>
         </Grid>
       )}

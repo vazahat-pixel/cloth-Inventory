@@ -291,7 +291,15 @@ const normalizeItem = (item, entityType) => {
             normalized.quantityReserved = normalized.reserved;
             normalized.available = item.quantityAvailable ?? item.available ?? Math.max(Number(item.quantity ?? 0) - Number(normalized.reserved), 0);
             normalized.inTransit = item.quantityInTransit ?? item.inTransit ?? 0;
-            normalized.status = normalized.available <= 10 ? 'LOW_STOCK' : 'OK';
+            const avail = Number(normalized.available || 0);
+            const reorder = Number(item.reorderLevel ?? item.minStockLevel ?? 10);
+            if (avail <= 0) {
+                normalized.status = 'OUT_OF_STOCK';
+            } else if (avail <= reorder) {
+                normalized.status = 'LOW_STOCK';
+            } else {
+                normalized.status = 'OK';
+            }
             break;
 
         case 'product': {
@@ -352,7 +360,10 @@ const normalizeItem = (item, entityType) => {
         case 'customer':
             normalized.customerName = item.name;
             normalized.mobileNumber = item.phone;
-            normalized.loyaltyPoints = item.points || 0;
+            normalized.loyaltyPoints = item.points ?? item.loyaltyPoints ?? 0;
+            normalized.creditLimit = item.creditLimit ?? 0;
+            normalized.groupId = item.groupId?._id || item.groupId || '';
+            normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
             normalized.name = item.name;
             break;
 
@@ -406,6 +417,7 @@ const normalizeItem = (item, entityType) => {
 
             normalized.giftItemId = item.giftItemId?._id || item.giftItemId || '';
             normalized.giftQuantity = item.giftQuantity || '';
+            normalized.isActive = item.isActive !== false;
             break;
         }
 
@@ -450,6 +462,8 @@ const normalizeItem = (item, entityType) => {
         case 'store':
             normalized.storeName = item.name;
             normalized.warehouseName = item.name; // Backwards compat
+            normalized.invoicePrefix = item.invoicePrefix || '';
+            normalized.invoiceFooterText = item.invoiceFooterText || '';
             normalized.status = item.isActive !== false ? 'Active' : 'Inactive';
             break;
         case 'brand':

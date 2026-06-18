@@ -57,7 +57,9 @@ function DynamicReportPage({ config }) {
     pageSizeOptions,
   } = useServerPagination({ defaultPageSize: 10 });
 
-  const resolvedListKeys = listKeys || [dataKey, 'report', 'records', 'challans', 'entries', 'visits', 'logs'];
+  const resolvedListKeys = useMemo(() => {
+    return listKeys || [dataKey, 'report', 'records', 'challans', 'entries', 'visits', 'logs'];
+  }, [listKeys, dataKey]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -110,7 +112,30 @@ function DynamicReportPage({ config }) {
     return filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   }, [filteredRows, page, rowsPerPage, serverPagination]);
 
-  const exportRows = useMemo(() => filteredRows.map((row) => {
+  const [allExportRows, setAllExportRows] = useState([]);
+
+  useEffect(() => {
+    if (!serverPagination) {
+      setAllExportRows([]);
+      return;
+    }
+    const loadAll = async () => {
+      try {
+        const params = { ...filters, page: 1, limit: 20000, search: debouncedSearch || undefined };
+        const url = apiBase ? `${apiBase}${endpoint}` : endpoint;
+        const response = await api.get(url, { params });
+        const rows = extractListPayload(response.data, resolvedListKeys);
+        setAllExportRows(Array.isArray(rows) ? rows : []);
+      } catch {
+        setAllExportRows([]);
+      }
+    };
+    loadAll();
+  }, [serverPagination, filters, debouncedSearch, apiBase, endpoint, resolvedListKeys]);
+
+  const exportSourceRows = serverPagination ? allExportRows : filteredRows;
+
+  const exportRows = useMemo(() => exportSourceRows.map((row) => {
     const exportRow = {};
     columns.forEach((col) => {
       let val = row[col.field];
@@ -118,7 +143,7 @@ function DynamicReportPage({ config }) {
       exportRow[col.headerName] = val;
     });
     return exportRow;
-  }), [columns, filteredRows]);
+  }), [columns, exportSourceRows]);
 
   const paginationCount = serverPagination ? total : filteredRows.length;
 

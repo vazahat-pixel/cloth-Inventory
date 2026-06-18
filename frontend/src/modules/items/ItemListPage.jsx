@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useLocation } from 'react-router-dom';
-import { Box, Button, Card, CardContent, Grid, IconButton, InputAdornment, MenuItem, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import { Box, Button, Card, CardContent, Grid, IconButton, InputAdornment, LinearProgress, MenuItem, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import SearchIcon from '@mui/icons-material/Search';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
@@ -20,9 +20,67 @@ import { deleteItem, fetchItems } from './itemsSlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import itemsExportColumns from '../../config/exportColumns/items';
 import BulkItemUploadDialog from './components/BulkItemUploadDialog';
+import api from '../../services/api';
+
+const mapItemToRow = (item, brands = [], hsnCodes = []) => {
+  const brandId = item.brand?._id || item.brand?.id || item.brand;
+  const brandFromMaster = brands.find((b) => String(b._id || b.id) === String(brandId));
+  const hsnId = item.hsCodeId?._id || item.hsCodeId?.id || item.hsCodeId;
+  const hsnFromMaster = hsnCodes.find((h) => String(h._id || h.id) === String(hsnId));
+  const section = item.sectionId?.groupName || item.sectionId?.name || item.sectionName || '';
+  const category = item.categoryId?.groupName || item.categoryId?.name || item.categoryName || '';
+  const subCategory = item.subCategoryId?.groupName || item.subCategoryId?.name || '';
+  const mainGroup = section || category || (item.groupIds?.find((g) => g.groupType === 'Section' || g.groupType === 'Category')?.name) || '--';
+  const subGroup = subCategory || (item.groupIds?.find((g) => g.groupType === 'Sub Category')?.name) || '--';
+  const variantSizes = [...new Set((item.sizes || []).map((s) => s.size).filter(Boolean))];
+  const variantColors = [...new Set((item.sizes || []).map((size) => size.color).filter(Boolean))];
+  return {
+    id: item.id || item._id,
+    itemCode: item.itemCode || item.code || '',
+    itemName: item.itemName || item.name || '',
+    brand: (
+      item.brand?.brandName
+      || item.brand?.name
+      || item.brandName
+      || brandFromMaster?.brandName
+      || brandFromMaster?.name
+      || 'UNSPECIFIED'
+    ),
+    color: item.color || item.shadeNo || variantColors.join(', ') || '--',
+    sizes: variantSizes.join(', ') || '--',
+    fabric: item.fabric || '--',
+    pattern: item.pattern || '--',
+    fit: item.fit || '--',
+    gender: item.gender || '--',
+    type: item.type || '--',
+    mainGroup,
+    subGroup,
+    hsnCode: (
+      item.hsCodeId?.code
+      || item.hsCodeId?.hsnCode
+      || item.hsnCode
+      || hsnFromMaster?.code
+      || hsnFromMaster?.hsnCode
+      || '--'
+    ),
+    gstRate: item.hsCodeId?.gstPercent !== undefined
+      ? `${item.hsCodeId.gstPercent}%`
+      : (hsnFromMaster?.gstPercent !== undefined
+        ? `${hsnFromMaster.gstPercent}%`
+        : (item.gstPercent ? `${item.gstPercent}%` : '--')),
+    variantCount: item.sizes?.length || 0,
+    status: item.status || 'Active',
+    costPrice: item.costPrice,
+    salePrice: item.salePrice,
+    mrp: item.mrp,
+    sku: item.sku,
+    season: item.season || '--',
+    occasion: item.occasion || '--',
+  };
+};
 
 const toExportRows = (rows) => rows.map((row) => ({
-  item_code: row.itemCode, item_name: row.itemName, brand: row.brand, hsn_code: row.hsnCode, gst_rate: row.gstRate, color: row.color, fabric: row.fabric, pattern: row.pattern, fit: row.fit, gender: row.gender, season: row.season, occasion: row.occasion, main_group: row.mainGroup, sub_group: row.subGroup, size: row.size, cost_price: row.costPrice, sale_price: row.salePrice, mrp: row.mrp, sku: row.sku, status: row.status,
+  item_code: row.itemCode, item_name: row.itemName, brand: row.brand, hsn_code: row.hsnCode, gst_rate: row.gstRate, color: row.color, fabric: row.fabric, pattern: row.pattern, fit: row.fit, gender: row.gender, season: row.season, occasion: row.occasion, main_group: row.mainGroup, sub_group: row.subGroup, size: row.sizes || row.size, cost_price: row.costPrice, sale_price: row.salePrice, mrp: row.mrp, sku: row.sku, status: row.status,
 }));
 
 function ItemListPage() {
@@ -31,7 +89,7 @@ function ItemListPage() {
   const dispatch = useDispatch();
   const { records: items, total, loading } = useSelector((state) => state.items);
   const brands = useSelector((state) => state.masters?.brands || []);
-  const groups = useSelector((state) => state.masters?.itemGroups || []);
+  const hsnCodes = useSelector((state) => state.masters?.hsnCodes || []);
   
   const restoredListState = location.state?.listState;
   const [searchText, setSearchText] = useState(restoredListState?.searchText ?? '');
@@ -59,47 +117,34 @@ function ItemListPage() {
     }));
     dispatch(fetchMasters('brands'));
     dispatch(fetchMasters('itemGroups'));
+    dispatch(fetchMasters('hsnCodes'));
   }, [dispatch, page, rowsPerPage, debouncedSearch, brandFilter, groupFilter]);
+
+  const groups = useSelector((state) => state.masters?.itemGroups || []);
 
   const rows = useMemo(() => {
     const itemsArray = Array.isArray(items) ? items : [];
-    return itemsArray.map((item) => {
-    const section = item.sectionId?.groupName || item.sectionId?.name || item.sectionName || '';
-    const category = item.categoryId?.groupName || item.categoryId?.name || item.categoryName || '';
-    const subCategory = item.subCategoryId?.groupName || item.subCategoryId?.name || '';
-    
-    // Logic: Main group is usually Section or Category
-    const mainGroup = section || category || (item.groupIds?.find(g => g.groupType === 'Section' || g.groupType === 'Category')?.name) || '--';
-    const subGroup = subCategory || (item.groupIds?.find(g => g.groupType === 'Sub Category')?.name) || '--';
+    return itemsArray.map((item) => mapItemToRow(item, brands, hsnCodes));
+  }, [items, brands, hsnCodes]);
 
-    const variantSizes = [...new Set((item.sizes || []).map((s) => s.size).filter(Boolean))];
-    const variantColors = [...new Set((item.sizes || []).map((size) => size.color).filter(Boolean))];
-    return {
-      id: item.id || item._id,
-      itemCode: item.itemCode || item.code || '',
-      itemName: item.itemName || item.name || '',
-      brand: (item.brand?.brandName || item.brand?.name || item.brandName || 'UNSPECIFIED'),
-      color: item.color || item.shadeNo || variantColors.join(', ') || '--',
-      sizes: variantSizes.join(', ') || '--',
-      fabric: item.fabric || '--',
-      pattern: item.pattern || '--',
-      fit: item.fit || '--',
-      gender: item.gender || '--',
-      type: item.type || '--',
-      mainGroup,
-      subGroup,
-      hsnCode: item.hsCodeId?.code || item.hsCodeId?.hsnCode || item.hsnCode || '--',
-      gstRate: item.hsCodeId?.gstPercent !== undefined ? `${item.hsCodeId.gstPercent}%` : (item.gstPercent ? `${item.gstPercent}%` : '--'),
-      variantCount: item.sizes?.length || 0,
-      status: item.status || 'Active',
-    };
-    });
-  }, [items]);
-
-  // Frontend filtering is now minimal because server handles most of it
-  const filteredRows = rows;
   const paginatedRows = rows;
-  const exportRows = useMemo(() => toExportRows(filteredRows), [filteredRows]);
+
+  const loadExportRows = async () => {
+    const response = await api.get('/items', {
+      params: {
+        page: 1,
+        limit: 20000,
+        forReport: true,
+        search: debouncedSearch || undefined,
+        brand: brandFilter !== 'all' ? brandFilter : undefined,
+        section: groupFilter !== 'all' ? groupFilter : undefined,
+      },
+    });
+    const resData = response.data.data || response.data || {};
+    const raw = resData.items || resData.records || [];
+    const records = Array.isArray(raw) ? raw : (raw.items || []);
+    return toExportRows(records.map((item) => mapItemToRow(item, brands, hsnCodes)));
+  };
 
   return (
     <div>
@@ -109,7 +154,7 @@ function ItemListPage() {
         breadcrumbs={[{ label: 'Items', active: true }]}
         actions={[
           <Button key="bulk-upload" variant="outlined" startIcon={<CloudUploadIcon />} onClick={() => setBulkDialogOpen(true)} sx={{ color: '#6366f1', borderColor: '#6366f1', fontWeight: 700 }}>Bulk Upload</Button>,
-          <ExportButton key="export" rows={exportRows} columns={itemsExportColumns} filename="unified_item_master" sheetName="Items" />,
+          <ExportButton key="export" rows={[]} loadRows={loadExportRows} columns={itemsExportColumns} filename="unified_item_master" sheetName="Items" />,
           <Button key="add" variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={() => goToItem('/items/new')} sx={{ bgcolor: '#d946ef', px: 3, fontWeight: 700 }}>Add New Item</Button>,
         ]}
       />
@@ -130,7 +175,10 @@ function ItemListPage() {
         </ToggleButtonGroup>
       </FilterBar>
 
+      {loading && <LinearProgress sx={{ mb: 1, borderRadius: 1 }} />}
+
       {viewMode === 'cards' ? (
+        <>
         <Grid container spacing={2}>
           {paginatedRows.map((row) => (
             <Grid key={row.id} size={{ xs: 12, md: 6, lg: 4 }}>
@@ -157,8 +205,19 @@ function ItemListPage() {
             </Grid>
           ))}
         </Grid>
+        <TablePagination
+          component="div"
+          count={total}
+          page={page}
+          rowsPerPage={rowsPerPage}
+          onPageChange={(_, nextPage) => setPage(nextPage)}
+          onRowsPerPageChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(0); }}
+          rowsPerPageOptions={[20, 50, 100]}
+        />
+        </>
       ) : (
-        <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3, overflow: 'hidden' }}>
+        <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 3, overflow: 'hidden', position: 'relative' }}>
+          {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 }} />}
           <TableContainer>
             <Table size="small">
               <TableHead sx={{ bgcolor: '#f8fafc' }}><TableRow>
@@ -189,7 +248,7 @@ function ItemListPage() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {!paginatedRows.length ? <TableRow><TableCell colSpan={9} sx={{ py: 10, textAlign: 'center', color: '#64748b' }}>No items found.</TableCell></TableRow> : null}
+                {!loading && !paginatedRows.length ? <TableRow><TableCell colSpan={9} sx={{ py: 10, textAlign: 'center', color: '#64748b' }}>No items found.</TableCell></TableRow> : null}
               </TableBody>
             </Table>
           </TableContainer>

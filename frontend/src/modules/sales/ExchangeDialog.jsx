@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import {
   Dialog,
   DialogTitle,
@@ -131,7 +132,7 @@ function ExchangeDialog({ open, onClose, onAddItems }) {
           {saleData && (
             <Box>
               <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700 }}>
-                Items in Invoice: {saleData.saleNumber} ({new Date(saleData.saleDate).toLocaleDateString()})
+                Items in Invoice: {saleData.saleNumber} ({formatDateDDMMYYYY(saleData.saleDate)})
               </Typography>
               <TableContainer sx={{ border: '1px solid #e2e8f0', borderRadius: 2 }}>
                 <Table size="small">

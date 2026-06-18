@@ -5,12 +5,30 @@
 const formatDate = (date) => {
     if (!date) return null;
     const d = new Date(date);
-    return d.toISOString().split('T')[0]; // YYYY-MM-DD
+    if (Number.isNaN(d.getTime())) return null;
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+};
+
+/** ISO YYYY-MM-DD for APIs and date inputs */
+const formatDateISO = (date) => {
+    if (!date) return null;
+    const d = new Date(date);
+    return d.toISOString().split('T')[0];
 };
 
 const formatDateTime = (date) => {
     if (!date) return null;
-    return new Date(date).toISOString().replace('T', ' ').substring(0, 19);
+    const d = new Date(date);
+    if (Number.isNaN(d.getTime())) return null;
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${day}/${month}/${year} ${hours}:${minutes}`;
 };
 
 const startOfDay = (date = new Date()) => {
@@ -33,4 +51,4 @@ const endOfMonth = (date = new Date()) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
 };
 
-module.exports = { formatDate, formatDateTime, startOfDay, endOfDay, startOfMonth, endOfMonth };
+module.exports = { formatDate, formatDateISO, formatDateTime, startOfDay, endOfDay, startOfMonth, endOfMonth };

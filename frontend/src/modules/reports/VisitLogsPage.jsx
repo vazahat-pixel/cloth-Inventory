@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
 import useDebouncedValue from '../../hooks/useDebouncedValue';
 import useServerPagination from '../../hooks/useServerPagination';
 import ServerTablePagination from '../../components/erp/ServerTablePagination';
@@ -120,7 +121,7 @@ function VisitLogsPage() {
               ) : visits.length ? (
                 visits.map((row) => (
                   <TableRow key={row.id} hover>
-                    <TableCell>{row.visitDate ? new Date(row.visitDate).toLocaleString() : '—'}</TableCell>
+                    <TableCell>{row.visitDate ? formatDateTimeDDMMYYYY(row.visitDate) : '—'}</TableCell>
                     <TableCell>{row.customerName}</TableCell>
                     <TableCell>{row.customerMobile || '—'}</TableCell>
                     <TableCell>{row.storeName || '—'}</TableCell>

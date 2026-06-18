@@ -37,11 +37,21 @@ import { useForm, Controller } from 'react-hook-form';
 import { addScheme, updateScheme, fetchPromotionGroups } from './pricingSlice';
 import { fetchMasters } from '../masters/mastersSlice';
 import { fetchItems } from '../items/itemsSlice';
+import { itemPickerParams } from '../items/itemFetchConstants';
+import useDebouncedValue from '../../hooks/useDebouncedValue';
 
 const toNum = (v, def = 0) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : def;
 };
+
+const DEFAULT_OFFER_TYPES = [
+  { id: 'pct', baseLogic: 'PERCENTAGE', name: 'Percentage Discount' },
+  { id: 'flat', baseLogic: 'FLAT', name: 'Flat Discount' },
+  { id: 'bogo', baseLogic: 'BOGO', name: 'Buy One Get One (BOGO)' },
+  { id: 'bxgy', baseLogic: 'BUY_X_GET_Y', name: 'Buy X Get Y' },
+  { id: 'manual', baseLogic: 'MANUAL', name: 'Manual Discount' },
+];
 
 const ProductRow = memo(({ index, style, items, selection, onToggle }) => {
   const item = items[index];
@@ -111,6 +121,11 @@ function SchemeFormPage() {
     });
     return Array.from(unique.values());
   }, [stateCategories, items]);
+
+  const offerTypeOptions = useMemo(() => {
+    if (promotionTypes.length > 0) return promotionTypes;
+    return DEFAULT_OFFER_TYPES;
+  }, [promotionTypes]);
 
   const brands = useMemo(() => {
     if (stateBrands.length > 0) return stateBrands;
@@ -324,14 +339,25 @@ function SchemeFormPage() {
 
   const schemeType = watch('type');
 
+  const [productDialogOpen, setProductDialogOpen] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
+  const debouncedProductSearch = useDebouncedValue(productSearch, 350);
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedBrand, setSelectedBrand] = useState('all');
+  const [localSelection, setLocalSelection] = useState([]);
+
   useEffect(() => {
     dispatch(fetchMasters('brands'));
-    dispatch(fetchMasters('categories')); // Consistent with other modules
-    dispatch(fetchItems({ limit: 100000 })); // Fetch all items for selection
+    dispatch(fetchMasters('categories'));
     dispatch(fetchMasters('promotionTypes'));
     dispatch(fetchMasters('stores'));
     dispatch(fetchPromotionGroups());
   }, [dispatch]);
+
+  useEffect(() => {
+    if (!productDialogOpen) return;
+    dispatch(fetchItems(itemPickerParams(debouncedProductSearch, 500)));
+  }, [dispatch, debouncedProductSearch, productDialogOpen]);
 
   useEffect(() => {
     if (isEditMode && existing) {
@@ -355,12 +381,6 @@ function SchemeFormPage() {
       });
     }
   }, [existing, reset, isEditMode]);
-
-  const [productDialogOpen, setProductDialogOpen] = useState(false);
-  const [productSearch, setProductSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedBrand, setSelectedBrand] = useState('all');
-  const [localSelection, setLocalSelection] = useState([]);
 
   // Sync local selection when dialog opens
   useEffect(() => {
@@ -430,6 +450,27 @@ function SchemeFormPage() {
 
     if (Number(values.value) < 0) {
       setFormError('Discount / Price value must be 0 or greater');
+      return;
+    }
+
+    if (values.type === 'PERCENTAGE' && Number(values.value) > 100) {
+      setFormError('Discount percentage cannot exceed 100%');
+      return;
+    }
+
+    if (!values.endDate) {
+      setFormError('End date is required');
+      return;
+    }
+
+    const hasApplicability = values.isUniversal
+      || (values.applicableProducts?.length > 0)
+      || (values.applicableCategories?.length > 0)
+      || (values.applicableBrands?.length > 0)
+      || (values.applicablePromotionGroups?.length > 0)
+      || (values.applicableStores?.length > 0);
+    if (!hasApplicability) {
+      setFormError('Select at least one applicability rule or enable Universal scheme');
       return;
     }
 
@@ -539,10 +580,10 @@ function SchemeFormPage() {
                     <TextField
                       fullWidth
                       select
-                      label="Offer Type (From your Master List)"
+                      label="Offer Type"
                       {...register('type', { required: 'Type is required' })}
                     >
-                      {promotionTypes.map(o => (
+                      {offerTypeOptions.map(o => (
                         <MenuItem key={o._id || o.id} value={o.baseLogic}>
                           {o.name}
                         </MenuItem>
@@ -553,11 +594,6 @@ function SchemeFormPage() {
                       <MenuItem value="FIXED_PRICE" sx={{ fontWeight: 700, color: '#2563eb' }}>
                         Bundle Fixed Price (Fixed total for X qty)
                       </MenuItem>
-                      {promotionTypes.length === 0 && (
-                        <MenuItem disabled value="">
-                          <em>Add more types in "Offer Configs"</em>
-                        </MenuItem>
-                      )}
                     </TextField>
                   </Grid>
 
@@ -573,7 +609,15 @@ function SchemeFormPage() {
                                 schemeType === 'MANUAL' ? 'Manual Discount (₹)' :
                                   'Flat Discount (₹)'
                         }
-                        {...register('value', { required: true, min: 0 })}
+                        inputProps={{
+                          min: 0,
+                          max: schemeType === 'PERCENTAGE' ? 100 : undefined,
+                        }}
+                        {...register('value', {
+                          required: true,
+                          min: { value: 0, message: 'Value cannot be negative' },
+                          max: schemeType === 'PERCENTAGE' ? { value: 100, message: 'Cannot exceed 100%' } : undefined,
+                        })}
                         onFocus={(e) => e.target.value === '0' && setValue('value', '')}
                         InputProps={{
                           startAdornment: (

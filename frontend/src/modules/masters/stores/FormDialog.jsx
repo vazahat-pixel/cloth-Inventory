@@ -71,6 +71,8 @@ function StoresFormDialog({ open, onClose, onSubmit, initialValues }) {
         ...initialValues,
         transferDiscountPct: initialValues.transferDiscountPct || 0,
         openingBalance: initialValues.openingBalance || 0,
+        invoicePrefix: initialValues.invoicePrefix || '',
+        invoiceFooterText: initialValues.invoiceFooterText || '',
         city: initialValues.location?.city || initialValues.city || '',
         state: initialValues.location?.state || initialValues.state || '',
         pincode: initialValues.location?.pincode || initialValues.pincode || '',

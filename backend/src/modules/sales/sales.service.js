@@ -1212,7 +1212,7 @@ const getSaleById = async (id, user = null) => {
 };
 
 const saleByNumberPopulate = [
-    { path: 'storeId', select: 'name invoicePrefix location' },
+    { path: 'storeId', select: 'name invoicePrefix invoiceFooterText location gstNumber managerPhone email' },
     { path: 'cashierId', select: 'name' },
     { path: 'customerId', select: 'name phone address loyaltyPoints' },
     {
