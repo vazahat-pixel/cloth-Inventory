@@ -12,6 +12,49 @@ const SystemLog = require('../models/systemLog.model');
 
 const resolveReferenceType = (referenceType, fallback = 'Adjustment') => referenceType || fallback;
 
+const LEDGER_SOURCE_VALUES = new Set([
+    'GRN', 'SALE', 'TRANSFER', 'ADJUSTMENT', 'RETURN', 'PURCHASE_RETURN', 'SALES_RETURN',
+    'DELIVERYCHALLAN', 'SUPPLIER_OUTWARD', 'SUPPLIEROUTWARD', 'PRODUCTION_RECEIPT', 'DISPATCH',
+    'OPENING_BALANCE', 'STOCKRETURN', 'STOCK_RETURN', 'SALESRETURN', 'AUDIT',
+]);
+
+const REFERENCE_TYPE_TO_LEDGER_SOURCE = {
+    Audit: 'AUDIT',
+    Adjustment: 'ADJUSTMENT',
+    Sale: 'SALE',
+    GRN: 'GRN',
+    Purchase: 'GRN',
+    Return: 'RETURN',
+    Dispatch: 'DISPATCH',
+    DeliveryChallan: 'DELIVERYCHALLAN',
+    SupplierOutward: 'SUPPLIER_OUTWARD',
+    OpeningBalance: 'OPENING_BALANCE',
+    StockReturn: 'STOCK_RETURN',
+    SalesReturn: 'SALES_RETURN',
+    ProductionBatch: 'PRODUCTION_RECEIPT',
+    QC: 'ADJUSTMENT',
+    PurchaseReturn: 'PURCHASE_RETURN',
+    Transfer: 'TRANSFER',
+    TransferFrom: 'TRANSFER',
+    TransferTo: 'TRANSFER',
+    TRANSFER_FROM: 'TRANSFER',
+    TRANSFER_TO: 'TRANSFER',
+};
+
+const mapReferenceTypeToLedgerSource = (referenceType, fallback = 'ADJUSTMENT') => {
+    const raw = String(resolveReferenceType(referenceType, 'Adjustment')).trim();
+    if (REFERENCE_TYPE_TO_LEDGER_SOURCE[raw]) {
+        return REFERENCE_TYPE_TO_LEDGER_SOURCE[raw];
+    }
+
+    const upper = raw.toUpperCase();
+    if (LEDGER_SOURCE_VALUES.has(upper)) {
+        return upper;
+    }
+
+    return fallback;
+};
+
 const toFiniteNumber = (value, label = 'quantity') => {
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) {
@@ -420,7 +463,7 @@ const addStock = async ({ itemId, barcode, variantId, locationId, locationType, 
         barcode: barcode,
         type: 'IN',
         quantity: movementQty,
-        source: resolveReferenceType(referenceType).toUpperCase(),
+        source: mapReferenceTypeToLedgerSource(referenceType),
         referenceId: referenceId.toString(),
         userId: performedBy,
         locationId,
@@ -485,7 +528,7 @@ const removeStock = async ({ itemId, barcode, variantId, locationId, locationTyp
         barcode: barcode,
         type: 'OUT',
         quantity: movementQty,
-        source: resolveReferenceType(referenceType).toUpperCase(),
+        source: mapReferenceTypeToLedgerSource(referenceType),
         referenceId: referenceId.toString(),
         userId: performedBy,
         locationId,
@@ -532,7 +575,7 @@ const transferStock = async ({ itemId, barcode, variantId, fromLocationId, fromL
         barcode: barcode,
         type: 'OUT',
         quantity: movementQty,
-        source: 'TRANSFER_FROM',
+        source: mapReferenceTypeToLedgerSource('TransferFrom'),
         referenceId: referenceId.toString(),
         userId: performedBy,
         locationId: fromLocationId,
@@ -546,7 +589,7 @@ const transferStock = async ({ itemId, barcode, variantId, fromLocationId, fromL
         barcode: barcode,
         type: 'IN',
         quantity: movementQty,
-        source: 'TRANSFER_TO',
+        source: mapReferenceTypeToLedgerSource('TransferTo'),
         referenceId: referenceId.toString(),
         userId: performedBy,
         locationId: toLocationId,
@@ -899,7 +942,7 @@ const bulkAddStock = async (items, { referenceId, referenceType, performedBy, lo
             barcode,
             type: adjustmentQty > 0 ? 'IN' : 'OUT',
             quantity: Math.abs(adjustmentQty),
-            source: (referenceType || 'OpeningBalance').toUpperCase(),
+            source: mapReferenceTypeToLedgerSource(referenceType || 'OpeningBalance'),
             referenceId: referenceId.toString(),
             balanceAfter: newBalance,
             userId: performedBy,
