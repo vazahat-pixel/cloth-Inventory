@@ -1,0 +1,318 @@
+{
+  "generatedAt": "19/6/2026, 11:43:29 am",
+  "grandTotalSales": 1153436.6,
+  "storeWiseSales": [
+    {
+      "storeId": "69e89f8e5df4170210683876",
+      "storeName": "REBEL MASS EXPORT PVT. LTD. (SONIPAT)",
+      "totalRevenue": 282401.5,
+      "salesCount": 112
+    },
+    {
+      "storeId": "69ecb1d9f04d7249bd11adf4",
+      "storeName": "REBEL MASS EXPORT PVT. LTD. (GTB NAGAR)",
+      "totalRevenue": 251012.7,
+      "salesCount": 119
+    },
+    {
+      "storeId": "69ecbbb4f04d7249bd11ae31",
+      "storeName": "REBEL MASS EXPORT PVT. LTD. (MUKTSAR SAHIB)",
+      "totalRevenue": 198293.7,
+      "salesCount": 110
+    },
+    {
+      "storeId": "69ecbe2cf04d7249bd11ae45",
+      "storeName": "REBEL MASS EXPORT PVT. LTD (SAHIBABAD)",
+      "totalRevenue": 114951.2,
+      "salesCount": 60
+    },
+    {
+      "storeId": "69e86a235df4170210683604",
+      "storeName": "REBEL MASS EXPORT PVT. LTD (PITAMPURA)",
+      "totalRevenue": 105727.1,
+      "salesCount": 58
+    },
+    {
+      "storeId": "69ecbcdbf04d7249bd11ae3b",
+      "storeName": "SHRI KRISHNA ASSOCIATES (BHOPAL)",
+      "totalRevenue": 98015,
+      "salesCount": 36
+    },
+    {
+      "storeId": "69ecbefdf04d7249bd11ae4f",
+      "storeName": "REBEL MASS EXPORT PVT. LTD. (SHAHJAHANPUR)",
+      "totalRevenue": 85338.6,
+      "salesCount": 54
+    },
+    {
+      "storeId": "69ecb5a0f04d7249bd11ae1d",
+      "storeName": "REBEL MASS EXPORT PVT. LTD. (HANUMANGARH)",
+      "totalRevenue": 14501.6,
+      "salesCount": 11
+    },
+    {
+      "storeId": "6a311e42b3fde49c56a14fb7",
+      "storeName": "Testing Data",
+      "totalRevenue": 3195.2,
+      "salesCount": 3
+    }
+  ],
+  "warehouseStock": [
+    {
+      "warehouseId": "69eb555c91c611d4d6fc50fb",
+      "warehouseName": "REBEL MASS EXPORT PVT LTD",
+      "totalQty": 95309.2,
+      "totalDamaged": 0,
+      "totalInTransit": 63
+    }
+  ],
+  "storeStock": [
+    {
+      "storeId": "69ecbe2cf04d7249bd11ae45",
+      "storeName": "REBEL MASS EXPORT PVT. LTD (SAHIBABAD)",
+      "totalQty": 3609,
+      "totalDamaged": 0,
+      "totalInTransit": 0
+    },
+    {
+      "storeId": "69ecbbb4f04d7249bd11ae31",
+      "storeName": "REBEL MASS EXPORT PVT. LTD. (MUKTSAR SAHIB)",
+      "totalQty": 3508,
+      "totalDamaged": 0,
+      "totalInTransit": 0
+    },
+    {
+      "storeId": "69e86a235df4170210683604",
+      "storeName": "REBEL MASS EXPORT PVT. LTD (PITAMPURA)",
+      "totalQty": 3391,
+      "totalDamaged": 0,
+      "totalInTransit": 0
+    },
+    {
+      "storeId": "69ecb1d9f04d7249bd11adf4",
+      "storeName": "REBEL MASS EXPORT PVT. LTD. (GTB NAGAR)",
+      "totalQty": 3144,
+      "totalDamaged": 0,
+      "totalInTransit": 0
+    },
+    {
+      "storeId": "69e89f8e5df4170210683876",
+      "storeName": "REBEL MASS EXPORT PVT. LTD. (SONIPAT)",
+      "totalQty": 3137,
+      "totalDamaged": 0,
+      "totalInTransit": 0
+    },
+    {
+      "storeId": "69ecbefdf04d7249bd11ae4f",
+      "storeName": "REBEL MASS EXPORT PVT. LTD. (SHAHJAHANPUR)",
+      "totalQty": 2972,
+      "totalDamaged": 0,
+      "totalInTransit": 0
+    },
+    {
+      "storeId": "69ecb5a0f04d7249bd11ae1d",
+      "storeName": "REBEL MASS EXPORT PVT. LTD. (HANUMANGARH)",
+      "totalQty": 2387,
+      "totalDamaged": 0,
+      "totalInTransit": 0
+    },
+    {
+      "storeId": "69ecbcdbf04d7249bd11ae3b",
+      "storeName": "SHRI KRISHNA ASSOCIATES (BHOPAL)",
+      "totalQty": 1655,
+      "totalDamaged": 0,
+      "totalInTransit": 0
+    },
+    {
+      "storeId": "6a311e42b3fde49c56a14fb7",
+      "storeName": "Testing Data",
+      "totalQty": 7,
+      "totalDamaged": 0,
+      "totalInTransit": 0
+    }
+  ],
+  "topStoreItemsStock": [
+    {
+      "_id": "6a0477d7cbe1886f6da47f1a",
+      "totalQty": 122,
+      "name": "ASR26-T SHIRT N/A",
+      "itemCode": "BM0252"
+    },
+    {
+      "_id": "6a0477d7cbe1886f6da47f18",
+      "totalQty": 91,
+      "name": "ASR26-T SHIRT N/A",
+      "itemCode": "BM0251"
+    },
+    {
+      "_id": "6a0477d7cbe1886f6da47f1c",
+      "totalQty": 68,
+      "name": "ASR26-T SHIRT N/A",
+      "itemCode": "BM0253"
+    },
+    {
+      "_id": "6a0477d7cbe1886f6da48660",
+      "totalQty": 61,
+      "name": "TIE25-0001 N/A",
+      "itemCode": "DA0985"
+    },
+    {
+      "_id": "6a0477cecbe1886f6da44bf8",
+      "totalQty": 45,
+      "name": "TIE0001-0001991 NILL",
+      "itemCode": "0001991"
+    },
+    {
+      "_id": "6a0477d7cbe1886f6da47f1e",
+      "totalQty": 37,
+      "name": "ASR26-T SHIRT N/A",
+      "itemCode": "BM0254"
+    },
+    {
+      "_id": "6a0477dacbe1886f6da49727",
+      "totalQty": 24,
+      "name": "FSH25-0070 WHITE",
+      "itemCode": "DA3137"
+    },
+    {
+      "_id": "6a0477dacbe1886f6da4973b",
+      "totalQty": 23,
+      "name": "DNM25-0019 D.BLUE",
+      "itemCode": "DA3147"
+    },
+    {
+      "_id": "6a0477dacbe1886f6da49729",
+      "totalQty": 22,
+      "name": "FSH25-0070 WHITE",
+      "itemCode": "DA3138"
+    },
+    {
+      "_id": "6a0477dacbe1886f6da49735",
+      "totalQty": 22,
+      "name": "FSH25-0070 BLACK",
+      "itemCode": "DA3144"
+    },
+    {
+      "_id": "6a0477dacbe1886f6da497fd",
+      "totalQty": 21,
+      "name": "CSH25-0107 BLACK",
+      "itemCode": "DA3244"
+    },
+    {
+      "_id": "6a0477dbcbe1886f6da49fbe",
+      "totalQty": 21,
+      "name": "TS26-0001 WHITE",
+      "itemCode": "DA4236"
+    },
+    {
+      "_id": "6a0477dacbe1886f6da4972f",
+      "totalQty": 20,
+      "name": "FSH25-0070 BLACK",
+      "itemCode": "DA3141"
+    },
+    {
+      "_id": "6a0477d6cbe1886f6da47941",
+      "totalQty": 20,
+      "name": "DNM25-34-0009-0007810 L.OLIVE",
+      "itemCode": "0007810"
+    },
+    {
+      "_id": "6a0477dbcbe1886f6da49fb2",
+      "totalQty": 19,
+      "name": "DNM26-0006 BLACK",
+      "itemCode": "DA4230"
+    }
+  ],
+  "topWarehouseItemsStock": [
+    {
+      "_id": "6a0477d7cbe1886f6da48660",
+      "totalQty": 431,
+      "name": "TIE25-0001 N/A",
+      "itemCode": "DA0985"
+    },
+    {
+      "_id": "6a0477dacbe1886f6da49731",
+      "totalQty": 312,
+      "name": "FSH25-0070 BLACK",
+      "itemCode": "DA3142"
+    },
+    {
+      "_id": "6a0477d0cbe1886f6da45cbf",
+      "totalQty": 305,
+      "name": "AW24SS0014-0004157 ANTRA",
+      "itemCode": "0004157"
+    },
+    {
+      "_id": "6a0477d0cbe1886f6da45cbd",
+      "totalQty": 301,
+      "name": "AW24SS0014-0004156 ANTRA",
+      "itemCode": "0004156"
+    },
+    {
+      "_id": "6a0477dacbe1886f6da49733",
+      "totalQty": 297,
+      "name": "FSH25-0070 BLACK",
+      "itemCode": "DA3143"
+    },
+    {
+      "_id": "6a0477dacbe1886f6da4972b",
+      "totalQty": 244,
+      "name": "FSH25-0070 WHITE",
+      "itemCode": "DA3139"
+    },
+    {
+      "_id": "6a0477dacbe1886f6da49729",
+      "totalQty": 216,
+      "name": "FSH25-0070 WHITE",
+      "itemCode": "DA3138"
+    },
+    {
+      "_id": "6a0477d9cbe1886f6da49240",
+      "totalQty": 206,
+      "name": "TS25-0059 NAVY",
+      "itemCode": "DA2504"
+    },
+    {
+      "_id": "6a0477d8cbe1886f6da48e67",
+      "totalQty": 204.5,
+      "name": "OXFORD BULLET WHITE",
+      "itemCode": "DA2012"
+    },
+    {
+      "_id": "6a0477d0cbe1886f6da45a1b",
+      "totalQty": 204,
+      "name": "AW24WL0003-0003818 ANTRA",
+      "itemCode": "0003818"
+    },
+    {
+      "_id": "6a0477d9cbe1886f6da49246",
+      "totalQty": 200,
+      "name": "TS25-0059 BLACK",
+      "itemCode": "DA2507"
+    },
+    {
+      "_id": "6a0477d0cbe1886f6da45cbb",
+      "totalQty": 192,
+      "name": "AW24SS0014-0004155 ANTRA",
+      "itemCode": "0004155"
+    },
+    {
+      "_id": "6a0477d8cbe1886f6da48e6d",
+      "totalQty": 189.6,
+      "name": "MAFATLAL COTTON WHITE",
+      "itemCode": "DA2015"
+    },
+    {
+      "_id": "6a0477d7cbe1886f6da47f1a",
+      "totalQty": 184,
+      "name": "ASR26-T SHIRT N/A",
+      "itemCode": "BM0252"
+    },
+    {
+      "_id": "6a0477d9cbe1886f6da4923e",
+      "totalQty": 182,
+      "name": "TS25-0059 NAVY",
+      "itemCode": "DA2503"
+    }
+  ]
+}

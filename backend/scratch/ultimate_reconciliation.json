@@ -1,0 +1,210 @@
+{
+  "generatedAt": "19/6/2026, 1:30:41 pm",
+  "report": [
+    {
+      "storeId": "69e86a235df4170210683604",
+      "storeName": "REBEL MASS EXPORT PVT. LTD (PITAMPURA)",
+      "openingStock": 3192,
+      "ledgerOpeningStock": 0,
+      "totalInward": 426,
+      "dispatchInward": 382,
+      "otherInward": 44,
+      "inwardBreakdown": {
+        "SALE": 44,
+        "DISPATCH": 382
+      },
+      "totalOutward": 388,
+      "salesOutward": 197,
+      "otherOutward": 191,
+      "outwardBreakdown": {
+        "ADJUSTMENT": 176,
+        "DISPATCH": 15,
+        "SALE": 197
+      },
+      "closingStock": 3230,
+      "inTransit": 30,
+      "reconciled": 3230
+    },
+    {
+      "storeId": "69e89f8e5df4170210683876",
+      "storeName": "REBEL MASS EXPORT PVT. LTD. (SONIPAT)",
+      "openingStock": 0,
+      "ledgerOpeningStock": 2840,
+      "totalInward": 3514,
+      "dispatchInward": 664,
+      "otherInward": 10,
+      "inwardBreakdown": {
+        "SALE": 10,
+        "DISPATCH": 664,
+        "OPENING_BALANCE": 2840
+      },
+      "totalOutward": 709,
+      "salesOutward": 377,
+      "otherOutward": 332,
+      "outwardBreakdown": {
+        "SALE": 377,
+        "ADJUSTMENT": 332
+      },
+      "closingStock": 2805,
+      "inTransit": 0,
+      "reconciled": 2805
+    },
+    {
+      "storeId": "69ecb1d9f04d7249bd11adf4",
+      "storeName": "REBEL MASS EXPORT PVT. LTD. (GTB NAGAR)",
+      "openingStock": 0,
+      "ledgerOpeningStock": 2886,
+      "totalInward": 3464,
+      "dispatchInward": 560,
+      "otherInward": 18,
+      "inwardBreakdown": {
+        "OPENING_BALANCE": 2886,
+        "DISPATCH": 560,
+        "SALE": 18
+      },
+      "totalOutward": 520,
+      "salesOutward": 255,
+      "otherOutward": 265,
+      "outwardBreakdown": {
+        "SALE": 255,
+        "ADJUSTMENT": 202,
+        "STOCKRETURN": 63
+      },
+      "closingStock": 2944,
+      "inTransit": 0,
+      "reconciled": 2944
+    },
+    {
+      "storeId": "69ecb5a0f04d7249bd11ae1d",
+      "storeName": "REBEL MASS EXPORT PVT. LTD. (HANUMANGARH)",
+      "openingStock": 2407,
+      "ledgerOpeningStock": 0,
+      "totalInward": 4,
+      "dispatchInward": 0,
+      "otherInward": 4,
+      "inwardBreakdown": {
+        "SALE": 4
+      },
+      "totalOutward": 24,
+      "salesOutward": 24,
+      "otherOutward": 0,
+      "outwardBreakdown": {
+        "SALE": 24
+      },
+      "closingStock": 2387,
+      "inTransit": 0,
+      "reconciled": 2387
+    },
+    {
+      "storeId": "69ecbbb4f04d7249bd11ae31",
+      "storeName": "REBEL MASS EXPORT PVT. LTD. (MUKTSAR SAHIB)",
+      "openingStock": 3806,
+      "ledgerOpeningStock": 0,
+      "totalInward": 12,
+      "dispatchInward": 0,
+      "otherInward": 12,
+      "inwardBreakdown": {
+        "SALE": 12
+      },
+      "totalOutward": 311,
+      "salesOutward": 311,
+      "otherOutward": 0,
+      "outwardBreakdown": {
+        "SALE": 311
+      },
+      "closingStock": 3507,
+      "inTransit": 0,
+      "reconciled": 3507
+    },
+    {
+      "storeId": "69ecbcdbf04d7249bd11ae3b",
+      "storeName": "SHRI KRISHNA ASSOCIATES (BHOPAL)",
+      "openingStock": 3662,
+      "ledgerOpeningStock": 0,
+      "totalInward": 2,
+      "dispatchInward": 0,
+      "otherInward": 2,
+      "inwardBreakdown": {
+        "SALE": 2
+      },
+      "totalOutward": 2009,
+      "salesOutward": 101,
+      "otherOutward": 1908,
+      "outwardBreakdown": {
+        "ADJUSTMENT": 1908,
+        "SALE": 101
+      },
+      "closingStock": 1655,
+      "inTransit": 0,
+      "reconciled": 1655
+    },
+    {
+      "storeId": "69ecbe2cf04d7249bd11ae45",
+      "storeName": "REBEL MASS EXPORT PVT. LTD (SAHIBABAD)",
+      "openingStock": 3457,
+      "ledgerOpeningStock": 0,
+      "totalInward": 280,
+      "dispatchInward": 278,
+      "otherInward": 2,
+      "inwardBreakdown": {
+        "SALE": 2,
+        "DISPATCH": 278
+      },
+      "totalOutward": 267,
+      "salesOutward": 128,
+      "otherOutward": 139,
+      "outwardBreakdown": {
+        "SALE": 128,
+        "ADJUSTMENT": 139
+      },
+      "closingStock": 3470,
+      "inTransit": 0,
+      "reconciled": 3470
+    },
+    {
+      "storeId": "69ecbefdf04d7249bd11ae4f",
+      "storeName": "REBEL MASS EXPORT PVT. LTD. (SHAHJAHANPUR)",
+      "openingStock": 0,
+      "ledgerOpeningStock": 2817,
+      "totalInward": 3071,
+      "dispatchInward": 253,
+      "otherInward": 1,
+      "inwardBreakdown": {
+        "OPENING_BALANCE": 2817,
+        "SALE": 1,
+        "DISPATCH": 253
+      },
+      "totalOutward": 99,
+      "salesOutward": 99,
+      "otherOutward": 0,
+      "outwardBreakdown": {
+        "SALE": 99
+      },
+      "closingStock": 2972,
+      "inTransit": 0,
+      "reconciled": 2972
+    },
+    {
+      "storeId": "6a311e42b3fde49c56a14fb7",
+      "storeName": "Testing Data",
+      "openingStock": 0,
+      "ledgerOpeningStock": 0,
+      "totalInward": 16,
+      "dispatchInward": 16,
+      "otherInward": 0,
+      "inwardBreakdown": {
+        "DISPATCH": 16
+      },
+      "totalOutward": 9,
+      "salesOutward": 5,
+      "otherOutward": 4,
+      "outwardBreakdown": {
+        "STOCKRETURN": 4,
+        "SALE": 5
+      },
+      "closingStock": 7,
+      "inTransit": 0,
+      "reconciled": 7
+    }
+  ]
+}
