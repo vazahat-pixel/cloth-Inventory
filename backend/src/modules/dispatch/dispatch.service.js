@@ -1133,21 +1133,37 @@ const getDispatches = async (query, user) => {
 
     if (user && isStoreRole) {
         if (!user.shopId) throw new Error('User is not linked to any store.');
-        filter.$or = [
+        const storeFilter = [
             { sourceWarehouseId: user.shopId },
             { destinationStoreId: user.shopId },
         ];
+
+        // Exclude combined children (notes containing [Combined into), include master DSP- and other non-combined challans
+        const visibilityFilter = {
+            $or: [
+                { dispatchNumber: /^DSP-/i },
+                {
+                    dispatchNumber: { $not: /^DSP-/i },
+                    notes: { $not: /\[Combined into/i }
+                }
+            ]
+        };
+
+        filter.$and = [
+            { $or: storeFilter },
+            visibilityFilter
+        ];
+    } else {
+        if (isTransferBill === 'true') {
+            filter.dispatchNumber = { $regex: /^DSP-/i };
+        } else if (isTransferBill === 'false') {
+            filter.dispatchNumber = { $not: { $regex: /^DSP-/i } };
+        }
     }
 
     if (status) filter.status = status;
     if (sourceId) filter.sourceWarehouseId = sourceId;
     if (destinationId) filter.destinationStoreId = destinationId;
-
-    if (isTransferBill === 'true') {
-        filter.dispatchNumber = { $regex: /^DSP-/i };
-    } else if (isTransferBill === 'false') {
-        filter.dispatchNumber = { $not: { $regex: /^DSP-/i } };
-    }
 
     if (search) {
         const searchOr = [
@@ -1157,6 +1173,8 @@ const getDispatches = async (query, user) => {
         if (filter.$or) {
             filter.$and = [{ $or: filter.$or }, { $or: searchOr }];
             delete filter.$or;
+        } else if (filter.$and) {
+            filter.$and.push({ $or: searchOr });
         } else {
             filter.$or = searchOr;
         }
@@ -1244,6 +1262,10 @@ const receiveDispatch = async (id, userId, receivedItems = []) => {
         if (!dispatch) throw new Error('Dispatch not found');
 
         if (dispatch.status === 'RECEIVED') return dispatch;
+
+        if (dispatch.notes && dispatch.notes.includes('[Combined into')) {
+            throw new Error('This child challan has been combined into a Tax Invoice/Transfer Bill. Please receive the master Bill instead.');
+        }
 
         if ((!dispatch.items || dispatch.items.length === 0) && dispatch.referenceId && dispatch.referenceType) {
             const rebuiltItems = await buildItemsFromReference(dispatch, session);
@@ -1359,6 +1381,21 @@ const receiveDispatch = async (id, userId, receivedItems = []) => {
                     session
                 });
             }
+        }
+
+        // If this is a combined master dispatch (DSP-xxxxx), automatically mark all child challans as RECEIVED
+        const dispatchNumber = dispatch.dispatchNumber || '';
+        if (dispatchNumber.startsWith('DSP-') && dispatch.referenceId) {
+            await Dispatch.updateMany(
+                {
+                    referenceId: dispatch.referenceId,
+                    referenceType: dispatch.referenceType,
+                    dispatchNumber: { $not: /^DSP-/i },
+                    status: 'DISPATCHED'
+                },
+                { $set: { status: 'RECEIVED', receivedAt: new Date() } },
+                { session }
+            );
         }
 
         return dispatch;
