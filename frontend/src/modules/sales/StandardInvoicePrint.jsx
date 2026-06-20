@@ -4,14 +4,29 @@ import { useSelector } from 'react-redux';
 import { Box, Divider, Grid, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography, Stack, CircularProgress } from '@mui/material';
 import api from '../../services/api';
 import { calculateGST } from '../../utils/taxCalculator';
+const getFallbackHsn = (category = '', itemName = '') => {
+    const cat = String(category || '').toUpperCase().trim();
+    const name = String(itemName || '').toUpperCase().trim();
 
-const getFallbackHsn = (category = '') => {
-    const cat = String(category).toUpperCase().trim();
-    if (cat.includes('T-SHIRT') || cat.includes('T SHIRT') || cat.includes('TSHIRT')) return '6109';
-    if (cat.includes('SHORT SET') || cat.includes('SHORTSET')) return '6204';
-    if (cat.includes('SHIRT')) return '6205';
-    if (cat.includes('JEANS') || cat.includes('DENIM') || cat.includes('TROUSER')) return '6203';
-    return '6203'; // Default fallback for garments
+    if (cat.includes('BELT') || name.includes('BELT')) {
+        return '42033000';
+    }
+    if (cat.includes('SHORT') || name.includes('SHORT') || cat.includes('HOSIERY') || name.includes('HOSIERY') || cat.includes('T-SHIRT') || name.includes('T-SHIRT') || cat.includes('TSHIRT') || name.includes('TSHIRT') || cat.includes('T SHIRT') || name.includes('T SHIRT') || cat.includes('SWEATSHIRT') || name.includes('SWEATSHIRT') || cat.includes('HOODIE') || name.includes('HOODIE')) {
+        return '61099090';
+    }
+    if (cat.includes('SHIRT') || name.includes('SHIRT')) {
+        return '61059090';
+    }
+    if (cat.includes('TROUSER') || name.includes('TROUSER') || cat.includes('JEANS') || name.includes('JEANS') || name.includes('FTR') || name.includes('FTRZ')) {
+        return '61034200';
+    }
+    if (cat.includes('JACKET') || name.includes('JACKET') || cat.includes('BLAZER') || name.includes('BLAZER') || cat.includes('COAT') || name.includes('COAT') || cat.includes('SUIT') || name.includes('SUIT')) {
+        return '61031990';
+    }
+    if (cat.includes('TIE') || name.includes('TIE')) {
+        return '621590';
+    }
+    return '61099090'; // Default fallback for garments
 };
 
 const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle, isTransfer = false }) => {
@@ -132,7 +147,16 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
             sku: item.sku || item.variantId?.sku || item.barcode || '-',
             size: item.size || item.variantId?.size || '-',
             color: item.color || item.variantId?.color || '-',
-            hsnCode: item.hsnCode || item.itemId?.hsCodeId?.code || item.itemId?.hsnCode || getFallbackHsn(item.category || item.itemId?.categoryId?.name || item.itemId?.category || item.name || '')
+            hsnCode: (() => {
+                let rawHsn = item.hsnCode || item.itemId?.hsCodeId?.code || item.itemId?.hsnCode || '';
+                if (typeof rawHsn !== 'string') rawHsn = String(rawHsn || '');
+                const cleanHsn = rawHsn.toUpperCase().trim();
+                const itemNameStr = item.itemName || item.variantId?.itemName || item.itemId?.itemName || item.name || 'Item';
+                const catStr = item.category || item.itemId?.categoryId?.name || item.itemId?.category || item.name || '';
+                return (!cleanHsn || cleanHsn === 'N/A' || cleanHsn === 'UNDEFINED' || cleanHsn === 'NULL')
+                    ? getFallbackHsn(catStr, itemNameStr)
+                    : rawHsn;
+            })()
         };
     });
 

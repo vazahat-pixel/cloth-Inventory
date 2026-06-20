@@ -50,7 +50,7 @@ function buildPrintPayload(dispatchRecord) {
     const ref = dispatchRecord.referenceId;
 
     if (ref && typeof ref === 'object' && dispatchRecord.referenceType === 'Sale') {
-        return { sale: { ...ref, items: dispatchRecord.items || ref.products || ref.items }, isTransfer: false };
+        return { sale: { ...ref, items: ref.items || ref.products || dispatchRecord.items }, isTransfer: false };
     }
 
     if (ref && typeof ref === 'object' && dispatchRecord.referenceType === 'DeliveryChallan') {
@@ -97,7 +97,7 @@ function TransferBillsListPage() {
     const [printPayload, setPrintPayload] = useState(null);
 
     useEffect(() => {
-        dispatch(fetchChallans());
+        dispatch(fetchChallans({ excludeCombined: 'true', status: 'DISPATCHED,RECEIVED' }));
     }, [dispatch]);
 
     const billingRows = useMemo(

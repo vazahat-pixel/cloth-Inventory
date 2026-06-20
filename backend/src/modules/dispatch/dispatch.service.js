@@ -79,7 +79,11 @@ const populateDispatchItemsManual = async (dispatches) => {
         if (parentItem) {
             const variant = (parentItem.sizes || []).find(sz => String(sz._id) === vid);
             const finalCategory = parentItem.categoryName || parentItem.category || (parentItem.categoryId && (parentItem.categoryId.name || parentItem.categoryId.itemName)) || 'OTHERS';
-            const finalHsn = parentItem.hsCodeId?.code || parentItem.hsnCode || '';
+            let finalHsn = parentItem.hsCodeId?.code || parentItem.hsnCode || '';
+            if (!finalHsn || finalHsn.toUpperCase().trim() === 'N/A' || finalHsn.toUpperCase().trim() === 'UNDEFINED' || finalHsn.toUpperCase().trim() === 'NULL') {
+                const { getFallbackHsn } = require('../../services/gst.service');
+                finalHsn = getFallbackHsn(finalCategory, parentItem.itemName || parentItem.name || di.itemName || di.name);
+            }
             return {
                 ...di,
                 category: finalCategory,
@@ -242,7 +246,12 @@ const createDispatch = async (dispatchData, userId) => {
             }
 
             const barcode = variant.sku || variant.barcode || itemDoc.itemCode;
-            const finalHsn = itemDoc.hsCodeId?.code || itemDoc.hsnCode || '';
+            let finalHsn = itemDoc.hsCodeId?.code || itemDoc.hsnCode || '';
+            if (!finalHsn || finalHsn.toUpperCase().trim() === 'N/A' || finalHsn.toUpperCase().trim() === 'UNDEFINED' || finalHsn.toUpperCase().trim() === 'NULL') {
+                const { getFallbackHsn } = require('../../services/gst.service');
+                const cat = itemDoc.categoryId?.name || itemDoc.categoryName || itemDoc.category || 'OTHERS';
+                finalHsn = getFallbackHsn(cat, itemDoc.itemName || itemDoc.name || p.itemName);
+            }
             if (!finalHsn) {
                 console.warn(`[HSN_VALIDATION_WARNING] Item "${itemDoc.itemName}" (ID: ${itemDoc._id}) is missing HSN code configuration.`);
             }
@@ -434,7 +443,12 @@ const updateDispatch = async (id, dispatchData, userId) => {
             }
 
             const barcode = variant.sku || variant.barcode || itemDoc.itemCode;
-            const finalHsn = itemDoc.hsCodeId?.code || itemDoc.hsnCode || '';
+            let finalHsn = itemDoc.hsCodeId?.code || itemDoc.hsnCode || '';
+            if (!finalHsn || finalHsn.toUpperCase().trim() === 'N/A' || finalHsn.toUpperCase().trim() === 'UNDEFINED' || finalHsn.toUpperCase().trim() === 'NULL') {
+                const { getFallbackHsn } = require('../../services/gst.service');
+                const cat = itemDoc.categoryId?.name || itemDoc.categoryName || itemDoc.category || 'OTHERS';
+                finalHsn = getFallbackHsn(cat, itemDoc.itemName || itemDoc.name || p.itemName);
+            }
             if (!finalHsn) {
                 console.warn(`[HSN_VALIDATION_WARNING] Item "${itemDoc.itemName}" (ID: ${itemDoc._id}) is missing HSN code configuration.`);
             }
@@ -639,7 +653,15 @@ const confirmDispatch = async (id, userId) => {
                     sku: item.barcode || variant.sku || variant.barcode || itemDoc.itemCode,
                     category: itemDoc.categoryId?.name || itemDoc.categoryName || itemDoc.category || 'OTHERS',
                     brand: itemDoc.brandName || itemDoc.brand || '',
-                    hsnCode: itemDoc.hsCodeId?.code || itemDoc.hsnCode || ''
+                    hsnCode: (() => {
+                        let itemHsn = itemDoc.hsCodeId?.code || itemDoc.hsnCode || '';
+                        if (!itemHsn || itemHsn.toUpperCase().trim() === 'N/A' || itemHsn.toUpperCase().trim() === 'UNDEFINED' || itemHsn.toUpperCase().trim() === 'NULL') {
+                            const { getFallbackHsn } = require('../../services/gst.service');
+                            const cat = itemDoc.categoryId?.name || itemDoc.categoryName || itemDoc.category || 'OTHERS';
+                            itemHsn = getFallbackHsn(cat, itemDoc.itemName || itemDoc.name || item.itemName);
+                        }
+                        return itemHsn;
+                    })()
                 });
 
                 totalSubTotal += lineSubTotal;
@@ -904,7 +926,15 @@ const combineAndConfirmDispatch = async ({ dispatchIds, notes, date, vehicleNumb
                 sku: item.barcode || variant.sku || variant.barcode || itemDoc.itemCode,
                 category: itemDoc.categoryId?.name || itemDoc.categoryName || itemDoc.category || 'OTHERS',
                 brand: itemDoc.brandName || itemDoc.brand || '',
-                hsnCode: itemDoc.hsCodeId?.code || itemDoc.hsnCode || ''
+                hsnCode: (() => {
+                    let itemHsn = itemDoc.hsCodeId?.code || itemDoc.hsnCode || '';
+                    if (!itemHsn || itemHsn.toUpperCase().trim() === 'N/A' || itemHsn.toUpperCase().trim() === 'UNDEFINED' || itemHsn.toUpperCase().trim() === 'NULL') {
+                        const { getFallbackHsn } = require('../../services/gst.service');
+                        const cat = itemDoc.categoryId?.name || itemDoc.categoryName || itemDoc.category || 'OTHERS';
+                        itemHsn = getFallbackHsn(cat, itemDoc.itemName || itemDoc.name || item.itemName);
+                    }
+                    return itemHsn;
+                })()
             });
 
             totalSubTotal += lineSubTotal;
@@ -1123,13 +1153,23 @@ const enrichDispatchesWithBillingMeta = async (plainDocs) => {
    GET DISPATCHES (list)
 ───────────────────────────────────────────── */
 const getDispatches = async (query, user) => {
-    const { status, sourceId, destinationId, search, isTransferBill } = query;
+    const { status, sourceId, destinationId, search, isTransferBill, excludeCombined } = query;
     const { getPagination, buildPaginationMeta, getSort } = require('../../utils/pagination.helper');
     const { page, limit, skip } = getPagination(query);
     const filter = {};
 
     const normalizedRole = (user?.role || '').toLowerCase();
     const isStoreRole = normalizedRole.includes('staff') || normalizedRole.includes('manager') || normalizedRole.includes('accountant');
+
+    const visibilityFilter = {
+        $or: [
+            { dispatchNumber: /^DSP-/i },
+            {
+                dispatchNumber: { $not: /^DSP-/i },
+                notes: { $not: /\[Combined into/i }
+            }
+        ]
+    };
 
     if (user && isStoreRole) {
         if (!user.shopId) throw new Error('User is not linked to any store.');
@@ -1138,30 +1178,32 @@ const getDispatches = async (query, user) => {
             { destinationStoreId: user.shopId },
         ];
 
-        // Exclude combined children (notes containing [Combined into), include master DSP- and other non-combined challans
-        const visibilityFilter = {
-            $or: [
-                { dispatchNumber: /^DSP-/i },
-                {
-                    dispatchNumber: { $not: /^DSP-/i },
-                    notes: { $not: /\[Combined into/i }
-                }
-            ]
-        };
-
         filter.$and = [
             { $or: storeFilter },
             visibilityFilter
         ];
     } else {
+        const conditions = [];
         if (isTransferBill === 'true') {
-            filter.dispatchNumber = { $regex: /^DSP-/i };
+            conditions.push({ dispatchNumber: /^DSP-/i });
         } else if (isTransferBill === 'false') {
-            filter.dispatchNumber = { $not: { $regex: /^DSP-/i } };
+            conditions.push({ dispatchNumber: { $not: { $regex: /^DSP-/i } } });
+        }
+        if (excludeCombined === 'true' || excludeCombined === true) {
+            conditions.push(visibilityFilter);
+        }
+        if (conditions.length > 0) {
+            filter.$and = conditions;
         }
     }
 
-    if (status) filter.status = status;
+    if (status) {
+        if (status.includes(',')) {
+            filter.status = { $in: status.split(',') };
+        } else {
+            filter.status = status;
+        }
+    }
     if (sourceId) filter.sourceWarehouseId = sourceId;
     if (destinationId) filter.destinationStoreId = destinationId;
 
