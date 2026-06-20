@@ -254,7 +254,9 @@ const _updateInventory = async ({ itemId, barcode, variantId, locationId, locati
         }
     }
     
-    const allowNegative = await systemConfigService.getConfigByKey('allowNegativeStock', false);
+    const allowNegative = locationType === 'STORE'
+        ? false
+        : Boolean(await systemConfigService.getConfigByKey('allowNegativeStock', false));
     const purchaseRate = arguments[0]?.purchaseRate;
 
     if (!inventory) {
@@ -273,7 +275,11 @@ const _updateInventory = async ({ itemId, barcode, variantId, locationId, locati
     } else {
         const updateFilter = { _id: inventory._id };
         if (!allowNegative && delta < 0) {
-            updateFilter.quantity = { $gte: -delta };
+            if (locationType === 'STORE') {
+                updateFilter.quantityAvailable = { $gte: -delta };
+            } else {
+                updateFilter.quantity = { $gte: -delta };
+            }
         }
 
         const updateOps = {

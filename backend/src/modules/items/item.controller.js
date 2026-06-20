@@ -3,13 +3,29 @@ const { sendSuccess, sendError, sendCreated, sendNotFound } = require('../../uti
 
 const formatItemSaveError = (error) => {
   if (error?.code === 11000) {
-    const skuMatch = String(error.message || '').match(/sizes\.sku[^"]*"([^"]+)"/i);
-    const duplicateValue = skuMatch?.[1] || '';
+    const msg = String(error.message || '');
+    const skuMatch = msg.match(/sizes\.sku[^"]*"([^"]+)"/i);
+    const itemCodeMatch = msg.match(/itemCode[^"]*"([^"]+)"/i);
+    const duplicateValue = skuMatch?.[1] || itemCodeMatch?.[1] || '';
+    if (skuMatch) {
+      return {
+        status: 409,
+        message: duplicateValue
+          ? `SKU/Barcode "${duplicateValue}" pehle se kisi item me use ho raha hai. Item Master me "${duplicateValue}" search karein (variant SKU bhi dikhega), ya naya auto SKU generate karein.`
+          : 'Duplicate SKU/Barcode — yeh code pehle se kisi item me hai.',
+      };
+    }
+    if (itemCodeMatch) {
+      return {
+        status: 409,
+        message: duplicateValue
+          ? `Item/Style Code "${duplicateValue}" pehle se database me hai. Item Master me search karein — ho sakta hai purana item ho ya doosri window se abhi save hua ho.`
+          : 'Duplicate Item Code — yeh style code pehle se use ho raha hai.',
+      };
+    }
     return {
       status: 409,
-      message: duplicateValue
-        ? `SKU/Barcode "${duplicateValue}" pehle se kisi item me use ho raha hai. Item list me search karke check karein, ya naya auto SKU generate karein.`
-        : 'Duplicate SKU/Barcode — yeh code pehle se kisi item me hai.',
+      message: 'Duplicate code — yeh value pehle se database me hai.',
     };
   }
   return { status: 400, message: error.message };

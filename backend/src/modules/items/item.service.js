@@ -400,39 +400,66 @@ class ItemService {
 
   async createItem(data = {}, options = { allowUpdate: false }) {
     await this.normalizeItemData(data);
-    let itemCode = data.itemCode;
     const type = data.type || 'GARMENT';
-    if (!itemCode) {
-      [itemCode] = await allocateBmCodes(1);
-    } else if (/^BM\d{4,}$/i.test(itemCode)) {
-      const num = parseInt(itemCode.replace(/^BM/i, ''), 10);
-      if (!isNaN(num)) {
-        const taken = await isBmCodeTaken(itemCode);
-        if (taken) {
-          [itemCode] = await allocateBmCodes(1);
-        } else {
-          await Counter.findOneAndUpdate(
-            { name: BM_COUNTER_NAME },
-            { $max: { seq: num } },
-            { upsert: true, new: true },
-          );
-        }
-      }
-    }
-    const existingItem = await Item.findOne({ itemCode });
-    if (existingItem) {
-      if (options.allowUpdate) return this.updateItem(existingItem._id, data, { mergeSizes: true });
-      throw new Error(`Item with code ${itemCode} already exists`);
+    if ((data.type || 'GARMENT').toUpperCase() === 'GARMENT' && (!Array.isArray(data.sizes) || !data.sizes.length)) {
+      throw new Error('Finished Garment item must have at least one size variant');
     }
     if (data.vendorId && typeof data.vendorId === 'string' && !mongoose.Types.ObjectId.isValid(data.vendorId)) delete data.vendorId;
     const groupIds = normalizeGroupIds(data.groupIds);
     await ensureGroupsExist(groupIds);
-    if ((data.type || 'GARMENT').toUpperCase() === 'GARMENT' && (!Array.isArray(data.sizes) || !data.sizes.length)) throw new Error('Finished Garment item must have at least one size variant');
     await ensureSizeSKUs(data.sizes);
-    await validateSizeSkusForSave(data.sizes);
-    const item = new Item({ ...data, itemCode, groupIds, sizes: data.sizes || [], type: (data.type || 'GARMENT').toUpperCase() });
-    await item.save();
-    return populateItem(item._id);
+
+    const resolveItemCode = async () => {
+      let itemCode = data.itemCode;
+      if (!itemCode || /^BM\d+$/i.test(String(itemCode).trim())) {
+        [itemCode] = await allocateBmCodes(1);
+        return itemCode;
+      }
+      itemCode = String(itemCode).trim().toUpperCase();
+      const existingItem = await Item.findOne({ itemCode }).select('_id itemCode itemName').lean();
+      if (existingItem) {
+        if (options.allowUpdate) return { existingItem, itemCode: null };
+        throw new Error(
+          `Item/Style Code "${itemCode}" pehle se item "${existingItem.itemCode}"${existingItem.itemName ? ` (${existingItem.itemName})` : ''} me hai. Item Master me search karein.`,
+        );
+      }
+      return itemCode;
+    };
+
+    const maxAttempts = 3;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const resolved = await resolveItemCode();
+      if (resolved?.existingItem) {
+        return this.updateItem(resolved.existingItem._id, data, { mergeSizes: true });
+      }
+      const itemCode = resolved;
+      try {
+        await validateSizeSkusForSave(data.sizes);
+        const item = new Item({ ...data, itemCode, groupIds, sizes: data.sizes || [], type: type.toUpperCase() });
+        await item.save();
+        return populateItem(item._id);
+      } catch (error) {
+        const errMsg = String(error.message || '');
+        const isDuplicateCode = error?.code === 11000 && /itemCode|sizes\.sku|sizes\.barcode/i.test(errMsg);
+        if (isDuplicateCode && attempt < maxAttempts - 1) {
+          data.itemCode = undefined;
+          if (/sizes\.(sku|barcode)/i.test(errMsg)) {
+            (data.sizes || []).forEach((entry) => {
+              const sku = String(entry.sku || '').trim().toUpperCase();
+              if (!sku || /^BM\d+$/i.test(sku) || isPlaceholderSku(sku)) {
+                entry.sku = '';
+                entry.barcode = '';
+              }
+            });
+            await ensureSizeSKUs(data.sizes);
+          }
+          // eslint-disable-next-line no-continue
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw new Error('Could not allocate a unique item code. Please try again.');
   }
 
   async updateItem(id, data = {}, options = { mergeSizes: false }) {
@@ -477,7 +504,16 @@ class ItemService {
     const { search, brand, section } = query;
     const filter = {};
     if (user?.role === 'store_staff') { filter.type = { $in: ['GARMENT', 'ACCESSORY'] }; filter.isActive = true; }
-    if (search) filter.$or = [{ itemCode: { $regex: search, $options: 'i' } }, { itemName: { $regex: search, $options: 'i' } }, { hsnCode: { $regex: search, $options: 'i' } }];
+    if (search) {
+      const searchRegex = { $regex: search, $options: 'i' };
+      filter.$or = [
+        { itemCode: searchRegex },
+        { itemName: searchRegex },
+        { hsnCode: searchRegex },
+        { 'sizes.sku': searchRegex },
+        { 'sizes.barcode': searchRegex },
+      ];
+    }
     if (brand && brand !== 'all') filter.brandName = brand;
     if (section && section !== 'all') filter.sectionName = section;
     const sort = getSort(query, {

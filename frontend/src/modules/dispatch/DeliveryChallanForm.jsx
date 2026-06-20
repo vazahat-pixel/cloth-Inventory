@@ -297,7 +297,6 @@ function DeliveryChallanForm({
                 String(l.barcode).toLowerCase() === normalizedCode
             );
             if (match) {
-                updateReceivedQuantity(match.variantId, (match.receivedQty || 0) + 1);
                 setError('');
             } else {
                 setError(`Item "${cleaned}" not found in this dispatch.`);
@@ -409,15 +408,6 @@ function DeliveryChallanForm({
         }));
     };
 
-    const updateReceivedQuantity = (variantId, val) => {
-        setLines(prev => prev.map(l => {
-            if (l.variantId !== variantId) return l;
-            const expected = Number(l.quantity || 0);
-            const parsed = Math.max(0, Number(val) || 0);
-            return { ...l, receivedQty: parsed };
-        }));
-    };
-
     useEffect(() => {
         if (!id) return undefined;
 
@@ -498,7 +488,7 @@ function DeliveryChallanForm({
                 const payload = {
                     receivedItems: lines.map(l => ({
                         variantId: l.variantId,
-                        receivedQty: l.receivedQty
+                        receivedQty: Number(l.quantity || 0),
                     }))
                 };
                 showLoading('Updating inventory stock...');
@@ -702,8 +692,8 @@ function DeliveryChallanForm({
 
                 {isReceiveMode && (
                     <Box sx={{ p: 2, bgcolor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 2 }}>
-                        <Typography sx={{ fontWeight: 900, color: '#166534' }}>⚡ AUDIT MODE ACTIVE</Typography>
-                        <Typography variant="caption">Scan garments to verify received quantity. Mismatches will be logged.</Typography>
+                        <Typography sx={{ fontWeight: 900, color: '#166534' }}>Full Receive Only</Typography>
+                        <Typography variant="caption">Poora dispatch qty receive hoga — partial receive allowed nahi. Confirm karke save karein.</Typography>
                     </Box>
                 )}
                 {/* Stats Summary Dashboard Panel */}
@@ -885,7 +875,7 @@ function DeliveryChallanForm({
                                 const lineTotal = taxableValue + taxAmount;
                                 
                                 return (
-                                <TableRow key={l.variantId} sx={{ bgcolor: isReceiveMode && l.receivedQty != l.quantity ? '#fff1f2' : 'inherit' }}>
+                                <TableRow key={l.variantId}>
                                     <TableCell>{l.itemName} ({l.size}/{l.color})</TableCell>
                                     <TableCell>{l.sku}</TableCell>
                                     <TableCell align="right">₹{baseRate.toLocaleString()}</TableCell>
@@ -927,11 +917,7 @@ function DeliveryChallanForm({
                                     {isBillingMode && <TableCell align="right" sx={{ fontWeight: 700 }}>₹{lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>}
                                     {isReceiveMode && (
                                         <TableCell align="right">
-                                            <TextField 
-                                                size="small" type="number" value={l.receivedQty} 
-                                                onChange={(e) => updateReceivedQuantity(l.variantId, e.target.value)}
-                                                inputProps={{ style: { textAlign: 'right', fontWeight: 800, width: 70 } }}
-                                            />
+                                            <Typography sx={{ fontWeight: 800, color: '#166534' }}>{l.quantity}</Typography>
                                         </TableCell>
                                     )}
                                     {!isReceiveMode && (

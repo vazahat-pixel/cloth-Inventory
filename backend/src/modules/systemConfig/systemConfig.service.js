@@ -33,6 +33,10 @@ const getConfigs = async () => {
  * Get a specific configuration value by key
  */
 const getConfigByKey = async (key, defaultValue = null) => {
+    if (key === 'allowNegativeStock') {
+        return false;
+    }
+
     const cached = getCachedConfig(key);
     if (cached !== undefined) return cached;
 

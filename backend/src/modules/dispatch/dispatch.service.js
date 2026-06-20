@@ -1254,7 +1254,7 @@ const getDispatchById = async (id) => {
 /* ─────────────────────────────────────────────
    RECEIVE DISPATCH (DISPATCHED → RECEIVED)
    Clears in-transit, adds physical stock to store
-   Accepts optional receivedItems for partial/audited receipts
+   Full receive only — dispatched qty must match received qty exactly
 ───────────────────────────────────────────── */
 const receiveDispatch = async (id, userId, receivedItems = []) => {
     return await withTransaction(async (session) => {
@@ -1276,22 +1276,23 @@ const receiveDispatch = async (id, userId, receivedItems = []) => {
             await dispatch.save({ session });
         }
 
-        // STRICT VALIDATION FOR QUANTITY MISMATCH (before atomic claim)
-        if (receivedItems && receivedItems.length > 0) {
-            for (const item of dispatch.items) {
-                const verified = receivedItems.find(ri => String(ri.variantId) === String(item.variantId));
-                const receivedQty = verified ? Number(verified.receivedQty || 0) : 0;
+        // Full receive only — no partial receipts
+        for (const item of dispatch.items || []) {
+            const verified = (receivedItems || []).find((ri) => String(ri.variantId) === String(item.variantId));
+            const receivedQty = verified ? Number(verified.receivedQty || 0) : Number(item.qty || 0);
+            const dispatchedQty = Number(item.qty || 0);
 
-                if (receivedQty !== Number(item.qty)) {
-                    throw new Error(`Quantity Mismatch: Item (${item.barcode || 'N/A'}) was dispatched with quantity ${item.qty}, but store entered ${receivedQty}. You must receive exact dispatched quantity.`);
-                }
+            if (receivedQty !== dispatchedQty) {
+                throw new Error(
+                    `Partial receive not allowed. Item (${item.barcode || 'N/A'}) dispatched ${dispatchedQty} pcs but ${receivedQty} pcs entered. Receive full dispatched quantity.`,
+                );
             }
+        }
 
-            for (const ri of receivedItems) {
-                const isDispatched = dispatch.items.find(item => String(item.variantId) === String(ri.variantId));
-                if (!isDispatched && Number(ri.receivedQty) > 0) {
-                    throw new Error(`Mismatch Alert: Attempting to receive an item that was not dispatched.`);
-                }
+        for (const ri of receivedItems || []) {
+            const isDispatched = (dispatch.items || []).find((item) => String(item.variantId) === String(ri.variantId));
+            if (!isDispatched && Number(ri.receivedQty) > 0) {
+                throw new Error('Mismatch Alert: Attempting to receive an item that was not dispatched.');
             }
         }
 
@@ -1336,24 +1337,19 @@ const receiveDispatch = async (id, userId, receivedItems = []) => {
                 }
             }
 
-            // 1. ALWAYS clear the pool from in-transit (Self-healing strategy)
-            try {
-                await stockService.removeInTransit({
-                    itemId: itmId,
-                    barcode: bcode,
-                    variantId: item.variantId,
-                    locationId: dispatch.destinationStoreId,
-                    locationType: 'STORE',
-                    qty: item.qty,
-                    session
-                });
-            } catch (err) {
-                console.warn(`[RECOVERY] In-transit sync failed for ${bcode}. Error: ${err.message}. Proceeding with physical receipt to avoid system block.`);
-            }
+            // 1. Clear in-transit pool — must succeed or receive rolls back
+            await stockService.removeInTransit({
+                itemId: itmId,
+                barcode: bcode,
+                variantId: item.variantId,
+                locationId: dispatch.destinationStoreId,
+                locationType: 'STORE',
+                qty: item.qty,
+                session
+            });
 
-            // 2. Add only the RECEIVED quantity to physical inventory
-            const verified = (receivedItems || []).find(ri => String(ri.variantId) === String(item.variantId));
-            const qtyToReceive = verified ? Number(verified.receivedQty) : item.qty;
+            // 2. Add full dispatched quantity to physical inventory
+            const qtyToReceive = Number(item.qty || 0);
 
             if (qtyToReceive > 0) {
                 let targetBarcode = bcode;

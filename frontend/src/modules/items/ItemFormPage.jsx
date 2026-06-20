@@ -300,7 +300,11 @@ function ItemFormPage({ mode = 'edit' }) {
 
     const payload = {
       itemName: data.itemName.trim(),
-      itemCode: data.itemCode.trim().toUpperCase(),
+      ...(isEditMode
+        ? { itemCode: data.itemCode.trim().toUpperCase() }
+        : (data.itemCode && !/^BM\d+$/i.test(String(data.itemCode).trim())
+          ? { itemCode: data.itemCode.trim().toUpperCase() }
+          : {})),
       brand: data.brand,
       sectionId: data.sectionId,
       categoryId: data.categoryId,
@@ -684,25 +688,6 @@ function ItemFormPage({ mode = 'edit' }) {
                               onBlur={(e) => field.onChange(e.target.value || '')}
                               renderInput={(params) => (
                                 <TextField {...params} size="small" label="Fabric / Material" placeholder="Select or type fabric" />
-                              )}
-                            />
-                          )}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 3 }}>
-                        <Controller
-                          name="color"
-                          control={control}
-                          render={({ field }) => (
-                            <Autocomplete
-                              freeSolo
-                              disabled={isViewMode}
-                              options={uniqueAttributes.colors}
-                              value={field.value || ''}
-                              onChange={(e, val) => field.onChange(val || '')}
-                              onBlur={(e) => field.onChange(e.target.value || '')}
-                              renderInput={(params) => (
-                                <TextField {...params} size="small" label="Primary Color" placeholder="e.g. Navy Blue" />
                               )}
                             />
                           )}

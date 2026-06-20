@@ -23,6 +23,18 @@ const toNumber = (val) => {
     return Number.isFinite(n) ? n : 0;
 };
 
+/** Physical sellable qty at store (quantityAvailable is source of truth for retail). */
+const getStorePhysicalQty = (inventory) => {
+    if (!inventory) return 0;
+    if (inventory.fromWarehouse) {
+        return Math.max(0, toNumber(inventory.quantity));
+    }
+    if (typeof inventory.quantityAvailable === 'number') {
+        return Math.max(0, inventory.quantityAvailable);
+    }
+    return Math.max(0, toNumber(inventory.quantity));
+};
+
 const {
     LoyaltyType,
     CreditNoteStatus
@@ -245,7 +257,7 @@ const getProductForSale = async (barcode, storeId) => {
         }
     }
 
-    const availableQty = inventory ? (inventory.quantityAvailable > 0 ? inventory.quantityAvailable : (inventory.quantity || 0)) : 0;
+    const availableQty = getStorePhysicalQty(inventory);
 
     if (availableQty <= 0) {
         throw new Error(`Out of stock for barcode ${barcode} in this location`);
@@ -492,8 +504,9 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             }
 
             if (!inventory) throw new Error(`Stock not found for barcode: ${barcode}`);
-            if (inventory.quantity < item.quantity) {
-                throw new Error(`Insufficient stock for ${inventory.itemId?.itemName || 'Item'} (Available: ${inventory.quantity})`);
+            const availableQty = getStorePhysicalQty(inventory);
+            if (availableQty < item.quantity) {
+                throw new Error(`Insufficient stock for ${inventory.itemId?.itemName || 'Item'} (Available: ${availableQty})`);
             }
 
             let parentItem = inventory.itemId;
