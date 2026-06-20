@@ -228,6 +228,12 @@ const createGRN = async (grnData, userId) => {
                 consumptionDetails
             } = grnData;
 
+            // Clean empty string object references to prevent CastError in MongoDB
+            const cleanPurchaseId = purchaseId === '' ? null : purchaseId;
+            const cleanPurchaseOrderId = purchaseOrderId === '' ? null : purchaseOrderId;
+            const cleanJobWorkId = jobWorkId === '' ? null : jobWorkId;
+            const cleanSupplierId = supplierId === '' ? null : supplierId;
+
             // Check database for similar GRN created in last 60s
             const sixtySecondsAgo = new Date(Date.now() - 60000);
             const duplicateGrn = await GRN.findOne({
@@ -245,17 +251,17 @@ const createGRN = async (grnData, userId) => {
 
             // 1. Validate Parent Document (Optional for Direct GRN)
             let parentDoc = null;
-            if (purchaseOrderId) {
+            if (cleanPurchaseOrderId) {
                 const PurchaseOrder = require('../../models/purchaseOrder.model');
-                parentDoc = await PurchaseOrder.findById(purchaseOrderId).session(session);
+                parentDoc = await PurchaseOrder.findById(cleanPurchaseOrderId).session(session);
                 if (!parentDoc) throw new Error('Purchase Order not found');
-            } else if (purchaseId) {
-                parentDoc = await Purchase.findById(purchaseId).session(session);
+            } else if (cleanPurchaseId) {
+                parentDoc = await Purchase.findById(cleanPurchaseId).session(session);
                 if (!parentDoc) throw new Error('Purchase document not found');
             }
 
             // 2. For GARMENT GRN, Job Work Reference is recommended
-            if (grnType === 'GARMENT' && !jobWorkId) {
+            if (grnType === 'GARMENT' && !cleanJobWorkId) {
                 console.warn('[GRN-CREATE] Garment GRN created without Job Work Reference. Consumption will be manual-only.');
             }
 
@@ -336,10 +342,10 @@ const createGRN = async (grnData, userId) => {
             const grn = new GRN({
                 grnNumber,
                 grnType,
-                purchaseId: purchaseId || null,
-                purchaseOrderId: purchaseOrderId || null,
-                jobWorkId: jobWorkId || null,
-                supplierId,
+                purchaseId: cleanPurchaseId || null,
+                purchaseOrderId: cleanPurchaseOrderId || null,
+                jobWorkId: cleanJobWorkId || null,
+                supplierId: cleanSupplierId || null,
                 warehouseId,
                 invoiceNumber,
                 invoiceDate,
@@ -357,9 +363,9 @@ const createGRN = async (grnData, userId) => {
             await grn.save({ session });
 
             // Link to workflow if parent doc exists
-            if (purchaseOrderId || purchaseId) {
-                const parentId = purchaseOrderId || purchaseId;
-                const parentType = purchaseOrderId ? DocumentType.PO : DocumentType.PURCHASE;
+            if (cleanPurchaseOrderId || cleanPurchaseId) {
+                const parentId = cleanPurchaseOrderId || cleanPurchaseId;
+                const parentType = cleanPurchaseOrderId ? DocumentType.PO : DocumentType.PURCHASE;
                 await workflowService.linkDocuments(parentId, grn._id, parentType, DocumentType.GRN);
             }
             await workflowService.updateStatus(grn._id, DocumentType.GRN, null, GrnStatus.DRAFT, userId, `Created ${grnType} GRN ${grnNumber}`);
@@ -642,6 +648,7 @@ const updateGRN = async (id, updateData, userId) => {
         if (updateData.purchaseOrderId === '') updateData.purchaseOrderId = null;
         if (updateData.purchaseId === '') updateData.purchaseId = null;
         if (updateData.jobWorkId === '') updateData.jobWorkId = null;
+        if (updateData.supplierId === '') updateData.supplierId = null;
 
         if (updateData.items) {
             const grnType = updateData.grnType || grn.grnType;

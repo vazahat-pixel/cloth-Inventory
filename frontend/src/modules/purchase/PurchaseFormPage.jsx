@@ -247,7 +247,17 @@ function PurchaseFormPage() {
     try {
       // Use the new scan endpoint
       const response = await api.get(`/items/scan/${barcode}`);
-      const { item, variant } = response.data.data;
+      const payload = response.data;
+      if (!payload || !payload.success) {
+        throw new Error('Barcode not found');
+      }
+
+      const item = payload.item || payload.data?.item;
+      const variant = payload.variant || payload.data?.variant;
+
+      if (!item || !variant) {
+        throw new Error('Barcode not found');
+      }
       
       const newLine = {
         id: Math.random().toString(36).substr(2, 9),

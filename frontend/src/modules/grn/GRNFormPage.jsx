@@ -448,14 +448,19 @@ function GRNFormPage({ mode = 'edit' }) {
       const api = (await import('../../services/api')).default;
       const response = await api.get(`/items/scan/${encodeURIComponent(barcode)}`);
       
-      if (response.data.success && response.data.data) {
-        const { item, variant } = response.data.data;
-        if (item.type === 'FABRIC' || item.type === 'ACCESSORY') {
+      const payload = response.data;
+      if (payload && payload.success) {
+        const item = payload.item || payload.data?.item;
+        const variant = payload.variant || payload.data?.variant;
+        
+        if (item && (item.type === 'FABRIC' || item.type === 'ACCESSORY')) {
           setActiveItemForRolls(item);
           setIsRollDialogOpen(true);
-        } else if (variant) {
+        } else if (item && variant) {
           addLineItem(item, variant);
           setLastScannedItemName(item.itemName || item.name || '');
+        } else {
+          throw new Error('Barcode not found');
         }
       } else {
         throw new Error('Barcode not found');

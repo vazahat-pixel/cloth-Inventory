@@ -11,8 +11,10 @@ async function run() {
 
         const items = await Item.find({
             $or: [
-                { itemName: { $regex: 'TS25-0010', $options: 'i' } },
-                { itemName: { $regex: 'TS25-0048', $options: 'i' } }
+                { itemCode: { $regex: '0006947', $options: 'i' } },
+                { itemName: { $regex: '0006947', $options: 'i' } },
+                { "sizes.sku": { $regex: '0006947', $options: 'i' } },
+                { "sizes.barcode": { $regex: '0006947', $options: 'i' } }
             ]
         }).populate('hsCodeId');
 
@@ -20,8 +22,8 @@ async function run() {
         for (const item of items) {
             console.log(`- Item Name: ${item.itemName}`);
             console.log(`  Item Code: ${item.itemCode}`);
-            console.log(`  HSN Plain (hsnCode): "${item.hsnCode}"`);
-            console.log(`  HSN Ref (hsCodeId):`, item.hsCodeId);
+            console.log(`  Type: ${item.type}`);
+            console.log(`  Sizes:`, JSON.stringify(item.sizes, null, 2));
         }
 
     } catch (err) {
