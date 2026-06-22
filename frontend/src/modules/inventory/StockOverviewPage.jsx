@@ -47,7 +47,8 @@ const normalizeStockRows = (rows = []) =>
   rows.map((row, index) => {
     return {
       id: row.id || row._id || `stock-${index + 1}`,
-      itemCode: row.itemCode || row.sku || row.styleCode || row.barcode || '',
+      itemCode: row.itemCode || '',
+      sku: row.sku || row.barcode || '',
       itemName: row.itemName || '',
       size: row.size || '',
       color: row.color || '',
@@ -200,9 +201,27 @@ function StockOverviewPage() {
   const getSizeLabel = (value) => resolveSizeLabel(value, sizeLabelLookup);
 
   const rows = useMemo(() => {
-    const normalized = normalizeStockRows(backendRows);
-    return isStoreStaff ? normalized.filter((r) => r.type === 'GARMENT') : normalized;
-  }, [backendRows, isStoreStaff]);
+    let normalized = normalizeStockRows(backendRows);
+    if (isStoreStaff) {
+      normalized = normalized.filter((r) => r.type === 'GARMENT');
+    }
+
+    if (debouncedApiSearch) {
+      const query = debouncedApiSearch.toLowerCase().trim();
+      normalized = normalized.filter((row) => {
+        return (
+          (row.sku && row.sku.toLowerCase().includes(query)) ||
+          (row.itemName && row.itemName.toLowerCase().includes(query)) ||
+          (row.color && row.color.toLowerCase().includes(query)) ||
+          (row.warehouse && row.warehouse.toLowerCase().includes(query)) ||
+          (row.brand && row.brand.toLowerCase().includes(query)) ||
+          (row.category && row.category.toLowerCase().includes(query))
+        );
+      });
+    }
+
+    return normalized;
+  }, [backendRows, isStoreStaff, debouncedApiSearch]);
 
   const warehouseOptions = useMemo(
     () => warehouses.map((w) => ({
@@ -391,7 +410,7 @@ function StockOverviewPage() {
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 700 }}>Item Code</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Item Name</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Type</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Size</TableCell>
@@ -407,7 +426,9 @@ function StockOverviewPage() {
             <TableBody>
               {paginatedRows.map((row) => (
                 <TableRow key={row.id} hover>
-                  <TableCell sx={{ fontWeight: 700 }}>{row.itemCode}</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>
+                    {row.sku || row.itemCode}
+                  </TableCell>
                   <TableCell>{row.itemName}</TableCell>
                   <TableCell>
                     <Box 

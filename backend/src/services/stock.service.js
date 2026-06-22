@@ -114,14 +114,6 @@ const _resolveStockIdentifiers = async ({ itemId, barcode, variantId, session })
     let resolvedBarcode = barcode ? String(barcode).trim() : '';
     let resolvedVariantId = variantId || null;
 
-    if (resolvedItemId && resolvedBarcode) {
-        return {
-            itemId: resolvedItemId,
-            barcode: resolvedBarcode,
-            variantId: resolvedVariantId,
-        };
-    }
-
     const mongoose = require('mongoose');
     const lookupClauses = [];
 
@@ -134,7 +126,6 @@ const _resolveStockIdentifiers = async ({ itemId, barcode, variantId, session })
     }
     if (resolvedVariantId && mongoose.Types.ObjectId.isValid(resolvedVariantId)) {
         lookupClauses.push(
-            { _id: resolvedVariantId },
             { 'sizes._id': resolvedVariantId },
         );
     }
@@ -145,17 +136,24 @@ const _resolveStockIdentifiers = async ({ itemId, barcode, variantId, session })
     if (lookupClauses.length) {
         const item = await Item.findOne({ $or: lookupClauses }).session(session).lean();
         if (item) {
-            resolvedItemId = resolvedItemId || item._id;
-            const variant =
-                item.sizes?.find(
-                    (size) =>
-                        String(size._id) === String(resolvedVariantId) ||
-                        (resolvedBarcode &&
-                            (size.barcode === resolvedBarcode || size.sku === resolvedBarcode)),
-                ) || item.sizes?.[0];
-            resolvedVariantId = resolvedVariantId || variant?._id || null;
-            resolvedBarcode =
-                resolvedBarcode || variant?.barcode || variant?.sku || item.itemCode || '';
+            resolvedItemId = item._id;
+            
+            // Find correct variant
+            let variant = null;
+            if (resolvedVariantId) {
+                variant = item.sizes?.find(size => String(size._id) === String(resolvedVariantId));
+            }
+            if (!variant && resolvedBarcode) {
+                variant = item.sizes?.find(
+                    (size) => size.barcode === resolvedBarcode || size.sku === resolvedBarcode
+                );
+            }
+            if (!variant) {
+                variant = item.sizes?.[0];
+            }
+
+            resolvedVariantId = variant?._id || null;
+            resolvedBarcode = variant?.barcode || variant?.sku || item.itemCode || '';
         }
     }
 

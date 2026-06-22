@@ -22,7 +22,7 @@ import itemsExportColumns from '../../config/exportColumns/items';
 import BulkItemUploadDialog from './components/BulkItemUploadDialog';
 import api from '../../services/api';
 
-const mapItemToRow = (item, brands = [], hsnCodes = []) => {
+const flattenItemToRows = (item, brands = [], hsnCodes = []) => {
   const brandId = item.brand?._id || item.brand?.id || item.brand;
   const brandFromMaster = brands.find((b) => String(b._id || b.id) === String(brandId));
   const hsnId = item.hsCodeId?._id || item.hsCodeId?.id || item.hsCodeId;
@@ -32,22 +32,14 @@ const mapItemToRow = (item, brands = [], hsnCodes = []) => {
   const subCategory = item.subCategoryId?.groupName || item.subCategoryId?.name || '';
   const mainGroup = section || category || (item.groupIds?.find((g) => g.groupType === 'Section' || g.groupType === 'Category')?.name) || '--';
   const subGroup = subCategory || (item.groupIds?.find((g) => g.groupType === 'Sub Category')?.name) || '--';
-  const variantSizes = [...new Set((item.sizes || []).map((s) => s.size).filter(Boolean))];
-  const variantColors = [...new Set((item.sizes || []).map((size) => size.color).filter(Boolean))];
-  return {
-    id: item.id || item._id,
+  
+  const baseItemInfo = {
+    parentId: item.id || item._id,
     itemCode: item.itemCode || item.code || '',
     itemName: item.itemName || item.name || '',
     brand: (
-      item.brand?.brandName
-      || item.brand?.name
-      || item.brandName
-      || brandFromMaster?.brandName
-      || brandFromMaster?.name
-      || 'UNSPECIFIED'
+      item.brand?.brandName || item.brand?.name || item.brandName || brandFromMaster?.brandName || brandFromMaster?.name || 'UNSPECIFIED'
     ),
-    color: item.color || item.shadeNo || variantColors.join(', ') || '--',
-    sizes: variantSizes.join(', ') || '--',
     fabric: item.fabric || '--',
     pattern: item.pattern || '--',
     fit: item.fit || '--',
@@ -56,27 +48,26 @@ const mapItemToRow = (item, brands = [], hsnCodes = []) => {
     mainGroup,
     subGroup,
     hsnCode: (
-      item.hsCodeId?.code
-      || item.hsCodeId?.hsnCode
-      || item.hsnCode
-      || hsnFromMaster?.code
-      || hsnFromMaster?.hsnCode
-      || '--'
+      item.hsCodeId?.code || item.hsCodeId?.hsnCode || item.hsnCode || hsnFromMaster?.code || hsnFromMaster?.hsnCode || '--'
     ),
-    gstRate: item.hsCodeId?.gstPercent !== undefined
-      ? `${item.hsCodeId.gstPercent}%`
-      : (hsnFromMaster?.gstPercent !== undefined
-        ? `${hsnFromMaster.gstPercent}%`
-        : (item.gstPercent ? `${item.gstPercent}%` : '--')),
-    variantCount: item.sizes?.length || 0,
+    gstRate: item.hsCodeId?.gstPercent !== undefined ? `${item.hsCodeId.gstPercent}%` : (hsnFromMaster?.gstPercent !== undefined ? `${hsnFromMaster.gstPercent}%` : (item.gstPercent ? `${item.gstPercent}%` : '--')),
     status: item.status || 'Active',
-    costPrice: item.costPrice,
-    salePrice: item.salePrice,
-    mrp: item.mrp,
-    sku: item.sku,
     season: item.season || '--',
     occasion: item.occasion || '--',
   };
+
+  const sizes = Array.isArray(item.sizes) && item.sizes.length > 0 ? item.sizes : [{}];
+
+  return sizes.map((variant) => ({
+    ...baseItemInfo,
+    id: variant._id || variant.id || baseItemInfo.parentId,
+    size: variant.size || '--',
+    color: variant.color || item.color || item.shadeNo || '--',
+    sku: variant.sku || variant.barcode || baseItemInfo.itemCode || '--',
+    costPrice: variant.costPrice || item.costPrice,
+    salePrice: variant.salePrice || item.salePrice,
+    mrp: variant.mrp || item.mrp,
+  }));
 };
 
 const toExportRows = (rows) => rows.map((row) => ({
@@ -124,8 +115,16 @@ function ItemListPage() {
 
   const rows = useMemo(() => {
     const itemsArray = Array.isArray(items) ? items : [];
-    return itemsArray.map((item) => mapItemToRow(item, brands, hsnCodes));
-  }, [items, brands, hsnCodes]);
+    const flattened = itemsArray.flatMap((item) => flattenItemToRows(item, brands, hsnCodes));
+    
+    if (!debouncedSearch) return flattened;
+    const lowerSearch = debouncedSearch.toLowerCase();
+    return flattened.filter(row => 
+      (row.sku && row.sku.toLowerCase().includes(lowerSearch)) ||
+      (row.itemCode && row.itemCode.toLowerCase().includes(lowerSearch)) ||
+      (row.itemName && row.itemName.toLowerCase().includes(lowerSearch))
+    );
+  }, [items, brands, hsnCodes, debouncedSearch]);
 
   const paginatedRows = rows;
 
@@ -221,11 +220,12 @@ function ItemListPage() {
           <TableContainer>
             <Table size="small">
               <TableHead sx={{ bgcolor: '#f8fafc' }}><TableRow>
-                <TableCell sx={{ fontWeight: 700 }}>Code</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>SKU / Code</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Name</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Brand</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Size</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Color</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>HSN</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Sizes</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Section</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>GST</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
@@ -234,17 +234,20 @@ function ItemListPage() {
               <TableBody>
                 {paginatedRows.map((row) => (
                   <TableRow key={row.id} hover>
-                    <TableCell sx={{ fontWeight: 800, color: '#6366f1' }}>{row.itemCode}</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: '#6366f1' }}>
+                      {row.sku && row.sku !== '--' ? row.sku : row.itemCode}
+                    </TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>{row.itemName}</TableCell>
                     <TableCell>{row.brand}</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>{row.size}</TableCell>
+                    <TableCell>{row.color}</TableCell>
                     <TableCell><b>{row.hsnCode}</b></TableCell>
-                    <TableCell sx={{ fontSize: '0.75rem', maxWidth: 150 }}>{row.sizes}</TableCell>
                     <TableCell>{row.mainGroup}</TableCell>
                     <TableCell>{row.gstRate}</TableCell>
                     <TableCell><StatusBadge value={row.status} /></TableCell>
                     <TableCell align="right">
-                        <IconButton size="small" color="info" onClick={() => goToItem(`/items/view/${row.id}`)}><VisibilityOutlinedIcon fontSize="small" /></IconButton>
-                        <IconButton size="small" color="primary" onClick={() => goToItem(`/items/edit/${row.id}`)}><EditOutlinedIcon fontSize="small" /></IconButton>
+                        <IconButton size="small" color="info" onClick={() => goToItem(`/items/view/${row.parentId}`)}><VisibilityOutlinedIcon fontSize="small" /></IconButton>
+                        <IconButton size="small" color="primary" onClick={() => goToItem(`/items/edit/${row.parentId}`)}><EditOutlinedIcon fontSize="small" /></IconButton>
                     </TableCell>
                   </TableRow>
                 ))}

@@ -209,7 +209,8 @@ const normalizeSalePayments = (payments = [], paymentMode = 'CASH', amountPaid =
  * Get product by barcode for scanning
  */
 const getProductForSale = async (barcode, storeId) => {
-    const regex = new RegExp(`^${barcode}$`, 'i');
+    const escapedBarcode = String(barcode || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`^${escapedBarcode}$`, 'i');
     const parentItem = await Item.findOne({ 
         $or: [
             { itemCode: regex },
