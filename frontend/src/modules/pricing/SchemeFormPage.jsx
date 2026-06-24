@@ -482,13 +482,6 @@ function SchemeFormPage() {
     if (values.startDate) {
       const start = new Date(values.startDate);
       start.setHours(0, 0, 0, 0);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      if (!isEditMode && start < today) {
-        setFormError('Start date cannot be in the past');
-        return;
-      }
 
       if (values.endDate) {
         const end = new Date(values.endDate);
@@ -1073,9 +1066,6 @@ function SchemeFormPage() {
                     {...register('startDate', { required: 'Start Date is required' })} 
                     error={!!errors.startDate} 
                     helperText={errors.startDate?.message}
-                    inputProps={{ 
-                      min: !isEditMode ? new Date().toISOString().split('T')[0] : undefined 
-                    }}
                   />
                   <TextField 
                     label="End Date" 
@@ -1084,7 +1074,7 @@ function SchemeFormPage() {
                     InputLabelProps={{ shrink: true }} 
                     {...register('endDate')} 
                     inputProps={{ 
-                      min: watch('startDate') || new Date().toISOString().split('T')[0]
+                      min: watch('startDate') || undefined
                     }}
                   />
                 </Stack>

@@ -412,7 +412,11 @@ class ItemService {
     const resolveItemCode = async () => {
       let itemCode = data.itemCode;
       if (!itemCode || /^BM\d+$/i.test(String(itemCode).trim())) {
-        [itemCode] = await allocateBmCodes(1);
+        if (data.sizes && data.sizes[0] && data.sizes[0].sku) {
+          itemCode = data.sizes[0].sku;
+        } else {
+          [itemCode] = await allocateBmCodes(1);
+        }
         return itemCode;
       }
       itemCode = String(itemCode).trim().toUpperCase();
@@ -522,12 +526,14 @@ class ItemService {
       brand: 'brandName',
       createdAt: 'createdAt',
     }, { createdAt: -1 });
-    const listSelect = 'itemCode itemName brand brandName sectionName categoryName hsnCode gstPercent hsCodeId sizes type isActive createdAt';
+    const listSelect = 'itemCode itemName brand brandName sectionName categoryName hsnCode gstPercent hsCodeId sizes type isActive createdAt color shadeNo sectionId categoryId';
     const [items, total] = await Promise.all([
       Item.find(filter)
         .select(listSelect)
         .populate('brand', 'name brandName')
         .populate('hsCodeId', 'code hsnCode gstRate gstPercent')
+        .populate('sectionId', 'name groupName')
+        .populate('categoryId', 'name groupName')
         .sort(sort)
         .skip(skip)
         .limit(limit)

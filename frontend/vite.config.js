@@ -7,6 +7,10 @@ const require = createRequire(import.meta.url);
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    // Force a single React instance – prevents "Invalid hook call" errors
+    dedupe: ['react', 'react-dom', 'react-router-dom'],
+  },
   build: {
     rollupOptions: {
       output: {

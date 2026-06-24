@@ -1,0 +1,489 @@
+{
+  "maySales": [
+    {
+      "saleNumber": "SAH-0002",
+      "saleDate": "2026-05-20T00:00:00.000Z",
+      "customerName": "brijesh sharma",
+      "grandTotal": 2249.4000000000005,
+      "qty": 2
+    },
+    {
+      "saleNumber": "SAH-0001",
+      "saleDate": "2026-05-20T00:00:00.000Z",
+      "customerName": "anu jain",
+      "grandTotal": 2189.4000000000005,
+      "qty": 2
+    },
+    {
+      "saleNumber": "SAH-0027",
+      "saleDate": "2026-05-21T00:00:00.000Z",
+      "customerName": "gopal",
+      "grandTotal": 1799.6999999999998,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SAH-0005",
+      "saleDate": "2026-05-21T00:00:00.000Z",
+      "customerName": "yash kumar",
+      "grandTotal": 1788.3999999999996,
+      "qty": 3
+    },
+    {
+      "saleNumber": "SAH-0003",
+      "saleDate": "2026-05-21T00:00:00.000Z",
+      "customerName": "prachi rai",
+      "grandTotal": 899.7000000000003,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SAH-0008",
+      "saleDate": "2026-05-22T00:00:00.000Z",
+      "customerName": "SHUBHAM PODDAR",
+      "grandTotal": 989.7000000000003,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SAH-0007",
+      "saleDate": "2026-05-22T00:00:00.000Z",
+      "customerName": "M.K.SHARMA",
+      "grandTotal": 2099.4000000000005,
+      "qty": 2
+    },
+    {
+      "saleNumber": "SAH-0006",
+      "saleDate": "2026-05-22T00:00:00.000Z",
+      "customerName": "SANDEEP GUPTA",
+      "grandTotal": 1049.7000000000003,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SAH-0010",
+      "saleDate": "2026-05-23T00:00:00.000Z",
+      "customerName": "KHUSBOO",
+      "grandTotal": 899.7000000000003,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SAH-0009",
+      "saleDate": "2026-05-23T00:00:00.000Z",
+      "customerName": "Walk-in Customer",
+      "grandTotal": 989.7000000000003,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SAH-0028",
+      "saleDate": "2026-05-24T00:00:00.000Z",
+      "customerName": "sam",
+      "grandTotal": 4078.800000000001,
+      "qty": 4
+    },
+    {
+      "saleNumber": "SAH-0014",
+      "saleDate": "2026-05-24T00:00:00.000Z",
+      "customerName": "BRIJESH SHARMA",
+      "grandTotal": 599,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SAH-0013",
+      "saleDate": "2026-05-24T00:00:00.000Z",
+      "customerName": "ANUJ TYAGI",
+      "grandTotal": 2039.4000000000005,
+      "qty": 2
+    },
+    {
+      "saleNumber": "SAH-0012",
+      "saleDate": "2026-05-24T00:00:00.000Z",
+      "customerName": "PRAKHAR",
+      "grandTotal": 899.7000000000003,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SAH-0011",
+      "saleDate": "2026-05-24T00:00:00.000Z",
+      "customerName": "SANDEEP SHARMA`",
+      "grandTotal": 1889.4000000000005,
+      "qty": 2
+    },
+    {
+      "saleNumber": "SAH-0015",
+      "saleDate": "2026-05-25T00:00:00.000Z",
+      "customerName": "NISHA RAWAT",
+      "grandTotal": 599,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SAH-0004",
+      "saleDate": "2026-05-25T00:00:00.000Z",
+      "customerName": "Walk-in Customer",
+      "grandTotal": 599,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SAH-0018",
+      "saleDate": "2026-05-27T00:00:00.000Z",
+      "customerName": "Walk-in Customer",
+      "grandTotal": 2099.4000000000005,
+      "qty": 2
+    },
+    {
+      "saleNumber": "SAH-0017",
+      "saleDate": "2026-05-27T00:00:00.000Z",
+      "customerName": "priyanka",
+      "grandTotal": 1438.6999999999998,
+      "qty": 2
+    },
+    {
+      "saleNumber": "SAH-0016",
+      "saleDate": "2026-05-27T00:00:00.000Z",
+      "customerName": "YOGESH SHARMA",
+      "grandTotal": 5797.400000000003,
+      "qty": 6
+    },
+    {
+      "saleNumber": "SAH-0020",
+      "saleDate": "2026-05-28T00:00:00.000Z",
+      "customerName": "Zahid",
+      "grandTotal": 1949.4000000000005,
+      "qty": 2
+    },
+    {
+      "saleNumber": "SAH-0019",
+      "saleDate": "2026-05-28T00:00:00.000Z",
+      "customerName": "sonaam agarwal",
+      "grandTotal": 1498,
+      "qty": 2
+    },
+    {
+      "saleNumber": "SAH-0022",
+      "saleDate": "2026-05-29T00:00:00.000Z",
+      "customerName": "sandeep panday",
+      "grandTotal": 1889.4000000000005,
+      "qty": 2
+    },
+    {
+      "saleNumber": "SAH-0021",
+      "saleDate": "2026-05-29T00:00:00.000Z",
+      "customerName": "deepti",
+      "grandTotal": 399,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SAH-0025",
+      "saleDate": "2026-05-31T00:00:00.000Z",
+      "customerName": "prabhakar",
+      "grandTotal": 1199.7000000000003,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SAH-0024",
+      "saleDate": "2026-05-31T00:00:00.000Z",
+      "customerName": "mitliesh singh",
+      "grandTotal": 989.7000000000003,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SAH-0023",
+      "saleDate": "2026-05-31T00:00:00.000Z",
+      "customerName": "vivek panday",
+      "grandTotal": 5384.100000000002,
+      "qty": 3
+    }
+  ],
+  "juneSales": [
+    {
+      "saleNumber": "SAH-0031",
+      "saleDate": "2026-06-03T00:00:00.000Z",
+      "customerName": "RAHUL",
+      "grandTotal": 299.70000000000005,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SAH-0030",
+      "saleDate": "2026-06-03T00:00:00.000Z",
+      "customerName": "Walk-in Customer",
+      "grandTotal": 1349.7000000000003,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SAH-0029",
+      "saleDate": "2026-06-03T00:00:00.000Z",
+      "customerName": "SHEERESH",
+      "grandTotal": 499,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SAH-0035",
+      "saleDate": "2026-06-04T00:00:00.000Z",
+      "customerName": "Walk-in Customer",
+      "grandTotal": 599,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SAH-0034",
+      "saleDate": "2026-06-04T00:00:00.000Z",
+      "customerName": "Walk-in Customer",
+      "grandTotal": 1889.4000000000005,
+      "qty": 2
+    },
+    {
+      "saleNumber": "SAH-0033",
+      "saleDate": "2026-06-04T00:00:00.000Z",
+      "customerName": "KRITIKA",
+      "grandTotal": 1319.7000000000003,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SAH-0032",
+      "saleDate": "2026-06-04T00:00:00.000Z",
+      "customerName": "VIJAYENDRA KUMAR TYAGI",
+      "grandTotal": 499,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SAH-0036",
+      "saleDate": "2026-06-05T00:00:00.000Z",
+      "customerName": "Walk-in Customer",
+      "grandTotal": 4435.4000000000015,
+      "qty": 6
+    },
+    {
+      "saleNumber": "SAH-0039",
+      "saleDate": "2026-06-06T00:00:00.000Z",
+      "customerName": "AMIT",
+      "grandTotal": 599,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SAH-0038",
+      "saleDate": "2026-06-06T00:00:00.000Z",
+      "customerName": "AMIT",
+      "grandTotal": 3149.1000000000004,
+      "qty": 3
+    },
+    {
+      "saleNumber": "SAH-0037",
+      "saleDate": "2026-06-06T00:00:00.000Z",
+      "customerName": "anu jain",
+      "grandTotal": 1498.7000000000007,
+      "qty": 2
+    },
+    {
+      "saleNumber": "SAH-0042",
+      "saleDate": "2026-06-07T00:00:00.000Z",
+      "customerName": "naman jain",
+      "grandTotal": 599.7,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SAH-0041",
+      "saleDate": "2026-06-07T00:00:00.000Z",
+      "customerName": "Naman jain",
+      "grandTotal": 2638.4000000000015,
+      "qty": 3
+    },
+    {
+      "saleNumber": "SAH-0040",
+      "saleDate": "2026-06-07T00:00:00.000Z",
+      "customerName": "manish kumar",
+      "grandTotal": 9716.300000000003,
+      "qty": 10
+    },
+    {
+      "saleNumber": "SAH-0046",
+      "saleDate": "2026-06-10T00:00:00.000Z",
+      "customerName": "Walk-in Customer",
+      "grandTotal": 1049.7000000000003,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SAH-0043",
+      "saleDate": "2026-06-10T00:00:00.000Z",
+      "customerName": "Walk-in Customer",
+      "grandTotal": 1199.7000000000003,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SAH-0045",
+      "saleDate": "2026-06-11T00:00:00.000Z",
+      "customerName": "DEV",
+      "grandTotal": 998,
+      "qty": 2
+    },
+    {
+      "saleNumber": "SAH-0044",
+      "saleDate": "2026-06-11T00:00:00.000Z",
+      "customerName": "Walk-in Customer",
+      "grandTotal": 599,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SAH-0047",
+      "saleDate": "2026-06-12T00:00:00.000Z",
+      "customerName": "MISHA RAWAT",
+      "grandTotal": 5635.100000000002,
+      "qty": 7
+    },
+    {
+      "saleNumber": "SAH-0050",
+      "saleDate": "2026-06-13T00:00:00.000Z",
+      "customerName": "shaan",
+      "grandTotal": 1978.7000000000003,
+      "qty": 2
+    },
+    {
+      "saleNumber": "SAH-0049",
+      "saleDate": "2026-06-13T00:00:00.000Z",
+      "customerName": "komal",
+      "grandTotal": 4288.800000000001,
+      "qty": 4
+    },
+    {
+      "saleNumber": "SAH-0048",
+      "saleDate": "2026-06-13T00:00:00.000Z",
+      "customerName": "manish",
+      "grandTotal": 2488.4000000000005,
+      "qty": 3
+    },
+    {
+      "saleNumber": "SAH-0056",
+      "saleDate": "2026-06-14T00:00:00.000Z",
+      "customerName": "SHUBHAM",
+      "grandTotal": 3696.7000000000007,
+      "qty": 4
+    },
+    {
+      "saleNumber": "SAH-0055",
+      "saleDate": "2026-06-14T00:00:00.000Z",
+      "customerName": "MANISH",
+      "grandTotal": 1829.4000000000005,
+      "qty": 2
+    },
+    {
+      "saleNumber": "SAH-0054",
+      "saleDate": "2026-06-14T00:00:00.000Z",
+      "customerName": "MONA",
+      "grandTotal": 998,
+      "qty": 2
+    },
+    {
+      "saleNumber": "SAH-0053",
+      "saleDate": "2026-06-14T00:00:00.000Z",
+      "customerName": "ATUL KUMAR",
+      "grandTotal": 2549.4000000000005,
+      "qty": 2
+    },
+    {
+      "saleNumber": "SAH-0052",
+      "saleDate": "2026-06-14T00:00:00.000Z",
+      "customerName": "ATUL KUMAR",
+      "grandTotal": 1949.4000000000005,
+      "qty": 2
+    },
+    {
+      "saleNumber": "SAH-0051",
+      "saleDate": "2026-06-14T00:00:00.000Z",
+      "customerName": "dharmendra kumar",
+      "grandTotal": 1797,
+      "qty": 3
+    },
+    {
+      "saleNumber": "SAH-0060",
+      "saleDate": "2026-06-15T00:00:00.000Z",
+      "customerName": "Walk-in Customer",
+      "grandTotal": 199,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SAH-0057",
+      "saleDate": "2026-06-15T00:00:00.000Z",
+      "customerName": "shubham",
+      "grandTotal": 300.7000000000003,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SAH-0059",
+      "saleDate": "2026-06-17T00:00:00.000Z",
+      "customerName": "Mahipal",
+      "grandTotal": 1799.4000000000005,
+      "qty": 2
+    },
+    {
+      "saleNumber": "SAH-0058",
+      "saleDate": "2026-06-17T00:00:00.000Z",
+      "customerName": "Ramesh",
+      "grandTotal": 2099.4000000000005,
+      "qty": 2
+    },
+    {
+      "saleNumber": "SAH-0061",
+      "saleDate": "2026-06-18T00:00:00.000Z",
+      "customerName": "NEHA",
+      "grandTotal": 2099.4000000000005,
+      "qty": 2
+    },
+    {
+      "saleNumber": "SHB-0066",
+      "saleDate": "2026-06-20T00:00:00.000Z",
+      "customerName": "shubham",
+      "grandTotal": 1199.7000000000003,
+      "qty": 1
+    },
+    {
+      "saleNumber": "SHB-0065",
+      "saleDate": "2026-06-20T00:00:00.000Z",
+      "customerName": "vinayak",
+      "grandTotal": 1859.4000000000005,
+      "qty": 2
+    },
+    {
+      "saleNumber": "SHB-0064",
+      "saleDate": "2026-06-20T00:00:00.000Z",
+      "customerName": "jyoti",
+      "grandTotal": 2849.3999999999996,
+      "qty": 2
+    },
+    {
+      "saleNumber": "SHB-0063",
+      "saleDate": "2026-06-20T00:00:00.000Z",
+      "customerName": "JAYVEER",
+      "grandTotal": 6928.200000000003,
+      "qty": 6
+    },
+    {
+      "saleNumber": "SHB-0062",
+      "saleDate": "2026-06-20T00:00:00.000Z",
+      "customerName": "Tejpal Singh Tanwar",
+      "grandTotal": 2729.1000000000004,
+      "qty": 3
+    },
+    {
+      "saleNumber": "SHB-0068",
+      "saleDate": "2026-06-21T00:00:00.000Z",
+      "customerName": "GAURAV",
+      "grandTotal": 1198,
+      "qty": 2
+    },
+    {
+      "saleNumber": "SHB-0067",
+      "saleDate": "2026-06-21T00:00:00.000Z",
+      "customerName": "Mansi",
+      "grandTotal": 2039.4000000000005,
+      "qty": 2
+    },
+    {
+      "saleNumber": "SHB-0070",
+      "saleDate": "2026-06-22T00:00:00.000Z",
+      "customerName": "J.K JAIN",
+      "grandTotal": 4138.700000000001,
+      "qty": 4
+    },
+    {
+      "saleNumber": "SHB-0069",
+      "saleDate": "2026-06-22T00:00:00.000Z",
+      "customerName": "Panday",
+      "grandTotal": 599,
+      "qty": 1
+    }
+  ]
+}
