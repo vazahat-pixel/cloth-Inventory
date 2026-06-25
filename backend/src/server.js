@@ -22,6 +22,10 @@ const startServer = async () => {
         logger.info(`📌 Environment: ${process.env.NODE_ENV}`);
     });
 
+    // Increase server timeout to 10 minutes for large bulk uploads
+    server.timeout = 600000; // 10 minutes
+    server.keepAliveTimeout = 620000;
+
     // 1. Initialize Real-time Visibility (Socket.io)
     initSocket(server);
 
@@ -57,4 +61,15 @@ const startServer = async () => {
 startServer().catch((err) => {
     console.error('Failed to start server:', err.message);
     process.exit(1);
+});
+
+// ── Prevent crashes from unhandled errors ──────────────────────────
+process.on('uncaughtException', (err) => {
+    console.error('❌ UNCAUGHT EXCEPTION (server will NOT crash):', err.message);
+    console.error(err.stack);
+});
+
+process.on('unhandledRejection', (reason) => {
+    console.error('❌ UNHANDLED REJECTION (server will NOT crash):', reason?.message || reason);
+    if (reason?.stack) console.error(reason.stack);
 });

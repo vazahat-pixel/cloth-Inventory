@@ -8,4 +8,5 @@ export const itemPickerParams = (search = '', limit = ITEM_PICKER_LIMIT) => ({
   page: 1,
   limit,
   search: search?.trim() || undefined,
+  forReport: true, // Bypass the backend's 100-item page size cap for search pickers
 });

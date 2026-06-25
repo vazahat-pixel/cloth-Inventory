@@ -185,6 +185,8 @@ class ItemController {
       const results = await itemService.bulkCreateItems(items);
       return sendSuccess(res, results, 'Bulk import completed');
     } catch (error) {
+      console.error('❌ BULK_IMPORT_ERROR:', error?.message || error);
+      console.error('Stack:', error?.stack);
       return sendError(res, error.message, 400);
     }
   };

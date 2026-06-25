@@ -153,44 +153,40 @@ const BulkItemUploadDialog = ({ open, onClose, onUploadSuccess }) => {
 
   const handleSave = async () => {
     setUploading(true);
-    setProgress(0);
+    setProgress(2);
     setError('');
-    
+
     const total = groupedItems.length;
-    const batchSize = 1000; // Increased from 20 to 1000 for high-speed upload
-    const totalBatches = Math.ceil(total / batchSize);
-    let successCount = 0;
-    let errorCount = 0;
+
+    // Animate progress while waiting (backend does it in one shot)
+    const progressTimer = setInterval(() => {
+      setProgress(prev => prev < 90 ? prev + 1 : prev);
+    }, 800);
 
     try {
-      for (let i = 0; i < totalBatches; i++) {
-        const start = i * batchSize;
-        const end = Math.min(start + batchSize, total);
-        const batch = groupedItems.slice(start, end);
+      // Send ALL items in ONE request — backend loads reference data once and
+      // processes everything in-memory. No repeated Phase-1 overhead per batch.
+      const response = await api.post('/items/bulk', groupedItems, { timeout: 600000 });
 
-        const response = await api.post('/items/bulk', batch);
-        
-        // Defensive check for response data
-        const resData = response?.data?.data || response?.data || {};
-        const batchSuccess = resData.success?.length || 0;
-        const batchErrors = (resData.errors?.length || resData.failed?.length || 0);
-        
-        successCount += batchSuccess;
-        errorCount += batchErrors;
+      clearInterval(progressTimer);
+      setProgress(100);
 
-        setProgress(Math.round(((i + 1) / totalBatches) * 100));
-      }
+      const resData = response?.data?.data || response?.data || {};
+      const successCount = resData.success?.length || total;
+      const errorCount = resData.errors?.length || resData.failed?.length || 0;
 
-      setSuccess(`Upload complete! Successfully processed ${successCount} items. ${errorCount > 0 ? `${errorCount} items had issues.` : ''}`);
+      setSuccess(`Upload complete! ✅ ${successCount} items processed.${errorCount > 0 ? ` ${errorCount} had issues.` : ''}`);
       if (onUploadSuccess) onUploadSuccess();
     } catch (err) {
+      clearInterval(progressTimer);
       console.error('Detailed Upload Error:', err);
       const serverMsg = err.response?.data?.message || err.message;
-      setError(`Upload failed: ${serverMsg}. Please try refreshing the page or using a smaller file.`);
+      setError(`Upload failed: ${serverMsg}. Please check your file and try again.`);
     } finally {
       setUploading(false);
     }
   };
+
 
   const handleChangePage = (event, newPage) => {
     setPage(newPage);

@@ -171,7 +171,8 @@ const getStoreInventory = async (query, user) => {
 
     // If search exists, find matching Item and Variant IDs first
     if (search) {
-        const searchRegex = new RegExp(search, 'i');
+        const escapedSearch = String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const searchRegex = new RegExp(escapedSearch, 'i');
         const matchingItems = await Item.find({
             $or: [
                 { itemName: searchRegex },

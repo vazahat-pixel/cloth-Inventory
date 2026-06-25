@@ -74,6 +74,13 @@ const isPlaceholderSku = (sku) => {
 };
 
 const syncBmCounterFromDatabase = async () => {
+  // Fast path: if Counter already exists, trust it (it's updated on every allocation)
+  const existing = await Counter.findOne({ name: BM_COUNTER_NAME });
+  if (existing && existing.seq && existing.seq >= BM_MIN_SEQ) {
+    return existing.seq;
+  }
+
+  // Slow path (only on first ever run): scan DB to find max existing BM code
   const items = await Item.find({
     $or: [{ itemCode: /^BM\d+$/i }, { 'sizes.sku': /^BM\d+$/i }, { 'sizes.barcode': /^BM\d+$/i }],
   })
@@ -111,20 +118,14 @@ const isBmCodeTaken = async (code, excludeItemId = null) => {
 
 const collectNextAvailableBmCodes = async (count = 1, excludeItemId = null) => {
   const safeCount = Math.max(1, Number(count) || 1);
-  await syncBmCounterFromDatabase();
-  const counter = await Counter.findOne({ name: BM_COUNTER_NAME });
-  let seq = Math.max(counter?.seq || BM_MIN_SEQ - 1, BM_MIN_SEQ - 1);
+  // Fast path: just read the counter and return the next N sequential codes.
+  // NO per-code isBmCodeTaken DB queries — the counter already tracks max seq.
+  const currentSeq = await syncBmCounterFromDatabase();
   const codes = [];
-
-  while (codes.length < safeCount) {
-    seq += 1;
-    const code = formatBmCode(seq);
-    // eslint-disable-next-line no-await-in-loop
-    const taken = await isBmCodeTaken(code, excludeItemId);
-    if (!taken) codes.push(code);
+  for (let i = 1; i <= safeCount; i++) {
+    codes.push(formatBmCode(currentSeq + i));
   }
-
-  return { codes, endSeq: seq };
+  return { codes, endSeq: currentSeq + safeCount };
 };
 
 const peekBmCodes = async (count = 1) => {
@@ -269,12 +270,24 @@ const populateItem = async (itemId) =>
     .populate('brand', 'name brandName')
     .populate('hsCodeId', 'code hsnCode gstRate gstPercent');
 
+const groupCache = new Map();
+const brandCache = new Map();
+const hsnCache = new Map();
+
 const resolveOrCreateGroup = async (name, groupType, parentId = null) => {
   if (!name || name === 'null' || name === 'undefined') return null;
   
+  const cacheKey = `${groupType}:${String(name).trim().toLowerCase()}:${parentId || ''}`;
+  if (groupCache.has(cacheKey)) {
+    return groupCache.get(cacheKey);
+  }
+  
   if (mongoose.Types.ObjectId.isValid(name)) {
     const existing = await Group.findById(name);
-    if (existing) return existing._id;
+    if (existing) {
+      groupCache.set(cacheKey, existing._id);
+      return existing._id;
+    }
   }
   
   const trimmedName = String(name).trim();
@@ -296,6 +309,7 @@ const resolveOrCreateGroup = async (name, groupType, parentId = null) => {
     console.log(`[AUTO-GROUP] Created new group: [${groupType}] ${trimmedName}`);
   }
   
+  groupCache.set(cacheKey, group._id);
   return group._id;
 };
 
@@ -308,16 +322,36 @@ class ItemService {
     if (data.sectionId || data.sectionName || data.section) {
       data.sectionId = await resolveOrCreateGroup(data.sectionId || data.sectionName || data.section, 'Section');
       if (data.sectionId) {
-        const grp = await Group.findById(data.sectionId).select('name');
-        if (grp) data.sectionName = grp.name;
+        const idStr = String(data.sectionId);
+        let sectionName;
+        if (groupCache.has(`id:${idStr}`)) {
+          sectionName = groupCache.get(`id:${idStr}`);
+        } else {
+          const grp = await Group.findById(data.sectionId).select('name');
+          if (grp) {
+            sectionName = grp.name;
+            groupCache.set(`id:${idStr}`, sectionName);
+          }
+        }
+        if (sectionName) data.sectionName = sectionName;
       }
     }
 
     if (data.categoryId || data.categoryName || data.category) {
       data.categoryId = await resolveOrCreateGroup(data.categoryId || data.categoryName || data.category, 'Category', data.sectionId);
       if (data.categoryId) {
-        const grp = await Group.findById(data.categoryId).select('name');
-        if (grp) data.categoryName = grp.name;
+        const idStr = String(data.categoryId);
+        let categoryName;
+        if (groupCache.has(`id:${idStr}`)) {
+          categoryName = groupCache.get(`id:${idStr}`);
+        } else {
+          const grp = await Group.findById(data.categoryId).select('name');
+          if (grp) {
+            categoryName = grp.name;
+            groupCache.set(`id:${idStr}`, categoryName);
+          }
+        }
+        if (categoryName) data.categoryName = categoryName;
       }
     }
 
@@ -348,31 +382,66 @@ class ItemService {
     data.openingStock = Number(data.openingStock || 0);
     data.openingStockRate = Number(data.openingStockRate || 0);
     if (data.sizes && Array.isArray(data.sizes)) {
-      data.sizes = data.sizes.map(s => ({
-        ...s,
-        sku: s.sku || s.barcode || null,
-        mrp: Number(s.mrp || 0),
-        stock: Number(s.stock || 0),
-        reorderLevel: Number(s.reorderLevel || 0)
-      }));
+      data.sizes = data.sizes.map(s => {
+        const cleaned = {
+          ...s,
+          mrp: Number(s.mrp || 0),
+          stock: Number(s.stock || 0),
+          reorderLevel: Number(s.reorderLevel || 0)
+        };
+        if (s.sku && String(s.sku).trim()) {
+          cleaned.sku = String(s.sku).trim();
+        } else if (s.barcode && String(s.barcode).trim()) {
+          cleaned.sku = String(s.barcode).trim();
+        } else {
+          delete cleaned.sku;
+        }
+        if (s.barcode && String(s.barcode).trim()) {
+          cleaned.barcode = String(s.barcode).trim();
+        } else {
+          delete cleaned.barcode;
+        }
+        return cleaned;
+      });
     }
     if (data.purchaseRate && !data.purchasePrice) data.purchasePrice = Number(data.purchaseRate);
     if (data.saleRate && !data.mrp) data.mrp = Number(data.saleRate);
     if (data.hsnCodeId && !data.hsCodeId) data.hsCodeId = data.hsnCodeId;
 
+    // Brand lookup cache
     if (data.brand) {
-      const brandDoc = await Brand.findById(data.brand).select('name brandName').lean();
-      if (brandDoc) {
-        data.brandName = brandDoc.brandName || brandDoc.name || '';
+      const brandIdStr = String(data.brand);
+      if (brandCache.has(brandIdStr)) {
+        data.brandName = brandCache.get(brandIdStr);
+      } else {
+        const brandDoc = await Brand.findById(data.brand).select('name brandName').lean();
+        if (brandDoc) {
+          const brandName = brandDoc.brandName || brandDoc.name || '';
+          data.brandName = brandName;
+          brandCache.set(brandIdStr, brandName);
+        }
       }
     }
 
+    // HSN lookup cache
     if (data.hsCodeId) {
-      const hsnDoc = await HSNCode.findById(data.hsCodeId).select('code gstPercent gstRate').lean();
-      if (hsnDoc) {
-        data.hsnCode = hsnDoc.code || hsnDoc.hsnCode || '';
-        if (hsnDoc.gstPercent !== undefined) data.gstPercent = hsnDoc.gstPercent;
-        else if (hsnDoc.gstRate !== undefined) data.gstPercent = hsnDoc.gstRate;
+      const hsnIdStr = String(data.hsCodeId);
+      if (hsnCache.has(hsnIdStr)) {
+        const cached = hsnCache.get(hsnIdStr);
+        data.hsnCode = cached.hsnCode;
+        if (cached.gstPercent !== undefined) data.gstPercent = cached.gstPercent;
+      } else {
+        const hsnDoc = await HSNCode.findById(data.hsCodeId).select('code gstPercent gstRate').lean();
+        if (hsnDoc) {
+          const hsnCode = hsnDoc.code || hsnDoc.hsnCode || '';
+          let gstPercent = 0;
+          if (hsnDoc.gstPercent !== undefined) gstPercent = hsnDoc.gstPercent;
+          else if (hsnDoc.gstRate !== undefined) gstPercent = hsnDoc.gstRate;
+          
+          data.hsnCode = hsnCode;
+          data.gstPercent = gstPercent;
+          hsnCache.set(hsnIdStr, { hsnCode, gstPercent });
+        }
       }
     }
   }
@@ -614,34 +683,340 @@ class ItemService {
 
   async bulkCreateItems(itemsData, options = {}) {
     const results = { success: [], errors: [] };
-    const brands = await Brand.find({}).select('_id name brandName').lean();
-    const groups = await Group.find({}).select('_id name groupName groupType').lean();
-    const hsnCodes = await HSNCode.find({}).select('_id code hsnCode').lean();
+    if (!itemsData || itemsData.length === 0) return results;
+
+    console.log(`[BULK] Starting fast bulk import of ${itemsData.length} items...`);
+    const t0 = Date.now();
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // PHASE 1: Single-round-trip batch load of ALL reference data
+    // ══════════════════════════════════════════════════════════════════════════
+    const t1 = Date.now();
+    const [brands, groups, hsnCodes] = await Promise.all([
+      Brand.find({}).select('_id name brandName shortName').lean(),
+      Group.find({}).select('_id name groupName groupType parentId').lean(),
+      HSNCode.find({}).select('_id code hsnCode gstPercent gstRate').lean(),
+    ]);
+    console.log(`[BULK] Phase1 load refs: ${Date.now() - t1}ms (${brands.length} brands, ${groups.length} groups, ${hsnCodes.length} HSN)`);
+
+    // Build fast lookup maps (all O(1) from here on)
+    const brandByName = new Map();
+    brands.forEach(b => {
+      const n = (b.brandName || b.name || '').trim().toLowerCase();
+      if (n) brandByName.set(n, b);
+    });
+
+    // groupByKey: 'GROUPTYPE:name' → group doc
+    const groupByKey = new Map();
+    const groupById = new Map();
+    groups.forEach(g => {
+      const n = (g.groupName || g.name || '').trim().toLowerCase();
+      groupByKey.set(`${g.groupType}:${n}`, g);
+      groupById.set(String(g._id), g);
+    });
+
+    const hsnByCode = new Map();
+    const hsnById = new Map();
+    hsnCodes.forEach(h => {
+      const code = (h.code || h.hsnCode || '').trim();
+      if (code) hsnByCode.set(code.toLowerCase(), h);
+      hsnById.set(String(h._id), h);
+    });
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // PHASE 2: Collect all unique group names that need to exist
+    //          Create any missing ones in a single batch
+    // ══════════════════════════════════════════════════════════════════════════
+    const missingGroups = []; // { name, groupType, key }
+    const seenMissingKeys = new Set();
+
+    const collectGroup = (name, groupType) => {
+      if (!name || name === 'null' || name === 'undefined') return;
+      const n = String(name).trim().toLowerCase();
+      if (!n) return;
+      const key = `${groupType}:${n}`;
+      if (!groupByKey.has(key) && !seenMissingKeys.has(key)) {
+        seenMissingKeys.add(key);
+        missingGroups.push({ name: String(name).trim(), groupType, key });
+      }
+    };
+
+    for (const data of itemsData) {
+      collectGroup(data.sectionName || data.section, 'Section');
+      collectGroup(data.categoryName || data.category, 'Category');
+      collectGroup(data.subCategoryName || data.subCategory, 'Sub Category');
+      collectGroup(data.styleName || data.styleType, 'Style / Type');
+    }
+
+    if (missingGroups.length > 0) {
+      console.log(`[BULK] Creating ${missingGroups.length} new groups in batch...`);
+      const newGroupDocs = missingGroups.map(mg => ({
+        name: mg.name,
+        groupType: mg.groupType,
+        parentId: null,
+        code: mg.name.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) + Math.floor(Math.random() * 100),
+      }));
+      try {
+        const created = await Group.insertMany(newGroupDocs, { ordered: false });
+        created.forEach(g => {
+          const n = (g.name || '').trim().toLowerCase();
+          const key = `${g.groupType}:${n}`;
+          groupByKey.set(key, g);
+          groupById.set(String(g._id), g);
+        });
+      } catch (e) {
+        // BulkWriteError on duplicates — still capture successfully inserted docs
+        const inserted = e?.insertedDocs || e?.result?.insertedDocs || [];
+        inserted.forEach(g => {
+          const n = (g.name || '').trim().toLowerCase();
+          const key = `${g.groupType}:${n}`;
+          groupByKey.set(key, g);
+          groupById.set(String(g._id), g);
+        });
+        console.log(`[BULK] Group batch: ${inserted.length} created, some may already exist (ok).`);
+      }
+    }
+
+    // Helper: resolve group id from name string (pure in-memory)
+    const resolveGroupId = (name, groupType) => {
+      if (!name || name === 'null' || name === 'undefined') return null;
+      const n = String(name).trim().toLowerCase();
+      if (!n) return null;
+      const key = `${groupType}:${n}`;
+      const g = groupByKey.get(key);
+      return g ? g._id : null;
+    };
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // PHASE 3: Allocate ALL needed BM codes in one shot
+    // ══════════════════════════════════════════════════════════════════════════
+    let needsAllocationCount = 0;
+    for (const data of itemsData) {
+      if (Array.isArray(data.sizes)) {
+        for (const s of data.sizes) {
+          if (isPlaceholderSku(s.sku || s.barcode || '')) needsAllocationCount++;
+        }
+      }
+    }
+
+    const t3 = Date.now();
+    const allocatedCodes = needsAllocationCount > 0 ? await allocateBmCodes(needsAllocationCount) : [];
+    console.log(`[BULK] Phase3 BM alloc ${needsAllocationCount} codes: ${Date.now() - t3}ms`);
+    let allocIdx = 0;
+
+    for (const data of itemsData) {
+      if (Array.isArray(data.sizes)) {
+        for (const s of data.sizes) {
+          if (isPlaceholderSku(s.sku || s.barcode || '')) {
+            const code = allocatedCodes[allocIdx++];
+            s.sku = code;
+            if (!s.barcode) s.barcode = code;
+          }
+        }
+      }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // PHASE 4: Check existing items in one batch query
+    // ══════════════════════════════════════════════════════════════════════════
+    const t4 = Date.now();
+    const itemCodes = itemsData.map(d => String(d.itemCode || '').trim().toUpperCase()).filter(Boolean);
+    const existingItems = await Item.find({ itemCode: { $in: itemCodes } }).select('itemCode _id sizes').lean();
+    const existingMap = new Map(existingItems.map(i => [i.itemCode, i]));
+    console.log(`[BULK] Phase4 existing check ${itemCodes.length} codes: ${Date.now() - t4}ms (${existingItems.length} found)`);
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // PHASE 5: Pure in-memory normalization — ZERO DB queries in this loop
+    // ══════════════════════════════════════════════════════════════════════════
     const bulkOps = [];
-    const itemCodes = itemsData.map(d => String(d.itemCode).trim().toUpperCase());
-    const existingItems = await Item.find({ itemCode: { $in: itemCodes } }).select('itemCode _id').lean();
-    const existingMap = new Map(existingItems.map(i => [i.itemCode, i._id]));
 
     for (const data of itemsData) {
       try {
-        const itemCode = String(data.itemCode).trim().toUpperCase();
-        if (data.brandName && !data.brand) {
-          const b = brands.find(x => x.name?.toLowerCase() === data.brandName.toLowerCase() || x.brandName?.toLowerCase() === data.brandName.toLowerCase());
-          if (b) data.brand = b._id;
+        const itemCode = String(data.itemCode || '').trim().toUpperCase();
+        if (!itemCode) { results.errors.push({ itemCode: data.itemCode, error: 'Missing item code' }); continue; }
+
+        // Resolve section/category/subcategory/style from in-memory maps
+        const sectionId = resolveGroupId(data.sectionName || data.section, 'Section');
+        const categoryId = resolveGroupId(data.categoryName || data.category, 'Category');
+        const subCategoryId = resolveGroupId(data.subCategoryName || data.subCategory, 'Sub Category');
+        const styleId = resolveGroupId(data.styleName || data.styleType, 'Style / Type');
+
+        // Resolve group name strings for denormalized fields
+        const sectionName = sectionId ? (groupById.get(String(sectionId))?.name || data.sectionName || '') : '';
+        const categoryName = categoryId ? (groupById.get(String(categoryId))?.name || data.categoryName || '') : '';
+
+        // Resolve HSN
+        let hsnCode = '';
+        let gstPercent = 0;
+        const hsnInput = data.hsnCode || data.hsn || data.hsn_code || '';
+        if (hsnInput) {
+          const hsnDoc = hsnByCode.get(String(hsnInput).trim().toLowerCase());
+          if (hsnDoc) {
+            hsnCode = hsnDoc.code || hsnDoc.hsnCode || '';
+            gstPercent = hsnDoc.gstPercent !== undefined ? hsnDoc.gstPercent : (hsnDoc.gstRate || 0);
+          } else {
+            hsnCode = String(hsnInput).trim(); // store as-is if not in master
+          }
         }
-        if (data.hsnCode && !data.hsCodeId) {
-          const h = hsnCodes.find(x => x.code?.toLowerCase() === String(data.hsnCode).toLowerCase() || x.hsnCode?.toLowerCase() === String(data.hsnCode).toLowerCase());
-          if (h) data.hsCodeId = h._id;
+
+        // Resolve brand name
+        let brandName = data.brandName || '';
+        if (!brandName && data.brand) {
+          const bDoc = brandByName.get(String(data.brand).trim().toLowerCase());
+          if (bDoc) brandName = bDoc.brandName || bDoc.name || '';
+          else brandName = String(data.brand).trim();
         }
-        const updateDoc = { ...data, itemCode, brandName: data.brandName || data.brand?.brandName || data.brand?.name, hsnCode: data.hsnCode || data.hsCodeId?.code || data.hsCodeId?.hsnCode, type: data.type || 'GARMENT', status: 'Active', isActive: true };
-        if (existingMap.has(itemCode)) bulkOps.push({ updateOne: { filter: { itemCode }, update: { $set: updateDoc } } });
-        else bulkOps.push({ insertOne: { document: updateDoc } });
+
+        // Normalize sizes — pure in-memory
+        const sizes = Array.isArray(data.sizes) ? data.sizes.map(s => {
+          const sku = String(s.sku || s.barcode || '').trim();
+          const barcode = String(s.barcode || s.sku || '').trim();
+          return {
+            size: String(s.size || 'Standard').trim(),
+            color: String(s.color || data.color || 'N/A').trim(),
+            sku: sku || undefined,
+            barcode: barcode || undefined,
+            mrp: Number(s.mrp || 0),
+            stock: Number(s.stock || 0),
+            status: 'Active',
+          };
+        }) : [];
+
+        const groupIds = [sectionId, categoryId, subCategoryId, styleId].filter(Boolean);
+
+        const updateDoc = {
+          itemCode,
+          itemName: String(data.itemName || itemCode).trim(),
+          brandName,
+          sectionName,
+          categoryName,
+          hsnCode,
+          gstPercent,
+          sectionId: sectionId || undefined,
+          categoryId: categoryId || undefined,
+          subCategoryId: subCategoryId || undefined,
+          styleId: styleId || undefined,
+          groupIds,
+          sizes,
+          color: String(data.color || (sizes[0]?.color) || '').trim(),
+          fabric: String(data.fabric || '').trim() || undefined,
+          composition: String(data.composition || '').trim() || undefined,
+          uom: String(data.uom || 'PCS').trim().toUpperCase(),
+          type: 'GARMENT',
+          status: 'Active',
+          isActive: true,
+          packingType: String(data.packingType || '').trim() || undefined,
+          description: String(data.description || '').trim() || undefined,
+          mrp: sizes.length > 0 ? Math.max(...sizes.map(s => s.mrp || 0)) : 0,
+        };
+
+        // Strip undefined keys to avoid overwriting with null
+        Object.keys(updateDoc).forEach(k => updateDoc[k] === undefined && delete updateDoc[k]);
+
+        const existing = existingMap.get(itemCode);
+        if (existing) {
+          // UPDATE existing items using aggregation pipeline update.
+          // We use $map to update ONLY the mrp inside each size variant (matched by size name).
+          // sku/barcode are NOT modified → unique index NOT re-validated → fast!
+          // This correctly propagates the item master MRP to every size in every location.
+          const sizesMrpLookup = sizes.map(s => ({ size: s.size, mrp: s.mrp || 0 }));
+
+          const metaFields = {
+            itemName: updateDoc.itemName,
+            brandName: updateDoc.brandName,
+            sectionName: updateDoc.sectionName,
+            categoryName: updateDoc.categoryName,
+            hsnCode: updateDoc.hsnCode,
+            gstPercent: updateDoc.gstPercent,
+            color: updateDoc.color,
+            uom: updateDoc.uom,
+            type: updateDoc.type,
+            isActive: true,
+            mrp: updateDoc.mrp,  // parent-level MRP (max of all variants)
+          };
+          if (updateDoc.sectionId) metaFields.sectionId = updateDoc.sectionId;
+          if (updateDoc.categoryId) metaFields.categoryId = updateDoc.categoryId;
+          if (updateDoc.fabric) metaFields.fabric = updateDoc.fabric;
+          if (updateDoc.composition) metaFields.composition = updateDoc.composition;
+          if (updateDoc.packingType) metaFields.packingType = updateDoc.packingType;
+          Object.keys(metaFields).forEach(k => metaFields[k] === undefined && delete metaFields[k]);
+
+          bulkOps.push({
+            updateOne: {
+              filter: { itemCode },
+              // Aggregation pipeline update: $map over existing sizes, merge only mrp
+              update: [{
+                $set: {
+                  ...metaFields,
+                  sizes: {
+                    $map: {
+                      input: '$sizes',
+                      as: 'sv',
+                      in: {
+                        $let: {
+                          vars: {
+                            // Find the matching new variant by size name
+                            matched: {
+                              $first: {
+                                $filter: {
+                                  input: sizesMrpLookup,
+                                  as: 'nl',
+                                  cond: { $eq: ['$$nl.size', '$$sv.size'] },
+                                },
+                              },
+                            },
+                          },
+                          in: {
+                            // Merge existing size with ONLY the new mrp (keep sku/barcode/stock untouched)
+                            // If size name doesn't match (format diff), fall back to parent MRP from Excel
+                            $mergeObjects: [
+                              '$$sv',
+                              { mrp: { $ifNull: ['$$matched.mrp', updateDoc.mrp] } },
+                            ],
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              }],
+            },
+          });
+        } else {
+          // INSERT new items: include full sizes array
+          bulkOps.push({ insertOne: { document: updateDoc } });
+        }
+
         results.success.push({ itemCode });
       } catch (error) {
         results.errors.push({ itemCode: data.itemCode, error: error.message });
       }
     }
-    if (bulkOps.length > 0) await Item.bulkWrite(bulkOps, { ordered: false });
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // PHASE 6: Single bulkWrite to DB
+    // ══════════════════════════════════════════════════════════════════════════
+    const t6 = Date.now();
+    try {
+      if (bulkOps.length > 0) {
+        await Item.bulkWrite(bulkOps, { ordered: false });
+      }
+    } catch (bulkError) {
+      console.error('[BULK] Bulk write error:', bulkError?.message);
+      if (bulkError.writeErrors) {
+        bulkError.writeErrors.forEach(we => {
+          const op = bulkOps[we.index];
+          const itemCode = op?.updateOne?.filter?.itemCode || op?.insertOne?.document?.itemCode || 'Unknown';
+          results.errors.push({ itemCode, error: we.errmsg || 'DB write error' });
+          results.success = results.success.filter(s => s.itemCode !== itemCode);
+        });
+      } else {
+        throw bulkError;
+      }
+    }
+
+    console.log(`[BULK] Phase6 bulkWrite: ${Date.now() - t6}ms`);
+    console.log(`[BULK] Done in ${Date.now() - t0}ms — ${results.success.length} ok, ${results.errors.length} errors`);
     return results;
   }
 

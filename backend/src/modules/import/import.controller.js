@@ -45,33 +45,135 @@ class ImportController {
 
       const mapping = JSON.parse(req.body.mapping || '{}');
       const autoBarcode = parseBoolean(req.body.autoBarcode, true);
-      const overwrite = parseBoolean(req.body.overwrite, false);
+      // Always enable safe merge/overwrite for existing items to resolve MRP/HSN values cleanly
+      const overwrite = true;
 
       const results = {
         success: [],
         errors: []
       };
 
-      for (const row of data) {
-        try {
-          const itemData = await this.mapRowToItem(row, mapping, autoBarcode);
-          const existingItem = await Item.findOne({ itemCode: itemData.itemCode });
-
-          let item;
-          if (existingItem && overwrite) {
-            item = await itemService.updateItem(existingItem._id, itemData);
-            results.success.push({ itemCode: item.itemCode, id: item._id, mode: 'updated' });
-          } else {
-            if (existingItem) {
-              throw new Error(`Item '${itemData.itemCode}' already exists`);
-            }
-
-            item = await itemService.createItem(itemData);
-            results.success.push({ itemCode: item.itemCode, id: item._id, mode: 'created' });
-          }
-        } catch (error) {
-          results.errors.push({ row, error: error.message });
+      // 1. Pre-fetch all Group documents in a single query
+      const allGroups = await Group.find({}).lean();
+      const groupMap = new Map();
+      allGroups.forEach(g => {
+        if (g.name) {
+          groupMap.set(g.name.trim().toLowerCase(), g._id);
         }
+      });
+
+      // 2. Pre-fetch all matching Item documents in a single query
+      const itemCodes = data.map(row => {
+        const val = this.readMappedValue(row, mapping, 'itemCode', ['Item Code', 'SKU']);
+        return normalizeString(val).toUpperCase();
+      }).filter(Boolean);
+
+      const existingItemsList = await Item.find({ itemCode: { $in: itemCodes } });
+      const existingItemsMap = new Map();
+      existingItemsList.forEach(item => {
+        existingItemsMap.set(item.itemCode, item);
+      });
+
+      // 3. Process rows in parallel batches of 100
+      const batchSize = 100;
+      for (let i = 0; i < data.length; i += batchSize) {
+        const chunk = data.slice(i, i + batchSize);
+        
+        await Promise.all(chunk.map(async (row) => {
+          try {
+            const itemData = await this.mapRowToItem(row, mapping, autoBarcode, groupMap);
+            const existingItem = existingItemsMap.get(itemData.itemCode);
+
+            let item;
+            if (existingItem && overwrite) {
+              let modified = false;
+              
+              // Fill empty fields on the parent item (including brand, description, etc.)
+              const parentFields = [
+                'brand', 'description', 'hsCodeId', 'gstTax', 'fabric', 'color', 'pattern', 
+                'fit', 'gender', 'uom', 'composition', 'gsm', 'width', 'shrinkage', 
+                'shadeNo', 'accessorySize', 'packingType', 'purchasePrice', 'mrp',
+                'sectionId', 'categoryId', 'subCategoryId', 'styleId', 'brandName', 'hsnCode'
+              ];
+              
+              for (const field of parentFields) {
+                if ((existingItem[field] === undefined || existingItem[field] === null || existingItem[field] === '' || existingItem[field] === 0) &&
+                    (itemData[field] !== undefined && itemData[field] !== null && itemData[field] !== '' && itemData[field] !== 0)) {
+                  existingItem[field] = itemData[field];
+                  modified = true;
+                }
+              }
+              
+              // Always update MRP and HSN from the sheet as requested
+              if (itemData.mrp && existingItem.mrp !== itemData.mrp) {
+                existingItem.mrp = itemData.mrp;
+                modified = true;
+              }
+              if (itemData.hsCodeId && String(existingItem.hsCodeId) !== String(itemData.hsCodeId)) {
+                existingItem.hsCodeId = itemData.hsCodeId;
+                modified = true;
+              }
+              if (itemData.gstTax !== undefined && existingItem.gstTax !== itemData.gstTax) {
+                existingItem.gstTax = itemData.gstTax;
+                modified = true;
+              }
+
+              // Update sizes (variants) MRPs and fill empty fields
+              if (Array.isArray(itemData.sizes)) {
+                for (const importSize of itemData.sizes) {
+                  const existingSize = (existingItem.sizes || []).find(s => 
+                    (importSize.sku && s.sku === importSize.sku) || 
+                    (importSize.barcode && s.barcode === importSize.barcode) ||
+                    (s.size === importSize.size && s.color === importSize.color)
+                  );
+
+                  if (existingSize) {
+                    if (importSize.mrp && existingSize.mrp !== importSize.mrp) {
+                      existingSize.mrp = importSize.mrp;
+                      modified = true;
+                    }
+                    if ((existingSize.barcode === undefined || existingSize.barcode === null || existingSize.barcode === '') && importSize.barcode) {
+                      existingSize.barcode = importSize.barcode;
+                      modified = true;
+                    }
+                    if ((existingSize.sku === undefined || existingSize.sku === null || existingSize.sku === '') && importSize.sku) {
+                      existingSize.sku = importSize.sku;
+                      modified = true;
+                    }
+                    if ((existingSize.costPrice === undefined || existingSize.costPrice === null || existingSize.costPrice === 0) && importSize.costPrice) {
+                      existingSize.costPrice = importSize.costPrice;
+                      modified = true;
+                    }
+                    if ((existingSize.salePrice === undefined || existingSize.salePrice === null || existingSize.salePrice === 0) && importSize.salePrice) {
+                      existingSize.salePrice = importSize.salePrice;
+                      modified = true;
+                    }
+                  } else {
+                    existingItem.sizes.push(importSize);
+                    modified = true;
+                  }
+                }
+              }
+
+              if (modified) {
+                await itemService.syncItemDenormalizedFields(existingItem);
+                await existingItem.save();
+                results.success.push({ itemCode: existingItem.itemCode, id: existingItem._id, mode: 'updated' });
+              } else {
+                results.success.push({ itemCode: existingItem.itemCode, id: existingItem._id, mode: 'no-change' });
+              }
+            } else {
+              if (existingItem) {
+                throw new Error(`Item '${itemData.itemCode}' already exists`);
+              }
+
+              item = await itemService.createItem(itemData);
+              results.success.push({ itemCode: item.itemCode, id: item._id, mode: 'created' });
+            }
+          } catch (error) {
+            results.errors.push({ row, error: error.message });
+          }
+        }));
       }
 
       return sendSuccess(res, { results }, 'Import process completed');
@@ -210,7 +312,7 @@ class ImportController {
     return undefined;
   };
 
-  mapRowToItem = async (row, mapping, autoBarcode = true) => {
+  mapRowToItem = async (row, mapping, autoBarcode = true, groupMap = null) => {
     const item = {
       itemCode: normalizeString(this.readMappedValue(row, mapping, 'itemCode', ['Item Code', 'SKU'])).toUpperCase(),
       itemName: normalizeString(this.readMappedValue(row, mapping, 'itemName', ['Item Name', 'Name', 'Product Name'])),
@@ -257,15 +359,23 @@ class ImportController {
 
     const groupName = normalizeString(this.readMappedValue(row, mapping, 'groupName', ['Group', 'Target Group']));
     if (groupName) {
-      const group = await Group.findOne({
-        name: new RegExp(`^${escapeRegex(groupName)}$`, 'i'),
-      }).select('_id');
+      let groupId;
+      if (groupMap) {
+        groupId = groupMap.get(groupName.trim().toLowerCase());
+      } else {
+        const group = await Group.findOne({
+          name: new RegExp(`^${escapeRegex(groupName)}$`, 'i'),
+        }).select('_id');
+        if (group) {
+          groupId = group._id;
+        }
+      }
 
-      if (!group) {
+      if (!groupId) {
         throw new Error(`Group '${groupName}' not found`);
       }
 
-      item.groupIds = [group._id];
+      item.groupIds = [groupId];
     }
 
     if (!item.groupIds || !item.groupIds.length) {

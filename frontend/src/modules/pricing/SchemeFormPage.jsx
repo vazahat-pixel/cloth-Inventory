@@ -356,7 +356,7 @@ function SchemeFormPage() {
 
   useEffect(() => {
     if (!productDialogOpen) return;
-    dispatch(fetchItems(itemPickerParams(debouncedProductSearch, 500)));
+    dispatch(fetchItems(itemPickerParams(debouncedProductSearch, 1000)));
   }, [dispatch, debouncedProductSearch, productDialogOpen]);
 
   useEffect(() => {
