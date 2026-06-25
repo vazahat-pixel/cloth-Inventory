@@ -72,7 +72,7 @@ class PromotionService {
     /**
      * Helper to check if a cart item matches a scheme's targeting constraints
      */
-    isItemEligible(item, scheme) {
+    isItemEligible(item, scheme, schemeProductsMap = new Map()) {
         if (scheme.isUniversal) return true;
 
         const hasProductRestriction = scheme.applicableProducts?.length > 0;
@@ -88,7 +88,16 @@ class PromotionService {
         let groupMatched = true;
         if (hasGroupRestriction) {
             groupMatched = scheme.applicablePromotionGroups.some(group => {
-                const isProdInGroup = group.applicableProducts?.some(id => String(id) === item.variantId || String(id) === item.productId);
+                let isProdInGroup = group.applicableProducts?.some(id => String(id) === item.variantId || String(id) === item.productId);
+                
+                // If no direct match, check match by itemName (for items sharing the same name)
+                if (!isProdInGroup && group.applicableProducts?.length > 0 && item.resolvedItemName) {
+                    const cartItemNameLower = item.resolvedItemName.trim().toLowerCase();
+                    isProdInGroup = group.applicableProducts.some(groupProdId => {
+                        const groupItem = schemeProductsMap.get(String(groupProdId));
+                        return groupItem && groupItem.itemName && groupItem.itemName.trim().toLowerCase() === cartItemNameLower;
+                    });
+                }
                 
                 const isCatInGroup = group.applicableCategories?.some(id => {
                     const sId = String(id);
@@ -107,7 +116,18 @@ class PromotionService {
         // 2. Product check
         let productMatched = true;
         if (hasProductRestriction) {
-            productMatched = scheme.applicableProducts.some(id => String(id) === item.variantId || String(id) === item.productId);
+            // First check direct ID match
+            let directMatch = scheme.applicableProducts.some(id => String(id) === item.variantId || String(id) === item.productId);
+            
+            // If no direct match, check match by itemName (for items sharing the same name/style)
+            if (!directMatch && item.resolvedItemName) {
+                const cartItemNameLower = item.resolvedItemName.trim().toLowerCase();
+                directMatch = scheme.applicableProducts.some(schemeProdId => {
+                    const schemeItem = schemeProductsMap.get(String(schemeProdId));
+                    return schemeItem && schemeItem.itemName && schemeItem.itemName.trim().toLowerCase() === cartItemNameLower;
+                });
+            }
+            productMatched = directMatch;
         }
 
         // 3. Category check
@@ -145,6 +165,43 @@ class PromotionService {
             schemes = schemes.filter(s => !s.applicableStores?.length || s.applicableStores.some(id => String(id) === String(storeId)));
         }
 
+        // Pre-fetch all targeted item details in applicableProducts from active schemes and their promotion groups
+        const allSchemeProductIds = new Set();
+        schemes.forEach(s => {
+            if (s.applicableProducts?.length > 0) {
+                s.applicableProducts.forEach(id => allSchemeProductIds.add(String(id)));
+            }
+            if (s.applicablePromotionGroups?.length > 0) {
+                s.applicablePromotionGroups.forEach(group => {
+                    if (group.applicableProducts?.length > 0) {
+                        group.applicableProducts.forEach(id => allSchemeProductIds.add(String(id)));
+                    }
+                });
+            }
+        });
+
+        const schemeProductsMap = new Map();
+        if (allSchemeProductIds.size > 0) {
+            try {
+                const targetItems = await Item.find({
+                    $or: [
+                        { _id: { $in: Array.from(allSchemeProductIds) } },
+                        { "sizes._id": { $in: Array.from(allSchemeProductIds) } }
+                    ]
+                }).select('_id itemName itemCode sizes').lean();
+                targetItems.forEach(it => {
+                    schemeProductsMap.set(String(it._id), it);
+                    if (it.sizes) {
+                        it.sizes.forEach(sz => {
+                            schemeProductsMap.set(String(sz._id), it);
+                        });
+                    }
+                });
+            } catch (err) {
+                console.error('⚠️ [PromotionService] Error fetching scheme target items:', err);
+            }
+        }
+
         // Fetch DB items to get reliable brand/category IDs and names
         let dbItemsMap = new Map();
         try {
@@ -155,7 +212,7 @@ class PromotionService {
                         { _id: { $in: productIds } },
                         { "sizes._id": { $in: productIds } }
                     ]
-                }).select('_id categoryId categoryName brand brandName sizes').lean();
+                }).select('_id categoryId categoryName brand brandName sizes itemName').lean();
                 dbItems.forEach(item => {
                     dbItemsMap.set(String(item._id), item);
                     if (item.sizes) {
@@ -177,6 +234,7 @@ class PromotionService {
             const resolvedBrand = dbItem ? String(dbItem.brand || dbItem.brandId || '') : '';
             const resolvedCategoryName = dbItem ? String(dbItem.categoryName || '') : '';
             const resolvedBrandName = dbItem ? String(dbItem.brandName || '') : '';
+            const resolvedItemName = dbItem ? String(dbItem.itemName || '') : '';
 
             return {
                 ...it,
@@ -188,6 +246,7 @@ class PromotionService {
                 resolvedBrand,
                 resolvedCategoryName,
                 resolvedBrandName,
+                resolvedItemName,
                 promoDiscount: 0,
                 appliedOffer: null
             };
@@ -208,7 +267,7 @@ class PromotionService {
                 currentItems.forEach((item, idx) => {
                     if (item.appliedOffer) return;
 
-                    const matched = this.isItemEligible(item, scheme);
+                    const matched = this.isItemEligible(item, scheme, schemeProductsMap);
 
                     if (matched) {
                         for (let i = 0; i < item.qty; i++) {
@@ -273,7 +332,7 @@ class PromotionService {
                 currentItems.forEach(item => {
                     if (item.appliedOffer) return;
 
-                    const matched = this.isItemEligible(item, scheme);
+                    const matched = this.isItemEligible(item, scheme, schemeProductsMap);
                     if (!matched) return;
 
                     let appliedSource = 'General';
