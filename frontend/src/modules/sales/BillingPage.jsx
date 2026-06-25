@@ -352,7 +352,7 @@ function BillingPage({
 
   useEffect(() => {
     if (!storeId) return;
-    dispatch(fetchStockOverview({ storeId, limit: 200 }));
+    dispatch(fetchStockOverview({ storeId, limit: 20000, forReport: true }));
   }, [dispatch, storeId]);
 
   // Synchronized Total Calculations (Moved up to prevent TDZ error)
