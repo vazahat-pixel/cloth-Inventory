@@ -153,7 +153,61 @@ export function toSaleRegisterExportRow(row) {
   };
 }
 
-export function buildPaymentSplitValues(payments = [], fallbackMode = '', fallbackAmount = 0) {
+const SPLIT_MODE_KEYS = ['cash', 'card', 'upi', 'gift voucher'];
+
+export function getReportRegisterAmount(sale) {
+  return toNum(sale?.totals?.netPayable ?? sale?.totals?.grandTotal ?? sale?.payment?.amountPaid);
+}
+
+export function isReportableRetailSale(sale) {
+  if (!sale || sale.isDeleted) return false;
+  if (['CANCELLED', 'REFUNDED'].includes(sale.status)) return false;
+  const t = String(sale.type || sale.saleType || 'RETAIL').toUpperCase().replace(/-/g, '_');
+  if (t === 'INTERNAL_SALE') return false;
+  return true;
+}
+
+export function formatCollectionMode(raw) {
+  if (!raw) return 'Cash';
+  const r = String(raw).toUpperCase().replace(/-/g, '_');
+  if (r === 'CASH') return 'Cash';
+  if (r === 'CARD') return 'Card';
+  if (r === 'UPI') return 'UPI';
+  if (r === 'GIFT_VOUCHER') return 'Gift Voucher';
+  if (r === 'CREDIT') return 'Credit';
+  if (r === 'CHEQUE') return 'Cheque';
+  if (r === 'SPLIT') return 'Split';
+  return r.charAt(0).toUpperCase() + r.slice(1).toLowerCase();
+}
+
+function scaleSplitValuesToTarget(splitValues, targetAmount) {
+  const target = toNum(targetAmount);
+  if (target <= 0) return splitValues;
+
+  const rawSum = SPLIT_MODE_KEYS.reduce((sum, key) => sum + toNum(splitValues[key]), 0);
+  if (rawSum <= 0 || Math.abs(rawSum - target) < 0.01) return splitValues;
+
+  const factor = target / rawSum;
+  SPLIT_MODE_KEYS.forEach((key) => {
+    splitValues[key] = Math.round(toNum(splitValues[key]) * factor * 100) / 100;
+  });
+
+  const scaledSum = SPLIT_MODE_KEYS.reduce((sum, key) => sum + toNum(splitValues[key]), 0);
+  const drift = Math.round((target - scaledSum) * 100) / 100;
+  if (Math.abs(drift) >= 0.01) {
+    const adjustKey = [...SPLIT_MODE_KEYS].reverse().find((key) => toNum(splitValues[key]) > 0) || 'cash';
+    splitValues[adjustKey] = Math.round((toNum(splitValues[adjustKey]) + drift) * 100) / 100;
+  }
+
+  return splitValues;
+}
+
+export function buildPaymentSplitValues(
+  payments = [],
+  fallbackMode = '',
+  fallbackAmount = 0,
+  registerAmount = null,
+) {
   const splitValues = { cash: 0, card: 0, upi: 0, 'gift voucher': 0 };
   const activePayments = (Array.isArray(payments) ? payments : []).filter((p) => toNum(p.amount) > 0);
 
@@ -166,19 +220,80 @@ export function buildPaymentSplitValues(payments = [], fallbackMode = '', fallba
     else if (m === 'gift voucher') splitValues['gift voucher'] += amount;
   });
 
-  const activeModes = ['cash', 'card', 'upi', 'gift voucher'].filter((k) => toNum(splitValues[k]) > 0);
-  const isSplit = activeModes.length > 1;
+  let activeModes = SPLIT_MODE_KEYS.filter((k) => toNum(splitValues[k]) > 0);
+  const registerTarget = registerAmount != null ? toNum(registerAmount) : toNum(fallbackAmount);
 
   if (!activeModes.length && fallbackMode) {
     const m = String(fallbackMode).toLowerCase().replace(/_/g, ' ');
-    const amount = toNum(fallbackAmount);
+    const amount = registerTarget;
     if (m === 'cash') splitValues.cash = amount;
     else if (m === 'card') splitValues.card = amount;
     else if (m === 'upi') splitValues.upi = amount;
     else if (m === 'gift voucher') splitValues['gift voucher'] = amount;
+    activeModes = SPLIT_MODE_KEYS.filter((k) => toNum(splitValues[k]) > 0);
+  } else if (registerTarget > 0) {
+    scaleSplitValuesToTarget(splitValues, registerTarget);
+    activeModes = SPLIT_MODE_KEYS.filter((k) => toNum(splitValues[k]) > 0);
   }
 
+  const isSplit = activeModes.length > 1;
+
   return { splitValues, isSplit, activePayments };
+}
+
+const COLLECTION_MODE_LABELS = {
+  cash: 'Cash',
+  card: 'Card',
+  upi: 'UPI',
+  'gift voucher': 'Gift Voucher',
+};
+
+export function buildCollectionRowsFromSales(sales = [], { customerMap = {}, dateFrom = '', dateTo = '' } = {}) {
+  const inRange = (d) => (!dateFrom || d >= dateFrom) && (!dateTo || d <= dateTo);
+  const list = [];
+
+  sales.forEach((sale) => {
+    if (!isReportableRetailSale(sale) || !inRange(sale.date)) return;
+
+    const registerAmt = getReportRegisterAmount(sale);
+    if (registerAmt <= 0) return;
+
+    const rawPayments = sale.payment?.payments?.length ? sale.payment.payments : sale.payments || [];
+    const { splitValues, isSplit } = buildPaymentSplitValues(
+      rawPayments,
+      sale.payment?.mode,
+      sale.payment?.amountPaid || registerAmt,
+      registerAmt,
+    );
+
+    const base = {
+      date: sale.date,
+      source: sale.invoiceNumber,
+      sourceType: 'Invoice',
+      customerId: sale.customerId,
+      customerName: sale.customerName || customerMap[sale.customerId] || 'Walk-in',
+    };
+
+    if (isSplit) {
+      SPLIT_MODE_KEYS.forEach((key) => {
+        const amt = toNum(splitValues[key]);
+        if (amt > 0) {
+          list.push({ ...base, amount: amt, mode: COLLECTION_MODE_LABELS[key] });
+        }
+      });
+      return;
+    }
+
+    const singleModeKey = SPLIT_MODE_KEYS.find((key) => toNum(splitValues[key]) > 0);
+    list.push({
+      ...base,
+      amount: registerAmt,
+      mode: singleModeKey ? COLLECTION_MODE_LABELS[singleModeKey] : formatCollectionMode(sale.payment?.mode),
+    });
+  });
+
+  list.sort((a, b) => a.date.localeCompare(b.date));
+  return list;
 }
 
 export function formatPaymentDisplay(payment, rawPayments = []) {

@@ -344,11 +344,13 @@ function SalesReportPage() {
   const accountWiseRows = useMemo(() => {
     const byMode = {};
     filteredRows.forEach((sale) => {
+      const registerAmt = toNum(sale.totals?.netPayable ?? sale.totals?.grandTotal);
       const rawPayments = sale.payment?.payments?.length ? sale.payment.payments : sale.payments || [];
       const { splitValues, isSplit } = buildPaymentSplitValues(
         rawPayments,
         sale.payment?.mode,
-        sale.payment?.amountPaid || sale.totals?.netPayable,
+        sale.payment?.amountPaid || registerAmt,
+        registerAmt,
       );
 
       if (isSplit) {

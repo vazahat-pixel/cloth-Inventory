@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../../utils/formatters';
+import { formatDateDDMMYYYY } from '../../utils/formatters';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
@@ -19,6 +19,7 @@ import ReportExportButton from './ReportExportButton';
 import { SummaryChip } from './SalesReportPage';
 import ServerTablePagination from '../../components/erp/ServerTablePagination';
 import { REPORT_FETCH_PARAMS } from './reportConstants';
+import { buildCollectionRowsFromSales } from './saleReportUtils';
 import { fetchBankReceipts } from '../accounts/accountsSlice';
 import { fetchSalesForReport } from '../sales/salesSlice';
 
@@ -75,51 +76,12 @@ function CollectionReportPage() {
     const to = filters.dateTo || '';
     const inRange = (d) => (!from || d >= from) && (!to || d <= to);
 
-    const getFormattedMode = (raw) => {
-      if (!raw) return 'Cash';
-      const r = String(raw).toUpperCase();
-      if (r === 'CASH') return 'Cash';
-      if (r === 'CARD') return 'Card';
-      if (r === 'UPI') return 'UPI';
-      if (r === 'GIFT_VOUCHER') return 'Gift Voucher';
-      if (r === 'CREDIT') return 'Credit';
-      return r.charAt(0).toUpperCase() + r.slice(1).toLowerCase();
-    };
-
-    const list = [];
-    sales.forEach((s) => {
-      if (!inRange(s.date)) return;
-      const paid = toNum(s.payment?.amountPaid);
-      if (paid <= 0) return;
-
-      const payments = s.payment?.payments || [];
-      if (s.payment?.mode === 'Split' && payments.length > 0) {
-        payments.forEach((p) => {
-          const amt = toNum(p.amount);
-          if (amt > 0) {
-            list.push({
-              date: s.date,
-              source: s.invoiceNumber,
-              sourceType: 'Invoice',
-              customerId: s.customerId,
-              customerName: s.customerName || customerMap[s.customerId] || 'Walk-in',
-              amount: amt,
-              mode: getFormattedMode(p.mode),
-            });
-          }
-        });
-      } else {
-        list.push({
-          date: s.date,
-          source: s.invoiceNumber,
-          sourceType: 'Invoice',
-          customerId: s.customerId,
-          customerName: s.customerName || customerMap[s.customerId] || 'Walk-in',
-          amount: paid,
-          mode: getFormattedMode(s.payment?.mode),
-        });
-      }
+    const list = buildCollectionRowsFromSales(sales, {
+      customerMap,
+      dateFrom: from,
+      dateTo: to,
     });
+
     bankReceipts.forEach((r) => {
       if (!inRange(r.date)) return;
       const amt = toNum(r.amount);
@@ -168,7 +130,7 @@ function CollectionReportPage() {
         Amount: r.amount,
         Mode: r.mode,
       })),
-    [rows],
+    [filteredRows],
   );
 
   return (
