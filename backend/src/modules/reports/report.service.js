@@ -1080,7 +1080,7 @@ const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) =
             // Invoice values
             const invoiceTotal = sale.grandTotal || 0;
             const invoiceSubtotal = sale.subTotal || 0;
-            const invoiceTax = sale.totalTax || 0;
+            const invoiceTax = Number(sale.totalTax) || Number(sale.tax) || 0;
             const invoiceSum = invoiceSubtotal + invoiceTax;
 
             // Proration factor

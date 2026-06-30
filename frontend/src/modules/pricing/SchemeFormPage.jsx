@@ -25,6 +25,7 @@ import {
   Divider,
   ListItemIcon,
   ListItemText,
+  CircularProgress,
 } from '@mui/material';
 import { List } from 'react-window';
 import SearchIcon from '@mui/icons-material/Search';
@@ -39,6 +40,35 @@ import { fetchMasters } from '../masters/mastersSlice';
 import { fetchItems } from '../items/itemsSlice';
 import { itemPickerParams } from '../items/itemFetchConstants';
 import useDebouncedValue from '../../hooks/useDebouncedValue';
+import api from '../../services/api';
+import { extractPaginationMeta } from '../../utils/paginationMeta';
+
+const normalizeItemId = (id) => String(id || '');
+
+const itemMatchesPickerSearch = (item, searchTerm) => {
+  const lower = String(searchTerm || '').trim().toLowerCase();
+  if (!lower) return true;
+
+  const haystack = [
+    item.itemName,
+    item.name,
+    item.itemCode,
+    item.sku,
+    item.brandName,
+    item.categoryName,
+    item.color,
+    item.fabric,
+    item.pattern,
+    item.shadeNo,
+    typeof item.brand === 'object' ? (item.brand?.name || item.brand?.brandName) : item.brand,
+    typeof item.categoryId === 'object' ? (item.categoryId?.name || item.categoryId?.groupName) : '',
+    ...(item.sizes || []).flatMap((s) => [s.sku, s.barcode, s.size, s.color]),
+  ]
+    .filter(Boolean)
+    .map((v) => String(v).toLowerCase());
+
+  return haystack.some((text) => text.includes(lower));
+};
 
 const toNum = (v, def = 0) => {
   const n = Number(v);
@@ -56,7 +86,7 @@ const DEFAULT_OFFER_TYPES = [
 const ProductRow = memo(({ index, style, items, selection, onToggle }) => {
   const item = items[index];
   if (!item) return null;
-  const itemId = item._id || item.id;
+  const itemId = normalizeItemId(item._id || item.id);
   const isSelected = selection.includes(itemId);
 
   return (
@@ -342,6 +372,9 @@ function SchemeFormPage() {
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [productSearch, setProductSearch] = useState('');
   const debouncedProductSearch = useDebouncedValue(productSearch, 350);
+  const [pickerItems, setPickerItems] = useState([]);
+  const [pickerTotal, setPickerTotal] = useState(0);
+  const [pickerLoading, setPickerLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedBrand, setSelectedBrand] = useState('all');
   const [localSelection, setLocalSelection] = useState([]);
@@ -352,12 +385,58 @@ function SchemeFormPage() {
     dispatch(fetchMasters('promotionTypes'));
     dispatch(fetchMasters('stores'));
     dispatch(fetchPromotionGroups());
+    dispatch(fetchItems(itemPickerParams('', 500)));
   }, [dispatch]);
 
+  const productLookup = useMemo(() => {
+    const map = new Map();
+    [...items, ...pickerItems].forEach((row) => {
+      map.set(normalizeItemId(row._id || row.id), row);
+    });
+    return map;
+  }, [items, pickerItems]);
+
   useEffect(() => {
-    if (!productDialogOpen) return;
-    dispatch(fetchItems(itemPickerParams(debouncedProductSearch, 1000)));
-  }, [dispatch, debouncedProductSearch, productDialogOpen]);
+    if (!productDialogOpen) return undefined;
+
+    let cancelled = false;
+    const loadPickerItems = async () => {
+      setPickerLoading(true);
+      try {
+        const baseParams = itemPickerParams(debouncedProductSearch, 500);
+        const firstRes = await api.get('/items', { params: baseParams });
+        const firstMeta = extractPaginationMeta(firstRes.data);
+        const firstBatch = firstRes.data?.data?.items || firstRes.data?.items || [];
+        const total = firstMeta.total || firstBatch.length;
+
+        let records = firstBatch;
+        if (total > firstBatch.length) {
+          const fullRes = await api.get('/items', {
+            params: {
+              ...baseParams,
+              limit: Math.min(total, 20000),
+            },
+          });
+          records = fullRes.data?.data?.items || fullRes.data?.items || firstBatch;
+        }
+
+        if (!cancelled) {
+          setPickerItems(records);
+          setPickerTotal(total);
+        }
+      } catch {
+        if (!cancelled) {
+          setPickerItems([]);
+          setPickerTotal(0);
+        }
+      } finally {
+        if (!cancelled) setPickerLoading(false);
+      }
+    };
+
+    loadPickerItems();
+    return () => { cancelled = true; };
+  }, [debouncedProductSearch, productDialogOpen]);
 
   useEffect(() => {
     if (isEditMode && existing) {
@@ -382,64 +461,56 @@ function SchemeFormPage() {
     }
   }, [existing, reset, isEditMode]);
 
-  // Sync local selection when dialog opens
   useEffect(() => {
     if (productDialogOpen) {
-      setLocalSelection(watch('applicableProducts') || []);
+      setLocalSelection((watch('applicableProducts') || []).map(normalizeItemId));
+      setProductSearch('');
+      setSelectedCategory('all');
+      setSelectedBrand('all');
     }
   }, [productDialogOpen, watch]);
 
   const allFiltered = useMemo(() => {
-    return items.filter(item => {
-      // 1. Category Filter
+    return pickerItems.filter((item) => {
       if (selectedCategory !== 'all') {
-        const catId = item.categoryId?._id || item.categoryId?.id || item.categoryId;
-        if (catId !== selectedCategory) return false;
+        const catId = normalizeItemId(item.categoryId?._id || item.categoryId?.id || item.categoryId);
+        if (catId !== normalizeItemId(selectedCategory)) return false;
       }
 
-      // 2. Brand Filter
       if (selectedBrand !== 'all') {
-        const brandId = item.brandId?._id || item.brandId?.id || item.brandId;
-        if (brandId !== selectedBrand) return false;
+        const brandId = normalizeItemId(item.brandId?._id || item.brandId?.id || item.brand);
+        if (brandId !== normalizeItemId(selectedBrand)) return false;
       }
 
-      // 3. Text Search
-      if (productSearch) {
-        const lower = (productSearch || '').toLowerCase();
-        const itemName = (item.itemName || item.name || '').toLowerCase();
-        const itemCode = (item.itemCode || item.sku || '').toLowerCase();
-        
-        // Safe extraction of category/brand names
-        const catName = String(
-          (typeof item.categoryId === 'object' ? (item.categoryId?.name || item.categoryId?.groupName || '') : (item.categoryName || '')) || ''
-        ).toLowerCase();
-        
-        const brandName = String(
-          (typeof item.brandId === 'object' ? (item.brandId?.name || item.brandId?.brandName || '') : (item.brandName || '')) || ''
-        ).toLowerCase();
-        
-        const matchesText = 
-          itemName.includes(lower) || 
-          itemCode.includes(lower) || 
-          catName.includes(lower) ||
-          brandName.includes(lower) ||
-          (item.sizes || []).some(s => String(s.sku || '').toLowerCase().includes(lower)) ||
-          (item.sizes || []).some(s => String(s.barcode || '').toLowerCase().includes(lower));
-          
-        if (!matchesText) return false;
+      if (debouncedProductSearch.trim()) {
+        return itemMatchesPickerSearch(item, debouncedProductSearch);
       }
 
       return true;
     });
-  }, [items, productSearch, selectedCategory, selectedBrand]);
+  }, [pickerItems, debouncedProductSearch, selectedCategory, selectedBrand]);
 
   const handleToggle = useCallback((id, isSelected) => {
+    const normalized = normalizeItemId(id);
     if (isSelected) {
-      setLocalSelection(prev => prev.filter(i => i !== id));
+      setLocalSelection((prev) => prev.filter((i) => i !== normalized));
     } else {
-      setLocalSelection(prev => [...prev, id]);
+      setLocalSelection((prev) => (prev.includes(normalized) ? prev : [...prev, normalized]));
     }
   }, []);
+
+  const handleSelectAllFound = useCallback(() => {
+    const filteredIds = allFiltered.map((i) => normalizeItemId(i._id || i.id));
+    setLocalSelection((prev) => {
+      const merged = new Set([...prev, ...filteredIds]);
+      return [...merged];
+    });
+  }, [allFiltered]);
+
+  const handleDeselectAllFound = useCallback(() => {
+    const filteredIds = new Set(allFiltered.map((i) => normalizeItemId(i._id || i.id)));
+    setLocalSelection((prev) => prev.filter((id) => !filteredIds.has(id)));
+  }, [allFiltered]);
 
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
   const [pendingValues, setPendingValues] = useState(null);
@@ -798,15 +869,25 @@ function SchemeFormPage() {
                           </Button>
                         </Stack>
                         <Paper variant="outlined" sx={{ p: 1, minHeight: 40, maxHeight: 120, overflowY: 'auto', bgcolor: '#f1f5f9' }}>
-                          {field.value.length === 0 ? (
+                              {field.value.length === 0 ? (
                             <Typography variant="caption" color="textSecondary">All products included (No restriction)</Typography>
                           ) : (
                             <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                              {items.filter(i => field.value.includes(i._id || i.id)).map(i => (
-                                <Box key={i._id || i.id} sx={{ bgcolor: '#fff', px: 1, py: 0.5, borderRadius: 1, border: '1px solid #e2e8f0', fontSize: '0.75rem' }}>
-                                  {i.itemName}
-                                </Box>
-                              ))}
+                              {field.value.map((productId) => {
+                                const i = productLookup.get(normalizeItemId(productId));
+                                if (!i) {
+                                  return (
+                                    <Box key={productId} sx={{ bgcolor: '#fff', px: 1, py: 0.5, borderRadius: 1, border: '1px solid #e2e8f0', fontSize: '0.75rem' }}>
+                                      Item {String(productId).slice(-6)}
+                                    </Box>
+                                  );
+                                }
+                                return (
+                                  <Box key={productId} sx={{ bgcolor: '#fff', px: 1, py: 0.5, borderRadius: 1, border: '1px solid #e2e8f0', fontSize: '0.75rem' }}>
+                                    {i.itemName} ({i.itemCode})
+                                  </Box>
+                                );
+                              })}
                             </Stack>
                           )}
                         </Paper>
@@ -831,7 +912,7 @@ function SchemeFormPage() {
                                 <TextField
                                   fullWidth
                                   size="small"
-                                  placeholder="Search by Item Name, Code or Variant SKU..."
+                                  placeholder="Search by name, code, SKU, barcode, size, color (e.g. aws, AW24, DA3214)..."
                                   value={productSearch}
                                   onChange={(e) => setProductSearch(e.target.value)}
                                   InputProps={{
@@ -875,42 +956,38 @@ function SchemeFormPage() {
                                   ))}
                                 </TextField>
                               </Stack>
-                              <Stack direction="row" spacing={2} sx={{ mt: 1.5, alignItems: 'center' }}>
+                              <Stack direction="row" spacing={2} sx={{ mt: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
                                 <Typography variant="caption" sx={{ fontWeight: 700 }}>
-                                  {allFiltered.length} items found total
+                                  {pickerLoading
+                                    ? 'Searching...'
+                                    : `${allFiltered.length} item(s) shown${pickerTotal > allFiltered.length ? ` of ${pickerTotal} matches` : ''}`}
                                 </Typography>
-                                <Button 
-                                  size="small" 
-                                  variant="text" 
-                                  onClick={() => {
-                                    const filteredIds = allFiltered.map(i => i._id || i.id);
-                                    setLocalSelection(prev => {
-                                      const newSelection = [...prev];
-                                      filteredIds.forEach(id => {
-                                        if (!newSelection.includes(id)) newSelection.push(id);
-                                      });
-                                      return newSelection;
-                                    });
-                                  }}
+                                <Button
+                                  size="small"
+                                  variant="contained"
+                                  disabled={pickerLoading || allFiltered.length === 0}
+                                  onClick={handleSelectAllFound}
                                 >
-                                  Select All Found
+                                  Select All Found ({allFiltered.length})
                                 </Button>
-                                <Button 
-                                  size="small" 
-                                  variant="text" 
+                                <Button
+                                  size="small"
+                                  variant="text"
                                   color="error"
-                                  onClick={() => {
-                                    const filteredIds = allFiltered.map(i => i._id || i.id);
-                                    setLocalSelection(prev => prev.filter(id => !filteredIds.includes(id)));
-                                  }}
+                                  disabled={pickerLoading || allFiltered.length === 0}
+                                  onClick={handleDeselectAllFound}
                                 >
                                   Deselect All Found
                                 </Button>
                               </Stack>
                             </Box>
 
-                            <Box sx={{ flex: 1 }}>
-                              {allFiltered.length > 0 ? (
+                            <Box sx={{ flex: 1, position: 'relative' }}>
+                              {pickerLoading ? (
+                                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 500 }}>
+                                  <CircularProgress size={32} />
+                                </Box>
+                              ) : allFiltered.length > 0 ? (
                                 <List
                                   style={{ height: 500, width: '100%' }}
                                   rowCount={allFiltered.length}
@@ -939,13 +1016,14 @@ function SchemeFormPage() {
                             </Button>
                             <Button
                               onClick={() => {
-                                field.onChange(localSelection);
+                                field.onChange([...localSelection]);
                                 setProductDialogOpen(false);
                               }}
                               variant="contained"
+                              disabled={pickerLoading}
                               sx={{ px: 4, borderRadius: 2 }}
                             >
-                              Confirm Selection
+                              Apply {localSelection.length} Item(s) to Offer
                             </Button>
                           </DialogActions>
                         </Dialog>

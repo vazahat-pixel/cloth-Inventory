@@ -89,6 +89,19 @@ const dispatchSchema = new mongoose.Schema(
         receivedAt: {
             type: Date
         },
+        /**
+         * IDEMPOTENCY LOCK — set atomically the FIRST time stock is physically
+         * added to the destination store.  Once set, this field can never be
+         * overwritten, making duplicate stock-in impossible even via scripts.
+         */
+        stockReceivedAt: {
+            type: Date,
+            default: null
+        },
+        receiptToken: {
+            type: String,
+            default: null
+        },
         notes: {
             type: String
         },
@@ -123,5 +136,8 @@ dispatchSchema.index({ status: 1 });
 dispatchSchema.index({ status: 1, createdAt: -1 });
 dispatchSchema.index({ referenceId: 1 });
 dispatchSchema.index({ referenceType: 1 });
+// Idempotency index — used by the atomic duplicate-receive guard
+dispatchSchema.index({ status: 1, stockReceivedAt: 1 });
+dispatchSchema.index({ receiptToken: 1 }, { sparse: true, unique: true });
 
 module.exports = mongoose.model('Dispatch', dispatchSchema);

@@ -10,6 +10,8 @@ const { DocumentType } = require('../../core/enums');
 const Dispatch = require('../../models/dispatch.model');
 const Item = require('../../models/item.model');
 const { getNextSequence } = require('../../services/sequence.service');
+const crypto = require('crypto');
+const StockLedger = require('../../models/stockLedger.model');
 
 // Correct path — stock.service is in ../../services/
 const stockService = require('../../services/stock.service');
@@ -1303,7 +1305,16 @@ const receiveDispatch = async (id, userId, receivedItems = []) => {
         let dispatch = await Dispatch.findById(id).session(session);
         if (!dispatch) throw new Error('Dispatch not found');
 
-        if (dispatch.status === 'RECEIVED') return dispatch;
+        // ── LAYER 1: Quick status check (fast path for UI) ────────────────────
+        if (dispatch.status === 'RECEIVED' || dispatch.stockReceivedAt) {
+            const lockedAt = dispatch.stockReceivedAt || dispatch.receivedAt;
+            const msg = lockedAt
+                ? `Stock already received on ${new Date(lockedAt).toLocaleString('en-IN')}. Duplicate stock-in blocked.`
+                : 'Dispatch already received. Duplicate stock-in blocked.';
+            const err = new Error(msg);
+            err.statusCode = 409;
+            throw err;
+        }
 
         if (dispatch.notes && dispatch.notes.includes('[Combined into')) {
             throw new Error('This child challan has been combined into a Tax Invoice/Transfer Bill. Please receive the master Bill instead.');
@@ -1338,16 +1349,28 @@ const receiveDispatch = async (id, userId, receivedItems = []) => {
             }
         }
 
+        // ── LAYER 2: ATOMIC DB LOCK ───────────────────────────────────────────
+        // findOneAndUpdate with { stockReceivedAt: null } ensures this transition
+        // happens EXACTLY ONCE — even if 100 concurrent scripts call this function.
+        const receiptToken = crypto.randomUUID();
         dispatch = await Dispatch.findOneAndUpdate(
-            { _id: id, status: 'DISPATCHED' },
-            { $set: { status: 'RECEIVED', receivedAt: new Date() } },
+            { _id: id, status: 'DISPATCHED', stockReceivedAt: null },
+            { $set: { status: 'RECEIVED', receivedAt: new Date(), stockReceivedAt: new Date(), receiptToken } },
             { new: true, session }
         );
 
         if (!dispatch) {
+            // Re-read to give a precise error
             const existing = await Dispatch.findById(id).session(session);
-            if (existing?.status === 'RECEIVED') return existing;
-            throw new Error('Only dispatched items can be received');
+            if (existing?.stockReceivedAt) {
+                const err = new Error(
+                    `DUPLICATE_RECEIVE_BLOCKED: Dispatch ${existing.dispatchNumber} stock was already received on ` +
+                    `${new Date(existing.stockReceivedAt).toLocaleString('en-IN')}. No stock has been added.`
+                );
+                err.statusCode = 409;
+                throw err;
+            }
+            throw new Error('Only dispatched items can be received. Current status: ' + (existing?.status || 'unknown'));
         }
 
         const itemsToProcess = dispatch.items || [];
@@ -1403,6 +1426,25 @@ const receiveDispatch = async (id, userId, receivedItems = []) => {
                 // In receiving, we use total per item instead of individual taxAmount field 
                 // as 'taxAmount' wasn't stored per line in early versions.
                 const landingCost = (item.rate || 0) + (item.tax || 0);
+
+            // ── LAYER 4: StockLedger duplicate check ─────────────────────────
+            // Last line of defence: if a ledger entry already exists for this
+            // dispatch + barcode at this store, something went very wrong — abort.
+            const existingLedger = await StockLedger.findOne({
+                referenceId: dispatch._id,
+                barcode: targetBarcode,
+                locationType: 'STORE',
+                type: 'IN'
+            }).session(session).lean();
+
+            if (existingLedger) {
+                const err = new Error(
+                    `LEDGER_DUPLICATE_BLOCKED: Stock ledger entry already exists for dispatch ` +
+                    `${dispatch.dispatchNumber}, barcode ${targetBarcode}. Aborting to prevent double stock-in.`
+                );
+                err.statusCode = 409;
+                throw err;
+            }
 
                 await stockService.addStock({
                     itemId: itmId,

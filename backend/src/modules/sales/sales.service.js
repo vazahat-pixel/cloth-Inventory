@@ -1153,6 +1153,12 @@ const getAllSales = async (query, user) => {
         }
     }
 
+    filter.status = { $nin: ['CANCELLED', 'REFUNDED'] };
+    filter.$and = [
+        ...(filter.$and || []),
+        { $or: [{ type: { $exists: false } }, { type: { $nin: ['INTERNAL_SALE'] } }] },
+    ];
+
     const sort = getSort(query, {
         saleDate: 'saleDate',
         saleNumber: 'saleNumber',

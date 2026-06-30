@@ -15,9 +15,29 @@ const create = async (req, res, next) => {
         next(error);
     }
 };
+// ── LAYER 3: In-memory idempotency key store (60s window) ────────────────────
+// Prevents duplicate API calls (e.g., double-tap, network retry) from adding
+// stock twice. Keys are auto-cleared every 5 minutes.
+const _processedReceiveKeys = new Set();
+setInterval(() => _processedReceiveKeys.clear(), 5 * 60 * 1000).unref();
+
 const receive = async (req, res, next) => {
     try {
         const { id } = req.params;
+
+        // Idempotency-Key header check (optional but strongly recommended)
+        const idempotencyKey = req.headers['idempotency-key'];
+        if (idempotencyKey) {
+            const compositeKey = `${id}:${idempotencyKey}`;
+            if (_processedReceiveKeys.has(compositeKey)) {
+                return res.status(409).json({
+                    success: false,
+                    message: 'Duplicate request detected. This receive was already processed. No stock was added again.'
+                });
+            }
+            _processedReceiveKeys.add(compositeKey);
+        }
+
         const { receivedItems } = req.body;
         const dispatch = await dispatchService.receiveDispatch(id, req.user._id, receivedItems);
         return sendSuccess(res, { dispatch }, 'Stock received and inventory updated');
@@ -25,6 +45,7 @@ const receive = async (req, res, next) => {
         next(error);
     }
 };
+
 
 const get = async (req, res, next) => {
     try {

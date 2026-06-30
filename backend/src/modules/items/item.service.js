@@ -583,8 +583,16 @@ class ItemService {
         { itemCode: searchRegex },
         { itemName: searchRegex },
         { hsnCode: searchRegex },
+        { brandName: searchRegex },
+        { categoryName: searchRegex },
+        { color: searchRegex },
+        { fabric: searchRegex },
+        { pattern: searchRegex },
+        { shadeNo: searchRegex },
         { 'sizes.sku': searchRegex },
         { 'sizes.barcode': searchRegex },
+        { 'sizes.size': searchRegex },
+        { 'sizes.color': searchRegex },
       ];
     }
     if (brand && brand !== 'all') filter.brandName = brand;

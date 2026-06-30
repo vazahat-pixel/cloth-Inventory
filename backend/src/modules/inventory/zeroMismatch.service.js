@@ -366,7 +366,7 @@ class ZeroMismatchService {
         for (const sale of allSalesForMath) {
             const storeName = sale.storeId?.name || String(sale.storeId);
             const lineSum = round2((sale.items || []).reduce((s, it) => s + Number(it.total || 0), 0));
-            const tax = round2(sale.totalTax ?? sale.tax ?? 0);
+            const tax = round2(Number(sale.totalTax) || Number(sale.tax) || 0);
             const discount = round2(sale.discount || 0);
             const subTotal = round2(sale.subTotal || 0);
             const exchangeAdj = round2(sale.exchangeAdjustment || sale.totalReturnValue || 0);
