@@ -111,7 +111,8 @@ const _getItemMetadata = async (variantId, barcode, session) => {
 
 const _resolveStockIdentifiers = async ({ itemId, barcode, variantId, session }) => {
     let resolvedItemId = itemId || null;
-    let resolvedBarcode = barcode ? String(barcode).trim() : '';
+    const explicitBarcode = barcode ? String(barcode).trim() : '';
+    let resolvedBarcode = explicitBarcode;
     let resolvedVariantId = variantId || null;
 
     const mongoose = require('mongoose');
@@ -153,7 +154,9 @@ const _resolveStockIdentifiers = async ({ itemId, barcode, variantId, session })
             }
 
             resolvedVariantId = variant?._id || null;
-            resolvedBarcode = variant?.barcode || variant?.sku || item.itemCode || '';
+            if (!explicitBarcode) {
+                resolvedBarcode = variant?.barcode || variant?.sku || item.itemCode || '';
+            }
         }
     }
 
@@ -641,13 +644,15 @@ const adjustWarehouseStock = async ({ productId, variantId, warehouseId, quantit
     }
 };
 
-const adjustStoreStock = async ({ productId, variantId, storeId, quantityChange, type, referenceId, referenceModel, performedBy, notes, session }) => {
+const adjustStoreStock = async ({ productId, variantId, barcode, storeId, quantityChange, type, referenceId, referenceModel, performedBy, notes, session }) => {
     const numericChange = toFiniteNumber(quantityChange);
     const mType = type || StockMovementType.ADJUSTMENT;
     const resolvedReferenceType = referenceModel || 'Adjustment';
 
     if (numericChange > 0) {
         return addStock({
+            itemId: productId,
+            barcode,
             variantId: variantId || productId,
             locationId: storeId,
             locationType: 'STORE',
@@ -660,6 +665,8 @@ const adjustStoreStock = async ({ productId, variantId, storeId, quantityChange,
         });
     } else {
         return removeStock({
+            itemId: productId,
+            barcode,
             variantId: variantId || productId,
             locationId: storeId,
             locationType: 'STORE',

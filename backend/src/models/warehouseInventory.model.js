@@ -18,8 +18,8 @@ const warehouseInventorySchema = new mongoose.Schema(
 
 // Compound unique index — one record per variant per warehouse
 warehouseInventorySchema.index({ warehouseId: 1, barcode: 1 }, { unique: true });
+warehouseInventorySchema.index({ warehouseId: 1, variantId: 1 }, { unique: true });
 warehouseInventorySchema.index({ warehouseId: 1 });
-warehouseInventorySchema.index({ warehouseId: 1, variantId: 1 });
 warehouseInventorySchema.index({ itemId: 1 });
 warehouseInventorySchema.index({ warehouseId: 1, quantity: 1 });
 warehouseInventorySchema.index({ lastUpdated: -1 });
