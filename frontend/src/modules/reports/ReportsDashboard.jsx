@@ -116,11 +116,11 @@ const ALL_REPORT_CARDS = [
   },
   {
     title: 'Branch Sales & Stock Report',
-    description: 'Consolidated report showing exact Sales, Returns, and Stock metrics by variant.',
+    description: 'Sales, Exchange (separate), and closing stock by variant for your branch.',
     path: '/reports/branch-sales-stock',
     icon: Inventory2Icon,
-    roles: ['admin'],
-    aliases: ['branch sales', 'variant stock', 'consolidated branch sales']
+    roles: ['admin', 'store_staff'],
+    aliases: ['branch sales', 'variant stock', 'exchange', 'consolidated branch sales']
   },
 ];
 

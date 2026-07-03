@@ -18,6 +18,7 @@ import {
   Typography,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
+import api from '../../services/api';
 import ReportFilterPanel from './ReportFilterPanel';
 import ReportExportButton from './ReportExportButton';
 import { fetchSalesForReport } from '../sales/salesSlice';
@@ -61,20 +62,47 @@ function SalesReportPage() {
   const [viewMode, setViewMode] = useState('summary');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [registerSummary, setRegisterSummary] = useState(null);
+
+  const storeFilterId = isStoreStaff
+    ? user?.shopId
+    : (filters.warehouseIds?.[0] || (filters.warehouseId && filters.warehouseId !== 'all' ? filters.warehouseId : undefined));
 
   useEffect(() => {
-    const storeFilter = isStoreStaff
-      ? user?.shopId
-      : (filters.warehouseIds?.[0] || (filters.warehouseId && filters.warehouseId !== 'all' ? filters.warehouseId : undefined));
     dispatch(fetchSalesForReport({
       ...REPORT_FETCH_PARAMS,
       startDate: filters.dateFrom,
       endDate: filters.dateTo,
-      storeId: storeFilter,
+      storeId: storeFilterId,
       search: debouncedSearch || undefined,
       paymentStatus: filters.paymentStatus,
     }));
-  }, [dispatch, isStoreStaff, user?.shopId, filters.dateFrom, filters.dateTo, filters.warehouseId, filters.warehouseIds, filters.paymentStatus, debouncedSearch]);
+  }, [dispatch, storeFilterId, filters.dateFrom, filters.dateTo, filters.paymentStatus, debouncedSearch]);
+
+  useEffect(() => {
+    if (!filters.dateFrom && !filters.dateTo) {
+      setRegisterSummary(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const params = {
+          startDate: filters.dateFrom || undefined,
+          endDate: filters.dateTo || undefined,
+        };
+        if (storeFilterId) params.storeId = storeFilterId;
+        const { data } = await api.get('/reports/register-summary', { params });
+        if (!cancelled) {
+          setRegisterSummary(data.summary || data.data?.summary || null);
+        }
+      } catch (e) {
+        console.error('Register summary fetch failed:', e);
+        if (!cancelled) setRegisterSummary(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [filters.dateFrom, filters.dateTo, storeFilterId]);
 
   useEffect(() => {
     setPage(0);
@@ -517,16 +545,42 @@ function SalesReportPage() {
 
       <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, p: 2, mb: 2 }}>
         <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#64748b', mb: 1 }}>
-          Summary
+          Summary {registerSummary ? '(Register)' : ''}
         </Typography>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} flexWrap="wrap" useFlexGap>
-          <SummaryChip label="Total Invoices" value={summary.totalInvoices} />
-          <SummaryChip label="Total Quantity" value={summary.totalQuantity} />
-          <SummaryChip label="Gross Amount" value={`₹${summary.totalGross.toFixed(2)}`} />
-          <SummaryChip label="Discount" value={`₹${summary.totalDiscount.toFixed(2)}`} />
-          <SummaryChip label="Tax" value={`₹${summary.totalTax.toFixed(2)}`} />
-          <SummaryChip label="Net Amount" value={`₹${summary.totalNet.toFixed(2)}`} strong />
+          {registerSummary ? (
+            <>
+              <SummaryChip label="Bills Entered in Period" value={registerSummary.entryBillCount ?? 0} />
+              <SummaryChip label="Register Sale Qty" value={registerSummary.registerSaleQty ?? 0} />
+              {registerSummary.registerExchangeQty > 0 && (
+                <SummaryChip label="Exchange Returns" value={registerSummary.registerExchangeQty} />
+              )}
+              <SummaryChip
+                label="Net Sale Qty"
+                value={registerSummary.registerNetSaleQty ?? registerSummary.registerSaleQty ?? 0}
+              />
+              <SummaryChip
+                label="Register Sale Amount"
+                value={`₹${Number(registerSummary.registerSaleAmount || 0).toLocaleString('en-IN')}`}
+                strong
+              />
+            </>
+          ) : (
+            <>
+              <SummaryChip label="Total Invoices" value={summary.totalInvoices} />
+              <SummaryChip label="Total Quantity" value={summary.totalQuantity} />
+              <SummaryChip label="Gross Amount" value={`₹${summary.totalGross.toFixed(2)}`} />
+              <SummaryChip label="Discount" value={`₹${summary.totalDiscount.toFixed(2)}`} />
+              <SummaryChip label="Tax" value={`₹${summary.totalTax.toFixed(2)}`} />
+              <SummaryChip label="Net Amount" value={`₹${summary.totalNet.toFixed(2)}`} strong />
+            </>
+          )}
         </Stack>
+        {registerSummary && (
+          <Typography variant="caption" sx={{ display: 'block', mt: 1.5, color: '#64748b' }}>
+            Register Qty = bills entered in selected dates. Register Amount = sale value in period (phantom bills and exchange excluded).
+          </Typography>
+        )}
       </Paper>
 
       <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2 }}>

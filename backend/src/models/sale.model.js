@@ -179,6 +179,24 @@ const saleSchema = new mongoose.Schema(
             type: Number,
             default: 0
         },
+        totalReturnValue: {
+            type: Number,
+            default: 0
+        },
+        exchangeDetails: {
+            originalSaleId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'Sale'
+            },
+            items: [
+                {
+                    barcode: { type: String, required: true },
+                    quantity: { type: Number, required: true },
+                    rate: { type: Number, required: true },
+                    mrp: { type: Number, required: true }
+                }
+            ]
+        },
         status: {
             type: String,
             enum: Object.values(SaleStatus),

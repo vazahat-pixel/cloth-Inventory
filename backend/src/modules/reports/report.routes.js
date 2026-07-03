@@ -22,6 +22,8 @@ router.get('/visit-logs', reportController.getVisitLogs);
 router.get('/gst-summary', requireAdmin, reportController.getGstSummary);
 router.get('/detailed-gst', requireAdmin, reportController.getDetailedGstReport);
 router.get('/branch-sales-stock', reportController.getBranchSalesStock);
+router.get('/register-summary', reportController.getRegisterSummary);
+router.get('/all-stores-register', requireAdmin, reportController.getAllStoresRegisterReport);
 router.get('/purchase-register', reportController.getPurchaseRegister);
 router.get('/trial-balance', requireAdmin, reportController.getTrialBalance);
 router.get('/profit-loss', requireAdmin, reportController.getProfitAndLoss);

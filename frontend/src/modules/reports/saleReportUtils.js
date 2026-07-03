@@ -167,6 +167,19 @@ export function isReportableRetailSale(sale) {
   return true;
 }
 
+/** Collection rows align with register sale ₹ — exclude exchange (separate section) and phantom bills. */
+const REVENUE_EXCLUDED_SALE_NUMBERS = new Set(['SAH-0071']);
+
+export function isCollectionEligibleSale(sale) {
+  if (!isReportableRetailSale(sale)) return false;
+  const t = String(sale.type || sale.saleType || 'RETAIL').toUpperCase().replace(/-/g, '_');
+  if (t === 'EXCHANGE') return false;
+  if (sale.excludeFromRevenue) return false;
+  const bill = String(sale.invoiceNumber || sale.saleNumber || '').toUpperCase();
+  if (REVENUE_EXCLUDED_SALE_NUMBERS.has(bill)) return false;
+  return true;
+}
+
 export function formatCollectionMode(raw) {
   if (!raw) return 'Cash';
   const r = String(raw).toUpperCase().replace(/-/g, '_');
@@ -253,7 +266,7 @@ export function buildCollectionRowsFromSales(sales = [], { customerMap = {}, dat
   const list = [];
 
   sales.forEach((sale) => {
-    if (!isReportableRetailSale(sale) || !inRange(sale.date)) return;
+    if (!isCollectionEligibleSale(sale) || !inRange(sale.date)) return;
 
     const registerAmt = getReportRegisterAmount(sale);
     if (registerAmt <= 0) return;

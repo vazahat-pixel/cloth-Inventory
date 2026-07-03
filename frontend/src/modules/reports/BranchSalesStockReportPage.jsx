@@ -1,8 +1,10 @@
 import { useEffect, useState, useMemo } from 'react';
+import { useSelector } from 'react-redux';
 import {
   Box,
   Button,
   CircularProgress,
+  Grid,
   Paper,
   Stack,
   Table,
@@ -15,6 +17,7 @@ import {
   Typography,
 } from '@mui/material';
 import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
+import SwapHorizOutlinedIcon from '@mui/icons-material/SwapHorizOutlined';
 import api from '../../services/api';
 import PageHeader from '../../components/erp/PageHeader';
 import ReportFilterPanel from './ReportFilterPanel';
@@ -59,6 +62,9 @@ const headerKeys = [
 ];
 
 function BranchSalesStockReportPage() {
+  const user = useSelector((state) => state.auth.user);
+  const isStoreStaff = user?.role !== 'Admin' && user?.role !== 'admin';
+
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState([]);
   const [page, setPage] = useState(0);
@@ -70,6 +76,18 @@ function BranchSalesStockReportPage() {
     warehouseIds: []
   });
   const [hasFetched, setHasFetched] = useState(false);
+  const [summary, setSummary] = useState(null);
+  const [exchanges, setExchanges] = useState([]);
+
+  useEffect(() => {
+    if (isStoreStaff && user?.shopId) {
+      setFilters((prev) => ({
+        ...prev,
+        warehouseId: user.shopId,
+        warehouseIds: [user.shopId],
+      }));
+    }
+  }, [isStoreStaff, user?.shopId]);
 
   const fetchReport = async (currentFilters) => {
     setLoading(true);
@@ -92,6 +110,8 @@ function BranchSalesStockReportPage() {
         sno: idx + 1
       }));
       setReportData(mapped);
+      setSummary(data.summary || data.data?.summary || null);
+      setExchanges(data.exchanges || data.data?.exchanges || []);
       setPage(0);
       setHasFetched(true);
     } catch (e) {
@@ -161,7 +181,7 @@ function BranchSalesStockReportPage() {
     <Box sx={{ p: 1 }}>
       <PageHeader
         title="Branch Sales & Stock Report"
-        subtitle="Consolidated report showing exact Sales, Returns, and Stock metrics by variant"
+        subtitle="Sales, Exchange (shown separately), and closing stock by variant for your branch"
         breadcrumbs={[{ label: 'Reports' }, { label: 'Branch Sales & Stock', active: true }]}
       />
 
@@ -187,6 +207,70 @@ function BranchSalesStockReportPage() {
           </Button>
         </Stack>
       </Paper>
+
+      {summary && (
+        <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 4, p: 2.5, mb: 3, bgcolor: '#f8fafc' }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0f172a', mb: 2 }}>
+            Store Summary (selected period)
+          </Typography>
+          <Grid container spacing={2}>
+            {[
+              { label: 'Register Sale Qty (entered in period)', value: summary.registerSaleQty ?? summary.grossSaleQty, color: '#1e40af' },
+              { label: 'Exchange Returns', value: summary.exchangeQty, color: '#b45309' },
+              { label: 'Net Sale Qty', value: summary.netSaleQty, color: '#047857' },
+              { label: 'Register Sale Amount', value: summary.registerSaleAmount != null ? `₹${Number(summary.registerSaleAmount).toLocaleString('en-IN')}` : '—', color: '#7c3aed' },
+              { label: 'Closing Stock', value: summary.closingStock, color: '#0f766e' },
+            ].map((card) => (
+              <Grid item xs={12} sm={6} md={4} lg={2.4} key={card.label}>
+                <Paper sx={{ p: 2, borderRadius: 3, border: '1px solid #e2e8f0' }}>
+                  <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600 }}>
+                    {card.label}
+                  </Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 800, color: card.color, mt: 0.5 }}>
+                    {card.value ?? 0}
+                  </Typography>
+                </Paper>
+              </Grid>
+            ))}
+          </Grid>
+          <Typography variant="caption" sx={{ display: 'block', mt: 1.5, color: '#64748b' }}>
+            Register Qty = bills entered in selected dates. Register Amount = sale value in period (phantom reconciliation bills excluded). Exchange shown separately.
+          </Typography>
+        </Paper>
+      )}
+
+      {exchanges.length > 0 && (
+        <Paper elevation={0} sx={{ border: '1px solid #fde68a', borderRadius: 4, p: 2.5, mb: 3, bgcolor: '#fffbeb' }}>
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+            <SwapHorizOutlinedIcon sx={{ color: '#b45309' }} />
+            <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#92400e' }}>
+              Exchange Bills (separate from net sale)
+            </Typography>
+          </Stack>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 700 }}>Bill No</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700 }}>New Sold</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700 }}>Returned</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700 }}>Net Qty</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {exchanges.map((ex) => (
+                <TableRow key={ex.saleNumber}>
+                  <TableCell>{ex.saleNumber}</TableCell>
+                  <TableCell>{ex.saleDate ? String(ex.saleDate).slice(0, 10) : '—'}</TableCell>
+                  <TableCell align="right">{ex.grossQty}</TableCell>
+                  <TableCell align="right">{ex.exchangeReturnQty}</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700 }}>{ex.netQty}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Paper>
+      )}
 
       <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 4, bgcolor: '#ffffff', overflow: 'hidden' }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ p: 2.5, borderBottom: '1px solid #e2e8f0' }}>

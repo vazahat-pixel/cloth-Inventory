@@ -10,6 +10,13 @@ const Purchase = require('../../models/purchase.model');
 const WarehouseInventory = require('../../models/warehouseInventory.model');
 const StockMovement = require('../../models/stockMovement.model');
 const { getFallbackHsn } = require('../../services/gst.service');
+const {
+    aggregateSalesQty,
+    aggregateRegisterTotals,
+    buildExchangeBillSummary,
+    sumExchangeReturnQty,
+    saleQtyProjectFields,
+} = require('../../utils/saleReportUtils');
 
 /** Same base filter as the sales register (non-deleted, non-voided invoices). */
 const GST_SALE_MATCH = {
@@ -1829,15 +1836,21 @@ const getBranchSalesStockStoreTotals = async (startDate, endDate, storeId) => {
         if (endDate) prQuery.createdAt.$lte = new Date(endDate);
     }
 
-    const [closingAgg, salesQtyAgg, returnQtyAgg] = await Promise.all([
+    const [closingAgg, salesBreakdownAgg, returnQtyAgg] = await Promise.all([
         StoreInventory.aggregate([
             { $match: invMatch },
             { $group: { _id: '$storeId', closing: { $sum: '$quantityAvailable' } } },
         ]),
         Sale.aggregate([
             { $match: salesQuery },
-            { $unwind: '$items' },
-            { $group: { _id: '$storeId', qty: { $sum: { $ifNull: ['$items.quantity', 0] } } } },
+            { $project: { storeId: 1, ...saleQtyProjectFields } },
+            {
+                $group: {
+                    _id: '$storeId',
+                    gross: { $sum: '$soldQty' },
+                    exchange: { $sum: '$exchangeQty' },
+                },
+            },
         ]),
         Return.aggregate([
             { $match: retQuery },
@@ -1849,19 +1862,113 @@ const getBranchSalesStockStoreTotals = async (startDate, endDate, storeId) => {
     const closingByStore = new Map();
     closingAgg.forEach((r) => closingByStore.set(String(r._id), r.closing || 0));
 
-    const salesByStore = new Map();
-    salesQtyAgg.forEach((r) => salesByStore.set(String(r._id), r.qty || 0));
+    const grossSaleByStore = new Map();
+    const exchangeByStore = new Map();
+    salesBreakdownAgg.forEach((r) => {
+        grossSaleByStore.set(String(r._id), r.gross || 0);
+        exchangeByStore.set(String(r._id), r.exchange || 0);
+    });
 
     const returnsByStore = new Map();
     returnQtyAgg.forEach((r) => returnsByStore.set(String(r._id), r.qty || 0));
 
     const netSaleByStore = new Map();
-    const keys = new Set([...salesByStore.keys(), ...returnsByStore.keys()]);
+    const salesByStore = new Map();
+    const keys = new Set([
+        ...grossSaleByStore.keys(),
+        ...exchangeByStore.keys(),
+        ...returnsByStore.keys(),
+    ]);
     keys.forEach((key) => {
-        netSaleByStore.set(key, (salesByStore.get(key) || 0) - (returnsByStore.get(key) || 0));
+        const gross = grossSaleByStore.get(key) || 0;
+        const exchange = exchangeByStore.get(key) || 0;
+        const custRet = returnsByStore.get(key) || 0;
+        salesByStore.set(key, gross);
+        netSaleByStore.set(key, Math.max(0, gross - exchange - custRet));
     });
 
-    return { closingByStore, netSaleByStore, salesByStore, returnsByStore };
+    return {
+        closingByStore,
+        netSaleByStore,
+        salesByStore,
+        returnsByStore,
+        grossSaleByStore,
+        exchangeByStore,
+    };
+};
+
+const parseReportStoreIds = (storeId) => {
+    if (!storeId || storeId === 'all') return null;
+    try {
+        const parsedIds = String(storeId).split(',')
+            .map((id) => id.trim())
+            .filter((id) => mongoose.Types.ObjectId.isValid(id))
+            .map((id) => new mongoose.Types.ObjectId(id));
+        return parsedIds.length > 0 ? parsedIds : null;
+    } catch (e) {
+        console.error('[parseReportStoreIds] Error parsing storeId:', e);
+        return null;
+    }
+};
+
+const buildReportPeriodEnd = (endDate) => {
+    if (!endDate) return null;
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+    return end;
+};
+
+/**
+ * Register summary — qty by entry date (createdAt), amount by sale date (ex phantom + exchange).
+ */
+const getRegisterSummary = async (startDate, endDate, storeId) => {
+    const targetStoreIds = parseReportStoreIds(storeId);
+    const periodEnd = buildReportPeriodEnd(endDate);
+
+    const baseMatch = {
+        ...RETAIL_SALE_MATCH,
+        status: { $nin: ['CANCELLED', 'REFUNDED'] },
+    };
+
+    const saleDateQuery = { ...baseMatch };
+    const entryQuery = { ...baseMatch };
+    if (targetStoreIds) {
+        saleDateQuery.storeId = { $in: targetStoreIds };
+        entryQuery.storeId = { $in: targetStoreIds };
+    }
+    if (startDate || endDate) {
+        saleDateQuery.saleDate = {};
+        entryQuery.createdAt = {};
+        if (startDate) {
+            saleDateQuery.saleDate.$gte = new Date(startDate);
+            entryQuery.createdAt.$gte = new Date(startDate);
+        }
+        if (periodEnd) {
+            saleDateQuery.saleDate.$lte = periodEnd;
+            entryQuery.createdAt.$lte = periodEnd;
+        }
+    }
+
+    const [saleDateSales, entrySales] = await Promise.all([
+        Sale.find(saleDateQuery).lean(),
+        Sale.find(entryQuery).lean(),
+    ]);
+
+    const roundingStoreId = targetStoreIds?.length === 1
+        ? String(targetStoreIds[0])
+        : (storeId && storeId !== 'all' ? String(storeId).split(',')[0].trim() : null);
+
+    const register = aggregateRegisterTotals(saleDateSales, entrySales, roundingStoreId);
+    const exchanges = saleDateSales
+        .filter((s) => sumExchangeReturnQty(s) > 0)
+        .map(buildExchangeBillSummary);
+
+    return {
+        ...register,
+        entryBillCount: entrySales.length,
+        saleDateBillCount: saleDateSales.length,
+        exchanges,
+    };
 };
 
 /**
@@ -1918,6 +2025,18 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
     }
     const sales = await Sale.find(salesQuery).lean();
 
+    // Register qty: bills entered (createdAt) in period — matches physical register books
+    const entrySalesQuery = { ...RETAIL_SALE_MATCH };
+    if (targetStoreIds) {
+        entrySalesQuery.storeId = { $in: targetStoreIds };
+    }
+    if (startDate || endDate) {
+        entrySalesQuery.createdAt = {};
+        if (startDate) entrySalesQuery.createdAt.$gte = new Date(startDate);
+        if (endDate) entrySalesQuery.createdAt.$lte = new Date(endDate);
+    }
+    const entrySales = await Sale.find(entrySalesQuery).lean();
+
     // 2. Fetch Customer Returns
     const Return = mongoose.models.Return || require('../../models/return.model');
     const retQuery = { status: 'APPROVED' };
@@ -1948,6 +2067,7 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
     const inventoryMap = {};
     storeInventory.forEach(inv => {
         inv.netSaleAttr = 0;
+        inv.exchangeAttr = 0;
         inv.custReturnAttr = 0;
         inv.purReturnAttr = 0;
         inventoryMap[inv._id.toString()] = inv;
@@ -2017,6 +2137,31 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
                 group.forEach(item => item.remainingQty = 0);
             }
         }
+    });
+
+    // Sales Pass 3: Subtract exchange / on-bill returns from attributed net sale
+    sales.forEach((s) => {
+        const returnLines = (s.returnedItems?.length ? s.returnedItems : s.exchangeDetails?.items) || [];
+        const storeIdStr = s.storeId?._id?.toString() || s.storeId?.toString();
+        returnLines.forEach((rItem) => {
+            const qty = Number(rItem.quantity || 0);
+            if (qty <= 0) return;
+            const inv =
+                storeInventory.find(
+                    (row) =>
+                        (row.storeId?._id?.toString() || row.storeId?.toString()) === storeIdStr &&
+                        row.barcode === rItem.barcode,
+                ) ||
+                storeInventory.find(
+                    (row) =>
+                        (row.storeId?._id?.toString() || row.storeId?.toString()) === storeIdStr &&
+                        String(row.variantId) === String(rItem.variantId),
+                );
+            if (inv) {
+                inv.netSaleAttr = Math.max(0, inv.netSaleAttr - qty);
+                inv.exchangeAttr = (inv.exchangeAttr || 0) + qty;
+            }
+        });
     });
 
     // Group customer returns items by locationId_variantId
@@ -2118,6 +2263,7 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
 
         // Net Sale & Purchase Return from attributed quantities
         const netSale = inv.netSaleAttr - inv.custReturnAttr;
+        const exchangeQty = inv.exchangeAttr || 0;
         const prQty = inv.purReturnAttr;
 
         // Closing Stock
@@ -2146,13 +2292,46 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
             fabric: formatVal(fabric),
             fabricType: formatVal(fabricType),
             vendor: formatVal(vendor),
+            grossSale: (netSale + exchangeQty + inv.custReturnAttr) || 0,
+            exchangeQty: exchangeQty || 0,
             netSale: netSale || 0,
             purReturn: prQty || 0,
             closingStock: closingStock || 0
         };
     }).filter(Boolean);
 
-    return rows;
+    const saleQtySummary = aggregateSalesQty(sales);
+    const registerTotals = aggregateRegisterTotals(sales, entrySales, storeId);
+    const customerReturnQty = customerReturns.reduce(
+        (total, ret) => total + (ret.items || []).reduce((n, i) => n + (i.quantity || 0), 0),
+        0,
+    );
+    const closingStockTotal = storeInventory.reduce(
+        (total, inv) => total + (typeof inv.quantityAvailable === 'number' ? inv.quantityAvailable : inv.quantity || 0),
+        0,
+    );
+    const exchanges = sales
+        .filter((s) => sumExchangeReturnQty(s) > 0)
+        .map(buildExchangeBillSummary);
+
+    return {
+        rows,
+        summary: {
+            grossSaleQty: registerTotals.registerSaleQty,
+            exchangeQty: registerTotals.registerExchangeQty,
+            customerReturnQty,
+            netSaleQty: Math.max(0, registerTotals.registerNetSaleQty - customerReturnQty),
+            registerSaleQty: registerTotals.registerSaleQty,
+            registerSaleAmount: registerTotals.registerSaleAmount,
+            saleDateGrossQty: saleQtySummary.grossSaleQty,
+            saleDateExchangeQty: saleQtySummary.exchangeQty,
+            saleDateNetSaleQty: saleQtySummary.netSaleQty,
+            saleDateGrossAmount: registerTotals.saleDateGrossAmount,
+            revenueExcludedAmount: registerTotals.revenueExcludedAmount,
+            closingStock: closingStockTotal,
+        },
+        exchanges,
+    };
 };
 
 /**
@@ -2431,5 +2610,7 @@ module.exports = {
     getDetailedGstReport,
     getDetailedGstReportSummaryFast,
     getBranchSalesStockStoreTotals,
-    getBranchSalesStockReport
+    getBranchSalesStockReport,
+    getRegisterSummary,
+    getAllStoresRegisterReport: require('./allStoresRegisterReport.service').getAllStoresRegisterReport,
 };

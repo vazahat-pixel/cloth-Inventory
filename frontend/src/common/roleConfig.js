@@ -136,7 +136,7 @@ export const staffNavConfig = {
     { label: 'Day-End Closure (Z-Report)', path: '/reports/closure', icon: LockClockIcon, matchPaths: ['/reports/closure'] },
     { label: 'Stock Lookup', path: '/inventory/stock-overview', icon: Inventory2Icon },
     { label: 'Bulk Opening Stock', path: '/inventory/bulk-import-store-stock', icon: FileUploadOutlinedIcon },
-    { label: 'Analytics', path: '/reports', icon: AssessmentOutlinedIcon, matchPaths: ['/reports', '/reports/sales', '/reports/inward', '/reports/stock', '/reports/collection'], drilldown: true },
+    { label: 'Analytics', path: '/reports', icon: AssessmentOutlinedIcon, matchPaths: ['/reports', '/reports/sales', '/reports/inward', '/reports/stock', '/reports/collection', '/reports/branch-sales-stock'], drilldown: true },
   ],
   children: {
     '/inventory': [
@@ -150,6 +150,7 @@ export const staffNavConfig = {
       { label: 'Sales Report', path: '/reports/sales' },
       { label: 'Daily Inward', path: '/reports/inward' },
       { label: 'Stock Report', path: '/reports/stock' },
+      { label: 'Branch Sales & Stock (Exchange)', path: '/reports/branch-sales-stock' },
       { label: 'Collection Report', path: '/reports/collection' },
       { label: 'Day-End Closure', path: '/reports/closure' },
     ],

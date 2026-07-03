@@ -406,6 +406,7 @@ function AppRoutes() {
           <Route path="reports/stock" element={<StockReportPage />} />
           <Route path="reports/collection" element={<CollectionReportPage />} />
           <Route path="reports/closure" element={<DayEndClosurePage />} />
+          <Route path="reports/branch-sales-stock" element={<BranchSalesStockReportPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="notifications" element={<NotificationsPage />} />
           

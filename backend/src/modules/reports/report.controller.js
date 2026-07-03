@@ -420,13 +420,38 @@ const getConsolidatedStock = async (req, res, next) => {
     }
 };
 
+const getRegisterSummary = async (req, res, next) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const storeId = req.user.role === 'store_staff' ? req.user.shopId : req.query.storeId;
+        const summary = await reportService.getRegisterSummary(startDate, endDate, storeId);
+        return sendSuccess(res, { summary }, 'Register summary retrieved');
+    } catch (err) {
+        next(err);
+    }
+};
+
 const getBranchSalesStock = async (req, res, next) => {
     try {
         const { startDate, endDate } = req.query;
         const storeId = req.user.role === 'store_staff' ? req.user.shopId : req.query.storeId;
         console.log('[getBranchSalesStock] role:', req.user.role, '| storeId:', storeId, '| query:', req.query);
-        const report = await reportService.getBranchSalesStockReport(startDate, endDate, storeId);
-        return sendSuccess(res, { report }, 'Branch Sales & Stock report retrieved successfully');
+        const result = await reportService.getBranchSalesStockReport(startDate, endDate, storeId);
+        const payload = Array.isArray(result)
+            ? { report: result, summary: null, exchanges: [] }
+            : { report: result.rows, summary: result.summary, exchanges: result.exchanges };
+        return sendSuccess(res, payload, 'Branch Sales & Stock report retrieved successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
+const getAllStoresRegisterReport = async (req, res, next) => {
+    try {
+        const result = await reportService.getAllStoresRegisterReport({
+            storeFilter: req.query.storeFilter,
+        });
+        return sendSuccess(res, result, 'All stores register report retrieved');
     } catch (err) {
         next(err);
     }
@@ -468,5 +493,7 @@ module.exports = {
     getConsolidatedStock,
     getInTransitReport,
     getDetailedGstReport,
-    getBranchSalesStock
+    getBranchSalesStock,
+    getRegisterSummary,
+    getAllStoresRegisterReport,
 };
