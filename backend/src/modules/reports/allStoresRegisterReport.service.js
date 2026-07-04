@@ -80,11 +80,25 @@ const monthRange = (year, month, endDay = null) => {
   };
 };
 
-const defaultPeriods = () => [
-  monthRange(2026, 5),
-  monthRange(2026, 6),
-  monthRange(2026, 7, 3),
-];
+const defaultPeriods = () => {
+  // Use today's UTC date as the end day for the current (partial) month
+  // so the report always includes data up to today without needing manual updates.
+  const today = new Date();
+  const todayUTCDay = today.getUTCDate();
+  const todayUTCMonth = today.getUTCMonth() + 1; // 1-based
+  const todayUTCYear = today.getUTCFullYear();
+
+  // July 2026 end = today's day (if still in July 2026), else full month
+  const julyEndDay = (todayUTCYear === 2026 && todayUTCMonth === 7)
+    ? todayUTCDay
+    : null; // null = full month
+
+  return [
+    monthRange(2026, 5),
+    monthRange(2026, 6),
+    monthRange(2026, 7, julyEndDay),
+  ];
+};
 
 const bucketDispatchesByMonth = (dispatches, range) => {
   const matched = dispatches.filter((d) => inRange(d.createdAt, range.start, range.end));
