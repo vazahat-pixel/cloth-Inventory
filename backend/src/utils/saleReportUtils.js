@@ -107,9 +107,13 @@ const isRevenueExcludedSale = (sale = {}) =>
   Boolean(sale.excludeFromRevenue) ||
   REVENUE_EXCLUDED_SALE_NUMBERS.has(String(sale.saleNumber || '').toUpperCase());
 
-/** Bills excluded from register ₹ total (phantom + exchange — exchange has own section). */
+/**
+ * Bills excluded from register ₹ total — only phantom/excluded bills are out.
+ * EXCHANGE bills ARE included: customer buys new item (amount counts as sale);
+ * returned item qty is already netted out separately, so amount must be counted.
+ */
 const isRegisterAmountSale = (sale = {}) =>
-  !isRevenueExcludedSale(sale) && sale.type !== 'EXCHANGE';
+  !isRevenueExcludedSale(sale);
 
 const saleRevenueAmount = (sale = {}) =>
   isRegisterAmountSale(sale) ? Number(sale.grandTotal || 0) : 0;
@@ -122,7 +126,7 @@ const computeRegisterSaleAmount = (saleDateSales = [], storeId = null) => {
   const precise = eligible.reduce((n, s) => n + Number(s.grandTotal || 0), 0);
   const perBillRounded = eligible.reduce((n, s) => n + Math.round(Number(s.grandTotal || 0)), 0);
   const sid = String(storeId || eligible[0]?.storeId || '');
-  // Sahibabad manual register (Jun 2026): integer ₹ after ex phantom + ex exchange
+  // Sahibabad manual register (Jun 2026): integer ₹ after ex phantom only
   if (sid === '69ecbe2cf04d7249bd11ae45') {
     return Math.round(precise - 50.7);
   }
