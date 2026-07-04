@@ -2037,6 +2037,67 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
     }
     const entrySales = await Sale.find(entrySalesQuery).lean();
 
+    // ── Period-aware closing stock ──────────────────────────────────────────
+    // Live StoreInventory always reflects CURRENT stock. For a historical period
+    // (e.g. a June report opened in July) roll back stock flows that happened
+    // AFTER endDate so closing reflects stock as of the period end:
+    //   closing@endDate = liveStock + (net retail sales after endDate) - (inward received after endDate)
+    const postPeriodStockAdj = {}; // `${storeId}_${variantId}` -> qty to add back to live closing
+    if (endDate) {
+        const periodEnd = new Date(endDate);
+
+        // (a) Retail sales after period end — those items left stock later, so add them back.
+        // Uses gross sold qty (matches the register convention: closing = opening - gross sales).
+        const postSalesQuery = { ...RETAIL_SALE_MATCH, saleDate: { $gt: periodEnd } };
+        if (targetStoreIds) postSalesQuery.storeId = { $in: targetStoreIds };
+        const postSales = await Sale.find(postSalesQuery).lean();
+        for (const s of postSales) {
+            const sid = s.storeId?._id?.toString() || s.storeId?.toString();
+            for (const it of (s.items || [])) {
+                const key = `${sid}_${it.variantId}`;
+                postPeriodStockAdj[key] = (postPeriodStockAdj[key] || 0) + Number(it.quantity || 0);
+            }
+        }
+
+        // (b) Inward dispatches received after period end — stock arrived later, so remove it
+        const Dispatch = mongoose.models.Dispatch || require('../../models/dispatch.model');
+        const dispQuery = { $or: [{ receivedAt: { $gt: periodEnd } }, { stockReceivedAt: { $gt: periodEnd } }] };
+        if (targetStoreIds) dispQuery.destinationStoreId = { $in: targetStoreIds };
+        const postDispatches = await Dispatch.find(dispQuery).lean();
+        for (const d of postDispatches) {
+            const sid = d.destinationStoreId?._id?.toString() || d.destinationStoreId?.toString();
+            for (const it of (d.items || [])) {
+                const key = `${sid}_${it.variantId}`;
+                postPeriodStockAdj[key] = (postPeriodStockAdj[key] || 0) - Number(it.qty || it.quantity || 0);
+            }
+        }
+    }
+
+    // Apply each variant's period adjustment to exactly ONE inventory row (the fallback
+    // receiver) to avoid double counting when duplicate rows share a variantId.
+    const rowAdjById = {};
+    if (Object.keys(postPeriodStockAdj).length) {
+        const rowsByKey = {};
+        for (const inv of storeInventory) {
+            const sid = inv.storeId?._id?.toString() || inv.storeId?.toString();
+            const key = `${sid}_${inv.variantId}`;
+            if (!rowsByKey[key]) rowsByKey[key] = [];
+            rowsByKey[key].push(inv);
+        }
+        for (const [key, adj] of Object.entries(postPeriodStockAdj)) {
+            const list = rowsByKey[key];
+            if (!list || !list.length) continue; // no inventory row for this variant — adjustment dropped
+            const receiver = list.find((r) => !String(r.barcode || '').includes('-')) || list[0];
+            const rid = receiver._id.toString();
+            rowAdjById[rid] = (rowAdjById[rid] || 0) + adj;
+        }
+    }
+
+    const adjustedClosing = (inv) => {
+        const live = (typeof inv.quantityAvailable === 'number') ? inv.quantityAvailable : (inv.quantity || 0);
+        return live + (rowAdjById[inv._id.toString()] || 0);
+    };
+
     // 2. Fetch Customer Returns
     const Return = mongoose.models.Return || require('../../models/return.model');
     const retQuery = { status: 'APPROVED' };
@@ -2266,8 +2327,8 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
         const exchangeQty = inv.exchangeAttr || 0;
         const prQty = inv.purReturnAttr;
 
-        // Closing Stock
-        const closingStock = (typeof inv.quantityAvailable === 'number') ? inv.quantityAvailable : (inv.quantity || 0);
+        // Closing Stock (period-aware: live stock rolled back to the period end date)
+        const closingStock = adjustedClosing(inv);
 
         // Helper to format values as 'NIL' if falsy/empty/N/A
         const formatVal = (val) => {
@@ -2307,7 +2368,7 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
         0,
     );
     const closingStockTotal = storeInventory.reduce(
-        (total, inv) => total + (typeof inv.quantityAvailable === 'number' ? inv.quantityAvailable : inv.quantity || 0),
+        (total, inv) => total + adjustedClosing(inv),
         0,
     );
     const exchanges = sales
