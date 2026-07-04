@@ -37,6 +37,64 @@ const getDetailedGstReportSummaryFast = async (match) => {
         Sale.aggregate([
             { $match: match },
             {
+                $project: {
+                    subTotal: 1,
+                    totalTax: 1,
+                    grandTotal: 1,
+                    customerGst: 1,
+                    storeId: 1,
+                    items: 1,
+                    saleDate: 1,
+                    invoiceNumber: 1,
+                    saleNumber: 1,
+                    customerName: 1,
+                    isBreakupZero: {
+                        $eq: [
+                            { $add: [
+                                { $ifNull: ["$taxBreakup.cgst", 0] },
+                                { $ifNull: ["$taxBreakup.sgst", 0] },
+                                { $ifNull: ["$taxBreakup.igst", 0] }
+                            ] },
+                            0
+                        ]
+                    },
+                    cgst: { $ifNull: ["$taxBreakup.cgst", 0] },
+                    sgst: { $ifNull: ["$taxBreakup.sgst", 0] },
+                    igst: { $ifNull: ["$taxBreakup.igst", 0] }
+                }
+            },
+            {
+                $project: {
+                    subTotal: 1,
+                    totalTax: 1,
+                    grandTotal: 1,
+                    customerGst: 1,
+                    storeId: 1,
+                    items: 1,
+                    saleDate: 1,
+                    invoiceNumber: 1,
+                    saleNumber: 1,
+                    customerName: 1,
+                    taxBreakup: {
+                        cgst: {
+                            $cond: [
+                                { $and: ["$isBreakupZero", { $gt: ["$totalTax", 0] }] },
+                                { $divide: ["$totalTax", 2] },
+                                "$cgst"
+                            ]
+                        },
+                        sgst: {
+                            $cond: [
+                                { $and: ["$isBreakupZero", { $gt: ["$totalTax", 0] }] },
+                                { $divide: ["$totalTax", 2] },
+                                "$sgst"
+                            ]
+                        },
+                        igst: "$igst"
+                    }
+                }
+            },
+            {
                 $facet: {
                     totals: [{
                         $group: {
@@ -877,12 +935,52 @@ const getGstSummary = async (startDate, endDate, storeId) => {
     const salesGst = await Sale.aggregate([
         { $match: saleQuery },
         {
+            $project: {
+                subTotal: 1,
+                totalTax: 1,
+                isBreakupZero: {
+                    $eq: [
+                        { $add: [
+                            { $ifNull: ["$taxBreakup.cgst", 0] },
+                            { $ifNull: ["$taxBreakup.sgst", 0] },
+                            { $ifNull: ["$taxBreakup.igst", 0] }
+                        ] },
+                        0
+                    ]
+                },
+                cgst: { $ifNull: ["$taxBreakup.cgst", 0] },
+                sgst: { $ifNull: ["$taxBreakup.sgst", 0] },
+                igst: { $ifNull: ["$taxBreakup.igst", 0] }
+            }
+        },
+        {
+            $project: {
+                subTotal: 1,
+                totalTax: 1,
+                cgst: {
+                    $cond: [
+                        { $and: ["$isBreakupZero", { $gt: ["$totalTax", 0] }] },
+                        { $divide: ["$totalTax", 2] },
+                        "$cgst"
+                    ]
+                },
+                sgst: {
+                    $cond: [
+                        { $and: ["$isBreakupZero", { $gt: ["$totalTax", 0] }] },
+                        { $divide: ["$totalTax", 2] },
+                        "$sgst"
+                    ]
+                },
+                igst: "$igst"
+            }
+        },
+        {
             $group: {
                 _id: null,
                 taxableValue: { $sum: "$subTotal" },
-                cgst: { $sum: "$taxBreakup.cgst" },
-                sgst: { $sum: "$taxBreakup.sgst" },
-                igst: { $sum: "$taxBreakup.igst" },
+                cgst: { $sum: "$cgst" },
+                sgst: { $sum: "$sgst" },
+                igst: { $sum: "$igst" },
                 totalTax: { $sum: "$totalTax" }
             }
         }
@@ -1018,6 +1116,19 @@ const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) =
     sales.forEach(sale => {
         if (sale.storeId) {
             sale.storeId = locationMap[String(sale.storeId)] || { name: 'N/A' };
+        }
+
+        // Normalize missing/zero taxBreakup for reports
+        const cgst = sale.taxBreakup?.cgst || 0;
+        const sgst = sale.taxBreakup?.sgst || 0;
+        const igst = sale.taxBreakup?.igst || 0;
+        const totalTax = sale.totalTax || sale.tax || 0;
+        if (totalTax > 0 && cgst === 0 && sgst === 0 && igst === 0) {
+            sale.taxBreakup = {
+                cgst: Number((totalTax / 2).toFixed(2)),
+                sgst: Number((totalTax - (totalTax / 2)).toFixed(2)),
+                igst: 0
+            };
         }
     });
 
