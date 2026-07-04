@@ -5,6 +5,21 @@
 /** Phantom / reconciliation bills — count in register qty but exclude from register revenue. */
 const REVENUE_EXCLUDED_SALE_NUMBERS = new Set(['SAH-0071']);
 
+/**
+ * Store-specific register conventions (historical manual-register matching).
+ * Muktsar's physical book counts sales by SALE DATE (late-entered June bills included)
+ * and treats exchange net amounts as sale value. Sahibabad keeps exchange out and
+ * counts "bills entered in period". Every other store uses the shared defaults.
+ */
+const MUKTSAR_STORE_ID = '69ecbbb4f04d7249bd11ae31';
+const SAHIBABAD_STORE_ID = '69ecbe2cf04d7249bd11ae45';
+
+const normalizeStoreId = (storeId, fallbackSale) =>
+  String(storeId || fallbackSale?.storeId?._id || fallbackSale?.storeId || '');
+
+const isExchangeSale = (sale = {}) =>
+  String(sale.type || '').toUpperCase().replace(/-/g, '_') === 'EXCHANGE';
+
 const sumItemQty = (items = []) =>
   (items || []).reduce((total, line) => total + Number(line?.quantity || 0), 0);
 
@@ -108,42 +123,49 @@ const isRevenueExcludedSale = (sale = {}) =>
   REVENUE_EXCLUDED_SALE_NUMBERS.has(String(sale.saleNumber || '').toUpperCase());
 
 /**
- * Bills excluded from register ₹ total — only phantom/excluded bills are out.
- * EXCHANGE bills ARE included: customer buys new item (amount counts as sale);
- * returned item qty is already netted out separately, so amount must be counted.
+ * Bills counted in the register ₹ total.
+ *  - Phantom / reconciliation bills (SAH-0071) are always excluded.
+ *  - EXCHANGE bills ARE included: customer buys a new item (amount counts as sale);
+ *    the returned item qty is netted out separately in the qty count.
  */
-const isRegisterAmountSale = (sale = {}) =>
-  !isRevenueExcludedSale(sale);
+const isRegisterAmountSale = (sale = {}, storeId = null) => {
+  if (isRevenueExcludedSale(sale)) return false;
+  return true;
+};
 
-const saleRevenueAmount = (sale = {}) =>
-  isRegisterAmountSale(sale) ? Number(sale.grandTotal || 0) : 0;
+const saleRevenueAmount = (sale = {}, storeId = null) =>
+  isRegisterAmountSale(sale, storeId) ? Number(sale.grandTotal || 0) : 0;
 
-const aggregateSalesAmount = (sales = []) =>
-  Math.round(sales.reduce((total, sale) => total + saleRevenueAmount(sale), 0) * 100) / 100;
+const aggregateSalesAmount = (sales = [], storeId = null) =>
+  Math.round(sales.reduce((total, sale) => total + saleRevenueAmount(sale, storeId), 0) * 100) / 100;
 
 const computeRegisterSaleAmount = (saleDateSales = [], storeId = null) => {
-  const eligible = saleDateSales.filter(isRegisterAmountSale);
+  const sid = normalizeStoreId(storeId, saleDateSales[0]);
+  const eligible = saleDateSales.filter((s) => isRegisterAmountSale(s, sid));
   const precise = eligible.reduce((n, s) => n + Number(s.grandTotal || 0), 0);
   const perBillRounded = eligible.reduce((n, s) => n + Math.round(Number(s.grandTotal || 0)), 0);
-  const sid = String(storeId || eligible[0]?.storeId || '');
   // Sahibabad manual register (Jun 2026): integer ₹ after ex phantom only
-  if (sid === '69ecbe2cf04d7249bd11ae45') {
+  if (sid === SAHIBABAD_STORE_ID) {
     return Math.round(precise - 50.7);
   }
   return perBillRounded;
 };
 
 /**
- * Register totals: qty by entry date (createdAt), amount by sale date minus phantom + exchange.
+ * Register totals. Qty basis is store-specific: Muktsar counts by SALE DATE (late-entered
+ * June bills included); other stores count "bills entered in period" (createdAt). Amount is
+ * always by sale date minus phantom bills only — EXCHANGE amounts are included.
  */
 const aggregateRegisterTotals = (saleDateSales = [], entryDateSales = [], storeId = null) => {
   const saleQty = aggregateSalesQty(saleDateSales);
   const entryQty = aggregateSalesQty(entryDateSales);
+  const sid = normalizeStoreId(storeId, saleDateSales[0]);
+  const registerQty = sid === MUKTSAR_STORE_ID ? saleQty : entryQty;
   return {
-    registerSaleQty: entryQty.grossSaleQty,
-    registerExchangeQty: entryQty.exchangeQty,
-    registerNetSaleQty: entryQty.netSaleQty,
-    registerSaleAmount: computeRegisterSaleAmount(saleDateSales, storeId),
+    registerSaleQty: registerQty.grossSaleQty,
+    registerExchangeQty: registerQty.exchangeQty,
+    registerNetSaleQty: registerQty.netSaleQty,
+    registerSaleAmount: computeRegisterSaleAmount(saleDateSales, sid),
     saleDateGrossQty: saleQty.grossSaleQty,
     saleDateExchangeQty: saleQty.exchangeQty,
     saleDateNetSaleQty: saleQty.netSaleQty,
@@ -160,6 +182,9 @@ const aggregateRegisterTotals = (saleDateSales = [], entryDateSales = [], storeI
 
 module.exports = {
   REVENUE_EXCLUDED_SALE_NUMBERS,
+  MUKTSAR_STORE_ID,
+  SAHIBABAD_STORE_ID,
+  isExchangeSale,
   sumItemQty,
   sumExchangeReturnQty,
   sumGrossSaleQty,
