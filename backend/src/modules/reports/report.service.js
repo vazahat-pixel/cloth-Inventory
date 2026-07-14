@@ -16,180 +16,48 @@ const {
     buildExchangeBillSummary,
     sumExchangeReturnQty,
     saleQtyProjectFields,
+    allocateInvoiceGstToLineItems,
+    getSaleInvoiceTax,
+    getSaleInvoiceTaxable,
+    normalizeSaleGstBreakup,
+    REVENUE_EXCLUDED_SALE_NUMBERS,
 } = require('../../utils/saleReportUtils');
 
 /** Same base filter as the sales register (non-deleted, non-voided invoices). */
+const GST_EXCLUDED_BILLS = Array.from(REVENUE_EXCLUDED_SALE_NUMBERS);
 const GST_SALE_MATCH = {
     isDeleted: false,
+    // Match sales register conventions: exclude warehouse/internal transfers.
+    $or: [{ type: { $exists: false } }, { type: { $nin: ['INTERNAL_SALE'] } }],
     status: { $nin: ['CANCELLED', 'REFUNDED'] },
+    saleNumber: { $nin: GST_EXCLUDED_BILLS },
+    invoiceNumber: { $nin: GST_EXCLUDED_BILLS },
+    // Phantom / reconciliation bills flagged out of revenue must stay out of GST too.
+    excludeFromRevenue: { $ne: true },
 };
 
 const round2 = (n) => Number((Number(n) || 0).toFixed(2));
 
 /**
- * Fast summary-only GST report via MongoDB aggregation (no item-wise rows).
+ * Fast summary-only GST report (no item-wise rows).
+ * Uses the same invoice taxable/tax math as the sales register so Muktsar/Pitampura
+ * GSTR-1 totals match Sales Report Gross/Net/Tax (exchange + legacy taxBreakup safe).
  */
 const getDetailedGstReportSummaryFast = async (match) => {
     const Store = require('../../models/store.model');
     const Warehouse = require('../../models/warehouse.model');
 
-    const [facetRows, allStores, allWarehouses] = await Promise.all([
-        Sale.aggregate([
-            { $match: match },
-            {
-                $project: {
-                    subTotal: 1,
-                    totalTax: 1,
-                    grandTotal: 1,
-                    customerGst: 1,
-                    storeId: 1,
-                    items: 1,
-                    saleDate: 1,
-                    invoiceNumber: 1,
-                    saleNumber: 1,
-                    customerName: 1,
-                    isBreakupZero: {
-                        $eq: [
-                            { $add: [
-                                { $ifNull: ["$taxBreakup.cgst", 0] },
-                                { $ifNull: ["$taxBreakup.sgst", 0] },
-                                { $ifNull: ["$taxBreakup.igst", 0] }
-                            ] },
-                            0
-                        ]
-                    },
-                    cgst: { $ifNull: ["$taxBreakup.cgst", 0] },
-                    sgst: { $ifNull: ["$taxBreakup.sgst", 0] },
-                    igst: { $ifNull: ["$taxBreakup.igst", 0] }
-                }
-            },
-            {
-                $project: {
-                    subTotal: 1,
-                    totalTax: 1,
-                    grandTotal: 1,
-                    customerGst: 1,
-                    storeId: 1,
-                    items: 1,
-                    saleDate: 1,
-                    invoiceNumber: 1,
-                    saleNumber: 1,
-                    customerName: 1,
-                    taxBreakup: {
-                        cgst: {
-                            $cond: [
-                                { $and: ["$isBreakupZero", { $gt: ["$totalTax", 0] }] },
-                                { $divide: ["$totalTax", 2] },
-                                "$cgst"
-                            ]
-                        },
-                        sgst: {
-                            $cond: [
-                                { $and: ["$isBreakupZero", { $gt: ["$totalTax", 0] }] },
-                                { $divide: ["$totalTax", 2] },
-                                "$sgst"
-                            ]
-                        },
-                        igst: "$igst"
-                    }
-                }
-            },
-            {
-                $facet: {
-                    totals: [{
-                        $group: {
-                            _id: null,
-                            totalTaxableValue: { $sum: { $ifNull: ['$subTotal', 0] } },
-                            totalCGST: { $sum: { $ifNull: ['$taxBreakup.cgst', 0] } },
-                            totalSGST: { $sum: { $ifNull: ['$taxBreakup.sgst', 0] } },
-                            totalIGST: { $sum: { $ifNull: ['$taxBreakup.igst', 0] } },
-                            totalGST: { $sum: { $ifNull: ['$totalTax', 0] } },
-                            grandTotal: { $sum: { $ifNull: ['$grandTotal', 0] } },
-                            totalB2B: {
-                                $sum: {
-                                    $cond: [{
-                                        $gte: [{ $strLenCP: { $ifNull: ['$customerGst', ''] } }, 15],
-                                    }, 1, 0],
-                                },
-                            },
-                            totalSales: { $sum: 1 },
-                        },
-                    }],
-                    byStore: [{
-                        $group: {
-                            _id: '$storeId',
-                            qty: {
-                                $sum: {
-                                    $reduce: {
-                                        input: { $ifNull: ['$items', []] },
-                                        initialValue: 0,
-                                        in: { $add: ['$$value', { $ifNull: ['$$this.quantity', 0] }] },
-                                    },
-                                },
-                            },
-                            taxable: { $sum: { $ifNull: ['$subTotal', 0] } },
-                            cgst: { $sum: { $ifNull: ['$taxBreakup.cgst', 0] } },
-                            sgst: { $sum: { $ifNull: ['$taxBreakup.sgst', 0] } },
-                            igst: { $sum: { $ifNull: ['$taxBreakup.igst', 0] } },
-                            totalTax: { $sum: { $ifNull: ['$totalTax', 0] } },
-                            invoiceValue: { $sum: { $ifNull: ['$grandTotal', 0] } },
-                        },
-                    }],
-                    slabRows: [
-                        { $unwind: '$items' },
-                        {
-                            $group: {
-                                _id: { $ifNull: ['$items.taxPercentage', 0] },
-                                taxable: {
-                                    $sum: {
-                                        $subtract: [
-                                            { $ifNull: ['$items.total', 0] },
-                                            { $ifNull: ['$items.taxAmount', 0] },
-                                        ],
-                                    },
-                                },
-                                tax: { $sum: { $ifNull: ['$items.taxAmount', 0] } },
-                                net: { $sum: { $ifNull: ['$items.total', 0] } },
-                            },
-                        },
-                    ],
-                    b2b: [
-                        {
-                            $match: {
-                                $expr: { $gte: [{ $strLenCP: { $ifNull: ['$customerGst', ''] } }, 15] },
-                            },
-                        },
-                        {
-                            $project: {
-                                invoice: { $ifNull: ['$invoiceNumber', '$saleNumber'] },
-                                date: '$saleDate',
-                                customer: '$customerName',
-                                gstin: '$customerGst',
-                                taxable: { $ifNull: ['$subTotal', 0] },
-                                igst: { $ifNull: ['$taxBreakup.igst', 0] },
-                                cgst: { $ifNull: ['$taxBreakup.cgst', 0] },
-                                sgst: { $ifNull: ['$taxBreakup.sgst', 0] },
-                                totalTax: { $ifNull: ['$totalTax', 0] },
-                                grandTotal: { $ifNull: ['$grandTotal', 0] },
-                            },
-                        },
-                    ],
-                },
-            },
-        ]),
+    const [sales, allStores, allWarehouses] = await Promise.all([
+        Sale.find(match)
+            .select('saleNumber invoiceNumber saleDate customerName customerGst storeId subTotal totalTax tax taxBreakup grandTotal items')
+            .lean(),
         Store.find().select('name').lean(),
         Warehouse.find().select('name').lean(),
     ]);
 
-    const facet = facetRows[0] || {};
-    const totals = facet.totals?.[0] || {};
     const locationMap = {};
     allStores.forEach((s) => { locationMap[String(s._id)] = s.name; });
     allWarehouses.forEach((w) => { locationMap[String(w._id)] = w.name; });
-
-    const _rCGST = round2(totals.totalCGST);
-    const _rSGST = round2(totals.totalSGST);
-    const _rIGST = round2(totals.totalIGST);
 
     const slabSummary = {
         '5%': { slab: '5%', taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0, invoiceValue: 0 },
@@ -197,76 +65,132 @@ const getDetailedGstReportSummaryFast = async (match) => {
         '18%': { slab: '18%', taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0, invoiceValue: 0 },
         '28%': { slab: '28%', taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0, invoiceValue: 0 },
     };
+    const byStore = {};
+    const b2b = [];
 
-    (facet.slabRows || []).forEach((row) => {
-        const rate = Number(row._id) || 0;
-        const slabKey = `${rate}%`;
-        const tax = round2(row.tax);
-        const cgst = round2(tax / 2);
-        const sgst = round2(tax / 2);
-        const entry = {
-            slab: slabKey,
-            taxable: round2(row.taxable),
-            cgst,
-            sgst,
-            igst: 0,
-            totalTax: tax,
-            invoiceValue: round2(row.net),
-        };
-        if (slabSummary[slabKey]) {
-            Object.assign(slabSummary[slabKey], entry);
-        } else {
-            slabSummary[slabKey] = entry;
+    let totalTaxableValue = 0;
+    let totalCGST = 0;
+    let totalSGST = 0;
+    let totalIGST = 0;
+    let grandTotal = 0;
+    let totalB2B = 0;
+
+    sales.forEach((sale) => {
+        const breakup = normalizeSaleGstBreakup(sale);
+        const invoiceTaxable = getSaleInvoiceTaxable(sale);
+        const invoiceGrand = round2(sale.grandTotal);
+        const saleQty = (sale.items || []).reduce((sum, line) => sum + Number(line.quantity || 0), 0);
+        const storeKey = String(sale.storeId || '');
+        const isB2B = !!(sale.customerGst && String(sale.customerGst).length >= 15);
+
+        totalTaxableValue += invoiceTaxable;
+        totalCGST += breakup.cgst;
+        totalSGST += breakup.sgst;
+        totalIGST += breakup.igst;
+        grandTotal += invoiceGrand;
+        if (isB2B) {
+            totalB2B += 1;
+            b2b.push({
+                invoice: sale.invoiceNumber || sale.saleNumber,
+                date: sale.saleDate,
+                customer: sale.customerName,
+                gstin: sale.customerGst,
+                taxable: invoiceTaxable,
+                igst: breakup.igst,
+                cgst: breakup.cgst,
+                sgst: breakup.sgst,
+                totalTax: breakup.invoiceTax,
+                grandTotal: invoiceGrand,
+            });
         }
+
+        if (!byStore[storeKey]) {
+            byStore[storeKey] = {
+                branchName: locationMap[storeKey] || 'N/A',
+                qty: 0,
+                taxable: 0,
+                cgst: 0,
+                sgst: 0,
+                igst: 0,
+                totalTax: 0,
+                invoiceValue: 0,
+            };
+        }
+        byStore[storeKey].qty += saleQty;
+        byStore[storeKey].taxable += invoiceTaxable;
+        byStore[storeKey].cgst += breakup.cgst;
+        byStore[storeKey].sgst += breakup.sgst;
+        byStore[storeKey].igst += breakup.igst;
+        byStore[storeKey].totalTax += breakup.invoiceTax;
+        byStore[storeKey].invoiceValue += invoiceGrand;
+
+        const lineAllocations = allocateInvoiceGstToLineItems(sale);
+        (sale.items || []).forEach((item, idx) => {
+            const alloc = lineAllocations[idx] || { taxable: 0, tax: 0, cgst: 0, sgst: 0, igst: 0, netAmount: 0 };
+            const rate = Number(item.taxPercentage)
+                || (alloc.taxable > 0 ? round2((alloc.tax / alloc.taxable) * 100) : 0);
+            const slabKey = `${rate}%`;
+            if (!slabSummary[slabKey]) {
+                slabSummary[slabKey] = {
+                    slab: slabKey, taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0, invoiceValue: 0,
+                };
+            }
+            slabSummary[slabKey].taxable += alloc.taxable;
+            slabSummary[slabKey].cgst += alloc.cgst;
+            slabSummary[slabKey].sgst += alloc.sgst;
+            slabSummary[slabKey].igst += alloc.igst;
+            slabSummary[slabKey].totalTax += alloc.tax;
+            slabSummary[slabKey].invoiceValue += alloc.netAmount;
+        });
     });
 
-    const monthStoreSummary = (facet.byStore || [])
-        .map((row) => {
-            const rCgst = round2(row.cgst);
-            const rSgst = round2(row.sgst);
-            const rIgst = round2(row.igst);
-            return {
-                branchName: locationMap[String(row._id)] || 'N/A',
-                qty: row.qty || 0,
-                taxable: round2(row.taxable),
-                cgst: rCgst,
-                sgst: rSgst,
-                igst: rIgst,
-                totalTax: round2(rCgst + rSgst + rIgst),
-                invoiceValue: round2(row.invoiceValue),
-            };
-        })
-        .sort((a, b) => a.branchName.localeCompare(b.branchName));
-
-    const totalB2B = totals.totalB2B || 0;
-    const totalSalesCount = totals.totalSales || 0;
+    const _rCGST = round2(totalCGST);
+    const _rSGST = round2(totalSGST);
+    const _rIGST = round2(totalIGST);
 
     return {
         summary: {
-            totalTaxableValue: round2(totals.totalTaxableValue),
+            totalTaxableValue: round2(totalTaxableValue),
             totalCGST: _rCGST,
             totalSGST: _rSGST,
             totalIGST: _rIGST,
             totalGST: round2(_rCGST + _rSGST + _rIGST),
-            grandTotal: round2(totals.grandTotal),
+            grandTotal: round2(grandTotal),
             totalB2B,
-            totalB2C: Math.max(0, totalSalesCount - totalB2B),
+            totalB2C: Math.max(0, sales.length - totalB2B),
         },
-        b2b: (facet.b2b || []).map((inv) => ({
+        b2b: b2b.map((inv) => ({
             ...inv,
             taxable: round2(inv.taxable),
             igst: round2(inv.igst),
             cgst: round2(inv.cgst),
             sgst: round2(inv.sgst),
+            totalTax: round2(inv.totalTax),
             grandTotal: round2(inv.grandTotal),
         })),
         b2c: [],
-        monthStoreSummary,
+        monthStoreSummary: Object.values(byStore)
+            .sort((a, b) => a.branchName.localeCompare(b.branchName))
+            .map((row) => {
+                const rCgst = round2(row.cgst);
+                const rSgst = round2(row.sgst);
+                const rIgst = round2(row.igst);
+                return {
+                    branchName: row.branchName,
+                    qty: row.qty || 0,
+                    taxable: round2(row.taxable),
+                    cgst: rCgst,
+                    sgst: rSgst,
+                    igst: rIgst,
+                    totalTax: round2(rCgst + rSgst + rIgst),
+                    invoiceValue: round2(row.invoiceValue),
+                };
+            }),
         slabSummary: Object.values(slabSummary)
             .filter((s) => s.taxable > 0 || s.invoiceValue > 0 || ['5%', '12%', '18%', '28%'].includes(s.slab))
             .sort((a, b) => parseFloat(a.slab) - parseFloat(b.slab))
             .map((s) => ({
-                ...s,
+                slab: s.slab,
                 taxable: round2(s.taxable),
                 cgst: round2(s.cgst),
                 sgst: round2(s.sgst),
@@ -932,59 +856,30 @@ const getGstSummary = async (startDate, endDate, storeId) => {
         }
     }
 
-    const salesGst = await Sale.aggregate([
-        { $match: saleQuery },
-        {
-            $project: {
-                subTotal: 1,
-                totalTax: 1,
-                isBreakupZero: {
-                    $eq: [
-                        { $add: [
-                            { $ifNull: ["$taxBreakup.cgst", 0] },
-                            { $ifNull: ["$taxBreakup.sgst", 0] },
-                            { $ifNull: ["$taxBreakup.igst", 0] }
-                        ] },
-                        0
-                    ]
-                },
-                cgst: { $ifNull: ["$taxBreakup.cgst", 0] },
-                sgst: { $ifNull: ["$taxBreakup.sgst", 0] },
-                igst: { $ifNull: ["$taxBreakup.igst", 0] }
-            }
+    const salesDocs = await Sale.find(saleQuery)
+        .select('subTotal totalTax tax taxBreakup grandTotal')
+        .lean();
+
+    const salesGstTotals = salesDocs.reduce(
+        (acc, sale) => {
+            const breakup = normalizeSaleGstBreakup(sale);
+            acc.taxableValue += getSaleInvoiceTaxable(sale);
+            acc.cgst += breakup.cgst;
+            acc.sgst += breakup.sgst;
+            acc.igst += breakup.igst;
+            acc.totalTax += breakup.invoiceTax;
+            return acc;
         },
-        {
-            $project: {
-                subTotal: 1,
-                totalTax: 1,
-                cgst: {
-                    $cond: [
-                        { $and: ["$isBreakupZero", { $gt: ["$totalTax", 0] }] },
-                        { $divide: ["$totalTax", 2] },
-                        "$cgst"
-                    ]
-                },
-                sgst: {
-                    $cond: [
-                        { $and: ["$isBreakupZero", { $gt: ["$totalTax", 0] }] },
-                        { $divide: ["$totalTax", 2] },
-                        "$sgst"
-                    ]
-                },
-                igst: "$igst"
-            }
-        },
-        {
-            $group: {
-                _id: null,
-                taxableValue: { $sum: "$subTotal" },
-                cgst: { $sum: "$cgst" },
-                sgst: { $sum: "$sgst" },
-                igst: { $sum: "$igst" },
-                totalTax: { $sum: "$totalTax" }
-            }
-        }
-    ]);
+        { taxableValue: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0 },
+    );
+
+    const salesGst = [{
+        taxableValue: round2(salesGstTotals.taxableValue),
+        cgst: round2(salesGstTotals.cgst),
+        sgst: round2(salesGstTotals.sgst),
+        igst: round2(salesGstTotals.igst),
+        totalTax: round2(salesGstTotals.totalTax),
+    }];
 
     const purchaseGst = await Purchase.aggregate([
         { $match: purchaseQuery },
@@ -1102,7 +997,7 @@ const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) =
 
     const [sales, allStores, allWarehouses] = await Promise.all([
         Sale.find(match)
-            .select('saleNumber invoiceNumber saleDate customerName customerGst storeId subTotal totalTax taxBreakup grandTotal items')
+            .select('saleNumber invoiceNumber saleDate customerName customerGst storeId subTotal totalTax tax taxBreakup grandTotal items')
             .sort({ saleDate: -1 })
             .lean(),
         Store.find().select('name').lean(),
@@ -1118,18 +1013,9 @@ const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) =
             sale.storeId = locationMap[String(sale.storeId)] || { name: 'N/A' };
         }
 
-        // Normalize missing/zero taxBreakup for reports
-        const cgst = sale.taxBreakup?.cgst || 0;
-        const sgst = sale.taxBreakup?.sgst || 0;
-        const igst = sale.taxBreakup?.igst || 0;
-        const totalTax = sale.totalTax || sale.tax || 0;
-        if (totalTax > 0 && cgst === 0 && sgst === 0 && igst === 0) {
-            sale.taxBreakup = {
-                cgst: Number((totalTax / 2).toFixed(2)),
-                sgst: Number((totalTax - (totalTax / 2)).toFixed(2)),
-                igst: 0
-            };
-        }
+        // Normalize missing/stale taxBreakup so CGST/SGST always match invoice tax
+        const breakup = normalizeSaleGstBreakup(sale);
+        sale.taxBreakup = { cgst: breakup.cgst, sgst: breakup.sgst, igst: breakup.igst };
     });
 
     const monthStoreSummary = {};
@@ -1155,32 +1041,30 @@ const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) =
 
     sales.forEach(sale => {
         const isB2B = !!(sale.customerGst && sale.customerGst.length >= 15);
+        const breakup = normalizeSaleGstBreakup(sale);
+        const invoiceTaxable = getSaleInvoiceTaxable(sale);
         const invSummary = {
             invoice: sale.invoiceNumber || sale.saleNumber,
             date: sale.saleDate,
             customer: sale.customerName,
             gstin: sale.customerGst || 'Unregistered',
-            taxable: sale.subTotal,
-            igst: sale.taxBreakup?.igst || 0,
-            cgst: sale.taxBreakup?.cgst || 0,
-            sgst: sale.taxBreakup?.sgst || 0,
-            totalTax: sale.totalTax,
+            taxable: invoiceTaxable,
+            igst: breakup.igst,
+            cgst: breakup.cgst,
+            sgst: breakup.sgst,
+            totalTax: breakup.invoiceTax,
             grandTotal: sale.grandTotal
         };
 
         if (isB2B) b2bInvoices.push(invSummary);
         else b2cInvoices.push(invSummary);
 
-        const isInterstate = sale.taxBreakup && (sale.taxBreakup.igst > 0);
+        const isInterstate = breakup.isInterstate;
 
         const branchName = sale.storeId?.name || 'N/A';
         const groupKey = branchName;
 
-        let saleTaxableSum = 0;
-        let saleTaxSum = 0;
-        let saleCGSTSum = 0;
-        let saleSGSTSum = 0;
-        let saleIGSTSum = 0;
+        const lineAllocations = allocateInvoiceGstToLineItems(sale);
 
         sale.items.forEach((item, idx) => {
             const category = item.category || 'GARMENT';
@@ -1188,65 +1072,18 @@ const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) =
             if (!hsn || hsn.toUpperCase().trim() === 'N/A' || hsn.toUpperCase().trim() === 'UNDEFINED') {
                 hsn = getFallbackHsn(category, item.itemName);
             }
-            const rate = item.taxPercentage || 0;
 
-            // Item taxable value (before invoice adjustments)
-            const itemGross = item.total || 0;
-            const itemTax = item.taxAmount || 0;
-            const itemTaxable = itemGross - itemTax;
+            const alloc = lineAllocations[idx] || {
+                taxable: 0,
+                tax: 0,
+                cgst: 0,
+                sgst: 0,
+                igst: 0,
+                netAmount: 0,
+            };
+            const { taxable, tax, cgst, sgst, igst, netAmount } = alloc;
 
-            // Invoice values
-            const invoiceTotal = sale.grandTotal || 0;
-            const invoiceSubtotal = sale.subTotal || 0;
-            const invoiceTax = Number(sale.totalTax) || Number(sale.tax) || 0;
-            const invoiceSum = invoiceSubtotal + invoiceTax;
-
-            // Proration factor
-            const factor = invoiceSum > 0 ? (invoiceTotal / invoiceSum) : 1;
-
-            let taxable = itemTaxable * factor;
-            let tax = itemTax * factor;
-
-            const isLast = (idx === sale.items.length - 1);
-            if (isLast) {
-                // Adjustment to match invoice totals exactly
-                const targetSaleTaxable = invoiceTotal - invoiceTax;
-                const targetSaleTax = invoiceTax;
-
-                taxable = targetSaleTaxable - saleTaxableSum;
-                tax = targetSaleTax - saleTaxSum;
-            }
-
-            taxable = Number(taxable.toFixed(2));
-            tax = Number(tax.toFixed(2));
-
-            saleTaxableSum += taxable;
-            saleTaxSum += tax;
-
-            let cgst = isInterstate ? 0 : tax / 2;
-            let sgst = isInterstate ? 0 : tax / 2;
-            let igst = isInterstate ? tax : 0;
-
-            if (isLast) {
-                if (isInterstate) {
-                    igst = invoiceTax - saleIGSTSum;
-                } else {
-                    const targetCGST = sale.taxBreakup?.cgst || (invoiceTax / 2);
-                    const targetSGST = sale.taxBreakup?.sgst || (invoiceTax / 2);
-                    cgst = targetCGST - saleCGSTSum;
-                    sgst = targetSGST - saleSGSTSum;
-                }
-            }
-
-            cgst = Number(cgst.toFixed(2));
-            sgst = Number(sgst.toFixed(2));
-            igst = Number(igst.toFixed(2));
-
-            saleCGSTSum += cgst;
-            saleSGSTSum += sgst;
-            saleIGSTSum += igst;
-
-            const netAmount = Number((taxable + tax).toFixed(2));
+            const rate = item.taxPercentage || (taxable > 0 ? round2((tax / taxable) * 100) : 0);
 
             const originalGross = (item.mrp || item.rate || 0) * item.quantity;
             let itemDiscountPct = 0;
@@ -1291,12 +1128,11 @@ const getDetailedGstReport = async (startDate, endDate, storeId, filters = {}) =
             slabSummary[slabKey].invoiceValue += netAmount;
         });
 
-        // Invoice-level totals — must match sales register (subTotal / totalTax / grandTotal)
-        const invoiceTaxable = round2(sale.subTotal);
-        const invoiceTax = round2(sale.totalTax);
-        const invoiceCGST = round2(sale.taxBreakup?.cgst ?? (isInterstate ? 0 : invoiceTax / 2));
-        const invoiceSGST = round2(sale.taxBreakup?.sgst ?? (isInterstate ? 0 : invoiceTax / 2));
-        const invoiceIGST = round2(sale.taxBreakup?.igst ?? (isInterstate ? invoiceTax : 0));
+        // Invoice-level totals — must match sales register (grandTotal − tax / tax / grandTotal)
+        const invoiceTax = breakup.invoiceTax;
+        const invoiceCGST = breakup.cgst;
+        const invoiceSGST = breakup.sgst;
+        const invoiceIGST = breakup.igst;
         const invoiceGrand = round2(sale.grandTotal);
         const saleQty = (sale.items || []).reduce((sum, line) => sum + (line.quantity || 0), 0);
 

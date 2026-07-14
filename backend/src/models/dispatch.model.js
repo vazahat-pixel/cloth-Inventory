@@ -98,9 +98,10 @@ const dispatchSchema = new mongoose.Schema(
             type: Date,
             default: null
         },
+        // Only set on successful receive (UUID). Must stay unset on create —
+        // default:null + unique sparse index causes E11000 "receiptToken already exists".
         receiptToken: {
-            type: String,
-            default: null
+            type: String
         },
         notes: {
             type: String
@@ -138,6 +139,10 @@ dispatchSchema.index({ referenceId: 1 });
 dispatchSchema.index({ referenceType: 1 });
 // Idempotency index — used by the atomic duplicate-receive guard
 dispatchSchema.index({ status: 1, stockReceivedAt: 1 });
-dispatchSchema.index({ receiptToken: 1 }, { sparse: true, unique: true });
+// Unique only when a real token string exists (null/missing docs are ignored)
+dispatchSchema.index(
+    { receiptToken: 1 },
+    { unique: true, partialFilterExpression: { receiptToken: { $type: 'string' } } }
+);
 
 module.exports = mongoose.model('Dispatch', dispatchSchema);

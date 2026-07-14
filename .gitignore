@@ -38,6 +38,19 @@ backend/.env
 backend/temp_err.log
 backend/*.log
 
+# One-off local DB fix / investigation scripts & dumps (do not ship)
+backend/scripts/fix_dispatch_receipt_token_index.js
+backend/tmp/
+backend/reports/
+backend/backup_*.json
+backend/backup_*.txt
+backend/*_fix_log.json
+backend/fix_changelog_*.json
+backend/old_variant_id_map*.json
+backend/gtb_*.txt
+backend/sonipat_sales_may.txt
+backend/backup_csv_sales.txt
+
 # Postman
 *.postman_collection.json
 *.postman_environment.json

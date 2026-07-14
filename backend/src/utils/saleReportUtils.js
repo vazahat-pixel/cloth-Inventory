@@ -120,7 +120,8 @@ const buildExchangeBillSummary = (sale = {}) => ({
 
 const isRevenueExcludedSale = (sale = {}) =>
   Boolean(sale.excludeFromRevenue) ||
-  REVENUE_EXCLUDED_SALE_NUMBERS.has(String(sale.saleNumber || '').toUpperCase());
+  REVENUE_EXCLUDED_SALE_NUMBERS.has(String(sale.saleNumber || '').toUpperCase()) ||
+  REVENUE_EXCLUDED_SALE_NUMBERS.has(String(sale.invoiceNumber || '').toUpperCase());
 
 /**
  * Bills counted in the register ₹ total.
@@ -144,9 +145,9 @@ const computeRegisterSaleAmount = (saleDateSales = [], storeId = null) => {
   const eligible = saleDateSales.filter((s) => isRegisterAmountSale(s, sid));
   const precise = eligible.reduce((n, s) => n + Number(s.grandTotal || 0), 0);
   const perBillRounded = eligible.reduce((n, s) => n + Math.round(Number(s.grandTotal || 0)), 0);
-  // Sahibabad manual register (Jun 2026): integer ₹ after ex phantom only
+  // Sahibabad: same total basis as GST (no manual offset; 2-decimal total).
   if (sid === SAHIBABAD_STORE_ID) {
-    return Math.round(precise - 50.7);
+    return Math.round(precise * 100) / 100;
   }
   return perBillRounded;
 };
@@ -156,6 +157,154 @@ const computeRegisterSaleAmount = (saleDateSales = [], storeId = null) => {
  * June bills included); other stores count "bills entered in period" (createdAt). Amount is
  * always by sale date minus phantom bills only — EXCHANGE amounts are included.
  */
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
+const lineGrossAmount = (item = {}) =>
+  Number(item.total ?? item.amount ?? 0) ||
+  Number(item.rate || 0) * Number(item.quantity || 0);
+
+/** Invoice tax — legacy rows may have totalTax=0 while tax holds the real value. */
+const getSaleInvoiceTax = (sale = {}) => {
+  const totalTax = Number(sale.totalTax);
+  const tax = Number(sale.tax);
+  if (Number.isFinite(totalTax) && totalTax > 0) return totalTax;
+  if (Number.isFinite(tax) && tax > 0) return tax;
+  if (Number.isFinite(totalTax)) return totalTax;
+  if (Number.isFinite(tax)) return tax;
+  return 0;
+};
+
+/** Taxable value aligned with sales register (grandTotal − tax, unless subTotal matches). */
+const getSaleInvoiceTaxable = (sale = {}) => {
+  const invoiceGrand = Number(sale.grandTotal || 0);
+  const invoiceTax = getSaleInvoiceTax(sale);
+  const fromGrand = round2(invoiceGrand - invoiceTax);
+  const subTotal = Number(sale.subTotal);
+  if (Number.isFinite(subTotal) && subTotal > 0 && Math.abs(subTotal - fromGrand) <= 0.05) {
+    return round2(subTotal);
+  }
+  return fromGrand;
+};
+
+/**
+ * Normalize CGST/SGST/IGST so breakup always matches invoice tax.
+ * Legacy rows sometimes store a tiny/stale taxBreakup while tax/totalTax is correct —
+ * that made GSTR-1 show ~1% effective GST instead of the real ~5%.
+ */
+const normalizeSaleGstBreakup = (sale = {}) => {
+  const invoiceTax = round2(getSaleInvoiceTax(sale));
+  const cgst = Number(sale.taxBreakup?.cgst || 0);
+  const sgst = Number(sale.taxBreakup?.sgst || 0);
+  const igst = Number(sale.taxBreakup?.igst || 0);
+  const breakupSum = round2(cgst + sgst + igst);
+  const isInterstate = igst > 0 && cgst <= 0 && sgst <= 0;
+
+  if (invoiceTax > 0 && (breakupSum <= 0 || Math.abs(breakupSum - invoiceTax) > 0.05)) {
+    // Prefer IGST only when the stored breakup clearly indicates interstate.
+    if (isInterstate || (igst > 0 && igst > cgst + sgst)) {
+      return { cgst: 0, sgst: 0, igst: invoiceTax, invoiceTax, isInterstate: true };
+    }
+    const half = round2(invoiceTax / 2);
+    return {
+      cgst: half,
+      sgst: round2(invoiceTax - half),
+      igst: 0,
+      invoiceTax,
+      isInterstate: false,
+    };
+  }
+
+  return {
+    cgst: round2(cgst),
+    sgst: round2(sgst),
+    igst: round2(igst),
+    invoiceTax,
+    isInterstate,
+  };
+};
+
+/**
+ * Allocate invoice GST to line items from invoice totals (same basis as sales register).
+ * Legacy sales often lack per-line taxAmount; prorating from the invoice avoids 0-tax
+ * lines and negative last-line adjustments in item-wise GST reports.
+ */
+const allocateInvoiceGstToLineItems = (sale = {}) => {
+  const items = sale.items || [];
+  if (!items.length) return [];
+
+  const invoiceGrand = Number(sale.grandTotal || 0);
+  const breakup = normalizeSaleGstBreakup(sale);
+  const invoiceTax = breakup.invoiceTax;
+  const invoiceTaxable = getSaleInvoiceTaxable(sale);
+  const isInterstate = breakup.isInterstate;
+  const invoiceCGST = breakup.cgst;
+  const invoiceSGST = breakup.sgst;
+  const invoiceIGST = breakup.igst;
+
+  const grosses = items.map((item) => lineGrossAmount(item));
+  const lineSum = grosses.reduce((sum, value) => sum + value, 0);
+
+  let taxableSum = 0;
+  let taxSum = 0;
+  let cgstSum = 0;
+  let sgstSum = 0;
+  let igstSum = 0;
+
+  return items.map((item, idx) => {
+    const gross = grosses[idx];
+    const share = lineSum > 0 ? gross / lineSum : 1 / items.length;
+    const isLast = idx === items.length - 1;
+
+    let taxable;
+    let tax;
+    let cgst;
+    let sgst;
+    let igst;
+
+    if (isLast) {
+      taxable = round2(invoiceTaxable - taxableSum);
+      tax = round2(invoiceTax - taxSum);
+      if (isInterstate) {
+        igst = round2(invoiceIGST - igstSum);
+        cgst = 0;
+        sgst = 0;
+      } else {
+        cgst = round2(invoiceCGST - cgstSum);
+        sgst = round2(invoiceSGST - sgstSum);
+        igst = 0;
+      }
+    } else {
+      taxable = round2(invoiceTaxable * share);
+      tax = round2(invoiceTax * share);
+      if (isInterstate) {
+        igst = round2(invoiceIGST * share);
+        cgst = 0;
+        sgst = 0;
+      } else {
+        cgst = round2(invoiceCGST * share);
+        sgst = round2(invoiceSGST * share);
+        igst = 0;
+      }
+    }
+
+    taxableSum += taxable;
+    taxSum += tax;
+    cgstSum += cgst;
+    sgstSum += sgst;
+    igstSum += igst;
+
+    return {
+      taxable,
+      tax,
+      cgst,
+      sgst,
+      igst,
+      netAmount: round2(taxable + tax),
+      lineGross: gross,
+    };
+  });
+};
+
 const aggregateRegisterTotals = (saleDateSales = [], entryDateSales = [], storeId = null) => {
   const saleQty = aggregateSalesQty(saleDateSales);
   const entryQty = aggregateSalesQty(entryDateSales);
@@ -199,4 +348,9 @@ module.exports = {
   aggregateSalesAmount,
   computeRegisterSaleAmount,
   aggregateRegisterTotals,
+  lineGrossAmount,
+  getSaleInvoiceTax,
+  getSaleInvoiceTaxable,
+  normalizeSaleGstBreakup,
+  allocateInvoiceGstToLineItems,
 };
