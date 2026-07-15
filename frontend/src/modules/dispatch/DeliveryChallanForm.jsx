@@ -7,6 +7,7 @@ import { useAppNavigate } from '../../hooks/useAppNavigate';
 import { extractApiErrorMessage } from '../../utils/apiError';
 import { createOperationIdempotencyKey, idempotencyHeaders } from '../../utils/idempotencyKey';
 import {
+    Alert,
     Autocomplete,
     Box,
     Button,
@@ -537,7 +538,9 @@ function DeliveryChallanForm({
             showNotification(id ? "Challan updated successfully!" : "Challan saved successfully!", "success");
             navigate(listPath);
         } catch (err) {
-            setError(extractApiErrorMessage(err, "Failed to save challan. Please try again."));
+            const errMsg = extractApiErrorMessage(err, "Failed to save challan. Please try again.");
+            setError(errMsg);
+            showNotification(errMsg, 'error');
         } finally {
             hideLoading();
             submitLockRef.current = false;
@@ -590,7 +593,9 @@ function DeliveryChallanForm({
             showNotification('Billing reviewed and dispatch completed.', 'success');
             navigate(listPath);
         } catch (err) {
-            setError(extractApiErrorMessage(err, 'Failed to complete billing dispatch. Please try again.'));
+            const errMsg = extractApiErrorMessage(err, 'Failed to complete billing dispatch. Please try again.');
+            setError(errMsg);
+            showNotification(errMsg, 'error');
         } finally {
             hideLoading();
             submitLockRef.current = false;
@@ -611,6 +616,12 @@ function DeliveryChallanForm({
                     </Box>
                 )}
             </Stack>
+
+            {error && (
+                <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }} onClose={() => setError('')}>
+                    {error}
+                </Alert>
+            )}
 
             {isPacked && !isReceiveMode && (
                 <Box sx={{ mb: 3, px: 1.5, py: 0.75, borderRadius: 1.5, display: 'inline-flex', fontSize: '0.75rem', fontWeight: 800, bgcolor: '#f3e8ff', color: '#6b21a8', border: '1px solid #d8b4fe' }}>

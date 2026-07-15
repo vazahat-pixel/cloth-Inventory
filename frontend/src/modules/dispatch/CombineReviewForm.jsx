@@ -234,7 +234,9 @@ function CombineReviewForm({ listPath = '/orders/delivery-challan' }) {
             showNotification('Challans combined and Billing finalized successfully!', 'success');
             setShowPrint(true);
         } catch (err) {
-            setError(extractApiErrorMessage(err, 'Failed to combine and finalize dispatches.'));
+            const errMsg = extractApiErrorMessage(err, 'Failed to combine and finalize dispatches.');
+            setError(errMsg);
+            showNotification(errMsg, 'error');
         } finally {
             hideLoading();
             setIsSubmitting(false);
