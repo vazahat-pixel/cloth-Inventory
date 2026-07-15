@@ -227,7 +227,14 @@ const createDispatch = async (dispatchData, userId) => {
             if (!variantId) throw new Error("Item variant ID missing in request");
 
             const itemDoc = itemByVariant.get(String(variantId));
-            if (!itemDoc) throw new Error(`Item master record not found for variant ID: ${variantId}`);
+            if (!itemDoc) {
+                const hint = p.barcode || p.sku || p.itemName || p.name || '';
+                throw new Error(
+                    `Item master record not found for variant ID: ${variantId}` +
+                    (hint ? ` (barcode/name: "${hint}")` : '') +
+                    `. This item may have been deleted from the master. Please remove it from the challan and try again.`
+                );
+            }
 
             const variant = itemDoc.sizes.id(variantId);
             if (!variant) throw new Error(`Variant not found in Item Master: ${variantId}`);
