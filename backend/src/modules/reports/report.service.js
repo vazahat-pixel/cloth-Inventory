@@ -21,6 +21,8 @@ const {
     getSaleInvoiceTaxable,
     normalizeSaleGstBreakup,
     REVENUE_EXCLUDED_SALE_NUMBERS,
+    MUKTSAR_STORE_ID,
+    inferExchangeReturnQty,
 } = require('../../utils/saleReportUtils');
 
 /** Same base filter as the sales register (non-deleted, non-voided invoices). */
@@ -1984,6 +1986,20 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
     }
     const entrySales = await Sale.find(entrySalesQuery).lean();
 
+    // Select the active sales based on the store's register convention:
+    // Muktsar counts by saleDate (sales), other stores count by entry date (entrySales).
+    const activeSales = (() => {
+        const muktsarSales = sales.filter(s => {
+            const sid = s.storeId?._id?.toString() || s.storeId?.toString();
+            return sid === MUKTSAR_STORE_ID;
+        });
+        const otherSales = entrySales.filter(s => {
+            const sid = s.storeId?._id?.toString() || s.storeId?.toString();
+            return sid !== MUKTSAR_STORE_ID;
+        });
+        return [...muktsarSales, ...otherSales];
+    })();
+
     // ── Period-aware closing stock ──────────────────────────────────────────
     // Live StoreInventory always reflects CURRENT stock. For a historical period
     // (e.g. a June report opened in July) roll back stock flows that happened
@@ -2071,6 +2087,81 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
     }
     const purchaseReturns = await PurchaseReturn.find(prQuery).lean();
 
+    // Ensure every variant with transactions has a row in storeInventory
+    const storeMap = new Map();
+    storeInventory.forEach(inv => {
+        const sid = inv.storeId?._id?.toString() || inv.storeId?.toString();
+        if (inv.storeId && !storeMap.has(sid)) {
+            storeMap.set(sid, inv.storeId);
+        }
+    });
+
+    const existingKeys = new Set(storeInventory.map(inv => {
+        const sid = inv.storeId?._id?.toString() || inv.storeId?.toString();
+        const vid = inv.variantId?.toString();
+        const barcode = inv.barcode || '';
+        return `${sid}_${vid}_${barcode}`;
+    }));
+
+    const virtualInvs = [];
+
+    const addVirtualIfNeeded = (storeId, itemId, variantId, barcode, itemDetail = {}) => {
+        const sid = storeId?._id?.toString() || storeId?.toString();
+        const vid = variantId?.toString();
+        const key = `${sid}_${vid}_${barcode}`;
+        if (existingKeys.has(key)) return;
+        existingKeys.add(key);
+
+        const storeObj = storeMap.get(sid) || { _id: sid, name: 'NIL' };
+        
+        const virtualInv = {
+            _id: new mongoose.Types.ObjectId(),
+            storeId: storeObj,
+            itemId: {
+                _id: itemId?._id || itemId,
+                itemName: itemDetail.itemName || itemDetail.name || 'NIL',
+                itemCode: itemDetail.itemCode || (itemDetail.sku ? itemDetail.sku.split('-')[0] : 'NIL'),
+                sizes: [{
+                    _id: variantId,
+                    barcode: barcode,
+                    sku: itemDetail.sku || barcode,
+                    size: itemDetail.size || 'NIL',
+                    color: itemDetail.color || 'NIL'
+                }],
+                categoryName: itemDetail.category || 'NIL',
+                brand: itemDetail.brand ? { _id: itemDetail.brand } : null
+            },
+            variantId: vid,
+            barcode: barcode,
+            quantity: 0,
+            quantityAvailable: 0,
+            isVirtual: true
+        };
+        virtualInvs.push(virtualInv);
+    };
+
+    activeSales.forEach(s => {
+        (s.items || []).forEach(item => {
+            addVirtualIfNeeded(s.storeId, item.itemId, item.variantId, item.barcode, item);
+        });
+    });
+
+    customerReturns.forEach(ret => {
+        (ret.items || []).forEach(item => {
+            addVirtualIfNeeded(ret.locationId, item.productId || item.itemId, item.variantId, item.barcode || '', item);
+        });
+    });
+
+    purchaseReturns.forEach(pr => {
+        (pr.items || []).forEach(item => {
+            addVirtualIfNeeded(pr.locationId, item.productId || item.itemId, item.variantId, item.barcode || '', item);
+        });
+    });
+
+    if (virtualInvs.length > 0) {
+        storeInventory.push(...virtualInvs);
+    }
+
     // Initialize temporary mapping fields for storeInventory records
     const inventoryMap = {};
     storeInventory.forEach(inv => {
@@ -2083,7 +2174,7 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
 
     // Group sales items by storeId_itemId_variantId to allow fallback matching
     const salesGroup = {};
-    sales.forEach(s => {
+    activeSales.forEach(s => {
         s.items.forEach(item => {
             const grpKey = `${s.storeId}_${item.itemId}_${item.variantId}`;
             if (!salesGroup[grpKey]) {
@@ -2148,7 +2239,7 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
     });
 
     // Sales Pass 3: Subtract exchange / on-bill returns from attributed net sale
-    sales.forEach((s) => {
+    activeSales.forEach((s) => {
         const returnLines = (s.returnedItems?.length ? s.returnedItems : s.exchangeDetails?.items) || [];
         const storeIdStr = s.storeId?._id?.toString() || s.storeId?.toString();
         returnLines.forEach((rItem) => {
@@ -2166,10 +2257,33 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
                         String(row.variantId) === String(rItem.variantId),
                 );
             if (inv) {
-                inv.netSaleAttr = Math.max(0, inv.netSaleAttr - qty);
+                inv.netSaleAttr = inv.netSaleAttr - qty; // ALLOW NEGATIVE NET SALES
                 inv.exchangeAttr = (inv.exchangeAttr || 0) + qty;
             }
         });
+
+        // Handle inferred exchange returns (due to empty returnLines but positive inferred return quantity)
+        const inferredQty = inferExchangeReturnQty(s);
+        if (inferredQty > 0 && returnLines.length === 0) {
+            const firstItem = s.items?.[0];
+            if (firstItem) {
+                const inv =
+                    storeInventory.find(
+                        (row) =>
+                            (row.storeId?._id?.toString() || row.storeId?.toString()) === storeIdStr &&
+                            row.barcode === firstItem.barcode,
+                    ) ||
+                    storeInventory.find(
+                        (row) =>
+                            (row.storeId?._id?.toString() || row.storeId?.toString()) === storeIdStr &&
+                            String(row.variantId) === String(firstItem.variantId),
+                    );
+                if (inv) {
+                    inv.netSaleAttr = inv.netSaleAttr - inferredQty; // ALLOW NEGATIVE NET SALES
+                    inv.exchangeAttr = (inv.exchangeAttr || 0) + inferredQty;
+                }
+            }
+        }
     });
 
     // Group customer returns items by locationId_variantId
@@ -2315,10 +2429,10 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
         0,
     );
     const closingStockTotal = storeInventory.reduce(
-        (total, inv) => total + adjustedClosing(inv),
+        (total, inv) => total + (inv.isVirtual ? 0 : adjustedClosing(inv)),
         0,
     );
-    const exchanges = sales
+    const exchanges = activeSales
         .filter((s) => sumExchangeReturnQty(s) > 0)
         .map(buildExchangeBillSummary);
 
