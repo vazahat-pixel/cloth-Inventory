@@ -1106,8 +1106,12 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
 const getAllSales = async (query, user) => {
     const { getPagination, getSort } = require('../../utils/pagination.helper');
     const { page, limit, skip } = getPagination(query);
-    const { storeId, startDate, endDate, search, paymentStatus, date } = query;
+    const { storeId, startDate, endDate, search, paymentStatus, date, dateBasis } = query;
     const filter = { isDeleted: false };
+
+    // When dateBasis is 'createdAt', filter by system entry date instead of saleDate.
+    // This aligns the sales list with the register summary (which counts by entry date).
+    const dateField = dateBasis === 'createdAt' ? 'createdAt' : 'saleDate';
 
     if (user.role === 'store_staff') {
         if (!user.shopId) {
@@ -1119,12 +1123,12 @@ const getAllSales = async (query, user) => {
     }
 
     if (startDate || endDate) {
-        filter.saleDate = {};
-        if (startDate) filter.saleDate.$gte = new Date(startDate);
+        filter[dateField] = {};
+        if (startDate) filter[dateField].$gte = new Date(startDate);
         if (endDate) {
             const end = new Date(endDate);
             end.setHours(23, 59, 59, 999);
-            filter.saleDate.$lte = end;
+            filter[dateField].$lte = end;
         }
     }
 
@@ -1133,7 +1137,7 @@ const getAllSales = async (query, user) => {
         dayStart.setHours(0, 0, 0, 0);
         const dayEnd = new Date(date);
         dayEnd.setHours(23, 59, 59, 999);
-        filter.saleDate = { $gte: dayStart, $lte: dayEnd };
+        filter[dateField] = { $gte: dayStart, $lte: dayEnd };
     }
 
     if (search) {

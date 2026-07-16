@@ -76,6 +76,7 @@ function SalesReportPage() {
       storeId: storeFilterId,
       search: debouncedSearch || undefined,
       paymentStatus: filters.paymentStatus,
+      dateBasis: 'createdAt',
     }));
   }, [dispatch, storeFilterId, filters.dateFrom, filters.dateTo, filters.paymentStatus, debouncedSearch]);
 
