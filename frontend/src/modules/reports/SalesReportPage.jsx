@@ -6,6 +6,7 @@ import {
   Button,
   ButtonGroup,
   InputAdornment,
+  MenuItem,
   Paper,
   Stack,
   Table,
@@ -63,6 +64,7 @@ function SalesReportPage() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [registerSummary, setRegisterSummary] = useState(null);
+  const [dateBasis, setDateBasis] = useState('saleDate');
 
   const storeFilterId = isStoreStaff
     ? user?.shopId
@@ -76,9 +78,9 @@ function SalesReportPage() {
       storeId: storeFilterId,
       search: debouncedSearch || undefined,
       paymentStatus: filters.paymentStatus,
-      dateBasis: 'createdAt',
+      dateBasis: dateBasis,
     }));
-  }, [dispatch, storeFilterId, filters.dateFrom, filters.dateTo, filters.paymentStatus, debouncedSearch]);
+  }, [dispatch, storeFilterId, filters.dateFrom, filters.dateTo, filters.paymentStatus, debouncedSearch, dateBasis]);
 
   useEffect(() => {
     if (!filters.dateFrom && !filters.dateTo) {
@@ -107,7 +109,7 @@ function SalesReportPage() {
 
   useEffect(() => {
     setPage(0);
-  }, [filters.dateFrom, filters.dateTo, filters.warehouseId, filters.warehouseIds, filters.paymentStatus, filters.customerId, filters.salesmanId, filters.categoryId, debouncedSearch]);
+  }, [filters.dateFrom, filters.dateTo, filters.warehouseId, filters.warehouseIds, filters.paymentStatus, filters.customerId, filters.salesmanId, filters.categoryId, debouncedSearch, dateBasis]);
 
   useEffect(() => {
     dispatch(fetchMasters('stores'));
@@ -524,6 +526,20 @@ function SalesReportPage() {
               ),
             }}
           />
+          <TextField
+            select
+            size="small"
+            label="Date Filter Basis"
+            value={dateBasis}
+            onChange={(e) => {
+              setPage(0);
+              setDateBasis(e.target.value);
+            }}
+            sx={{ minWidth: 160 }}
+          >
+            <MenuItem value="saleDate">Invoice/Sale Date</MenuItem>
+            <MenuItem value="createdAt">System Entry Date</MenuItem>
+          </TextField>
           <ButtonGroup size="small" sx={{ ml: 1 }} variant="outlined">
             <Button variant={viewMode === 'summary' ? 'contained' : 'outlined'} onClick={() => { setViewMode('summary'); setPage(0); }}>
               Summary
