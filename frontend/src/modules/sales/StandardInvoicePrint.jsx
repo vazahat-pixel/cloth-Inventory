@@ -721,6 +721,7 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
                         <TableHead sx={{ bgcolor: '#00FFFF', '& .MuiTableCell-root': { fontSize: '8px', fontWeight: 900, border: '1px solid #000', py: 0.2, textAlign: 'center', color: '#000' } }}>
                             <TableRow>
                                 <TableCell rowSpan={2}>HSN/SAC</TableCell>
+                                <TableCell rowSpan={2}>Qty</TableCell>
                                 <TableCell rowSpan={2}>Taxable Value (₹)</TableCell>
                                 <TableCell colSpan={2}>Central Tax</TableCell>
                                 <TableCell colSpan={2}>State Tax</TableCell>
@@ -747,6 +748,7 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
                                 return (
                                     <TableRow key={i}>
                                         <TableCell>{h.hsn}</TableCell>
+                                        <TableCell>{h.qty || 0}</TableCell>
                                         <TableCell>{taxableVal.toFixed(2)}</TableCell>
                                         <TableCell>{isInterState ? '0.00' : halfRate.toFixed(2)}</TableCell>
                                         <TableCell>{isInterState ? '0.00' : halfTax.toFixed(2)}</TableCell>
@@ -761,6 +763,9 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
                             {/* Totals Row */}
                             <TableRow sx={{ bgcolor: '#f3f4f6', '& .MuiTableCell-root': { fontWeight: 900 } }}>
                                 <TableCell>Total</TableCell>
+                                <TableCell>
+                                    {Object.values(hsnSummaryMap).reduce((sum, h) => sum + Number(h.qty || 0), 0)}
+                                </TableCell>
                                 <TableCell>
                                     {Object.values(hsnSummaryMap).reduce((sum, h) => sum + Number(h.taxable || 0), 0).toFixed(2)}
                                 </TableCell>

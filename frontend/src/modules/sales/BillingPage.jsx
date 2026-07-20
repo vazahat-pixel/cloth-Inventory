@@ -1901,6 +1901,7 @@ function BillingPage({
                     <TableHead sx={{ bgcolor: '#f8fafc' }}>
                       <TableRow>
                         <TableCell sx={{ fontSize: '0.65rem', fontWeight: 800, p: 0.5 }}>HSN</TableCell>
+                        <TableCell align="right" sx={{ fontSize: '0.65rem', fontWeight: 800, p: 0.5 }}>Qty</TableCell>
                         <TableCell align="right" sx={{ fontSize: '0.65rem', fontWeight: 800, p: 0.5 }}>Taxable</TableCell>
                         <TableCell align="right" sx={{ fontSize: '0.65rem', fontWeight: 800, p: 0.5 }}>GST%</TableCell>
                         <TableCell align="right" sx={{ fontSize: '0.65rem', fontWeight: 800, p: 0.5 }}>Tax</TableCell>
@@ -1910,6 +1911,7 @@ function BillingPage({
                       {totals.hsnSummary?.map((h, i) => (
                         <TableRow key={i}>
                           <TableCell sx={{ fontSize: '0.65rem', p: 0.5 }}>{h.hsnCode}</TableCell>
+                          <TableCell align="right" sx={{ fontSize: '0.65rem', p: 0.5 }}>{h.totalQty || 0}</TableCell>
                           <TableCell align="right" sx={{ fontSize: '0.65rem', p: 0.5 }}>₹{h.taxableAmount.toFixed(2)}</TableCell>
                           <TableCell align="right" sx={{ fontSize: '0.65rem', p: 0.5 }}>{h.gstPercent}%</TableCell>
                           <TableCell align="right" sx={{ fontSize: '0.65rem', p: 0.5 }}>₹{(h.cgst + h.sgst + h.igst).toFixed(2)}</TableCell>

@@ -40,6 +40,14 @@ const GST_SALE_MATCH = {
 
 const round2 = (n) => Number((Number(n) || 0).toFixed(2));
 
+const buildReportPeriodEnd = (endDate) => {
+    if (!endDate) return null;
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+    return end;
+};
+
+
 /**
  * Fast summary-only GST report (no item-wise rows).
  * Uses the same invoice taxable/tax math as the sales register so Muktsar/Pitampura
@@ -267,8 +275,9 @@ const getStoreWiseSales = async (startDate, endDate) => {
     if (startDate || endDate) {
         query.saleDate = {};
         if (startDate) query.saleDate.$gte = new Date(startDate);
-        if (endDate) query.saleDate.$lte = new Date(endDate);
+        if (endDate) query.saleDate.$lte = buildReportPeriodEnd(endDate);
     }
+
 
     return await Sale.aggregate([
         { $match: query },
@@ -307,7 +316,7 @@ const getProductWiseSales = async (startDate, endDate, storeId) => {
     if (startDate || endDate) {
         query.saleDate = {};
         if (startDate) query.saleDate.$gte = new Date(startDate);
-        if (endDate) query.saleDate.$lte = new Date(endDate);
+        if (endDate) query.saleDate.$lte = buildReportPeriodEnd(endDate);
     }
     if (storeId) query.storeId = new (require('mongoose').Types.ObjectId)(storeId);
 
@@ -557,7 +566,7 @@ const getTrialBalance = async (startDate, endDate) => {
     if (startDate || endDate) {
         match.date = {};
         if (startDate) match.date.$gte = new Date(startDate);
-        if (endDate) match.date.$lte = new Date(endDate);
+        if (endDate) match.date.$lte = buildReportPeriodEnd(endDate);
     }
 
     const trialBalance = await Ledger.aggregate([
@@ -618,7 +627,7 @@ const getProfitAndLoss = async (startDate, endDate) => {
     if (startDate || endDate) {
         match.date = {};
         if (startDate) match.date.$gte = new Date(startDate);
-        if (endDate) match.date.$lte = new Date(endDate);
+        if (endDate) match.date.$lte = buildReportPeriodEnd(endDate);
     }
 
     const accounts = await Account.find({ type: { $in: ['INCOME', 'EXPENSE'] } });
@@ -1269,7 +1278,7 @@ const getSalesReport = async (startDate, endDate, storeId, filters = {}) => {
     if (startDate || endDate) {
         match.saleDate = {};
         if (startDate) match.saleDate.$gte = new Date(startDate);
-        if (endDate) match.saleDate.$lte = new Date(endDate);
+        if (endDate) match.saleDate.$lte = buildReportPeriodEnd(endDate);
     }
     if (storeId && storeId !== 'all') match.storeId = new (require('mongoose').Types.ObjectId)(storeId);
     if (filters.warehouseId && filters.warehouseId !== 'all') match.storeId = new (require('mongoose').Types.ObjectId)(filters.warehouseId);
@@ -1585,7 +1594,7 @@ const getProfitReport = async (startDate, endDate) => {
     if (startDate || endDate) {
         match.saleDate = {};
         if (startDate) match.saleDate.$gte = new Date(startDate);
-        if (endDate) match.saleDate.$lte = new Date(endDate);
+        if (endDate) match.saleDate.$lte = buildReportPeriodEnd(endDate);
     }
 
     return await Sale.aggregate([
@@ -1645,7 +1654,7 @@ const getSaleChallanReport = async (startDate, endDate, storeId) => {
     if (startDate || endDate) {
         match.dcDate = {};
         if (startDate) match.dcDate.$gte = new Date(startDate);
-        if (endDate) match.dcDate.$lte = new Date(endDate);
+        if (endDate) match.dcDate.$lte = buildReportPeriodEnd(endDate);
     }
     if (storeId) match.storeId = new (require('mongoose').Types.ObjectId)(storeId);
 
@@ -1681,7 +1690,7 @@ const getOrderReport = async (startDate, endDate) => {
     if (startDate || endDate) {
         match.createdAt = {};
         if (startDate) match.createdAt.$gte = new Date(startDate);
-        if (endDate) match.createdAt.$lte = new Date(endDate);
+        if (endDate) match.createdAt.$lte = buildReportPeriodEnd(endDate);
     }
 
     const saleOrders = await SaleOrder.aggregate([
@@ -1705,7 +1714,7 @@ const getAgentWiseReport = async (startDate, endDate) => {
     if (startDate || endDate) {
         match.saleDate = {};
         if (startDate) match.saleDate.$gte = new Date(startDate);
-        if (endDate) match.saleDate.$lte = new Date(endDate);
+        if (endDate) match.saleDate.$lte = buildReportPeriodEnd(endDate);
     }
 
     return await Sale.aggregate([
@@ -1765,7 +1774,7 @@ const getBranchSalesStockStoreTotals = async (startDate, endDate, storeId) => {
     if (startDate || endDate) {
         salesQuery.saleDate = {};
         if (startDate) salesQuery.saleDate.$gte = new Date(startDate);
-        if (endDate) salesQuery.saleDate.$lte = new Date(endDate);
+        if (endDate) salesQuery.saleDate.$lte = buildReportPeriodEnd(endDate);
     }
 
     const retQuery = { status: 'APPROVED' };
@@ -1773,7 +1782,7 @@ const getBranchSalesStockStoreTotals = async (startDate, endDate, storeId) => {
     if (startDate || endDate) {
         retQuery.createdAt = {};
         if (startDate) retQuery.createdAt.$gte = new Date(startDate);
-        if (endDate) retQuery.createdAt.$lte = new Date(endDate);
+        if (endDate) retQuery.createdAt.$lte = buildReportPeriodEnd(endDate);
     }
 
     const PurchaseReturn = require('../../models/purchaseReturn.model');
@@ -1782,7 +1791,7 @@ const getBranchSalesStockStoreTotals = async (startDate, endDate, storeId) => {
     if (startDate || endDate) {
         prQuery.createdAt = {};
         if (startDate) prQuery.createdAt.$gte = new Date(startDate);
-        if (endDate) prQuery.createdAt.$lte = new Date(endDate);
+        if (endDate) prQuery.createdAt.$lte = buildReportPeriodEnd(endDate);
     }
 
     const [closingAgg, salesBreakdownAgg, returnQtyAgg] = await Promise.all([
@@ -1860,12 +1869,7 @@ const parseReportStoreIds = (storeId) => {
     }
 };
 
-const buildReportPeriodEnd = (endDate) => {
-    if (!endDate) return null;
-    const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999);
-    return end;
-};
+
 
 /**
  * Register summary — qty by entry date (createdAt), amount by sale date (ex phantom + exchange).
@@ -1970,7 +1974,7 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
     if (startDate || endDate) {
         salesQuery.saleDate = {};
         if (startDate) salesQuery.saleDate.$gte = new Date(startDate);
-        if (endDate) salesQuery.saleDate.$lte = new Date(endDate);
+        if (endDate) salesQuery.saleDate.$lte = buildReportPeriodEnd(endDate);
     }
     const sales = await Sale.find(salesQuery).lean();
 
@@ -1982,7 +1986,7 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
     if (startDate || endDate) {
         entrySalesQuery.createdAt = {};
         if (startDate) entrySalesQuery.createdAt.$gte = new Date(startDate);
-        if (endDate) entrySalesQuery.createdAt.$lte = new Date(endDate);
+        if (endDate) entrySalesQuery.createdAt.$lte = buildReportPeriodEnd(endDate);
     }
     const entrySales = await Sale.find(entrySalesQuery).lean();
 
@@ -2007,7 +2011,7 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
     //   closing@endDate = liveStock + (net retail sales after endDate) - (inward received after endDate)
     const postPeriodStockAdj = {}; // `${storeId}_${variantId}` -> qty to add back to live closing
     if (endDate) {
-        const periodEnd = new Date(endDate);
+        const periodEnd = buildReportPeriodEnd(endDate);
 
         // (a) Retail sales after period end — those items left stock later, so add them back.
         // Uses gross sold qty (matches the register convention: closing = opening - gross sales).
@@ -2070,7 +2074,7 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
     if (startDate || endDate) {
         retQuery.createdAt = {};
         if (startDate) retQuery.createdAt.$gte = new Date(startDate);
-        if (endDate) retQuery.createdAt.$lte = new Date(endDate);
+        if (endDate) retQuery.createdAt.$lte = buildReportPeriodEnd(endDate);
     }
     const customerReturns = await Return.find(retQuery).lean();
 
@@ -2083,7 +2087,7 @@ const getBranchSalesStockReport = async (startDate, endDate, storeId) => {
     if (startDate || endDate) {
         prQuery.createdAt = {};
         if (startDate) prQuery.createdAt.$gte = new Date(startDate);
-        if (endDate) prQuery.createdAt.$lte = new Date(endDate);
+        if (endDate) prQuery.createdAt.$lte = buildReportPeriodEnd(endDate);
     }
     const purchaseReturns = await PurchaseReturn.find(prQuery).lean();
 
