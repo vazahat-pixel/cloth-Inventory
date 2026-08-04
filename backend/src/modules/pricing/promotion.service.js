@@ -118,6 +118,15 @@ class PromotionService {
         if (hasProductRestriction) {
             // First check direct ID match
             let directMatch = scheme.applicableProducts.some(id => String(id) === item.variantId || String(id) === item.productId);
+
+            // If no direct match, check if variantId is a size of a parent item that IS in the scheme
+            // (schemeProductsMap already maps sizes._id → parentItem, built above)
+            if (!directMatch) {
+                const parentItem = schemeProductsMap.get(item.variantId) || schemeProductsMap.get(item.productId);
+                if (parentItem) {
+                    directMatch = scheme.applicableProducts.some(id => String(id) === String(parentItem._id));
+                }
+            }
             
             // If no direct match, check match by itemName (for items sharing the same name/style)
             if (!directMatch && item.resolvedItemName) {
