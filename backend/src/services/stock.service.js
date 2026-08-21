@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const StoreInventory = require('../models/storeInventory.model');
 const WarehouseInventory = require('../models/warehouseInventory.model');
 const StockMovement = require('../models/stockMovement.model');
@@ -341,13 +342,20 @@ const addInTransit = async ({ itemId, barcode, variantId, locationId, locationTy
     barcode = resolved.barcode;
     variantId = resolved.variantId;
 
-    const filter = { barcode };
+    // Use variantId as the primary filter key to match the storeId+variantId unique index.
+    // Filtering by barcode alone risks inserting a duplicate row when the same variant
+    // already exists in storeInventory under a different barcode string, causing E11000.
+    let filter = {};
     let InventoryModel;
     if (locationType === 'STORE') {
-        filter.storeId = locationId;
+        filter = variantId
+            ? { storeId: locationId, variantId }
+            : { storeId: locationId, barcode };
         InventoryModel = StoreInventory;
     } else {
-        filter.warehouseId = locationId;
+        filter = variantId
+            ? { warehouseId: locationId, variantId }
+            : { warehouseId: locationId, barcode };
         InventoryModel = WarehouseInventory;
     }
 
@@ -355,8 +363,11 @@ const addInTransit = async ({ itemId, barcode, variantId, locationId, locationTy
         filter,
         {
             $inc: { quantityInTransit: transitQty },
-            $set: { lastUpdated: Date.now(), itemId, variantId },
-            $setOnInsert: { quantity: 0 },
+            $set: { lastUpdated: Date.now(), itemId, barcode, variantId },
+            $setOnInsert: {
+                quantity: 0,
+                ...(locationType === 'STORE' ? { storeId: locationId } : { warehouseId: locationId }),
+            },
         },
         { upsert: true, new: true, session },
     );
@@ -835,20 +846,37 @@ const bulkAddStock = async (items, { referenceId, referenceType, performedBy, lo
     const StockLedger = require('../models/stockLedger.model');
     const InventoryModel = locationType === 'STORE' ? StoreInventory : WarehouseInventory;
 
-    // 1. Fetch current inventory records for all barcodes in bulk
+    // 1. Fetch current inventory records for all barcodes and variantIds in bulk
     const barcodes = [...new Set(items.map(i => i.barcode).filter(Boolean))];
+    const variantIds = [...new Set(items.map(i => String(i.variantId)).filter(Boolean))];
+    
+    const targetLocId = (mongoose.Types.ObjectId.isValid(locationId) && typeof locationId === 'string') 
+        ? new mongoose.Types.ObjectId(locationId) 
+        : locationId;
+
     const currentInventories = await InventoryModel.find({
-        barcode: { $in: barcodes },
-        [locationType === 'STORE' ? 'storeId' : 'warehouseId']: locationId
+        [locationType === 'STORE' ? 'storeId' : 'warehouseId']: targetLocId,
+        $or: [
+            { barcode: { $in: barcodes } },
+            { variantId: { $in: variantIds } }
+        ]
     }).session(session);
 
-    const invMap = new Map(currentInventories.map(inv => [inv.barcode, inv]));
+    const invMapByVariant = new Map();
+    const invMapByBarcode = new Map();
+    currentInventories.forEach(inv => {
+        if (inv.variantId) invMapByVariant.set(String(inv.variantId), inv);
+        if (inv.barcode) invMapByBarcode.set(inv.barcode, inv);
+    });
 
-    // 2. Map current balances from inventory records (much faster than aggregating ledger)
-    const balanceMap = new Map(currentInventories.map(inv => [inv.barcode, inv.quantity || 0]));
+    // 2. Map current balances from inventory records
+    const balanceMap = new Map();
+    currentInventories.forEach(inv => {
+        if (inv.variantId) balanceMap.set(String(inv.variantId), inv.quantity || 0);
+        if (inv.barcode) balanceMap.set(inv.barcode, inv.quantity || 0);
+    });
 
     // 2.5 Fetch item metadata for movements in bulk
-    const variantIds = [...new Set(items.map(i => i.variantId).filter(Boolean))];
     const itemsMetadata = await Item.find({ "sizes._id": { $in: variantIds } }).session(session).lean();
     const metadataMap = new Map();
     itemsMetadata.forEach(it => {
@@ -868,17 +896,18 @@ const bulkAddStock = async (items, { referenceId, referenceType, performedBy, lo
     const movements = [];
     const ledgerEntries = [];
 
-    // PRE-AGGREGATE ITEMS TO PREVENT DUPLICATE KEY ERRORS IN SAME BATCH
+    // PRE-AGGREGATE ITEMS BY VARIANT ID TO PREVENT DUPLICATE KEY ERRORS IN SAME BATCH
     const aggregatedItemsMap = new Map();
     for (const item of items) {
-        const barcode = item.barcode || item.sku;
+        const key = String(item.variantId || item.barcode || item.sku);
         const qty = Number(item.qty || item.receivedQty || 0);
-        if (qty <= 0) continue;
+        if (qty < 0) continue;
+        if (mode !== 'SET' && qty <= 0) continue;
         
-        if (aggregatedItemsMap.has(barcode)) {
-            aggregatedItemsMap.get(barcode).qty += qty;
+        if (aggregatedItemsMap.has(key)) {
+            aggregatedItemsMap.get(key).qty += qty;
         } else {
-            aggregatedItemsMap.set(barcode, { ...item, qty });
+            aggregatedItemsMap.set(key, { ...item, qty });
         }
     }
     const aggregatedItems = Array.from(aggregatedItemsMap.values());
@@ -886,8 +915,10 @@ const bulkAddStock = async (items, { referenceId, referenceType, performedBy, lo
     for (const item of aggregatedItems) {
         const qty = item.qty;
         const barcode = item.barcode || item.sku;
-        const currentInv = invMap.get(barcode);
-        const currentBalance = balanceMap.get(barcode) || 0;
+        const variantIdStr = String(item.variantId || '');
+
+        const currentInv = (variantIdStr ? invMapByVariant.get(variantIdStr) : null) || invMapByBarcode.get(barcode);
+        const currentBalance = currentInv ? (currentInv.quantity || 0) : ((variantIdStr ? balanceMap.get(variantIdStr) : balanceMap.get(barcode)) || 0);
         
         let newBalance, adjustmentQty;
         if (mode === 'SET') {
@@ -900,31 +931,30 @@ const bulkAddStock = async (items, { referenceId, referenceType, performedBy, lo
 
         if (adjustmentQty === 0) continue; 
 
-        // Inventory Update
-        if (!currentInv) {
-            const initData = { 
-                barcode, 
-                itemId: item.itemId, 
-                variantId: item.variantId, 
-                quantity: qty,
-                [locationType === 'STORE' ? 'storeId' : 'warehouseId']: locationId
-            };
-            if (locationType === 'STORE') initData.quantityAvailable = qty;
-            invOps.push({ insertOne: { document: initData } });
-        } else {
-            invOps.push({
-                updateOne: {
-                    filter: { _id: currentInv._id },
-                    update: { 
-                        $set: { 
-                            quantity: newBalance, 
-                            ...(locationType === 'STORE' ? { quantityAvailable: newBalance } : {}),
-                            lastUpdated: Date.now() 
-                        }
+        // Inventory Upsert (prevents E11000 duplicate key error on storeId_1_variantId_1)
+        const locationFilter = locationType === 'STORE'
+            ? { storeId: targetLocId, variantId: variantIdStr }
+            : { warehouseId: targetLocId, variantId: variantIdStr };
+
+        invOps.push({
+            updateOne: {
+                filter: locationFilter,
+                update: { 
+                    $set: { 
+                        barcode,
+                        itemId: item.itemId,
+                        quantity: newBalance, 
+                        ...(locationType === 'STORE' ? { quantityAvailable: newBalance } : {}),
+                        lastUpdated: Date.now() 
+                    },
+                    $setOnInsert: {
+                        variantId: variantIdStr,
+                        ...(locationType === 'STORE' ? { storeId: targetLocId } : { warehouseId: targetLocId })
                     }
-                }
-            });
-        }
+                },
+                upsert: true
+            }
+        });
 
         // Master Item Update (Always incremental for total global stock)
         itemOps.push({
