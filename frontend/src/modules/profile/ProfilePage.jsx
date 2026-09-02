@@ -15,7 +15,7 @@ import {
 import PersonIcon from '@mui/icons-material/Person';
 import LockIcon from '@mui/icons-material/Lock';
 import SaveIcon from '@mui/icons-material/Save';
-import axios from 'axios';
+import api from '../../services/api';
 
 function ProfilePage() {
   const { user, role } = useSelector((state) => state.auth);
@@ -34,8 +34,7 @@ function ProfilePage() {
     }
 
     try {
-      // Direct axios call as we might not have a dedicated slice action for this yet
-      const response = await axios.patch('/api/auth/change-password', {
+      const response = await api.patch('/auth/change-password', {
         currentPassword: passwordData.currentPassword,
         newPassword: passwordData.newPassword,
       });

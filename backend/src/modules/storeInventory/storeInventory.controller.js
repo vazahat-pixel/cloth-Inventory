@@ -93,7 +93,15 @@ const reconcileStock = async (req, res, next) => {
 
 const bulkImportOpeningStock = async (req, res, next) => {
     try {
-        const result = await storeInventoryService.bulkImportOpeningStock(req.body, req.user._id);
+        const payload = { ...req.body };
+        const role = (req.user.role || '').toLowerCase();
+        if (role.includes('staff') || role.includes('manager') || role.includes('accountant')) {
+            if (!req.user.shopId) {
+                return sendError(res, 'User is not linked to any store. Please contact administrator.', 400);
+            }
+            payload.storeId = req.user.shopId.toString();
+        }
+        const result = await storeInventoryService.bulkImportOpeningStock(payload, req.user._id);
         return sendSuccess(res, { data: result }, 'Bulk import completed');
     } catch (err) {
         next(err);

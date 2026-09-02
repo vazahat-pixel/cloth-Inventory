@@ -567,7 +567,7 @@ function SalesReportPage() {
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} flexWrap="wrap" useFlexGap>
           {registerSummary ? (
             <>
-              <SummaryChip label="Bills Entered in Period" value={registerSummary.entryBillCount ?? 0} />
+              <SummaryChip label="Bills Entered in Period" value={registerSummary.saleDateBillCount ?? registerSummary.entryBillCount ?? 0} />
               <SummaryChip label="Register Sale Qty" value={registerSummary.registerSaleQty ?? 0} />
               {registerSummary.registerExchangeQty > 0 && (
                 <SummaryChip label="Exchange Returns" value={registerSummary.registerExchangeQty} />

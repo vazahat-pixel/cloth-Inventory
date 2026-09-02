@@ -1,5 +1,5 @@
 import { Box, LinearProgress } from '@mui/material';
-import { memo } from 'react';
+import React, { memo } from 'react';
 
 /**
  * Minimal route transition indicator — avoids full-page spinner flicker.

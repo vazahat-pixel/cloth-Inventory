@@ -1,5 +1,5 @@
 import { Box, CircularProgress, Typography } from '@mui/material';
-import { memo } from 'react';
+import React, { memo } from 'react';
 
 /**
  * Overlay shown during async/network operations.

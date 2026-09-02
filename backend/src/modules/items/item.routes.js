@@ -29,12 +29,12 @@ router.post('/:id/deallocate-group', requireAdmin, itemController.deallocateItem
 
 
 
+router.post('/validate-barcodes', itemController.validateBarcodes);
+
 router.route('/:id')
     .get(itemController.getItemById)
     .put(requireAdmin, itemController.updateItem)
     .patch(requireAdmin, itemController.updateItem)
     .delete(requireAdmin, itemController.deleteItem);
-
-router.post('/validate-barcodes', itemController.validateBarcodes);
 
 module.exports = router;

@@ -387,7 +387,7 @@ function StoreReturnReceivePage() {
                           {item.variantId?.name || item.variantId?.itemName || 'Returned Item'}
                         </Typography>
                         <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
-                          SKU: {item.variantId?.sku || 'N/A'} | Size: {item.variantId?.size || 'UNI'} | Color: {item.variantId?.color || 'N/A'}
+                          SKU: {item.variantId?.sku || 'N/A'}{item.variantId?.barcode && item.variantId?.barcode !== item.variantId?.sku ? ` | Barcode: ${item.variantId.barcode}` : ''} | Size: {item.variantId?.size || 'UNI'} | Color: {item.variantId?.color || 'N/A'}
                         </Typography>
                       </TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700 }}>

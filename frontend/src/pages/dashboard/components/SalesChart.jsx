@@ -1,5 +1,5 @@
 import { Box, Card, CardContent, Typography } from '@mui/material';
-import { memo } from 'react';
+import React, { memo } from 'react';
 
 function SalesChart({ data, title = 'Sales Trend (Last 7 Days)' }) {
   const maxVal = Math.max(...data.map((d) => d.value), 1);

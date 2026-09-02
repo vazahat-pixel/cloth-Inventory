@@ -109,24 +109,57 @@ const receiveReturn = async (id, userId) => {
 
 const enrichReturnItems = async (returns) => {
     const Item = require('../../models/item.model');
+    const mongoose = require('mongoose');
     const list = Array.isArray(returns) ? returns : [returns];
+    const allVariantIds = [];
+
+    for (const doc of list) {
+        if (!doc?.items?.length) continue;
+        for (const line of doc.items) {
+            const variantRef = line.variantId;
+            const variantIdStr = String(variantRef?._id || variantRef || '');
+            if (variantIdStr && mongoose.Types.ObjectId.isValid(variantIdStr)) {
+                allVariantIds.push(new mongoose.Types.ObjectId(variantIdStr));
+            }
+        }
+    }
+
+    if (allVariantIds.length === 0) return returns;
+
+    const items = await Item.find({
+        $or: [
+            { 'sizes._id': { $in: allVariantIds } },
+            { _id: { $in: allVariantIds } }
+        ]
+    }).select('itemName sizes itemCode').lean();
+
+    const variantMap = new Map();
+    items.forEach(it => {
+        variantMap.set(it._id.toString(), { item: it, sizeRow: it.sizes?.[0] });
+        (it.sizes || []).forEach(sz => {
+            variantMap.set(sz._id.toString(), { item: it, sizeRow: sz });
+        });
+    });
+
     for (const doc of list) {
         if (!doc?.items?.length) continue;
         for (const line of doc.items) {
             const variantRef = line.variantId;
             const variantIdStr = String(variantRef?._id || variantRef || '');
             if (!variantIdStr) continue;
-            const item = await Item.findOne({ 'sizes._id': variantIdStr }).select('itemName sizes').lean()
-                || await Item.findById(variantIdStr).select('itemName sizes').lean();
-            const sizeRow = item?.sizes?.find((sz) => String(sz._id) === variantIdStr);
+
+            const matched = variantMap.get(variantIdStr);
+            const item = matched?.item;
+            const sizeRow = matched?.sizeRow;
+
             line.variantId = {
                 _id: variantIdStr,
-                name: item?.itemName || variantRef?.name || 'Returned Item',
-                itemName: item?.itemName || variantRef?.name || 'Returned Item',
-                sku: sizeRow?.sku || variantRef?.sku || '-',
+                name: item?.itemName || variantRef?.name || variantRef?.itemName || 'Returned Item',
+                itemName: item?.itemName || variantRef?.name || variantRef?.itemName || 'Returned Item',
+                sku: sizeRow?.sku || variantRef?.sku || item?.itemCode || '-',
                 barcode: sizeRow?.barcode || variantRef?.barcode || '',
-                size: sizeRow?.size || 'UNI',
-                color: sizeRow?.color || '-',
+                size: sizeRow?.size || variantRef?.size || 'UNI',
+                color: sizeRow?.color || variantRef?.color || '-',
             };
         }
     }
@@ -147,16 +180,16 @@ const getReturns = async (query = {}, user = null) => {
         .sort({ createdAt: -1 })
         .populate('sourceStoreId', 'name')
         .populate('destinationWarehouseId', 'name')
-        .populate('items.variantId', 'name sku barcode');
+        .lean();
     await enrichReturnItems(results);
     return results;
 };
 
 const getReturnById = async (id) => {
     const doc = await StockReturn.findById(id)
-        .populate('sourceStoreId')
-        .populate('destinationWarehouseId')
-        .populate('items.variantId', 'name sku barcode');
+        .populate('sourceStoreId', 'name')
+        .populate('destinationWarehouseId', 'name')
+        .lean();
     await enrichReturnItems(doc);
     return doc;
 };

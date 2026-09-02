@@ -1177,34 +1177,86 @@ class ItemService {
     return results;
   }
 
-  async validateBarcodes(barcodes) {
-    if (!Array.isArray(barcodes) || barcodes.length === 0) return {};
+  async validateBarcodes(rawBarcodes) {
+    if (!Array.isArray(rawBarcodes) || rawBarcodes.length === 0) return {};
 
+    // 1. Prepare search tokens and mapping back to original strings
+    const barcodeMap = new Map(); // token -> Set of originalBarcodes
+    const allTokens = new Set();
+
+    rawBarcodes.forEach(b => {
+      const orig = String(b || '').trim();
+      if (!orig) return;
+
+      const unpadded = orig.replace(/^0+/, '');
+      const candidates = new Set([
+        orig,
+        orig.toLowerCase(),
+        orig.toUpperCase(),
+        unpadded,                                  // without leading zeros e.g. "380"
+        unpadded ? unpadded.padStart(7, '0') : orig, // zero-padded 7 digits e.g. "0000380"
+        unpadded ? unpadded.padStart(6, '0') : orig, // zero-padded 6 digits
+        unpadded ? unpadded.padStart(8, '0') : orig  // zero-padded 8 digits
+      ]);
+
+      candidates.forEach(token => {
+        if (!token) return;
+        allTokens.add(token);
+        if (!barcodeMap.has(token)) barcodeMap.set(token, new Set());
+        barcodeMap.get(token).add(orig);
+      });
+    });
+
+    const tokenArray = Array.from(allTokens);
+
+    // 2. Query MongoDB for all matching items in one query
     const items = await Item.find({
-        $or: [
-            { itemCode: { $in: barcodes } },
-            { "sizes.barcode": { $in: barcodes } },
-            { "sizes.sku": { $in: barcodes } }
-        ]
+      $or: [
+        { itemCode: { $in: tokenArray } },
+        { "sizes.barcode": { $in: tokenArray } },
+        { "sizes.sku": { $in: tokenArray } }
+      ]
     }).lean();
 
+    // 3. Build resultMap for original input barcodes
     const resultMap = {};
-    items.forEach(item => {
-        if (item.itemCode && barcodes.includes(item.itemCode)) {
-            const defaultVariant = item.sizes?.[0] || { _id: item._id, size: 'UNI' };
-            resultMap[item.itemCode] = { item, variant: defaultVariant };
-        }
 
-        if (item.sizes) {
-            item.sizes.forEach(sz => {
-                if (sz.barcode && barcodes.includes(sz.barcode)) {
-                    resultMap[sz.barcode] = { item, variant: sz };
-                }
-                if (sz.sku && barcodes.includes(sz.sku)) {
-                    resultMap[sz.sku] = { item, variant: sz };
-                }
+    items.forEach(item => {
+      const defaultVariant = item.sizes?.[0] || { _id: item._id, size: 'UNI' };
+
+      const bindMatch = (matchedCode, variantObj) => {
+        if (!matchedCode) return;
+        const codeStr = String(matchedCode).trim();
+        const unpadded = codeStr.replace(/^0+/, '');
+        const codeVariants = [
+          codeStr,
+          codeStr.toLowerCase(),
+          codeStr.toUpperCase(),
+          unpadded,
+          unpadded ? unpadded.padStart(7, '0') : codeStr,
+          unpadded ? unpadded.padStart(6, '0') : codeStr
+        ];
+
+        codeVariants.forEach(cv => {
+          const origSet = barcodeMap.get(cv);
+          if (origSet) {
+            origSet.forEach(origBarcode => {
+              if (!resultMap[origBarcode]) {
+                resultMap[origBarcode] = { item, variant: variantObj || defaultVariant };
+              }
             });
-        }
+          }
+        });
+      };
+
+      if (item.itemCode) bindMatch(item.itemCode, defaultVariant);
+
+      if (item.sizes && Array.isArray(item.sizes)) {
+        item.sizes.forEach(sz => {
+          if (sz.barcode) bindMatch(sz.barcode, sz);
+          if (sz.sku) bindMatch(sz.sku, sz);
+        });
+      }
     });
 
     return resultMap;

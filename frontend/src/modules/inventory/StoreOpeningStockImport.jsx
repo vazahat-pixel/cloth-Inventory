@@ -17,7 +17,9 @@ import {
     TextField,
     Chip,
     Divider,
-    LinearProgress
+    LinearProgress,
+    Checkbox,
+    FormControlLabel
 } from '@mui/material';
 import {
     CloudUpload as CloudUploadIcon,
@@ -39,11 +41,11 @@ const StoreOpeningStockImport = () => {
     const dispatch = useDispatch();
     const navigate = useAppNavigate();
     const { showNotification } = useNotification();
-    
+
     const masters = useSelector((state) => state.masters || {});
     const stores = masters.stores || [];
     const loadingMasters = masters.loading;
-    
+
     const auth = useSelector((state) => state.auth || {});
     const user = auth.user || {};
     const isStoreStaff = ['Staff', 'store_staff', 'store_manager', 'accountant', 'Manager', 'Accountant'].includes(user.role);
@@ -55,6 +57,7 @@ const StoreOpeningStockImport = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [validationResults, setValidationResults] = useState(null);
     const [uploadProgress, setUploadProgress] = useState(0);
+    const [replaceExisting, setReplaceExisting] = useState(true);
 
     // Initial Load: Fetch stores if not present
     useEffect(() => {
@@ -65,24 +68,30 @@ const StoreOpeningStockImport = () => {
 
     // Auto-select store for staff
     useEffect(() => {
-        if (isStoreStaff && user.shopId && stores.length > 0) {
-            const myStore = stores.find(s => String(s.id || s._id) === String(user.shopId));
-            if (myStore) {
-                setSelectedStore(myStore);
+        if (isStoreStaff && user.shopId) {
+            const rawShopId = user.shopId._id || user.shopId;
+            if (stores.length > 0) {
+                const myStore = stores.find(s => String(s.id || s._id) === String(rawShopId));
+                if (myStore) {
+                    setSelectedStore(myStore);
+                    return;
+                }
             }
+            // Fallback for store staff if stores list is still loading or shopName exists
+            setSelectedStore({ _id: rawShopId, id: rawShopId, name: user.shopName || 'Current Store' });
         }
-    }, [isStoreStaff, user.shopId, stores]);
+    }, [isStoreStaff, user.shopId, user.shopName, stores]);
 
     // Columns mapping from requirement
     const columnMapping = {
-        itemCode: ['ITEM CODE', 'Barcode', 'Item Code', 'CODE', 'SKU', 'BARCODE'],
-        itemName: ['ITEM NAME', 'Item Name', 'Name', 'PRODUCT'],
-        closingStock: ['CLOSING STOCK', 'Closing Stock', 'Qty', 'Quantity', 'Stock', 'QTY', 'QUANTITY'],
-        shadeName: ['SHADE NAME'],
-        description: ['ITEM DESCRIPTION'],
-        size: ['PACK/SIZE'],
-        fabric: ['FABRIC'],
-        type: ['TYPE']
+        itemCode: ['ITEM CODE', 'Barcode', 'Item Code', 'CODE', 'SKU', 'BARCODE', 'ItemCode', 'Barcode/SKU', 'BARCODE/SKU', 'Item Code/Barcode', 'SKU Code', 'SKU CODE', 'Item_Code', 'Item_code', 'SKU NO', 'SKU No', 'Article', 'ARTICLE', 'Article No', 'sku', 'itemcode', 'item_code', 'code', 'barcode', 'sku code'],
+        itemName: ['ITEM NAME', 'Item Name', 'Name', 'PRODUCT', 'ItemName', 'Description', 'DESCRIPTION', 'item_name', 'product', 'name', 'itemname'],
+        closingStock: ['CLOSING STOCK', 'Closing Stock', 'Qty', 'Quantity', 'Stock', 'QTY', 'QUANTITY', 'QTY.', 'Qty.', 'CLOSING QTY', 'Closing Qty', 'TOTAL QTY', 'Total Qty', 'NET QTY', 'Net Qty', 'PCS', 'Pcs', 'STOCK QTY', 'Stock Qty', 'PHYSICAL STOCK', 'Physical Stock', 'Count', 'COUNT', 'TOTAL', 'Total', 'ClosingStock', 'qty', 'stock', 'quantity', 'pcs', 'count', 'closing_stock'],
+        shadeName: ['SHADE NAME', 'Shade Name', 'SHADE', 'Shade', 'COLOR', 'Color', 'shade', 'color'],
+        description: ['ITEM DESCRIPTION', 'Item Description', 'DESCRIPTION', 'Description', 'description'],
+        size: ['PACK/SIZE', 'SIZE', 'Size', 'Pack/Size', 'size'],
+        fabric: ['FABRIC', 'Fabric', 'fabric'],
+        type: ['TYPE', 'Type', 'type']
     };
 
     const handleFileUpload = (e) => {
@@ -92,13 +101,13 @@ const StoreOpeningStockImport = () => {
         setIsLoading(true);
         setValidationResults(null);
         setSkippedRows(0);
-        
+
         const reader = new FileReader();
         reader.onload = (evt) => {
             try {
                 const bstr = evt.target.result;
                 const wb = XLSX.read(bstr, { type: 'binary' });
-                
+
                 // Merge data from ALL sheets (to handle 2800+ rows if split)
                 let allData = [];
                 wb.SheetNames.forEach(sheetName => {
@@ -115,35 +124,66 @@ const StoreOpeningStockImport = () => {
 
                 // Map Excel columns to our expected format
                 const mappedData = allData.map((row, index) => {
-                    const findVal = (keys) => {
-                        const key = keys.find(k => row[k] !== undefined && row[k] !== null && row[k] !== "");
-                        return key ? row[key] : '';
+                    const rowKeys = Object.keys(row);
+                    const findVal = (keys, regexFallback = null) => {
+                        // 1. Exact or Case-Insensitive Trimmed Match
+                        for (const kw of keys) {
+                            const kwClean = String(kw).trim().toUpperCase();
+                            for (const k of rowKeys) {
+                                if (String(k).trim().toUpperCase() === kwClean) {
+                                    const val = row[k];
+                                    if (val !== undefined && val !== null && String(val).trim() !== '') return val;
+                                }
+                            }
+                        }
+                        // 2. Normalized Match (removing punctuation & spaces)
+                        for (const kw of keys) {
+                            const kwNorm = String(kw).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+                            for (const k of rowKeys) {
+                                const kNorm = String(k).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+                                if (kNorm === kwNorm && kNorm.length > 0) {
+                                    const val = row[k];
+                                    if (val !== undefined && val !== null && String(val).trim() !== '') return val;
+                                }
+                            }
+                        }
+                        // 3. Substring Partial Match
+                        if (regexFallback) {
+                            for (const k of rowKeys) {
+                                if (regexFallback.test(String(k))) {
+                                    const val = row[k];
+                                    if (val !== undefined && val !== null && String(val).trim() !== '') return val;
+                                }
+                            }
+                        }
+                        return '';
                     };
 
-                    const itemCode = String(findVal(columnMapping.itemCode) || '').trim();
-                    const itemName = String(findVal(columnMapping.itemName) || '').trim();
-                    const closingStock = Number(findVal(columnMapping.closingStock) || 0);
+                    const itemCode = String(findVal(columnMapping.itemCode, /code|barcode|sku|article/i) || '').trim();
+                    const itemName = String(findVal(columnMapping.itemName, /name|product|desc/i) || '').trim();
+                    const rawStockVal = findVal(columnMapping.closingStock, /qty|stock|count|pcs|closing|total|bal/i);
+                    const closingStock = Number(rawStockVal !== '' ? rawStockVal : 0);
 
                     return {
                         sno: index + 1,
                         itemCode,
                         itemName,
-                        closingStock,
-                        shadeName: findVal(columnMapping.shadeName),
-                        description: findVal(columnMapping.description),
-                        size: findVal(columnMapping.size),
-                        fabric: findVal(columnMapping.fabric),
-                        type: findVal(columnMapping.type),
+                        closingStock: isNaN(closingStock) ? 0 : closingStock,
+                        shadeName: findVal(columnMapping.shadeName, /shade|color/i),
+                        description: findVal(columnMapping.description, /desc/i),
+                        size: findVal(columnMapping.size, /size|pack/i),
+                        fabric: findVal(columnMapping.fabric, /fabric/i),
+                        type: findVal(columnMapping.type, /type/i),
                         raw: row
                     };
                 });
 
                 const filtered = mappedData.filter(d => d.itemCode);
                 const skipped = mappedData.length - filtered.length;
-                
+
                 setFileData(filtered);
                 setSkippedRows(skipped);
-                
+
                 showNotification(`Loaded ${filtered.length} items. ${skipped > 0 ? skipped + ' rows skipped (missing code).' : ''}`, 'success');
             } catch (err) {
                 console.error(err);
@@ -167,24 +207,28 @@ const StoreOpeningStockImport = () => {
             // We'll send the barcodes to backend to check existence in bulk
             const barcodes = fileData.map(d => d.itemCode);
             const response = await api.post('/items/validate-barcodes', { barcodes });
-            const masterMap = response.data.data || {}; 
+            const resObj = response.data || {};
+            const masterMap = resObj.data || resObj.map || resObj;
 
             const results = fileData.map(row => {
-                const match = masterMap[row.itemCode];
+                const rawCode = String(row.itemCode || '').trim();
+                const unpadded = rawCode.replace(/^0+/, '');
+                const padded7 = unpadded ? unpadded.padStart(7, '0') : rawCode;
+                const padded6 = unpadded ? unpadded.padStart(6, '0') : rawCode;
+
+                const match = masterMap[rawCode] || 
+                              masterMap[rawCode.toLowerCase()] || 
+                              masterMap[rawCode.toUpperCase()] || 
+                              masterMap[unpadded] || 
+                              masterMap[padded7] || 
+                              masterMap[padded6];
+
                 let status = 'NOT_FOUND';
                 let message = 'Item code not found in master';
 
                 if (match) {
-                    const masterName = String(match.item?.itemName || '').toLowerCase();
-                    const excelName = row.itemName.toLowerCase();
-                    
-                    if (excelName && masterName && !masterName.includes(excelName) && !excelName.includes(masterName)) {
-                        status = 'MISMATCH';
-                        message = `Name mismatch: Master(${match.item.itemName})`;
-                    } else {
-                        status = 'MATCHED';
-                        message = 'Perfect Match';
-                    }
+                    status = 'MATCHED';
+                    message = 'Perfect Match';
                 }
 
                 return { ...row, status, message, masterData: match };
@@ -212,7 +256,7 @@ const StoreOpeningStockImport = () => {
 
         setIsSaving(true);
         setUploadProgress(10);
-        
+
         try {
             const payload = {
                 storeId: selectedStore.id || selectedStore._id,
@@ -227,7 +271,7 @@ const StoreOpeningStockImport = () => {
             // Increased timeout for 2800+ items
             const res = await api.post('/store-inventory/bulk-import', payload, { timeout: 300000 });
             setUploadProgress(100);
-            
+
             showNotification(`Import Successful! ${res.data.data.successCount} items added as Opening Stock.`, 'success');
             setValidationResults(null);
             setFileData([]);
@@ -275,11 +319,11 @@ const StoreOpeningStockImport = () => {
                                 onChange={(_, newValue) => setSelectedStore(newValue)}
                                 disabled={isStoreStaff}
                                 renderInput={(params) => (
-                                    <TextField 
-                                        {...params} 
-                                        placeholder={isStoreStaff ? "Your Store" : "Choose store..."} 
-                                        size="small" 
-                                        sx={{ 
+                                    <TextField
+                                        {...params}
+                                        placeholder={isStoreStaff ? "Your Store" : "Choose store..."}
+                                        size="small"
+                                        sx={{
                                             '& .MuiOutlinedInput-root': { height: 45 },
                                             bgcolor: isStoreStaff ? '#f1f5f9' : '#fff'
                                         }}
@@ -319,6 +363,23 @@ const StoreOpeningStockImport = () => {
                             </Button>
                         </Box>
                     </Stack>
+
+                    <Box sx={{ mt: 2, mb: 1, p: 1.5, bgcolor: '#eff6ff', borderRadius: 2, border: '1px solid #bfdbfe' }}>
+                        <FormControlLabel
+                            control={
+                                <Checkbox 
+                                    checked={replaceExisting} 
+                                    onChange={(e) => setReplaceExisting(e.target.checked)} 
+                                    color="primary"
+                                />
+                            }
+                            label={
+                                <Typography variant="body2" sx={{ fontWeight: 700, color: '#1e40af' }}>
+                                    Replace Entire Store Inventory (Set stock to 0 for items NOT present in the uploaded Excel sheet)
+                                </Typography>
+                            }
+                        />
+                    </Box>
 
                     {fileData.length > 0 && !validationResults && (
                         <Alert severity="info" icon={<CheckCircleIcon />}>
@@ -385,7 +446,7 @@ const StoreOpeningStockImport = () => {
                                                 <TableCell>{row.itemName}</TableCell>
                                                 <TableCell sx={{ fontWeight: 700 }}>{row.closingStock}</TableCell>
                                                 <TableCell>
-                                                    <Chip 
+                                                    <Chip
                                                         size="small"
                                                         label={row.status}
                                                         color={row.status === 'MATCHED' ? 'success' : (row.status === 'MISMATCH' ? 'warning' : 'error')}

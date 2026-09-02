@@ -370,35 +370,75 @@ const { bulkAddStock } = require('../../services/stock.service');
  */
 const bulkImportOpeningStock = async (importData, userId) => {
     const { storeId, items } = importData;
+    const replaceExisting = importData.replaceExisting !== false;
     if (!storeId) throw new Error('Store ID is required for import');
     if (!items || !items.length) throw new Error('No items provided for import');
 
-    // 1. Resolve all items by barcode in bulk
-    const barcodes = [...new Set(items.map(i => String(i.itemCode || i.barcode || '').trim()).filter(Boolean))];
+    // 1. Resolve all items by barcode in bulk with flexible token variations
+    const rawBarcodes = [...new Set(items.map(i => String(i.itemCode || i.barcode || '').trim()).filter(Boolean))];
+    const barcodeTokenMap = new Map();
+    const allTokens = new Set();
+
+    rawBarcodes.forEach(b => {
+        const unpadded = b.replace(/^0+/, '');
+        const candidates = [
+            b, b.toLowerCase(), b.toUpperCase(), unpadded,
+            unpadded ? unpadded.padStart(7, '0') : b,
+            unpadded ? unpadded.padStart(6, '0') : b
+        ];
+        candidates.forEach(t => {
+            if (!t) return;
+            allTokens.add(t);
+            if (!barcodeTokenMap.has(t)) barcodeTokenMap.set(t, new Set());
+            barcodeTokenMap.get(t).add(b);
+        });
+    });
+
+    const tokenArray = Array.from(allTokens);
     const matchedItems = await Item.find({ 
         $or: [
-            { itemCode: { $in: barcodes } },
-            { "sizes.barcode": { $in: barcodes } },
-            { "sizes.sku": { $in: barcodes } }
+            { itemCode: { $in: tokenArray } },
+            { "sizes.barcode": { $in: tokenArray } },
+            { "sizes.sku": { $in: tokenArray } }
         ]
     }).lean();
 
-    // 2. Create a map for quick lookup
+    // 2. Create a map for quick lookup for input barcodes
     const barcodeMap = new Map();
     matchedItems.forEach(item => {
-        if (item.itemCode) {
-            const defaultVariant = item.sizes?.[0] || { _id: item._id, size: 'UNI' };
-            barcodeMap.set(item.itemCode, { item, variant: defaultVariant });
-        }
-        if (item.sizes) {
+        const defaultVariant = item.sizes?.[0] || { _id: item._id, size: 'UNI' };
+        
+        const bindMatch = (matchedCode, variantObj) => {
+            if (!matchedCode) return;
+            const codeStr = String(matchedCode).trim();
+            const unpadded = codeStr.replace(/^0+/, '');
+            const codeVariants = [
+                codeStr, codeStr.toLowerCase(), codeStr.toUpperCase(), unpadded,
+                unpadded ? unpadded.padStart(7, '0') : codeStr,
+                unpadded ? unpadded.padStart(6, '0') : codeStr
+            ];
+            codeVariants.forEach(cv => {
+                const origSet = barcodeTokenMap.get(cv);
+                if (origSet) {
+                    origSet.forEach(origBarcode => {
+                        if (!barcodeMap.has(origBarcode)) {
+                            barcodeMap.set(origBarcode, { item, variant: variantObj || defaultVariant });
+                        }
+                    });
+                }
+            });
+        };
+
+        if (item.itemCode) bindMatch(item.itemCode, defaultVariant);
+        if (item.sizes && Array.isArray(item.sizes)) {
             item.sizes.forEach(sz => {
-                if (sz.barcode) barcodeMap.set(sz.barcode, { item, variant: sz });
-                if (sz.sku) barcodeMap.set(sz.sku, { item, variant: sz });
+                if (sz.barcode) bindMatch(sz.barcode, sz);
+                if (sz.sku) bindMatch(sz.sku, sz);
             });
         }
     });
 
-    // 3. Prepare items for bulkAddStock and perform validations (Aggregate by barcode)
+    // 3. Prepare items for bulkAddStock and perform validations (Aggregate by variantId)
     const validItemsMap = new Map();
     const errors = [];
 
@@ -423,12 +463,13 @@ const bulkImportOpeningStock = async (importData, userId) => {
         }
 
         const qty = Number(row.closingStock || row.quantity || 0);
+        const vId = String(variant._id);
 
-        if (validItemsMap.has(barcode)) {
-            const existing = validItemsMap.get(barcode);
+        if (validItemsMap.has(vId)) {
+            const existing = validItemsMap.get(vId);
             existing.qty += qty; // Sum quantities for duplicate rows in same file
         } else {
-            validItemsMap.set(barcode, {
+            validItemsMap.set(vId, {
                 itemId: item._id,
                 variantId: variant._id,
                 barcode: barcode,
@@ -437,9 +478,31 @@ const bulkImportOpeningStock = async (importData, userId) => {
         }
     });
 
+    let zeroedOutCount = 0;
+    if (replaceExisting) {
+        // Zero out any variants in store inventory that are NOT in the Excel file
+        const existingInventories = await StoreInventory.find({
+            storeId,
+            $or: [{ quantity: { $gt: 0 } }, { quantityAvailable: { $gt: 0 } }]
+        }).lean();
+
+        existingInventories.forEach(inv => {
+            const vId = String(inv.variantId);
+            if (!validItemsMap.has(vId)) {
+                validItemsMap.set(vId, {
+                    itemId: inv.itemId,
+                    variantId: inv.variantId,
+                    barcode: inv.barcode,
+                    qty: 0
+                });
+                zeroedOutCount++;
+            }
+        });
+    }
+
     const validItems = Array.from(validItemsMap.values());
 
-    // 4. Perform bulk insert if we have valid items
+    // 4. Perform bulk insert/update if we have valid items
     if (validItems.length > 0) {
         await bulkAddStock(validItems, {
             referenceId: new mongoose.Types.ObjectId(),
@@ -451,9 +514,21 @@ const bulkImportOpeningStock = async (importData, userId) => {
         });
     }
 
+    if (replaceExisting) {
+        // Remove zero-stock unlisted records so they don't linger as out-of-stock alerts
+        await StoreInventory.deleteMany({
+            storeId,
+            $and: [
+                { $or: [{ quantityAvailable: { $lte: 0 } }, { quantityAvailable: { $exists: false } }] },
+                { $or: [{ quantity: { $lte: 0 } }, { quantity: { $exists: false } }] }
+            ]
+        });
+    }
+
     return {
         totalProcessed: items.length,
-        successCount: validItems.length,
+        successCount: validItems.length - zeroedOutCount,
+        zeroedOutCount,
         failedCount: errors.length,
         errors
     };

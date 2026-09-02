@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import React, { memo } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import useRoleBasePath from '../../../hooks/useRoleBasePath';
 import {

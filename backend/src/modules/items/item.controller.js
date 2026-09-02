@@ -226,6 +226,19 @@ class ItemController {
       return sendError(res, error.message);
     }
   };
+
+  validateBarcodes = async (req, res) => {
+    try {
+      const { barcodes } = req.body;
+      if (!Array.isArray(barcodes)) {
+        return sendError(res, 'barcodes array is required', 400);
+      }
+      const resultMap = await itemService.validateBarcodes(barcodes);
+      return sendSuccess(res, { data: resultMap }, 'Barcodes validated successfully');
+    } catch (error) {
+      return sendError(res, error.message);
+    }
+  };
 }
 
 module.exports = new ItemController();

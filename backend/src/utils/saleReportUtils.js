@@ -309,7 +309,7 @@ const aggregateRegisterTotals = (saleDateSales = [], entryDateSales = [], storeI
   const saleQty = aggregateSalesQty(saleDateSales);
   const entryQty = aggregateSalesQty(entryDateSales);
   const sid = normalizeStoreId(storeId, saleDateSales[0]);
-  const registerQty = sid === MUKTSAR_STORE_ID ? saleQty : entryQty;
+  const registerQty = saleQty;
   return {
     registerSaleQty: registerQty.grossSaleQty,
     registerExchangeQty: registerQty.exchangeQty,
