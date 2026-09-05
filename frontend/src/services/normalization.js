@@ -137,6 +137,7 @@ const normalizeItem = (item, entityType) => {
                 redeemPoints: item.loyaltyRedeemed || 0
             };
 
+            normalized.saleDate = item.saleDate || item.date || '';
             normalized.date = item.saleDate ? new Date(item.saleDate).toISOString().split('T')[0] : (item.date || '');
             normalized.invoiceNumber = item.saleNumber || item.invoiceNumber;
             normalized.saleType = (item.type || 'RETAIL').toLowerCase();
