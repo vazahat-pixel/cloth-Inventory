@@ -431,7 +431,7 @@ const removeInTransit = async ({ itemId, barcode, variantId, locationId, locatio
 /**
  * Add stock to a location (Creation/Purchase/Return)
  */
-const addStock = async ({ itemId, barcode, variantId, locationId, locationType, qty, type, referenceId, referenceType, performedBy, purchaseRate, session }) => {
+const addStock = async ({ itemId, barcode, variantId, locationId, locationType, qty, type, referenceId, referenceType, performedBy, purchaseRate, date = null, session }) => {
     const movementQty = toFiniteNumber(qty);
     if (movementQty <= 0) throw new Error('Quantity to add must be positive');
     if (!referenceId) throw new Error('referenceId is required for stock movement');
@@ -459,6 +459,7 @@ const addStock = async ({ itemId, barcode, variantId, locationId, locationType, 
         referenceType: resolveReferenceType(referenceType),
         toLocation: locationId,
         performedBy,
+        ...(date ? { createdAt: new Date(date) } : {}),
         ...metadata
     }], { session });
 
@@ -487,6 +488,7 @@ const addStock = async ({ itemId, barcode, variantId, locationId, locationType, 
         locationId,
         locationType,
         batchNo: 'DEFAULT',
+        date,
         session
     });
 
@@ -496,7 +498,7 @@ const addStock = async ({ itemId, barcode, variantId, locationId, locationType, 
 /**
  * Remove stock from a location (Sale/Loss)
  */
-const removeStock = async ({ itemId, barcode, variantId, locationId, locationType, qty, type, referenceId, referenceType, performedBy, session }) => {
+const removeStock = async ({ itemId, barcode, variantId, locationId, locationType, qty, type, referenceId, referenceType, performedBy, date = null, session }) => {
     const movementQty = toFiniteNumber(qty);
     if (movementQty <= 0) throw new Error('Quantity to remove must be positive');
     if (!referenceId) throw new Error('referenceId is required for stock movement');
@@ -524,6 +526,7 @@ const removeStock = async ({ itemId, barcode, variantId, locationId, locationTyp
         referenceType: resolveReferenceType(referenceType),
         fromLocation: locationId,
         performedBy,
+        ...(date ? { createdAt: new Date(date) } : {}),
         ...metadata
     }], { session });
 
@@ -552,6 +555,7 @@ const removeStock = async ({ itemId, barcode, variantId, locationId, locationTyp
         locationId,
         locationType,
         batchNo: 'DEFAULT',
+        date,
         session
     });
 
