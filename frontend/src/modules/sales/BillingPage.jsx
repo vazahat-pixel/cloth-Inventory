@@ -141,7 +141,7 @@ const calculateTotals = (lines, taxRules, billDiscount, loyaltyRedeemed, couponD
 
   // For Inclusive Tax: Net = Gross - All Discounts - Adjustments
   const adjustmentTotal = adjustments.reduce((sum, adj) => sum + toNumber(adj.amount), 0);
-  const net = totals.gross - totals.manualLineDiscount - totals.promoDiscount - toNumber(billDiscount) - toNumber(couponDiscount) - toNumber(schemeDiscount) - toNumber(loyaltyRedeemed) - toNumber(creditNoteAmount) + adjustmentTotal;
+  const net = Number((totals.gross - totals.manualLineDiscount - totals.promoDiscount - toNumber(billDiscount) - toNumber(couponDiscount) - toNumber(schemeDiscount) - toNumber(loyaltyRedeemed) - toNumber(creditNoteAmount) + adjustmentTotal).toFixed(2));
 
   return {
     ...totals,
@@ -447,11 +447,14 @@ function BillingPage({
         adjustments
       );
 
+      const basicNetPayable = Number(basic.netPayable.toFixed(2));
+      const roundedReturnCredit = Number(returnTotalCredit.toFixed(2));
+
       return {
         ...basic,
-        returnTotalCredit,
-        basicNetPayable: basic.netPayable,
-        netPayable: Math.max(0, basic.netPayable - returnTotalCredit),
+        returnTotalCredit: roundedReturnCredit,
+        basicNetPayable,
+        netPayable: Math.max(0, Number((basicNetPayable - roundedReturnCredit).toFixed(2))),
       };
     },
     [billDiscount, lines, loyaltyRedeemed, couponDiscountAmount, creditNoteAmount, saleType, returnTotalCredit, promoItems, taxRules, adjustments],
@@ -887,7 +890,8 @@ function BillingPage({
       return;
     }
 
-    if (saleType === 'exchange' && totals.basicNetPayable < totals.returnTotalCredit) {
+    // Value of new items must be greater than or equal to returned items (0.01 tolerance for floating point precision)
+    if (saleType === 'exchange' && (totals.returnTotalCredit - totals.basicNetPayable) > 0.01) {
       setErrorMessage('Exchange Not Allowed: Value of new items must be greater than or equal to the returned items.');
       return;
     }
@@ -957,6 +961,7 @@ function BillingPage({
       storeId,
       saleNumber: (mode === 'new' && saleNumber.trim()) ? saleNumber.trim() : undefined,
       date: billDate,
+      saleDate: billDate,
       isInclusiveTax: true, // Explicitly mark as inclusive for retail
       customerId: selectedCustomer?.id || null,
       customerName: selectedCustomer?.name || selectedCustomer?.customerName || customerName,
@@ -997,6 +1002,8 @@ function BillingPage({
     const onSaveSuccess = (res) => {
       setCompletedSaleData({
         ...res,
+        saleDate: res.saleDate || billDate,
+        date: res.date || billDate,
         storeId: selectedStore || res.storeId,
       });
       setShowPrint(true);
