@@ -357,14 +357,14 @@ class PromotionService {
 
                     let discount = 0;
                     if (type === 'PERCENTAGE' || type.includes('PERCENTAGE')) {
-                        discount = (item.originalPrice * item.qty) * (scheme.value / 100);
+                        discount = Number(((item.originalPrice * item.qty) * (scheme.value / 100)).toFixed(2));
                     } else if (type === 'FLAT_PRICE' || type === 'FIXED_PRICE') {
                         const targetPrice = scheme.value;
                         if (item.originalPrice > targetPrice) {
-                            discount = (item.originalPrice - targetPrice) * item.qty;
+                            discount = Number(((item.originalPrice - targetPrice) * item.qty).toFixed(2));
                         }
                     } else if (type === 'FLAT' || type === 'FLAT_DISCOUNT' || type === 'MANUAL') {
-                        discount = Math.min(scheme.value * item.qty, item.originalPrice * item.qty);
+                        discount = Number(Math.min(scheme.value * item.qty, item.originalPrice * item.qty).toFixed(2));
                     }
 
                     let ruleLabel = '';

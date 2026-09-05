@@ -447,7 +447,7 @@ const StandardInvoicePrint = ({ sale, store: providedStore, title: providedTitle
                     <Typography sx={{ fontSize: '11px', fontWeight: 900, color: '#000' }}>INVOICE DATE</Typography>
                 </Grid>
                 <Grid item xs={3} sx={{ p: 0.5, bgcolor: '#fff' }}>
-                    <Typography sx={{ fontSize: '11px', fontWeight: 900, color: '#000' }}>{formatDateDDMMYYYY(sale.saleDate || sale.createdAt)}</Typography>
+                    <Typography sx={{ fontSize: '11px', fontWeight: 900, color: '#000' }}>{formatDateDDMMYYYY(sale.saleDate || sale.date || sale.createdAt)}</Typography>
                 </Grid>
             </Grid>
 

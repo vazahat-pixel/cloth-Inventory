@@ -824,8 +824,11 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
             paymentMode: normalizedPayments.paymentMode,
             payments: normalizedPayments.payments,
             status: dueAmount > 0 ? SaleStatus.PARTIAL : SaleStatus.COMPLETED,
-            saleDate: saleData.date ? new Date(saleData.date) : Date.now()
+            saleDate: (saleData.saleDate || saleData.date) ? new Date(saleData.saleDate || saleData.date) : new Date(),
+            createdAt: (saleData.saleDate || saleData.date) ? new Date(saleData.saleDate || saleData.date) : new Date()
         };
+
+        const finalSaleDate = saleFields.saleDate;
 
         if (isUpdate) {
             sale = existingSale;
@@ -854,6 +857,7 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
                     referenceId: sale._id,
                     referenceType: 'Sale',
                     performedBy: cashierId,
+                    date: finalSaleDate,
                     session
                 });
             } else if (mov.type === 'RETURN') {
@@ -868,6 +872,7 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
                     referenceId: sale._id,
                     referenceType: 'Sale',
                     performedBy: cashierId,
+                    date: finalSaleDate,
                     session
                 });
             }
@@ -883,7 +888,8 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
                     points: Number(redeemPoints),
                     referenceNumber: saleNumber,
                     createdBy: cashierId,
-                    date: Date.now()
+                    date: finalSaleDate,
+                    createdAt: finalSaleDate
                 }], { session });
             }
         }
@@ -907,7 +913,8 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
                     points: earnedPoints,
                     referenceNumber: saleNumber,
                     createdBy: cashierId,
-                    date: Date.now()
+                    date: finalSaleDate,
+                    createdAt: finalSaleDate
                 }], { session });
             }
             if (customer) {
