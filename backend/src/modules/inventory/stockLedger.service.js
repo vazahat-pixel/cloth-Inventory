@@ -5,7 +5,7 @@ class StockLedgerService {
   /**
    * Record a stock movement and calculate current balance.
    */
-  async recordMovement({ itemId, variantId, barcode, type, quantity, source, referenceId, userId, locationId, locationType, batchNo = 'DEFAULT', session = null }) {
+  async recordMovement({ itemId, variantId, barcode, type, quantity, source, referenceId, userId, locationId, locationType, batchNo = 'DEFAULT', date = null, session = null }) {
     const StoreInventory = require('../../models/storeInventory.model');
     const WarehouseInventory = require('../../models/warehouseInventory.model');
     const invModel = locationType === 'STORE' ? StoreInventory : WarehouseInventory;
@@ -29,7 +29,7 @@ class StockLedgerService {
     const balanceAfter = currentInv ? (currentInv.quantity || 0) : 0;
 
     // Create ledger entry
-    const entry = new StockLedger({
+    const entryData = {
       itemId,
       variantId,
       barcode,
@@ -42,7 +42,11 @@ class StockLedgerService {
       locationId,
       locationType,
       batchNo
-    });
+    };
+    if (date) {
+      entryData.createdAt = new Date(date);
+    }
+    const entry = new StockLedger(entryData);
 
     return await entry.save({ session });
   }
