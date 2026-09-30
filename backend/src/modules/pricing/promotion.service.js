@@ -44,12 +44,14 @@ class PromotionService {
 
             if (priorityA !== priorityB) return priorityA - priorityB;
 
-            // Secondary sort: Type specificity (BOGO / BUY_X_GET_Y bundle deals evaluated first)
+            // Secondary sort: Type specificity
+            // FLAT_PRICE / FIXED_PRICE run FIRST to set effective price, then BUY_X_GET_Y stacks on top
             const getTypeScore = (s) => {
                 const t = (s.type || '').toUpperCase();
-                if (t === 'BOGO' || t === 'BUY_X_GET_Y') return 1;
-                if (t === 'FIXED_PRICE' || t === 'FLAT_PRICE' || t === 'FREE_GIFT') return 2;
-                return 3; // PERCENTAGE / FLAT
+                if (t === 'FIXED_PRICE' || t === 'FLAT_PRICE') return 1; // Price-setters run first
+                if (t === 'FREE_GIFT') return 2;
+                if (t === 'BOGO' || t === 'BUY_X_GET_Y') return 3; // Quantity deals stack on top
+                return 4; // PERCENTAGE / FLAT
             };
 
             const typeScoreA = getTypeScore(a);
@@ -274,20 +276,27 @@ class PromotionService {
 
                 let eligibleInstances = [];
                 currentItems.forEach((item, idx) => {
-                    if (item.appliedOffer) return;
+                    // BUY_X_GET_Y is STACKABLE — it applies even if item already has a price-setter offer
+                    // (e.g. FLAT_PRICE ₹300 was already applied, now Buy 4 Get 1 Free stacks on top)
+                    // But skip if another BUY_X_GET_Y offer was already applied to avoid double free-item
+                    if (item.buyXGetYApplied) return;
 
                     const matched = this.isItemEligible(item, scheme, schemeProductsMap);
 
                     if (matched) {
+                        // Use effectivePrice (after any price-setter discount) for free-item value calculation
+                        // effectivePrice = originalPrice - per-unit promoDiscount already applied
+                        const perUnitPromoDiscount = item.qty > 0 ? (item.promoDiscount || 0) / item.qty : 0;
+                        const effectivePrice = Math.max(0, item.originalPrice - perUnitPromoDiscount);
                         for (let i = 0; i < item.qty; i++) {
-                            eligibleInstances.push({ ...item, cartIdx: idx, instanceIdx: i });
+                            eligibleInstances.push({ ...item, cartIdx: idx, instanceIdx: i, effectivePrice });
                         }
                     }
                 });
 
                 if (eligibleInstances.length >= totalSet) {
-                    // Sort by price DESC: most expensive first
-                    eligibleInstances.sort((a, b) => b.originalPrice - a.originalPrice);
+                    // Sort by effectivePrice DESC: most expensive first
+                    eligibleInstances.sort((a, b) => b.effectivePrice - a.effectivePrice);
                     
                     const setsCount = Math.floor(eligibleInstances.length / totalSet);
                     const paidCount = setsCount * buy;
@@ -295,23 +304,33 @@ class PromotionService {
                     
                     // PAID = first 'paidCount' (most expensive) — customer pays these
                     const paidInstances = eligibleInstances.slice(0, paidCount);
-                    // FREE = last 'freeCount' (cheapest) — customer gets these free
+                    // FREE = last 'freeCount' (cheapest effective price) — customer gets these free
                     const freeInstances = eligibleInstances.slice(paidCount, paidCount + freeCount);
 
-                    // Mark ALL matched items as 'applied' to prevent double-discounting.
-                    // This includes BOTH the items the customer pays for AND the free items.
+                    // Mark ALL matched items as 'applied' for BUY_X_GET_Y (prevent double free-item)
                     const allMatchedCartIdx = new Set([...paidInstances, ...freeInstances].map(fi => fi.cartIdx));
                     allMatchedCartIdx.forEach(idx => {
-                        currentItems[idx].appliedOffer = scheme.name;
+                        currentItems[idx].buyXGetYApplied = scheme.name;
+                        // Set appliedOffer only if no price-setter was already applied
+                        // (so price-setter label is preserved and visible)
+                        if (!currentItems[idx].appliedOffer) {
+                            currentItems[idx].appliedOffer = scheme.name;
+                        } else {
+                            // Stack: append the BUY_X_GET_Y label
+                            currentItems[idx].appliedOffer = currentItems[idx].appliedOffer + ' + ' + scheme.name;
+                        }
                     });
 
-                    // Apportion the discount across all items (both paid and free) in the promotion set.
+                    // Calculate discount using effectivePrice (post FLAT_PRICE)
+                    // Free items get a discount equal to their effectivePrice (the ₹300 price, not original MRP)
                     const matchedInstances = [...paidInstances, ...freeInstances];
-                    const matchedOriginalTotal = matchedInstances.reduce((sum, inst) => sum + inst.originalPrice, 0);
-                    const matchedPaidTotal = paidInstances.reduce((sum, inst) => sum + inst.originalPrice, 0);
-                    const totalSetDiscount = matchedOriginalTotal - matchedPaidTotal;
+                    const matchedEffectiveTotal = matchedInstances.reduce((sum, inst) => sum + inst.effectivePrice, 0);
+                    const paidEffectiveTotal = paidInstances.reduce((sum, inst) => sum + inst.effectivePrice, 0);
+                    // Discount = value of all free items at their effective price
+                    const totalSetDiscount = matchedEffectiveTotal - paidEffectiveTotal;
 
                     let remainingDiscount = totalSetDiscount;
+                    const ruleLabelSetForIdx = new Set(); // track per-item to avoid duplicate label
                     matchedInstances.forEach((inst, index) => {
                         const originalItem = currentItems[inst.cartIdx];
                         let allocatedDiscount;
@@ -319,18 +338,25 @@ class PromotionService {
                             // Give all remaining discount to the last item to prevent rounding issues
                             allocatedDiscount = Number(remainingDiscount.toFixed(2));
                         } else {
-                            allocatedDiscount = Number((inst.originalPrice * (totalSetDiscount / matchedOriginalTotal)).toFixed(2));
+                            const share = matchedEffectiveTotal > 0 ? inst.effectivePrice / matchedEffectiveTotal : 0;
+                            allocatedDiscount = Number((totalSetDiscount * share).toFixed(2));
                             remainingDiscount -= allocatedDiscount;
                         }
 
                         originalItem.promoDiscount += allocatedDiscount;
-                        originalItem.ruleLabel = type === 'BOGO' ? 'BOGO' : `Buy ${buy} Get ${get} Free`;
+
+                        // Only set ruleLabel once per cart item (not once per instance)
+                        if (!ruleLabelSetForIdx.has(inst.cartIdx)) {
+                            const buyGetLabel = type === 'BOGO' ? 'BOGO' : `Buy ${buy} Get ${get} Free`;
+                            originalItem.ruleLabel = (originalItem.ruleLabel ? originalItem.ruleLabel + ' + ' : '') + buyGetLabel;
+                            ruleLabelSetForIdx.add(inst.cartIdx);
+                        }
                         
                         rawAppliedOffers.push({ 
                             _id: scheme._id, 
                             name: scheme.name, 
                             discount: allocatedDiscount, 
-                            ruleLabel: originalItem.ruleLabel,
+                            ruleLabel: type === 'BOGO' ? 'BOGO' : `Buy ${buy} Get ${get} Free`,
                             type: scheme.type
                         });
                     });
