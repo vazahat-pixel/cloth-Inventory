@@ -342,37 +342,78 @@ const addInTransit = async ({ itemId, barcode, variantId, locationId, locationTy
     barcode = resolved.barcode;
     variantId = resolved.variantId;
 
-    // Use variantId as the primary filter key to match the storeId+variantId unique index.
-    // Filtering by barcode alone risks inserting a duplicate row when the same variant
-    // already exists in storeInventory under a different barcode string, causing E11000.
-    let filter = {};
-    let InventoryModel;
-    if (locationType === 'STORE') {
-        filter = variantId
-            ? { storeId: locationId, variantId }
-            : { storeId: locationId, barcode };
-        InventoryModel = StoreInventory;
-    } else {
-        filter = variantId
-            ? { warehouseId: locationId, variantId }
-            : { warehouseId: locationId, barcode };
-        InventoryModel = WarehouseInventory;
-    }
+    const locField = locationType === 'STORE' ? 'storeId' : 'warehouseId';
+    const InventoryModel = locationType === 'STORE' ? StoreInventory : WarehouseInventory;
 
-    const inventory = await InventoryModel.findOneAndUpdate(
-        filter,
-        {
+    // Check if an existing inventory record exists matching either variantId OR barcode
+    let inventory = await InventoryModel.findOne({
+        [locField]: locationId,
+        $or: [
+            variantId ? { variantId: String(variantId) } : null,
+            barcode ? { barcode: String(barcode) } : null,
+        ].filter(Boolean),
+    }).session(session);
+
+    if (inventory) {
+        const updateOps = {
             $inc: { quantityInTransit: transitQty },
-            $set: { lastUpdated: Date.now(), itemId, barcode, variantId },
-            $setOnInsert: {
-                quantity: 0,
-                ...(locationType === 'STORE' ? { storeId: locationId } : { warehouseId: locationId }),
-            },
-        },
-        { upsert: true, new: true, session },
-    );
+            $set: { lastUpdated: Date.now() },
+        };
+        if (itemId && !inventory.itemId) {
+            updateOps.$set.itemId = itemId;
+        }
+        inventory = await InventoryModel.findByIdAndUpdate(
+            inventory._id,
+            updateOps,
+            { new: true, session }
+        );
+    } else {
+        try {
+            inventory = await InventoryModel.create(
+                [
+                    {
+                        [locField]: locationId,
+                        itemId,
+                        barcode: barcode || String(variantId),
+                        variantId: String(variantId || barcode),
+                        quantity: 0,
+                        ...(locationType === 'STORE' ? { quantityAvailable: 0 } : {}),
+                        quantityInTransit: transitQty,
+                        lastUpdated: Date.now(),
+                    },
+                ],
+                { session }
+            );
+            inventory = inventory[0];
+        } catch (createErr) {
+            if (createErr.code === 11000) {
+                const existing = await InventoryModel.findOne({
+                    [locField]: locationId,
+                    $or: [
+                        variantId ? { variantId: String(variantId) } : null,
+                        barcode ? { barcode: String(barcode) } : null,
+                    ].filter(Boolean),
+                }).session(session);
+
+                if (existing) {
+                    inventory = await InventoryModel.findByIdAndUpdate(
+                        existing._id,
+                        {
+                            $inc: { quantityInTransit: transitQty },
+                            $set: { lastUpdated: Date.now() },
+                        },
+                        { new: true, session }
+                    );
+                } else {
+                    throw createErr;
+                }
+            } else {
+                throw createErr;
+            }
+        }
+    }
     
-    console.log(`[IN-TRANSIT-ADD] Location: ${locationId} (${locationType}), Barcode: ${barcode}, Balance: ${inventory.quantityInTransit}`);
+    console.log(`[IN-TRANSIT-ADD] Location: ${locationId} (${locationType}), Barcode: ${barcode}, Balance: ${inventory?.quantityInTransit}`);
     return inventory;
 };
 
@@ -388,23 +429,17 @@ const removeInTransit = async ({ itemId, barcode, variantId, locationId, locatio
     barcode = resolved.barcode;
     variantId = resolved.variantId;
 
-    let InventoryModel;
-    const filter = {};
-    if (locationType === 'STORE') {
-        filter.storeId = locationId;
-        InventoryModel = StoreInventory;
-    } else {
-        filter.warehouseId = locationId;
-        InventoryModel = WarehouseInventory;
-    }
+    const locField = locationType === 'STORE' ? 'storeId' : 'warehouseId';
+    const InventoryModel = locationType === 'STORE' ? StoreInventory : WarehouseInventory;
 
-    // Attempt 1: Strict Barcode Search
-    let inventory = await InventoryModel.findOne({ ...filter, barcode }).session(session);
-    
-    // Attempt 2: Fallback to Variant Search (Handle barcode changes or legacy dispatches)
-    if (!inventory && variantId) {
-        inventory = await InventoryModel.findOne({ ...filter, variantId }).session(session);
-    }
+    // Search by barcode OR variantId
+    let inventory = await InventoryModel.findOne({
+        [locField]: locationId,
+        $or: [
+            barcode ? { barcode: String(barcode) } : null,
+            variantId ? { variantId: String(variantId) } : null,
+        ].filter(Boolean),
+    }).session(session);
 
     if (!inventory) {
         throw new Error(`CRITICAL: No in-transit record found for Item Code ${barcode || 'N/A'} (Variant: ${variantId}) at ${locationType} ${locationId}. Stock pool may be out of sync.`);

@@ -83,7 +83,7 @@ const VerticalTag = ({ label, mfgLine1, mfgLine2, type, design }) => {
       {/* Barcode Section */}
       <Box sx={{ textAlign: 'center', mb: 1 }}>
         <img src={barcodeImg} style={{ width: '100%', height: '10mm', objectFit: 'contain' }} alt="barcode" />
-        <Typography sx={{ fontSize: '7pt', fontWeight: 600, mt: 0.1, letterSpacing: '0.5mm' }}>{label.article}</Typography>
+        <Typography sx={{ fontSize: '7pt', fontWeight: 600, mt: 0.1, letterSpacing: '0.5mm' }}>{label.barcode || label.sku || label.article}</Typography>
       </Box>
 
       {/* Product Details Section */}
@@ -360,6 +360,7 @@ function BarcodePrintingPage() {
           itemCode: item.itemCode,
           itemName: item.itemName,
           size: variant.size || 'N/A',
+          barcode: variant.barcode || variant.sku || item.itemCode,
           sku: variant.sku || variant.barcode || item.itemCode,
           printQty: 1,
           mrp: variant.mrp || variant.salePrice || item.salePrice || item.mrp || 0,
@@ -384,7 +385,10 @@ function BarcodePrintingPage() {
       const qty = Math.max(0, Number(line.printQty) || 0);
       for (let i = 0; i < qty; i++) {
         labels.push({
-          barcode: line.sku,
+          itemId: line.itemId,
+          variantId: line.variantId,
+          barcode: line.barcode || line.sku,
+          sku: line.sku || line.barcode,
           article: line.article,
           size: line.size,
           mrp: line.mrp,
@@ -527,8 +531,8 @@ function BarcodePrintingPage() {
     const labelsHtml = labels.map(label => `
       <div class="label">
         <div class="barcode-container">
-          <img src="${generateBarcodeDataUrl(label.barcode)}" class="barcode-img" />
-          <div class="barcode-text">${label.article}</div>
+          <img src="${generateBarcodeDataUrl(label.barcode || label.sku)}" class="barcode-img" />
+          <div class="barcode-text">${label.barcode || label.sku || label.article}</div>
         </div>
         
         <div class="spec-container">
