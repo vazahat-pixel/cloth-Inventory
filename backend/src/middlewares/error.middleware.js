@@ -13,7 +13,14 @@ const errorHandler = async (err, req, res, next) => {
 
     // Mongoose duplicate key error
     if (err.code === 11000) {
-        const field = Object.keys(err.keyValue || {})[0];
+        const keys = Object.keys(err.keyValue || {});
+        let field = keys[0];
+        if (keys.length > 1) {
+            const nonLocationKey = keys.find(k => k !== 'warehouseId' && k !== 'storeId');
+            if (nonLocationKey) {
+                field = `Record with ${nonLocationKey} "${err.keyValue[nonLocationKey]}"`;
+            }
+        }
         return res.status(400).json({ success: false, message: `${field || 'Field'} already exists.` });
     }
 
