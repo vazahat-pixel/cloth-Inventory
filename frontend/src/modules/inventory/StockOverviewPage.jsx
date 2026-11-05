@@ -211,6 +211,7 @@ function StockOverviewPage() {
       normalized = normalized.filter((row) => {
         return (
           (row.sku && row.sku.toLowerCase().includes(query)) ||
+          (row.itemCode && row.itemCode.toLowerCase().includes(query)) ||
           (row.itemName && row.itemName.toLowerCase().includes(query)) ||
           (row.color && row.color.toLowerCase().includes(query)) ||
           (row.warehouse && row.warehouse.toLowerCase().includes(query)) ||

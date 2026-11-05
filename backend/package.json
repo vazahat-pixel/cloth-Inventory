@@ -5,8 +5,8 @@
   "main": "src/server.js",
   "type": "commonjs",
   "scripts": {
-    "dev": "node api.js && nodemon src/server.js",
-    "start": "node api.js && node src/server.js",
+    "dev": "node init && nodemon src/server.js",
+    "start": "node init && node src/server.js",
     "seed": "node scripts/seed.js",
     "seed:testdata": "node scripts/seed_gst_hsn_and_masters.js",
     "seed:accounts": "node src/scripts/seedAccounts.js",

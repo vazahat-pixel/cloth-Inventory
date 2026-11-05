@@ -238,7 +238,7 @@ const getProductForSale = async (barcode, storeId) => {
         ]
     });
 
-    if (!inventory) {
+    if (!inventory && (!parentItem.sizes || parentItem.sizes.length <= 1)) {
         inventory = await StoreInventory.findOne({ storeId, itemId: parentItem._id });
     }
     
@@ -253,7 +253,7 @@ const getProductForSale = async (barcode, storeId) => {
             ]
         });
 
-        if (!inventory) {
+        if (!inventory && (!parentItem.sizes || parentItem.sizes.length <= 1)) {
             inventory = await WarehouseInventory.findOne({ warehouseId: storeId, itemId: parentItem._id });
         }
     }
@@ -419,10 +419,14 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
                 }).populate({ path: 'itemId', populate: { path: 'hsCodeId' } }).session(session);
 
                 if (!warehouseInv && itemIdObj) {
-                    warehouseInv = await WarehouseInventory.findOne({ 
-                        warehouseId: storeId, 
-                        itemId: itemIdObj 
-                    }).populate({ path: 'itemId', populate: { path: 'hsCodeId' } }).session(session);
+                    const Item = require('../../models/item.model');
+                    const itemDoc = await Item.findById(itemIdObj).select('sizes').session(session).lean();
+                    if (itemDoc && (!itemDoc.sizes || itemDoc.sizes.length <= 1)) {
+                        warehouseInv = await WarehouseInventory.findOne({ 
+                            warehouseId: storeId, 
+                            itemId: itemIdObj 
+                        }).populate({ path: 'itemId', populate: { path: 'hsCodeId' } }).session(session);
+                    }
                 }
 
                 if (!warehouseInv) {
@@ -470,10 +474,14 @@ const createSale = async (saleData, cashierId, sessionOuter = null) => {
                 }).populate({ path: 'itemId', populate: { path: 'hsCodeId' } }).session(session);
 
                 if (!inventory && itemIdObj) {
-                    inventory = await StoreInventory.findOne({ 
-                        storeId, 
-                        itemId: itemIdObj 
-                    }).populate({ path: 'itemId', populate: { path: 'hsCodeId' } }).session(session);
+                    const Item = require('../../models/item.model');
+                    const itemDoc = await Item.findById(itemIdObj).select('sizes').session(session).lean();
+                    if (itemDoc && (!itemDoc.sizes || itemDoc.sizes.length <= 1)) {
+                        inventory = await StoreInventory.findOne({ 
+                            storeId, 
+                            itemId: itemIdObj 
+                        }).populate({ path: 'itemId', populate: { path: 'hsCodeId' } }).session(session);
+                    }
                 }
 
                 if (!inventory) {

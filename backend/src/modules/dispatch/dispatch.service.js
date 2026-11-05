@@ -120,9 +120,26 @@ const populateDispatchItemsManual = async (dispatches) => {
 ───────────────────────────────────────────── */
 const resolveVariantInfo = async (variantId, session) => {
     const vid = variantId?._id || variantId;
-    const itemDoc = await Item.findOne({ "sizes._id": vid }).session(session);
+    const mongoose = require('mongoose');
+    let itemDoc = null;
+    if (vid && mongoose.Types.ObjectId.isValid(vid)) {
+        itemDoc = await Item.findOne({ "sizes._id": vid }).session(session);
+    }
+    if (!itemDoc) {
+        itemDoc = await Item.findOne({
+            $or: [
+                mongoose.Types.ObjectId.isValid(vid) ? { _id: vid } : null,
+                { itemCode: String(vid) },
+                { "sizes.barcode": String(vid) },
+                { "sizes.sku": String(vid) }
+            ].filter(Boolean)
+        }).session(session);
+    }
     if (!itemDoc) throw new Error(`Item not found for variantId: ${vid}`);
-    const variant = (itemDoc.sizes || []).find(sz => String(sz._id) === String(vid));
+    let variant = (itemDoc.sizes || []).find(sz => String(sz._id) === String(vid));
+    if (!variant) {
+        variant = (itemDoc.sizes || []).find(sz => sz.sku === String(vid) || sz.barcode === String(vid)) || itemDoc.sizes?.[0];
+    }
     if (!variant) throw new Error(`Variant not found: ${vid}`);
     const barcode = variant.sku || variant.barcode || itemDoc.itemCode;
     return { barcode, itemId: itemDoc._id, itemDoc, variant };
@@ -223,21 +240,52 @@ const createDispatch = async (dispatchData, userId) => {
         });
 
         for (const p of finalProducts) {
-            const variantId = p.variantId || p.productId;
-            if (!variantId) throw new Error("Item variant ID missing in request");
+            const rawVid = p.variantId || p.productId;
+            const variantId = rawVid?._id || rawVid;
+            if (!variantId && !p.barcode && !p.sku) throw new Error("Item variant ID missing in request");
 
-            const itemDoc = itemByVariant.get(String(variantId));
+            let itemDoc = variantId ? itemByVariant.get(String(variantId)) : null;
+            if (!itemDoc && (p.barcode || p.sku)) {
+                const bcode = String(p.barcode || p.sku).trim();
+                itemDoc = await Item.findOne({
+                    $or: [
+                        { "sizes.barcode": bcode },
+                        { "sizes.sku": bcode },
+                        { itemCode: bcode }
+                    ]
+                }).populate('hsCodeId').session(session);
+            }
+            if (!itemDoc && p.itemId) {
+                const iid = p.itemId?._id || p.itemId;
+                if (require('mongoose').Types.ObjectId.isValid(iid)) {
+                    itemDoc = await Item.findById(iid).populate('hsCodeId').session(session);
+                }
+            }
+
             if (!itemDoc) {
                 const hint = p.barcode || p.sku || p.itemName || p.name || '';
                 throw new Error(
-                    `Item master record not found for variant ID: ${variantId}` +
+                    `Item master record not found for variant ID: ${variantId || p.barcode || p.sku}` +
                     (hint ? ` (barcode/name: "${hint}")` : '') +
                     `. This item may have been deleted from the master. Please remove it from the challan and try again.`
                 );
             }
 
-            const variant = itemDoc.sizes.id(variantId);
-            if (!variant) throw new Error(`Variant not found in Item Master: ${variantId}`);
+            let variant = variantId ? itemDoc.sizes.id(variantId) : null;
+            if (!variant && (p.barcode || p.sku)) {
+                const bcode = String(p.barcode || p.sku).trim().toUpperCase();
+                variant = (itemDoc.sizes || []).find(sz =>
+                    String(sz.barcode || '').toUpperCase() === bcode ||
+                    String(sz.sku || '').toUpperCase() === bcode
+                );
+            }
+            if (!variant && p.size) {
+                variant = (itemDoc.sizes || []).find(sz => sz.size === p.size);
+            }
+            if (!variant) {
+                variant = itemDoc.sizes?.[0];
+            }
+            if (!variant) throw new Error(`Variant not found in Item Master: ${variantId || p.barcode || p.sku}`);
 
             const baseRate = Number(p.mrp || p.baseRate || p.rate || variant.mrp || itemDoc.salePrice || 0);
             const discountPct = Number(p.discountPercent ?? transferDiscountPct ?? 0);
@@ -428,13 +476,50 @@ const updateDispatch = async (id, dispatchData, userId) => {
         let totalCGST = 0, totalSGST = 0, totalIGST = 0;
 
         for (const p of finalProducts) {
-            const variantId = p.variantId || p.productId;
-            const itemDoc = await Item.findOne({ "sizes._id": variantId })
-                .populate('hsCodeId')
-                .session(session);
+            const rawVid = p.variantId || p.productId;
+            const variantId = rawVid?._id || rawVid;
+            let itemDoc = null;
+            if (variantId && require('mongoose').Types.ObjectId.isValid(variantId)) {
+                itemDoc = await Item.findOne({ "sizes._id": variantId })
+                    .populate('hsCodeId')
+                    .session(session);
+            }
 
-            if (!itemDoc) throw new Error(`Item master record not found during update for variant ID: ${variantId}`);
-            const variant = itemDoc.sizes.id(variantId);
+            if (!itemDoc && (p.barcode || p.sku)) {
+                const bcode = String(p.barcode || p.sku).trim();
+                itemDoc = await Item.findOne({
+                    $or: [
+                        { "sizes.barcode": bcode },
+                        { "sizes.sku": bcode },
+                        { itemCode: bcode }
+                    ]
+                }).populate('hsCodeId').session(session);
+            }
+
+            if (!itemDoc && p.itemId) {
+                const iid = p.itemId?._id || p.itemId;
+                if (require('mongoose').Types.ObjectId.isValid(iid)) {
+                    itemDoc = await Item.findById(iid).populate('hsCodeId').session(session);
+                }
+            }
+
+            if (!itemDoc) throw new Error(`Item master record not found during update for variant ID: ${variantId || p.barcode || p.sku}`);
+            
+            let variant = variantId ? itemDoc.sizes.id(variantId) : null;
+            if (!variant && (p.barcode || p.sku)) {
+                const bcode = String(p.barcode || p.sku).trim().toUpperCase();
+                variant = (itemDoc.sizes || []).find(sz =>
+                    String(sz.barcode || '').toUpperCase() === bcode ||
+                    String(sz.sku || '').toUpperCase() === bcode
+                );
+            }
+            if (!variant && p.size) {
+                variant = (itemDoc.sizes || []).find(sz => sz.size === p.size);
+            }
+            if (!variant) {
+                variant = itemDoc.sizes?.[0];
+            }
+            if (!variant) throw new Error(`Variant not found in Item Master: ${variantId || p.barcode || p.sku}`);
 
             const baseRate = Number(p.mrp || p.baseRate || p.rate || variant.mrp || itemDoc.salePrice || 0);
             const discountPct = Number(p.discountPercent ?? transferDiscountPct ?? 0);
@@ -630,8 +715,16 @@ const confirmDispatch = async (id, userId) => {
                 const itemDoc = confirmItemMap.get(String(item.itemId));
                 if (!itemDoc) throw new Error(`Item not found: ${item.itemId}`);
 
-                const variant = itemDoc.sizes.id(item.variantId);
-                if (!variant) throw new Error(`Variant not found in item master: ${item.variantId}`);
+                let variant = itemDoc.sizes.id(item.variantId);
+                if (!variant && (item.barcode || item.sku)) {
+                    const bcode = String(item.barcode || item.sku).trim().toUpperCase();
+                    variant = (itemDoc.sizes || []).find(sz =>
+                        String(sz.barcode || '').toUpperCase() === bcode ||
+                        String(sz.sku || '').toUpperCase() === bcode
+                    );
+                }
+                if (!variant) variant = itemDoc.sizes?.[0];
+                if (!variant) throw new Error(`Variant not found in item master: ${item.variantId || item.barcode || item.sku}`);
 
                 const qty = Number(item.qty || 0);
                 const rate = Number(item.rate || variant.mrp || itemDoc.mrp || 0);
@@ -903,8 +996,16 @@ const combineAndConfirmDispatch = async ({ dispatchIds, notes, date, vehicleNumb
             const itemDoc = itemDocsMap.get(item.itemId.toString());
             if (!itemDoc) throw new Error(`Item not found: ${item.itemId}`);
 
-            const variant = itemDoc.sizes.id(item.variantId);
-            if (!variant) throw new Error(`Variant not found in item master: ${item.variantId}`);
+            let variant = itemDoc.sizes.id(item.variantId);
+            if (!variant && (item.barcode || item.sku)) {
+                const bcode = String(item.barcode || item.sku).trim().toUpperCase();
+                variant = (itemDoc.sizes || []).find(sz =>
+                    String(sz.barcode || '').toUpperCase() === bcode ||
+                    String(sz.sku || '').toUpperCase() === bcode
+                );
+            }
+            if (!variant) variant = itemDoc.sizes?.[0];
+            if (!variant) throw new Error(`Variant not found in item master: ${item.variantId || item.barcode || item.sku}`);
 
             const qty = item.qty;
             const rate = Number(item.rate || variant.mrp || itemDoc.mrp || 0);
