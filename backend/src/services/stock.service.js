@@ -150,7 +150,7 @@ const _resolveStockIdentifiers = async ({ itemId, barcode, variantId, session })
                     (size) => size.barcode === resolvedBarcode || size.sku === resolvedBarcode
                 );
             }
-            if (!variant) {
+            if (!variant && (!item.sizes || item.sizes.length <= 1)) {
                 variant = item.sizes?.[0];
             }
 
@@ -222,14 +222,21 @@ const _updateInventory = async ({ itemId, barcode, variantId, locationId, locati
         ].filter(Boolean)
     }).session(session);
 
-    if (!inventory && itemId) {
-        inventory = await InventoryModel.findOne({
-            [locField]: locationId,
-            itemId
-        }).session(session);
+    // CRITICAL: Only allow fallback to itemId if delta < 0 (deduction) AND the item has NO variants / at most 1 size.
+    // When delta > 0 (receiving stock via GRN / inward), each variant MUST create its own inventory row
+    // and NEVER merge into another variant of the same garment item.
+    if (!inventory && itemId && delta < 0) {
+        const Item = require('../models/item.model');
+        const itemDoc = await Item.findById(itemId).select('type sizes itemCode').session(session).lean();
+        if (itemDoc && (!itemDoc.sizes || itemDoc.sizes.length <= 1)) {
+            inventory = await InventoryModel.findOne({
+                [locField]: locationId,
+                itemId
+            }).session(session);
+        }
     }
 
-    if (!inventory) {
+    if (!inventory && delta < 0) {
         const Item = require('../models/item.model');
         const mongoose = require('mongoose');
         const isValidId = variantId ? mongoose.Types.ObjectId.isValid(variantId) : false;
@@ -244,15 +251,33 @@ const _updateInventory = async ({ itemId, barcode, variantId, locationId, locati
         }).session(session);
 
         if (resolvedItem) {
-            inventory = await InventoryModel.findOne({
-                [locField]: locationId,
-                $or: [
-                    { itemId: resolvedItem._id },
-                    { barcode: resolvedItem.itemCode },
-                    { barcode: resolvedItem.itemCode.toUpperCase() },
-                    { barcode: barcode }
-                ]
-            }).session(session);
+            if (resolvedItem.sizes && resolvedItem.sizes.length > 1) {
+                const matchedSize = resolvedItem.sizes.find(s =>
+                    String(s._id) === String(variantId) ||
+                    s.barcode === barcode ||
+                    s.sku === barcode
+                );
+                if (matchedSize) {
+                    const candidateBarcodes = [matchedSize.barcode, matchedSize.sku].filter(Boolean);
+                    inventory = await InventoryModel.findOne({
+                        [locField]: locationId,
+                        $or: [
+                            { variantId: String(matchedSize._id) },
+                            { barcode: { $in: candidateBarcodes } }
+                        ]
+                    }).session(session);
+                }
+            } else {
+                inventory = await InventoryModel.findOne({
+                    [locField]: locationId,
+                    $or: [
+                        { itemId: resolvedItem._id },
+                        { barcode: resolvedItem.itemCode },
+                        { barcode: resolvedItem.itemCode.toUpperCase() },
+                        { barcode: barcode }
+                    ]
+                }).session(session);
+            }
         }
     }
     
