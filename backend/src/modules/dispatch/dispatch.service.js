@@ -1438,22 +1438,39 @@ const receiveDispatch = async (id, userId, receivedItems = []) => {
         }
 
         // Full receive only — no partial receipts
-        for (const item of dispatch.items || []) {
-            const verified = (receivedItems || []).find((ri) => String(ri.variantId) === String(item.variantId));
-            const receivedQty = verified ? Number(verified.receivedQty || 0) : Number(item.qty || 0);
-            const dispatchedQty = Number(item.qty || 0);
+        if (Array.isArray(receivedItems) && receivedItems.length > 0) {
+            const getVariantKey = (doc) => {
+                const v = doc?.variantId?._id || doc?.variantId;
+                if (v) return String(v);
+                if (doc?.barcode) return String(doc.barcode).trim();
+                return 'UNKNOWN';
+            };
 
-            if (receivedQty !== dispatchedQty) {
-                throw new Error(
-                    `Partial receive not allowed. Item (${item.barcode || 'N/A'}) dispatched ${dispatchedQty} pcs but ${receivedQty} pcs entered. Receive full dispatched quantity.`,
-                );
+            const expectedTotals = new Map();
+            for (const item of dispatch.items || []) {
+                const key = getVariantKey(item);
+                expectedTotals.set(key, (expectedTotals.get(key) || 0) + Number(item.qty || 0));
             }
-        }
 
-        for (const ri of receivedItems || []) {
-            const isDispatched = (dispatch.items || []).find((item) => String(item.variantId) === String(ri.variantId));
-            if (!isDispatched && Number(ri.receivedQty) > 0) {
-                throw new Error('Mismatch Alert: Attempting to receive an item that was not dispatched.');
+            const receivedTotals = new Map();
+            for (const ri of receivedItems) {
+                const key = getVariantKey(ri);
+                receivedTotals.set(key, (receivedTotals.get(key) || 0) + Number(ri.receivedQty || 0));
+            }
+
+            for (const [key, expQty] of expectedTotals.entries()) {
+                const recQty = receivedTotals.get(key) ?? 0;
+                if (recQty !== expQty) {
+                    throw new Error(
+                        `Partial receive not allowed. Item (${key}) dispatched ${expQty} pcs but received ${recQty} pcs. Receive full dispatched quantity.`
+                    );
+                }
+            }
+
+            for (const [key, recQty] of receivedTotals.entries()) {
+                if (recQty > 0 && !expectedTotals.has(key)) {
+                    throw new Error(`Mismatch Alert: Attempting to receive an item that was not dispatched (${key}).`);
+                }
             }
         }
 
@@ -1481,6 +1498,24 @@ const receiveDispatch = async (id, userId, receivedItems = []) => {
             throw new Error('Only dispatched items can be received. Current status: ' + (existing?.status || 'unknown'));
         }
 
+        // ── LAYER 4: StockLedger duplicate check ─────────────────────────
+        // Pre-check before processing: if a ledger entry already exists for this
+        // dispatch at this store, abort early to prevent double stock-in.
+        const existingLedger = await StockLedger.findOne({
+            referenceId: dispatch._id,
+            locationType: 'STORE',
+            type: 'IN'
+        }).session(session).lean();
+
+        if (existingLedger) {
+            const err = new Error(
+                `LEDGER_DUPLICATE_BLOCKED: Stock ledger entry already exists for dispatch ` +
+                `${dispatch.dispatchNumber}. Aborting to prevent double stock-in.`
+            );
+            err.statusCode = 409;
+            throw err;
+        }
+
         const itemsToProcess = dispatch.items || [];
         const Item = require('../../models/item.model');
         const Store = require('../../models/store.model');
@@ -1492,23 +1527,57 @@ const receiveDispatch = async (id, userId, receivedItems = []) => {
             destinationStore = await Store.findById(dispatch.destinationStoreId).session(session);
         }
 
+        // Consolidate identical items by itemId, variantId, barcode before processing
+        const consolidatedMap = new Map();
         for (const item of itemsToProcess) {
-            // Fallback for legacy dispatches missing itemId/barcode
             let itmId = item.itemId;
             let bcode = item.barcode;
+            const vid = String(item.variantId?._id || item.variantId || '');
 
             if (!itmId || !bcode) {
-                const parent = await Item.findOne({ "sizes._id": String(item.variantId) }).session(session);
+                const parent = await Item.findOne({ "sizes._id": vid }).session(session);
                 if (parent) {
                     itmId = itmId || parent._id;
-                    const variant = (parent.sizes || []).find(sz => String(sz._id) === String(item.variantId));
+                    const variant = (parent.sizes || []).find(sz => String(sz._id) === vid);
                     bcode = bcode || (variant ? (variant.sku || variant.barcode || parent.itemCode) : 'UNKNOWN');
                 } else {
-                    // Critical fallback if item is gone or mismatch
-                    itmId = itmId || item.variantId;
+                    itmId = itmId || vid;
                     bcode = bcode || 'LEGACY';
                 }
             }
+
+            const key = `${itmId}_${vid}_${bcode}`;
+            const qty = Number(item.qty || 0);
+            const rate = Number(item.rate || 0);
+            const tax = Number(item.tax || 0);
+
+            if (consolidatedMap.has(key)) {
+                const existing = consolidatedMap.get(key);
+                const totalQty = existing.qty + qty;
+                if (totalQty > 0) {
+                    existing.rate = ((existing.rate * existing.qty) + (rate * qty)) / totalQty;
+                    existing.tax = ((existing.tax * existing.qty) + (tax * qty)) / totalQty;
+                }
+                existing.qty = totalQty;
+            } else {
+                consolidatedMap.set(key, {
+                    ...(item.toObject ? item.toObject() : item),
+                    itemId: itmId,
+                    variantId: vid,
+                    barcode: bcode,
+                    qty,
+                    rate,
+                    tax
+                });
+            }
+        }
+
+        for (const item of consolidatedMap.values()) {
+            const qtyToReceive = Number(item.qty || 0);
+            if (qtyToReceive <= 0) continue;
+
+            const itmId = item.itemId;
+            const bcode = item.barcode;
 
             // 1. Clear in-transit pool — must succeed or receive rolls back
             await stockService.removeInTransit({
@@ -1517,58 +1586,35 @@ const receiveDispatch = async (id, userId, receivedItems = []) => {
                 variantId: item.variantId,
                 locationId: dispatch.destinationStoreId,
                 locationType: 'STORE',
-                qty: item.qty,
+                qty: qtyToReceive,
                 session
             });
 
             // 2. Add full dispatched quantity to physical inventory
-            const qtyToReceive = Number(item.qty || 0);
+            let targetBarcode = bcode;
+            if (relabelOnTransfer) {
+                const storeCode = destinationStore ? destinationStore.storeCode : 'STR';
+                targetBarcode = `${storeCode}-${bcode}`;
+            }
 
-            if (qtyToReceive > 0) {
-                let targetBarcode = bcode;
-                if (relabelOnTransfer) {
-                    const storeCode = destinationStore ? destinationStore.storeCode : 'STR';
-                    targetBarcode = `${storeCode}-${bcode}`;
-                }
+            // In receiving, we use total per item instead of individual taxAmount field 
+            // as 'taxAmount' wasn't stored per line in early versions.
+            const landingCost = (item.rate || 0) + (item.tax || 0);
 
-                // In receiving, we use total per item instead of individual taxAmount field 
-                // as 'taxAmount' wasn't stored per line in early versions.
-                const landingCost = (item.rate || 0) + (item.tax || 0);
-
-            // ── LAYER 4: StockLedger duplicate check ─────────────────────────
-            // Last line of defence: if a ledger entry already exists for this
-            // dispatch + barcode at this store, something went very wrong — abort.
-            const existingLedger = await StockLedger.findOne({
-                referenceId: dispatch._id,
+            await stockService.addStock({
+                itemId: itmId,
                 barcode: targetBarcode,
+                variantId: item.variantId,
+                locationId: dispatch.destinationStoreId,
                 locationType: 'STORE',
-                type: 'IN'
-            }).session(session).lean();
-
-            if (existingLedger) {
-                const err = new Error(
-                    `LEDGER_DUPLICATE_BLOCKED: Stock ledger entry already exists for dispatch ` +
-                    `${dispatch.dispatchNumber}, barcode ${targetBarcode}. Aborting to prevent double stock-in.`
-                );
-                err.statusCode = 409;
-                throw err;
-            }
-
-                await stockService.addStock({
-                    itemId: itmId,
-                    barcode: targetBarcode,
-                    variantId: item.variantId,
-                    locationId: dispatch.destinationStoreId,
-                    locationType: 'STORE',
-                    qty: qtyToReceive,
-                    type: 'RECEIVE',
-                    purchaseRate: landingCost,
-                    referenceId: dispatch._id,
-                    referenceType: 'Dispatch',
-                    performedBy: userId,
-                    session
-                });
-            }
+                qty: qtyToReceive,
+                type: 'RECEIVE',
+                purchaseRate: landingCost,
+                referenceId: dispatch._id,
+                referenceType: 'Dispatch',
+                performedBy: userId,
+                session
+            });
         }
 
         // If this is a combined master dispatch (DSP-xxxxx), automatically mark all child challans as RECEIVED
